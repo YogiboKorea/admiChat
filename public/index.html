@@ -8,6 +8,8 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      list-style:none;
+      font-size:12px;
     }
 
     body {
@@ -220,7 +222,7 @@
       
       try {
         // 서버에 요청 (엔드포인트 URL은 실제 서버 주소로 변경)
-        const response = await fetch("https://port-0-ychat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
+        const response = await fetch("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
