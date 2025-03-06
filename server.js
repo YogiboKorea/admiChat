@@ -136,7 +136,7 @@ async function getTop10ProductsByAddCart() {
     start_date,
     end_date,
     device_type: 'total',   // pc, mobile, total 중 선택
-    limit: 100,             // 최소 50, 최대 1000 (여기서는 100)
+    limit: 10,             // 최소 50, 최대 1000 (여기서는 100)
     offset: 0,
     sort: 'add_cart_count', // 정렬 기준: 장바구니에 담긴수
     order: 'desc'           // 내림차순 정렬
