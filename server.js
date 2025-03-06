@@ -154,7 +154,7 @@ async function getTop10ProductsByAddCart() {
     // 응답 데이터 출력 (응답 구조 확인용)
     console.log("API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이 아닐 경우, 배열로 추출 (예: response.data.action, response.data.products, 또는 response.data.data)
+    // 응답 데이터가 배열이 아닐 경우, 배열로 추출
     let products = response.data;
     if (!Array.isArray(products)) {
       if (products.action && Array.isArray(products.action)) {
@@ -201,9 +201,10 @@ app.post("/chat", async (req, res) => {
   if (userInput.includes("장바구니 베스트 10 알려줘")) {
     try {
       const topProducts = await getTop10ProductsByAddCart();
+      // displayText를 하나의 문자열로 합침 (각 항목은 줄바꿈 처리)
+      const productListText = topProducts.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "최근 2주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.",
-        data: topProducts
+        text: "최근 2주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
       });
     } catch (error) {
       return res.status(500).json({ text: "데이터를 가져오는 중 오류가 발생했습니다." });
