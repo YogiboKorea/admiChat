@@ -15,7 +15,7 @@ const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
-const CAFE24_MALLID = process.env.CAFE24_MALLID;
+const CAFE24_MALLID = process.env.CAFE24_MALLID;  // 반드시 mall_id 설정되어 있어야 함
 const OPEN_URL = process.env.OPEN_URL;  // 예: "https://api.openai.com/v1/chat/completions"
 const API_KEY = process.env.API_KEY;    // OpenAI API 키
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
@@ -127,8 +127,9 @@ function getLastTwoWeeksDates() {
 }
 
 // 제품 상세정보를 가져오는 함수 (/api/v2/admin/products/{product_no})
+// mall_id 쿼리 파라미터를 추가하여 요청
 async function getProductDetail(product_no) {
-  const url = `https://ca-api.cafe24data.com/api/v2/admin/products/${product_no}`;
+  const url = `https://ca-api.cafe24data.com/api/v2/admin/products/${product_no}?mall_id=${CAFE24_MALLID}`;
   try {
     const response = await axios.get(url, {
       headers: {
@@ -136,7 +137,6 @@ async function getProductDetail(product_no) {
         'Content-Type': 'application/json'
       }
     });
-    // 응답 예시: { product: { product_name: "iPhone X", ... } }
     if (response.data && response.data.product && response.data.product.product_name) {
       console.log(`Product detail for ${product_no}:`, response.data.product.product_name);
       return response.data.product.product_name;
@@ -175,7 +175,6 @@ async function getTop10ProductsByAddCart() {
 
     console.log("API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이 아닐 경우, 배열로 추출
     let products = response.data;
     if (!Array.isArray(products)) {
       if (products.action && Array.isArray(products.action)) {
@@ -189,14 +188,11 @@ async function getTop10ProductsByAddCart() {
       }
     }
 
-    // 상위 10개 상품 추출
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세정보를 조회하여 product_name(두 번째 API의 값)만 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
-        // detailName이 없으면 기본값 '상품' 사용
         const finalName = detailName || '상품';
         return {
           ...product,
@@ -218,12 +214,11 @@ async function getTop10ProductsByAddCart() {
 // ========== [6] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
-  const memberId = req.body.memberId; // 프론트에서 전달한 회원 ID
+  const memberId = req.body.memberId;
   if (!userInput) {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  // 사용자가 "장바구니 베스트 10 알려줘"라고 입력한 경우
   if (userInput.includes("장바구니 베스트 10 알려줘")) {
     try {
       const topProducts = await getTop10ProductsByAddCart();
@@ -236,7 +231,6 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  // 다른 메시지에 대한 처리 (필요 시 추가)
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
