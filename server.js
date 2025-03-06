@@ -119,7 +119,7 @@ async function apiRequest(method, url, data = {}, params = {}) {
 // ========== [5] Yogibo 브랜드 시스템 프롬프트 ==========
 const YOGIBO_SYSTEM_PROMPT = `
 마케팅 용으로 사용되는 데이터야 전문데이터를 회사 직원인 마케터 들에게 전달 하는 방식으로
-간격하게 해당 데이터를 받아와 간결하게 정리해서 답변해줘
+간결하게 해당 데이터를 받아와 정리해서 답변해줘
 `;
 
 // ========== [6] OpenAI GPT (fallback) 함수 ==========
@@ -150,7 +150,6 @@ async function getGPT3TurboResponse(userInput) {
 }
 
 // ========== [7] 최근 2주간 날짜 계산 및 상위 10개 상품 조회 함수 ==========
-// 최근 2주간의 날짜 범위 계산 (yyyy-mm-dd 형식)
 function getLastTwoWeeksDates() {
   const now = new Date();
   const end_date = now.toISOString().split('T')[0];
@@ -199,6 +198,9 @@ async function getTop10ProductsByAddCart() {
       };
     });
 
+    // 데이터가 제대로 불러와졌는지 console.log로 출력
+    console.log("불러온 상위 10개 상품 데이터:", top10ProductsWithMessage);
+
     return top10ProductsWithMessage;
   } catch (error) {
     console.error('Error fetching products:', error.response ? error.response.data : error.message);
@@ -206,10 +208,9 @@ async function getTop10ProductsByAddCart() {
   }
 }
 
-
 // ========== [8] 챗봇 관련 보조 함수 ==========
 async function findAnswer(userInput, memberId) {
-  // 여기서는 기본적으로 질문을 이해하지 못한 경우를 반환하는 예시입니다.
+  // 기본적으로 질문을 이해하지 못한 경우를 반환하는 예시
   return { text: "질문을 이해하지 못했어요. 좀더 자세히 입력 해주시겠어요", videoHtml: null, description: null, imageUrl: null };
 }
 
