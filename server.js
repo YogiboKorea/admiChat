@@ -165,14 +165,14 @@ async function getTop10ProductsByAddCart() {
   const url = 'https://ca-api.cafe24data.com/carts/action';
   const params = {
     mall_id: 'yogibo',      // 실제 몰 아이디로 변경
-    shop_no: 1,                 // 기본 샵 번호 (DEFAULT 1)
+    shop_no: 1,             // 기본 샵 번호 (DEFAULT 1)
     start_date,
     end_date,
-    device_type: 'total',       // pc, mobile, total 중 선택
-    limit: 100,                 // 최소 50, 최대 1000 (여기서는 100)
+    device_type: 'total',   // pc, mobile, total 중 선택
+    limit: 100,             // 최소 50, 최대 1000 (여기서는 100)
     offset: 0,
-    sort: 'add_cart_count',     // 정렬 기준: 장바구니에 담긴수
-    order: 'desc'               // 내림차순 정렬
+    sort: 'add_cart_count', // 정렬 기준: 장바구니에 담긴수
+    order: 'desc'           // 내림차순 정렬
   };
 
   try {
@@ -183,15 +183,28 @@ async function getTop10ProductsByAddCart() {
       },
       params
     });
-    // 응답 데이터 구조에 따라 필요시 아래 코드를 수정
+
+    // 응답 데이터가 배열 형태라고 가정
     const products = response.data;
-    const top10Products = products.slice(0, 10);
-    return top10Products;
+
+    // 상위 10개 상품 추출 후 순위 및 카운트 문구 추가
+    const top10ProductsWithMessage = products.slice(0, 10).map((product, index) => {
+      const rank = index + 1;
+      const productName = product.product_name || '상품';
+      const count = product.add_cart_count || 0;
+      return {
+        ...product,
+        displayText: `${rank}위: ${productName} - 총 ${count} 개 상품이 장바구니에 담겨 있습니다.`
+      };
+    });
+
+    return top10ProductsWithMessage;
   } catch (error) {
     console.error('Error fetching products:', error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
 
 // ========== [8] 챗봇 관련 보조 함수 ==========
 async function findAnswer(userInput, memberId) {
@@ -220,6 +233,7 @@ app.post("/chat", async (req, res) => {
   if (
     userInput.includes("최근 2주") &&
     userInput.includes("장바구니") &&
+    userInput.includes("장바구니 베스트 상품") &&
     userInput.includes("베스트 상품 10개")
   ) {
     try {
