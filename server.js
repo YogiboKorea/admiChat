@@ -15,9 +15,9 @@ const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
-const CAFE24_MALLID = process.env.CAFE24_MALLID;  // 반드시 mall_id 설정되어 있어야 함
-const OPEN_URL = process.env.OPEN_URL;  // 예: "https://api.openai.com/v1/chat/completions"
-const API_KEY = process.env.API_KEY;    // OpenAI API 키
+const CAFE24_MALLID = process.env.CAFE24_MALLID;  // mall_id가 반드시 설정되어야 함
+const OPEN_URL = process.env.OPEN_URL;  
+const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
 
@@ -127,7 +127,7 @@ function getLastTwoWeeksDates() {
 }
 
 // 제품 상세정보를 가져오는 함수 (/api/v2/admin/products/{product_no})
-// mall_id 쿼리 파라미터를 추가하여 요청
+// mall_id를 쿼리 파라미터로 추가하여 호출
 async function getProductDetail(product_no) {
   const url = `https://ca-api.cafe24data.com/api/v2/admin/products/${product_no}?mall_id=${CAFE24_MALLID}`;
   try {
@@ -137,6 +137,7 @@ async function getProductDetail(product_no) {
         'Content-Type': 'application/json'
       }
     });
+    // 반환된 응답에서 product_name만 추출
     if (response.data && response.data.product && response.data.product.product_name) {
       console.log(`Product detail for ${product_no}:`, response.data.product.product_name);
       return response.data.product.product_name;
@@ -190,9 +191,11 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
+    // 각 상품에 대해 product_no를 활용하여 상세 API 호출 후, 받은 product_name을 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
+        // detailName이 있으면 이를 사용, 없으면 기본값 '상품'
         const finalName = detailName || '상품';
         return {
           ...product,
