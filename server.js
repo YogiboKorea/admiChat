@@ -126,7 +126,28 @@ function getLastTwoWeeksDates() {
   return { start_date, end_date };
 }
 
-// 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수
+// 제품 상세정보를 가져오는 함수 (/api/v2/admin/products/{product_no})
+async function getProductDetail(product_no) {
+  const url = `https://ca-api.cafe24data.com/api/v2/admin/products/${product_no}`;
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    // 응답 예시: { product: { product_name: "iPhone X", ... } }
+    if (response.data && response.data.product) {
+      return response.data.product.product_name;
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error fetching product detail for product_no ${product_no}:`, error.response ? error.response.data : error.message);
+    return null;
+  }
+}
+
+// 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 (추가로 product_name을 재조회)
 async function getTop10ProductsByAddCart() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/carts/action';
@@ -168,21 +189,27 @@ async function getTop10ProductsByAddCart() {
       }
     }
 
-    // 상위 10개 상품 추출 후 순위 및 카운트 문구 추가
-    const top10ProductsWithMessage = products.slice(0, 10).map((product, index) => {
-      const rank = index + 1;
-      const productName = product.product_name || '상품';
-      const count = product.add_cart_count || 0;
-      return {
-        ...product,
-        displayText: `${rank}위: ${productName} - 총 ${count} 개 상품이 장바구니에 담겨 있습니다.`
-      };
-    });
+    // 상위 10개 상품 추출
+    const top10 = products.slice(0, 10);
+
+    // 각 상품에 대해 product_no로 상세 정보를 조회하여 product_name 업데이트
+    const updatedTop10 = await Promise.all(
+      top10.map(async (product, index) => {
+        const newName = await getProductDetail(product.product_no);
+        const productName = newName || product.product_name || '상품';
+        return {
+          ...product,
+          rank: index + 1,
+          product_name: productName,
+          displayText: `${index + 1}위: ${productName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+        };
+      })
+    );
 
     // 데이터가 제대로 불러와졌는지 console.log로 출력
-    console.log("불러온 상위 10개 상품 데이터:", top10ProductsWithMessage);
+    console.log("불러온 상위 10개 상품 데이터:", updatedTop10);
 
-    return top10ProductsWithMessage;
+    return updatedTop10;
   } catch (error) {
     console.error('Error fetching products:', error.response ? error.response.data : error.message);
     throw error;
