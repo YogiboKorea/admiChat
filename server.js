@@ -151,8 +151,20 @@ async function getTop10ProductsByAddCart() {
       params
     });
 
-    // 응답 데이터가 배열 형태라고 가정
-    const products = response.data;
+    // 응답 데이터 출력 (응답 구조 확인용)
+    console.log("API 응답 데이터:", response.data);
+
+    // 응답 데이터가 배열이 아닐 경우, 배열로 추출 (예: response.data.products 또는 response.data.data)
+    let products = response.data;
+    if (!Array.isArray(products)) {
+      if (products.products && Array.isArray(products.products)) {
+        products = products.products;
+      } else if (products.data && Array.isArray(products.data)) {
+        products = products.data;
+      } else {
+        throw new Error("Unexpected product data structure");
+      }
+    }
 
     // 상위 10개 상품 추출 후 순위 및 카운트 문구 추가
     const top10ProductsWithMessage = products.slice(0, 10).map((product, index) => {
