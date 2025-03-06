@@ -148,7 +148,7 @@ async function getProductDetail(product_no) {
   }
 }
 
-// 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 (상세정보를 활용)
+// 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 (상세정보의 product_name만 사용)
 async function getTop10ProductsByAddCart() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/carts/action';
@@ -192,12 +192,12 @@ async function getTop10ProductsByAddCart() {
     // 상위 10개 상품 추출
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세정보를 조회하여 product_name 업데이트
+    // 각 상품에 대해 상세정보를 조회하여 product_name(두 번째 API의 값)만 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
-        // detailName이 유효하면 이를 사용, 아니면 기존 값을 사용
-        const finalName = detailName || product.product_name || '상품';
+        // detailName이 없으면 기본값 '상품' 사용
+        const finalName = detailName || '상품';
         return {
           ...product,
           rank: index + 1,
