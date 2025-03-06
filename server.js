@@ -145,7 +145,7 @@ async function getTop10ProductsByAddCart() {
   try {
     const response = await axios.get(url, {
       headers: {
-        'Authorization': 'Bearer {access_token}', // 실제 access token으로 교체
+        'Authorization': `Bearer ${accessToken}`, // 실제 access token 사용
         'Content-Type': 'application/json'
       },
       params
@@ -196,7 +196,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  // 다른 메시지에 대한 처리 로직 (필요 시 추가)
+  // 다른 메시지에 대한 처리 (필요 시 추가)
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
