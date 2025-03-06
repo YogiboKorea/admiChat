@@ -29,14 +29,6 @@ app.use(compression());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ========== [2] JSON 데이터 로드 (FAQ/제품 안내 등) ==========
-const companyDataPath = path.join(__dirname, "json", "companyData.json");
-const companyData = JSON.parse(fs.readFileSync(companyDataPath, "utf-8"));
-
-// 간단한 맥락 변수 (서버 메모리에 저장: 실제 운영 시 세션/DB로 관리 권장)
-let pendingCoveringContext = false;
-let pendingWashingContext = false;
-
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
 
