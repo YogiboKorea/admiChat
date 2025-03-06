@@ -16,6 +16,9 @@ const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
 const CAFE24_MALLID = process.env.CAFE24_MALLID;
+const OPEN_URL = process.env.OPEN_URL;  // 예: "https://api.openai.com/v1/chat/completions"
+const API_KEY = process.env.API_KEY;    // OpenAI API 키
+const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
 
 // ========== [2] Express 앱 기본 설정 ==========
@@ -172,18 +175,29 @@ async function getTop10ProductsByAddCart() {
   }
 }
 
-// ========== [6] API 데이터 나열 엔드포인트 ==========
-// GET /products 요청 시, 상위 10개 상품 정보를 응답
-app.get("/products", async (req, res) => {
-  try {
-    const topProducts = await getTop10ProductsByAddCart();
-    res.json({
-      text: "최근 2주간 장바구니에 많이 담긴 상위 10개 상품입니다.",
-      data: topProducts
-    });
-  } catch (error) {
-    res.status(500).json({ text: "데이터를 가져오는 중 오류가 발생했습니다." });
+// ========== [6] 채팅 엔드포인트 (/chat) ==========
+app.post("/chat", async (req, res) => {
+  const userInput = req.body.message;
+  const memberId = req.body.memberId; // 프론트에서 전달한 회원 ID
+  if (!userInput) {
+    return res.status(400).json({ error: "Message is required" });
   }
+
+  // 사용자가 "장바구니 베스트 10 알려줘"라고 입력한 경우
+  if (userInput.includes("장바구니 베스트 10 알려줘")) {
+    try {
+      const topProducts = await getTop10ProductsByAddCart();
+      return res.json({
+        text: "최근 2주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.",
+        data: topProducts
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
+  // 다른 메시지에 대한 처리 로직 (필요 시 추가)
+  return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
 // ========== [7] 서버 시작 ==========
