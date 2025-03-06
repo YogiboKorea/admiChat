@@ -136,7 +136,7 @@ async function getTop10ProductsByAddCart() {
     start_date,
     end_date,
     device_type: 'total',   // pc, mobile, total 중 선택
-    limit: 10,             // 최소 50, 최대 1000 (여기서는 100)
+    limit: 100,             // 최소 50, 최대 1000 (여기서는 100)
     offset: 0,
     sort: 'add_cart_count', // 정렬 기준: 장바구니에 담긴수
     order: 'desc'           // 내림차순 정렬
@@ -154,10 +154,12 @@ async function getTop10ProductsByAddCart() {
     // 응답 데이터 출력 (응답 구조 확인용)
     console.log("API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이 아닐 경우, 배열로 추출 (예: response.data.products 또는 response.data.data)
+    // 응답 데이터가 배열이 아닐 경우, 배열로 추출 (예: response.data.action, response.data.products, 또는 response.data.data)
     let products = response.data;
     if (!Array.isArray(products)) {
-      if (products.products && Array.isArray(products.products)) {
+      if (products.action && Array.isArray(products.action)) {
+        products = products.action;
+      } else if (products.products && Array.isArray(products.products)) {
         products = products.products;
       } else if (products.data && Array.isArray(products.data)) {
         products = products.data;
