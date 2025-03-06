@@ -1,7 +1,3 @@
-/******************************************************
- * server.js - JSON FAQ + 주문배송 로직 + ChatGPT fallback + 대화 로그 저장 (당일 대화 배열 업데이트)
- ******************************************************/
-
 const express = require("express");
 const bodyParser = require("body-parser");
 const fs = require("fs");
@@ -10,8 +6,6 @@ const cors = require("cors");
 const compression = require("compression");
 const axios = require("axios");
 const { MongoClient } = require("mongodb");
-const levenshtein = require("fast-levenshtein");
-const ExcelJS = require('exceljs');
 require("dotenv").config();
 
 // ========== [1] 환경변수 및 기본 설정 ==========
