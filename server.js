@@ -171,7 +171,6 @@ async function getTop10ProductsByAddCart() {
       },
       params
     });
-
     console.log("API 응답 데이터:", response.data);
     let products = response.data;
     if (!Array.isArray(products)) {
@@ -185,9 +184,7 @@ async function getTop10ProductsByAddCart() {
         throw new Error("Unexpected product data structure");
       }
     }
-
     const top10 = products.slice(0, 10);
-
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
@@ -200,7 +197,6 @@ async function getTop10ProductsByAddCart() {
         };
       })
     );
-
     console.log("불러온 상위 10개 상품 데이터:", updatedTop10);
     return updatedTop10;
   } catch (error) {
@@ -270,7 +266,6 @@ async function getTop10PagesByView() {
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
 function formatCurrency(amount) {
   const num = Number(amount) || 0;
-  // 만약 값이 1조 이상이면 조 단위로 표시 (예: 1.23 조)
   if (num >= 1e12) {
     return (num / 1e12).toFixed(2) + " 조";
   } else if (num >= 1e8) {
@@ -334,10 +329,10 @@ async function getSalesTimesRanking() {
   }
 }
 
-// ========== [10] 키워드별 구매 순위 조회 함수 ==========
-async function getTop10AdKeywordSales() {
+// ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
+async function getTop10AdSales() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitpaths/keywordsales';
+  const url = 'https://ca-api.cafe24data.com/visitpaths/adsales';
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
@@ -346,7 +341,7 @@ async function getTop10AdKeywordSales() {
     device_type: 'total',
     limit: 100,
     offset: 0,
-    sort: 'order_amount', // 기본값: 매출액 기준 정렬
+    sort: 'order_amount',
     order: 'desc'
   };
 
@@ -358,45 +353,30 @@ async function getTop10AdKeywordSales() {
       },
       params
     });
-    console.log("Keyword Sales API 응답 데이터:", response.data);
+    console.log("Ad Sales API 응답 데이터:", response.data);
     let data = response.data;
-    let sales = [];
-    if (data.keywordsales && Array.isArray(data.keywordsales)) {
-      sales = data.keywordsales;
+    let adsales = [];
+    if (data.adsales && Array.isArray(data.adsales)) {
+      adsales = data.adsales;
     } else {
-      throw new Error("Unexpected keyword sales data structure");
+      throw new Error("Unexpected ad sales data structure");
     }
-    // 동일 키워드별로 주문 건수와 매출액 합산
-    const groupByKeyword = {};
-    sales.forEach(item => {
-      const keyword = item.keyword || 'N/A';
-      if (!groupByKeyword[keyword]) {
-        groupByKeyword[keyword] = {
-          keyword,
-          order_count: 0,
-          order_amount: 0
-        };
-      }
-      groupByKeyword[keyword].order_count += item.order_count || 0;
-      groupByKeyword[keyword].order_amount += item.order_amount || 0;
-    });
-    const groupedArray = Object.values(groupByKeyword);
-    groupedArray.sort((a, b) => b.order_amount - a.order_amount);
-    const top10 = groupedArray.slice(0, 10);
+    // 광고 매체별로 별도 그룹화가 필요 없다면, 단순히 상위 10개 정렬된 데이터 사용
+    const top10 = adsales.slice(0, 10);
     const updatedTop10 = top10.map((item, index) => {
-      const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
+      const formattedAmount = formatCurrency(item.order_amount);
       return {
         rank: index + 1,
-        keyword: item.keyword,
+        ad: item.ad,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.keyword} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${item.ad} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
       };
     });
-    console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
+    console.log("불러온 광고 매체별 구매 순위 데이터:", updatedTop10);
     return updatedTop10;
   } catch (error) {
-    console.error("Error fetching keyword sales:", error.response ? error.response.data : error.message);
+    console.error("Error fetching ad sales:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
@@ -497,10 +477,22 @@ app.post("/chat", async (req, res) => {
       const keywordSales = await getTop10AdKeywordSales();
       const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "네이버/구글애드워즈 등 온라인 키워드 검생광고를 통해 발생한 데이터 입니다.<br><br>" + keywordListText
+        text: "키워드별 구매 순위입니다.<br>" + keywordListText
       });
     } catch (error) {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
+  if (userInput.includes("광고") && userInput.includes("순위")) {
+    try {
+      const adSales = await getTop10AdSales();
+      const adSalesText = adSales.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "광고 매체별 구매 순위입니다.<br>" + adSalesText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
 
