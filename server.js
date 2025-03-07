@@ -423,7 +423,8 @@ async function getDailyVisitorStats() {
   }
 }
 
-// ========== [12] 상세페이지 접속 순위 조회 함수 ==========
+
+// ========== [12] 상세페이지 접속 순위 조회 함수 (수정됨) ==========
 async function getTop10ProductViews() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/products/view';
@@ -441,17 +442,23 @@ async function getTop10ProductViews() {
       params
     });
     console.log("Product View API 응답 데이터:", response.data);
-    let products = response.data;
-    // 응답 데이터가 객체 형태로 { count: [...] } 형태라면 아래와 같이 처리
-    if (products.count && Array.isArray(products.count)) {
-      products = products.count;
+
+    // 응답 데이터가 배열인 경우 또는 객체 내에 count 배열이 있는 경우 모두 처리
+    let products;
+    if (Array.isArray(response.data)) {
+      products = response.data;
+    } else if (response.data && Array.isArray(response.data.count)) {
+      products = response.data.count;
     } else {
+      console.error("Unexpected product view data structure:", response.data);
       throw new Error("Unexpected product view data structure");
     }
+
     // 조회수 기준 내림차순 정렬
     products.sort((a, b) => b.count - a.count);
     const top10 = products.slice(0, 10);
-    // 각 제품에 대해 상세정보 API를 호출하여 product_name 업데이트
+    
+    // 각 제품에 대해 product_no를 활용하여 상세 API 호출, 상세정보의 product_name 사용
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detailName = await getProductDetail(item.product_no);
@@ -472,6 +479,7 @@ async function getTop10ProductViews() {
     throw error;
   }
 }
+
 
 // ========== [13] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
