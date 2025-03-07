@@ -642,7 +642,7 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  if (userInput.includes("기간별 장바구니 베스트 10")) {
+  if (userInput.includes("기간별 장바구니 순위")) {
     try {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
@@ -654,7 +654,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("가장 많이 접속한 페이지") || userInput.includes("페이지 뷰")) {
+  if (userInput.includes("기간별 페이지뷰 순위") || userInput.includes("페이지 뷰")) {
     try {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
@@ -666,7 +666,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("시간대별 결제금액 베스트 10")) {
+  if (userInput.includes("시간대별 결제 금액 추이")) {
     try {
       const salesRanking = await getSalesTimesRanking(providedDates);
       const rankingText = salesRanking.map(item => item.displayText).join("<br>");
