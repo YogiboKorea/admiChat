@@ -198,7 +198,7 @@ async function getTop10ProductsByAddCart(providedDates) {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+          displayText: `${index + 1}위: ${finalName}<br/> - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
         };
       })
     );
@@ -255,7 +255,7 @@ async function getTop10PagesByView(providedDates) {
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} - 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
+        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
@@ -318,7 +318,7 @@ async function getSalesTimesRanking(providedDates) {
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
@@ -617,7 +617,7 @@ async function getTop10AdKeywordSales(providedDates) {
         keyword: item.keyword,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.keyword} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${item.keyword} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
@@ -647,7 +647,7 @@ app.post("/chat", async (req, res) => {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "최근 30일간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
+        text: "기간별 장바구니 추가된 상품순위 입니다.<br>" + productListText
       });
     } catch (error) {
       return res.status(500).json({ text: "상품 데이터를 가져오는 중 오류가 발생했습니다." });
@@ -659,7 +659,7 @@ app.post("/chat", async (req, res) => {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
       return res.json({
-        text: "가장 많이 접속한 페이지 TOP 10 정보입니다.<br>" + pageListText
+        text: "기간별 페이지뷰 순위 <br><br>" + pageListText
       });
     } catch (error) {
       return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
