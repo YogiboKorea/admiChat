@@ -425,7 +425,7 @@ async function getDailyVisitorStats(providedDates) {
     // 각 항목에 대해 순위, 날짜, 방문자수, 처음 방문수, 재방문수를 포함한 displayText 구성
     const updatedStats = stats.map((item, index) => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${index + 1}위: ${formattedDate} - 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
+      return `${index + 1}위: ${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -642,7 +642,7 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  if (userInput.includes("장바구니 베스트 10 알려줘")) {
+  if (userInput.includes("기간별 장바구니 베스트 10")) {
     try {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
@@ -666,7 +666,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("시간대별 결제금액 순위")) {
+  if (userInput.includes("시간대별 결제금액 베스트 10")) {
     try {
       const salesRanking = await getSalesTimesRanking(providedDates);
       const rankingText = salesRanking.map(item => item.displayText).join("<br>");
@@ -678,7 +678,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("키워드별 구매 순위") || userInput.includes("키워드 순위")) {
+  if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
     try {
       const keywordSales = await getTop10AdKeywordSales(providedDates);
       const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
@@ -702,7 +702,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("광고별 유입수")) {
+  if (userInput.includes("광고별 자사몰 유입수")) {
     try {
       const adInflow = await getTop10AdInflow(providedDates);
       const adInflowText = adInflow.map(item => item.displayText).join("<br>");
@@ -713,7 +713,7 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "광고별 유입수 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
-  if (userInput.includes("실제 방문자수")) {
+  if (userInput.includes("일별 방문자 순위")) {
     try {
       const visitorStats = await getDailyVisitorStats(providedDates);
       // visitorStats 배열에 이미 순위와 관련된 displayText가 포함되어 있음

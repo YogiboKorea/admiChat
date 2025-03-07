@@ -1,4 +1,8 @@
-
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Yogibo Chat</title>
   <style>
     /* 기본 리셋 */
     * {
@@ -122,19 +126,55 @@
       margin-top: 10px;
       text-align: center;
     }
+    /* 키워드 영역 스타일 */
+    .key_word {
+      background: #eef;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .key_word ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 0;
+      margin: 0;
+    }
+    .key_word ul li {
+      background: #58b5ca;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .key_word ul li:hover {
+      background: #3aa0a9;
+    }
   </style>
 </head>
 <body>
+  <!-- 키워드 영역 -->
+  <div class="key_word">
+    <ul>
+      <li>기간별 장바구니 베스트 10</li>
+      <li>기간별 페이지 뷰 베스트 10</li>
+      <li>시간대별 결제금액 베스트 10</li>
+      <li>검색 키워드별 구매 순위</li>
+      <li>광고별 판매 순위</li>
+      <li>광고별 자사몰 유입수</li>
+      <li>일별 방문자 순위</li>
+      <li>상세페이지 접속순위</li>
+    </ul>
+  </div>
   <div class="chat-container">
     <div class="chat-header">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
       <div class="first_chat_img">
         <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
-        <div class="init-message">요기보에 대해 궁금한 점</div>
+        <div class="init-message">마케팅 판매데이터 조회</div>
       </div>
     </div>
     <div class="chat-input">
-      <!-- 날짜 입력 폼 추가 -->
       <div class="date-inputs">
         <input id="start-date" type="date" placeholder="시작일">
         <input id="end-date" type="date" placeholder="종료일">
@@ -152,7 +192,15 @@
     const startDateInput = document.getElementById("start-date");
     const endDateInput = document.getElementById("end-date");
 
-    // 숫자로 시작하는 목록을 감지하여 <ol>로 변환하는 함수
+    // 키워드 영역 li 클릭 시 해당 텍스트를 채팅 입력창에 넣고 전송
+    const keyWordItems = document.querySelectorAll('.key_word ul li');
+    keyWordItems.forEach(item => {
+      item.addEventListener("click", () => {
+        messageInput.value = item.innerText;
+        sendMessage();
+      });
+    });
+
     function formatNumberedList(text) {
       const pattern = /\d+\.\s+/g;
       const matches = text.match(pattern);
@@ -168,7 +216,6 @@
       return text;
     }
 
-    // 봇 메시지 추가
     function appendBotMessage(fullText) {
       const messageElem = document.createElement("div");
       messageElem.classList.add("message", "bot");
@@ -188,7 +235,6 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // 사용자 메시지 추가
     function appendUserMessage(text) {
       const messageElem = document.createElement("div");
       messageElem.classList.add("message", "user");
@@ -216,7 +262,6 @@
       const end_date = endDateInput.value || "";
       
       try {
-        // axios를 사용하여 서버에 POST 요청
         const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
           message: userMessage,
           start_date: start_date,
@@ -251,3 +296,5 @@
       }
     });
   </script>
+</body>
+</html>
