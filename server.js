@@ -209,7 +209,6 @@ async function getTop10ProductsByAddCart() {
     throw error;
   }
 }
-
 async function getTop10PagesByView() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/pages/view';
@@ -250,16 +249,15 @@ async function getTop10PagesByView() {
     // 상위 10개 페이지 추출
     const top10Pages = pages.slice(0, 10);
     
-    // 각 페이지의 url, count, visit_count를 사용하여 displayText 구성
+    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수(visit_count)와 처음 접속수(first_visit_count)를 포함하여 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
-      const urlText = page.url || 'N/A';
-      // 여기서 count를 페이지 뷰로 사용합니다.
-      const pageView = page.count || 0;
+      const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
+      const firstVisitCount = page.first_visit_count || 0;
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} - 페이지 뷰: ${pageView}, 방문수: ${visitCount}`
+        displayText: `${index + 1}위: ${urlText} - 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
     
