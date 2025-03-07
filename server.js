@@ -424,7 +424,7 @@ async function getDailyVisitorStats() {
 }
 
 
-// ========== [12] 상세페이지 접속 순위 조회 함수) ==========
+// ========== [12] 상세페이지 접속 순위 조회 함수 () ==========
 async function getTop10ProductViews() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/products/view';
@@ -444,26 +444,32 @@ async function getTop10ProductViews() {
     });
     console.log("Product View API 응답 데이터:", response.data);
     
-    let products = [];
-    if (Array.isArray(response.data)) {
-      products = response.data;
-    } else if (response.data && Array.isArray(response.data.count)) {
-      products = response.data.count;
-    } else {
-      console.error("Unexpected product view data structure:", response.data);
-      throw new Error("Unexpected product view data structure");
+    // 응답 데이터가 문자열이면 JSON으로 파싱
+    let data = response.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        console.error("응답 데이터를 JSON으로 파싱하는데 실패했습니다.", e);
+        throw new Error("응답 데이터가 유효한 JSON이 아닙니다.");
+      }
     }
     
-    if (products.length === 0) {
-      console.log("조회된 상품 뷰 데이터가 없습니다.");
-      return [];
+    let products = [];
+    if (Array.isArray(data)) {
+      products = data;
+    } else if (data && Array.isArray(data.count)) {
+      products = data.count;
+    } else {
+      console.error("Unexpected product view data structure:", data);
+      throw new Error("Unexpected product view data structure");
     }
     
     // 조회수 기준 내림차순 정렬
     products.sort((a, b) => b.count - a.count);
     const top10 = products.slice(0, 10);
     
-    // 각 제품에 대해 product_no를 활용하여 상세 API 호출 후 상세의 product_name 사용
+    // 각 항목에 대해 상세 API를 호출하여 상세의 product_name을 사용
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detailName = await getProductDetail(item.product_no);
@@ -477,7 +483,6 @@ async function getTop10ProductViews() {
         };
       })
     );
-    
     console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
     return updatedProducts;
   } catch (error) {
