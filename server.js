@@ -623,9 +623,8 @@ async function getTop10AdKeywordSales(providedDates) {
     throw error;
   }
 }
-
-// ========== [15] 일별 방문자수 조회 함수 ==========
-async function getDailyVisitorStats(providedDates) {
+// ========== [15] 일별 방문자수 순위 조회 함수 ==========
+async function getDailyVisitorStatsRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitors/view';
   const params = {
@@ -640,6 +639,7 @@ async function getDailyVisitorStats(providedDates) {
     sort: 'date',
     order: 'asc'
   };
+  
   try {
     const response = await axios.get(url, {
       headers: {
@@ -649,27 +649,31 @@ async function getDailyVisitorStats(providedDates) {
       params
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
+    
+    // 응답 데이터가 객체 내의 view 배열로 전달되는 경우 처리
     let stats;
-    if (response.data && Array.isArray(response.data.unique)) {
-      stats = response.data.unique;
+    if (response.data && Array.isArray(response.data.view)) {
+      stats = response.data.view;
     } else if (Array.isArray(response.data)) {
       stats = response.data;
-    } else if (response.data && Array.isArray(response.data.view)) {
-      stats = response.data.view;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      stats = response.data.data;
     } else {
       throw new Error("Unexpected daily visitor stats data structure");
     }
     
-    const updatedStats = stats.map(item => {
+    // visit_count 기준 내림차순 정렬
+    stats.sort((a, b) => b.visit_count - a.visit_count);
+    // 상위 10개 항목 추출
+    const top10 = stats.slice(0, 10);
+    
+    // 각 항목에 대해 displayText 구성 (날짜는 YYYY-MM-DD 형식)
+    const updatedStats = top10.map((item, index) => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
+      return `${index + 1}위: ${formattedDate} - 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
     });
-    console.log("불러온 일별 방문자수 데이터:", updatedStats);
+    console.log("불러온 일별 방문자수 순위 데이터:", updatedStats);
     return updatedStats;
   } catch (error) {
-    console.error("Error fetching daily visitor stats:", error.response ? error.response.data : error.message);
+    console.error("Error fetching daily visitor stats ranking:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
