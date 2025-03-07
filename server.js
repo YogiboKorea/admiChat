@@ -152,7 +152,7 @@ async function getTop10ProductsByAddCart() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/carts/action';
   const params = {
-    mall_id: 'yogibo',  
+    mall_id: 'yogibo',
     shop_no: 1,
     start_date,
     end_date,
@@ -171,7 +171,6 @@ async function getTop10ProductsByAddCart() {
       },
       params
     });
-
     console.log("API 응답 데이터:", response.data);
     let products = response.data;
     if (!Array.isArray(products)) {
@@ -188,7 +187,7 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세 API를 호출하여 상세의 product_name만 사용
+    // 각 상품에 대해 상세 API 호출하여 detail의 product_name 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
@@ -249,7 +248,7 @@ async function getTop10PagesByView() {
     
     const top10Pages = pages.slice(0, 10);
     
-    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수와 처음 접속수 포함하여 displayText 구성
+    // URL 앞에 "http://yogibo.kr" 추가, 방문자수와 처음 접속수 포함 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
@@ -308,7 +307,6 @@ async function getSalesTimesRanking() {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
       const orderCount = time.order_count || 0;
-      // 매출액을 숫자로 변환 후 천 단위 구분기호 적용 (한국 스타일)
       const formattedAmount = Number(time.order_amount || 0).toLocaleString('ko-KR');
       return {
         ...time,
@@ -328,7 +326,7 @@ async function getSalesTimesRanking() {
 // ========== [10] 일별 실제 방문자수 조회 함수 ==========
 async function getDailyUniqueVisitors() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitors/unique?';
+  const url = 'https://ca-api.cafe24data.com/visitors/unique';
   const params = {
     mall_id: 'yogibo',
     start_date,
