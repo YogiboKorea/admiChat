@@ -346,8 +346,8 @@ async function getTop10AdKeywordSales() {
     device_type: 'total',
     limit: 100,
     offset: 0,
-    sort: 'ad',
-    order: 'asc'
+    sort: 'order_amount', // 기본값: 매출액 기준 정렬
+    order: 'desc'
   };
 
   try {
@@ -358,14 +358,15 @@ async function getTop10AdKeywordSales() {
       },
       params
     });
-    console.log("Ad Keyword Sales API 응답 데이터:", response.data);
+    console.log("Keyword Sales API 응답 데이터:", response.data);
     let data = response.data;
     let sales = [];
-    if (data.adkeywordsales && Array.isArray(data.adkeywordsales)) {
-      sales = data.adkeywordsales;
+    if (data.keywordsales && Array.isArray(data.keywordsales)) {
+      sales = data.keywordsales;
     } else {
-      throw new Error("Unexpected ad keyword sales data structure");
+      throw new Error("Unexpected keyword sales data structure");
     }
+    // 동일 키워드별로 주문 건수와 매출액 합산
     const groupByKeyword = {};
     sales.forEach(item => {
       const keyword = item.keyword || 'N/A';
@@ -383,7 +384,7 @@ async function getTop10AdKeywordSales() {
     groupedArray.sort((a, b) => b.order_amount - a.order_amount);
     const top10 = groupedArray.slice(0, 10);
     const updatedTop10 = top10.map((item, index) => {
-      const formattedAmount = formatCurrency(item.order_amount);
+      const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
       return {
         rank: index + 1,
         keyword: item.keyword,
@@ -395,7 +396,7 @@ async function getTop10AdKeywordSales() {
     console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
     return updatedTop10;
   } catch (error) {
-    console.error("Error fetching ad keyword sales:", error.response ? error.response.data : error.message);
+    console.error("Error fetching keyword sales:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
