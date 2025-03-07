@@ -188,7 +188,7 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세 API를 호출하여 product_name(세부 API의 값)을 가져온 후 displayText 구성
+    // 각 상품에 대해 상세 API를 호출하여 상세의 product_name만 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
@@ -209,6 +209,8 @@ async function getTop10ProductsByAddCart() {
     throw error;
   }
 }
+
+// ========== [8] 페이지 뷰 및 방문수 상위 10개 페이지 조회 함수 ==========
 async function getTop10PagesByView() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/pages/view';
@@ -246,10 +248,9 @@ async function getTop10PagesByView() {
       }
     }
     
-    // 상위 10개 페이지 추출
     const top10Pages = pages.slice(0, 10);
     
-    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수(visit_count)와 처음 접속수(first_visit_count)를 포함하여 displayText 구성
+    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수와 처음 접속수 포함하여 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
@@ -257,7 +258,7 @@ async function getTop10PagesByView() {
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount} <br/>`
+        displayText: `${index + 1}위: ${urlText} - 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
     
@@ -268,10 +269,69 @@ async function getTop10PagesByView() {
     throw error;
   }
 }
+// ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
+async function getSalesTimesRanking() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/sales/times';
+  const params = {
+    mall_id: 'yogibo',
+    shop_no: 1,
+    start_date,
+    end_date,
+    limit: 10,
+    sort: 'order_amount', // 매출액 기준 정렬
+    order: 'desc'
+  };
 
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Sales Times API 응답 데이터:", response.data);
 
+    // 응답 데이터가 배열이 아닐 경우, times 배열 추출
+    let times = response.data;
+    if (!Array.isArray(times)) {
+      if (times.times && Array.isArray(times.times)) {
+        times = times.times;
+      } else if (times.data && Array.isArray(times.data)) {
+        times = times.data;
+      } else {
+        throw new Error("Unexpected sales times data structure");
+      }
+    }
+    
+    // 데이터가 없는 경우 로그 출력
+    if (times.length === 0) {
+      console.log("Sales Times API: 조회된 데이터가 없습니다.");
+    }
+    
+    // 각 시간대별 데이터 displayText 구성
+    const updatedTimes = times.map((time, index) => {
+      const hour = time.hour || 'N/A';
+      const buyersCount = time.buyers_count || 0;
+      const orderCount = time.order_count || 0;
+      const orderAmount = time.order_amount || 0;
+      return {
+        ...time,
+        rank: index + 1,
+        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${orderAmount}`
+      };
+    });
+    
+    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
+    return updatedTimes;
+  } catch(error) {
+    console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
 
-// ========== [9] 채팅 엔드포인트 (/chat) ==========
+// ========== [채팅 엔드포인트 (/chat)] ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -303,10 +363,22 @@ app.post("/chat", async (req, res) => {
     }
   }
 
+  if (userInput.includes("시간대별 결제금액 순위")) {
+    try {
+      const salesRanking = await getSalesTimesRanking();
+      const rankingText = salesRanking.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [10] 서버 시작 ==========
+// ========== [11] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
