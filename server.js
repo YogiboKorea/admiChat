@@ -444,8 +444,7 @@ async function getTop10ProductViews() {
     });
     console.log("Product View API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이면 그대로 사용하고,
-    // 그렇지 않으면 객체 내의 "count" 또는 "view" 배열을 사용
+    // 응답 데이터가 배열이면 그대로 사용하고, 아니라면 객체 내의 "view" 또는 "count" 배열을 사용
     let products;
     if (Array.isArray(response.data)) {
       products = response.data;
@@ -457,17 +456,20 @@ async function getTop10ProductViews() {
       console.error("Unexpected product view data structure:", response.data);
       throw new Error("Unexpected product view data structure");
     }
-    
+
+    // 유효한 항목만 필터링 (product_no와 count가 존재하는 경우)
+    products = products.filter(item => item.product_no && typeof item.count === "number");
+
     if (products.length === 0) {
       console.log("조회된 상품 뷰 데이터가 없습니다.");
       return [];
     }
 
     // 조회수(count) 기준 내림차순 정렬
-    products.sort((a, b) => (b.count || 0) - (a.count || 0));
+    products.sort((a, b) => b.count - a.count);
     const top10 = products.slice(0, 10);
-    
-    // 각 항목에 대해 product_no를 활용해 상세 API를 호출하여 product_name 업데이트
+
+    // 각 항목에 대해 product_no를 활용해 상세 API를 호출하여 상세의 product_name 사용
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detailName = await getProductDetail(item.product_no);
@@ -481,7 +483,6 @@ async function getTop10ProductViews() {
         };
       })
     );
-    
     console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
     return updatedProducts;
   } catch (error) {
