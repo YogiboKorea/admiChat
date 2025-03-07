@@ -171,6 +171,7 @@ async function getTop10ProductsByAddCart() {
       },
       params
     });
+
     console.log("API 응답 데이터:", response.data);
     let products = response.data;
     if (!Array.isArray(products)) {
@@ -187,7 +188,7 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세 API 호출하여 detail의 product_name 사용
+    // 각 상품에 대해 상세 API 호출하여 상세의 product_name 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
@@ -248,7 +249,7 @@ async function getTop10PagesByView() {
     
     const top10Pages = pages.slice(0, 10);
     
-    // URL 앞에 "http://yogibo.kr" 추가, 방문자수와 처음 접속수 포함 displayText 구성
+    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수와 처음 접속수 포함 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
@@ -323,14 +324,21 @@ async function getSalesTimesRanking() {
   }
 }
 
-// ========== [10] 일별 실제 방문자수 조회 함수 ==========
-async function getDailyUniqueVisitors() {
+// ========== [10] 일별 실제 방문자수 조회 함수 (일별 방문자수, 처음 방문수, 재방문수) ==========
+async function getDailyVisitorStats() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitors/unique';
+  const url = 'https://ca-api.cafe24data.com/visitors/view';
   const params = {
     mall_id: 'yogibo',
+    shop_no: 1,
     start_date,
-    end_date
+    end_date,
+    device_type: 'total',
+    format_type: 'day',
+    limit: 100,
+    offset: 0,
+    sort: 'date',
+    order: 'asc'
   };
   try {
     const response = await axios.get(url, {
@@ -340,24 +348,28 @@ async function getDailyUniqueVisitors() {
       },
       params
     });
-    console.log("Unique Visitors API 응답 데이터:", response.data);
-    let uniques = response.data;
-    if (!Array.isArray(uniques)) {
-      if (uniques.unique && Array.isArray(uniques.unique)) {
-        uniques = uniques.unique;
-      } else if (uniques.data && Array.isArray(uniques.data)) {
-        uniques = uniques.data;
+    console.log("Daily Visitor Stats API 응답 데이터:", response.data);
+    let stats = response.data;
+    if (!Array.isArray(stats)) {
+      if (stats.view && Array.isArray(stats.view)) {
+        stats = stats.view;
+      } else if (stats.data && Array.isArray(stats.data)) {
+        stats = stats.data;
       } else {
-        throw new Error("Unexpected unique visitors data structure");
+        throw new Error("Unexpected daily visitor stats data structure");
       }
     }
-    const updatedUniques = uniques.map(item => {
-      return `${item.date} 방문자수: ${item.unique_visit_count}`;
+    const updatedStats = stats.map(item => {
+      const date = item.date || 'N/A';
+      const visitCount = item.visit_count || 0;
+      const firstVisitCount = item.first_visit_count || 0;
+      const reVisitCount = item.re_visit_count || 0;
+      return `${date} 방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}`;
     });
-    console.log("불러온 일별 실제 방문자수 데이터:", updatedUniques);
-    return updatedUniques;
+    console.log("불러온 일별 방문자수 데이터:", updatedStats);
+    return updatedStats;
   } catch (error) {
-    console.error("Error fetching unique visitors:", error.response ? error.response.data : error.message);
+    console.error("Error fetching daily visitor stats:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
@@ -408,10 +420,10 @@ app.post("/chat", async (req, res) => {
 
   if (userInput.includes("실제 방문자수")) {
     try {
-      const uniqueVisitors = await getDailyUniqueVisitors();
-      const uniqueText = uniqueVisitors.join("<br>");
+      const visitorStats = await getDailyVisitorStats();
+      const visitorText = visitorStats.join("<br>");
       return res.json({
-        text: "조회 기간 동안의 일별 실제 방문자수입니다.<br>" + uniqueText
+        text: "조회 기간 동안의 일별 실제 방문자수입니다.<br>" + visitorText
       });
     } catch (error) {
       return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
