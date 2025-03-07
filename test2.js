@@ -380,9 +380,11 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
-// ========== [11] 일별 방문자수 조회 함수 ==========
-async function getDailyVisitorStats(providedDates) {
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+
+
+// ========== [10] 일별 실제 방문자수 조회 함수 (일별 방문자수, 처음 방문수, 재방문수) ==========
+async function getDailyVisitorStats() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/visitors/view';
   const params = {
     mall_id: 'yogibo',
@@ -405,19 +407,22 @@ async function getDailyVisitorStats(providedDates) {
       params
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
-    let stats;
-    if (Array.isArray(response.data)) {
-      stats = response.data;
-    } else if (response.data && Array.isArray(response.data.view)) {
-      stats = response.data.view;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      stats = response.data.data;
-    } else {
-      throw new Error("Unexpected daily visitor stats data structure");
+    let stats = response.data;
+    if (!Array.isArray(stats)) {
+      if (stats.view && Array.isArray(stats.view)) {
+        stats = stats.view;
+      } else if (stats.data && Array.isArray(stats.data)) {
+        stats = stats.data;
+      } else {
+        throw new Error("Unexpected daily visitor stats data structure");
+      }
     }
     const updatedStats = stats.map(item => {
-      const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
+      const date = new Date(item.date).toISOString().split('T')[0];
+      const visitCount = item.visit_count || 0;
+      const firstVisitCount = item.first_visit_count || 0;
+      const reVisitCount = item.re_visit_count || 0;
+      return `${date} <br/>방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}<br/>`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
