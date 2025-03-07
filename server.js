@@ -209,19 +209,17 @@ async function getTop10ProductsByAddCart() {
     throw error;
   }
 }
-
-// ========== [8] 페이지 뷰 및 방문수 상위 10개 페이지 조회 함수 ==========
 async function getTop10PagesByView() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/pages/view';
-  // API의 요구사항에 맞게 필요한 파라미터를 구성하세요.
+  // sort 파라미터를 'visit_count'로 변경 (페이지 뷰가 아닌 방문수 기준 정렬)
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
     start_date,
     end_date,
     limit: 10,
-    sort: 'page_view', // 예시로 페이지 뷰 기준 정렬
+    sort: 'visit_count',
     order: 'desc'
   };
 
@@ -262,6 +260,7 @@ async function getTop10PagesByView() {
     throw error;
   }
 }
+
 
 // ========== [9] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
