@@ -380,10 +380,9 @@ async function getTop10AdSales(providedDates) {
     throw error;
   }
 }
-
 // ========== [11] 일별 방문자수 조회 함수 ==========
-async function getDailyVisitorStats(providedDates) {
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+async function getDailyVisitorStats() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/visitors/view';
   const params = {
     mall_id: 'yogibo',
@@ -406,15 +405,15 @@ async function getDailyVisitorStats(providedDates) {
       params
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
-    let stats;
-    if (Array.isArray(response.data)) {
-      stats = response.data;
-    } else if (response.data && Array.isArray(response.data.view)) {
-      stats = response.data.view;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      stats = response.data.data;
-    } else {
-      throw new Error("Unexpected daily visitor stats data structure");
+    let stats = response.data;
+    if (!Array.isArray(stats)) {
+      if (stats.view && Array.isArray(stats.view)) {
+        stats = stats.view;
+      } else if (stats.data && Array.isArray(stats.data)) {
+        stats = stats.data;
+      } else {
+        throw new Error("Unexpected daily visitor stats data structure");
+      }
     }
     const updatedStats = stats.map(item => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
@@ -427,6 +426,7 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
+
 
 // ========== [12] 상세페이지 접속 순위 조회 함수 ==========
 async function getTop10ProductViews(providedDates) {
