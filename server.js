@@ -337,7 +337,7 @@ async function getSalesTimesRanking() {
 // ========== [10] 키워드별 구매 순위 조회 함수 ==========
 async function getTop10AdKeywordSales() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitpaths/adkeywordsales';
+  const url = 'https://ca-api.cafe24data.com/visitpaths/keywordsales';
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
