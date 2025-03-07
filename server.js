@@ -258,6 +258,7 @@ async function getTop10PagesByView(providedDates) {
         displayText: `${index + 1}위: ${urlText} - 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
+    
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
     return updatedPages;
   } catch (error) {
@@ -446,7 +447,6 @@ async function getTop10ProductViews(providedDates) {
     });
     console.log("Product View API 응답 데이터:", response.data);
     
-    // 응답 데이터가 문자열이면 JSON 파싱
     let data = response.data;
     if (typeof data === "string") {
       try {
@@ -457,7 +457,6 @@ async function getTop10ProductViews(providedDates) {
       }
     }
     
-    // 배열 추출: 우선 data.view, 없으면 data.count, 그 외 배열이면 그대로 사용
     let products = [];
     if (data && Array.isArray(data.view)) {
       products = data.view;
@@ -470,7 +469,6 @@ async function getTop10ProductViews(providedDates) {
       throw new Error("Unexpected product view data structure");
     }
     
-    // 유효 항목 필터링: product_no와 count가 있는지 확인
     products = products.filter(item => item.product_no && typeof item.count === "number");
     
     if (products.length === 0) {
@@ -478,11 +476,9 @@ async function getTop10ProductViews(providedDates) {
       return [];
     }
     
-    // 조회수(count) 기준 내림차순 정렬
     products.sort((a, b) => b.count - a.count);
     const top10 = products.slice(0, 10);
     
-    // 각 항목에 대해 product_no를 활용해 상세 API 호출, 상세의 product_name 사용
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detailName = await getProductDetail(item.product_no);
@@ -513,7 +509,6 @@ async function getTop10AdInflow(providedDates) {
     mall_id: 'yogibo',
     start_date,
     end_date
-    // 필요시 shop_no, device_type 등 추가
   };
 
   try {
@@ -532,7 +527,6 @@ async function getTop10AdInflow(providedDates) {
     } else {
       throw new Error("Unexpected ad inflow data structure");
     }
-    // 순방문자수(visit_count)를 숫자로 변환 후 내림차순 정렬
     ads.sort((a, b) => Number(b.visit_count) - Number(a.visit_count));
     const top10 = ads.slice(0, 10);
     const updatedAds = top10.map((item, index) => {
@@ -583,7 +577,6 @@ async function getTop10AdKeywordSales(providedDates) {
     } else {
       throw new Error("Unexpected keyword sales data structure");
     }
-    // 동일 키워드별로 주문 건수와 매출액 합산
     const groupByKeyword = {};
     sales.forEach(item => {
       const keyword = item.keyword || 'N/A';
@@ -618,54 +611,7 @@ async function getTop10AdKeywordSales(providedDates) {
   }
 }
 
-// ========== [15] 일별 방문자수 조회 함수 ==========
-async function getDailyVisitorStats(providedDates) {
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
-  const url = 'https://ca-api.cafe24data.com/visitors/view';
-  const params = {
-    mall_id: 'yogibo',
-    shop_no: 1,
-    start_date,
-    end_date,
-    device_type: 'total',
-    format_type: 'day',
-    limit: 100,
-    offset: 0,
-    sort: 'date',
-    order: 'asc'
-  };
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      params
-    });
-    console.log("Daily Visitor Stats API 응답 데이터:", response.data);
-    let stats;
-    if (Array.isArray(response.data)) {
-      stats = response.data;
-    } else if (response.data && Array.isArray(response.data.view)) {
-      stats = response.data.view;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      stats = response.data.data;
-    } else {
-      throw new Error("Unexpected daily visitor stats data structure");
-    }
-    const updatedStats = stats.map(item => {
-      const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
-    });
-    console.log("불러온 일별 방문자수 데이터:", updatedStats);
-    return updatedStats;
-  } catch (error) {
-    console.error("Error fetching daily visitor stats:", error.response ? error.response.data : error.message);
-    throw error;
-  }
-}
-
-// ========== [16] 채팅 엔드포인트 (/chat) ==========
+// ========== [15] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -762,7 +708,7 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
-
+  
   if (userInput.includes("상세페이지 접속순위")) {
     try {
       const productViews = await getTop10ProductViews(providedDates);
