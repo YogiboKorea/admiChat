@@ -309,26 +309,29 @@ async function getSalesTimesRanking() {
       console.log("Sales Times API: 조회된 데이터가 없습니다.");
     }
     
-    // 각 시간대별 데이터 displayText 구성 (매출액 뒤에 " 원" 추가)
+    // 각 시간대별 데이터 displayText 구성
     const updatedTimes = times.map((time, index) => {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
       const orderCount = time.order_count || 0;
-      const orderAmount = time.order_amount || 0;
+      // order_amount을 숫자로 변환 후, toLocaleString을 사용해 천 단위 구분 기호 적용 (한국 스타일)
+      const formattedAmount = Number(time.order_amount || 0).toLocaleString('ko-KR');
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${orderAmount} 원`
+        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, <br/> 매출액: ${formattedAmount} 원`
       };
     });
     
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
     return updatedTimes;
+    
   } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
 
 // ========== [채팅 엔드포인트 (/chat)] ==========
 app.post("/chat", async (req, res) => {
