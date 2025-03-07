@@ -421,7 +421,8 @@ async function getDailyVisitorStats(providedDates) {
     }
     const updatedStats = stats.map(item => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
+      // unique_visit_count 대신 visit_count 사용
+      return `${formattedDate} 방문자수: ${item.visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
