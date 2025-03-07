@@ -428,13 +428,10 @@ async function getDailyVisitorStats() {
 async function getTop10ProductViews() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/products/view';
-  // limit 값을 충분히 크게 설정해서 전체 데이터를 가져오도록 함 (예: 1000)
   const params = {
     mall_id: 'yogibo',
     start_date,
-    end_date,
-    limit: 300,  // 전체 데이터를 불러오기 위한 큰 값
-    offset: 0
+    end_date
   };
 
   try {
@@ -447,32 +444,40 @@ async function getTop10ProductViews() {
     });
     console.log("Product View API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이면 그대로 사용하고, 아니라면 객체 내의 "count" 또는 "view" 배열을 사용
+    // 응답 데이터가 문자열이면 파싱
+    let data = response.data;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        console.error("응답 데이터를 JSON으로 파싱하는 데 실패:", e);
+        throw new Error("응답 데이터가 유효한 JSON이 아닙니다.");
+      }
+    }
+
+    // "count" 또는 "view" 배열을 찾아 할당
     let products;
-    if (Array.isArray(response.data)) {
-      products = response.data;
-    } else if (response.data && Array.isArray(response.data.count)) {
-      products = response.data.count;
-    } else if (response.data && Array.isArray(response.data.view)) {
-      products = response.data.view;
+    if (Array.isArray(data)) {
+      products = data;
+    } else if (data && Array.isArray(data.count)) {
+      products = data.count;
+    } else if (data && Array.isArray(data.view)) {
+      products = data.view;
     } else {
-      console.error("Unexpected product view data structure:", response.data);
+      console.error("Unexpected product view data structure:", data);
       throw new Error("Unexpected product view data structure");
     }
-    
-    // 전체 리스트가 불러와진 후, 유효한 항목만 필터링 (product_no와 count가 존재하는 경우)
-    products = products.filter(item => item.product_no && typeof item.count === "number");
     
     if (products.length === 0) {
       console.log("조회된 상품 뷰 데이터가 없습니다.");
       return [];
     }
     
-    // 조회수(count) 기준 내림차순 정렬
-    products.sort((a, b) => b.count - a.count);
+    // 전체 데이터를 다 불러온 후 조회수(count) 기준 내림차순 정렬
+    products.sort((a, b) => (b.count || 0) - (a.count || 0));
     const top10 = products.slice(0, 10);
     
-    // 각 항목에 대해 product_no를 활용해 상세 API 호출 후, 상세의 product_name 사용
+    // 각 항목에 대해 상세 API 호출하여 product_no를 활용해 상세의 product_name 업데이트
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detailName = await getProductDetail(item.product_no);
