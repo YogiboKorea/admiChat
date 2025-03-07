@@ -360,11 +360,9 @@ async function getDailyVisitorStats() {
       }
     }
     const updatedStats = stats.map(item => {
-      const date = item.date || 'N/A';
-      const visitCount = item.visit_count || 0;
-      const firstVisitCount = item.first_visit_count || 0;
-      const reVisitCount = item.re_visit_count || 0;
-      return `${date} 방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}`;
+      // 입력된 날짜를 "YYYY-MM-DD" 형식으로 변환
+      const formattedDate = new Date(item.date).toISOString().split('T')[0];
+      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -423,7 +421,7 @@ app.post("/chat", async (req, res) => {
       const visitorStats = await getDailyVisitorStats();
       const visitorText = visitorStats.join("<br>");
       return res.json({
-        text: "조회 기간 동안의 일별 실제 방문자수입니다.<br>" + visitorText
+        text: "조회 기간 동안의 일별 방문자수입니다.<br>" + visitorText
       });
     } catch (error) {
       return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
