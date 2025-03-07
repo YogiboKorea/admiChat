@@ -416,7 +416,7 @@ async function getDailyVisitorStats() {
       const visitCount = item.visit_count || 0;
       const firstVisitCount = item.first_visit_count || 0;
       const reVisitCount = item.re_visit_count || 0;
-      return `${date} <br/>방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}`;
+      return `${date} <br/>방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}<br/>`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -475,6 +475,53 @@ async function getTop10ProductViews() {
   }
 }
 
+// ========== [13] 광고별 유입수 순위 조회 함수 ==========
+async function getTop10AdInflow() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/visitpaths/ads';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+    // shop_no, device_type 등 필요 시 추가
+  };
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Ad Inflow API 응답 데이터:", response.data);
+    let data = response.data;
+    let ads = [];
+    if (data.ads && Array.isArray(data.ads)) {
+      ads = data.ads;
+    } else {
+      throw new Error("Unexpected ad inflow data structure");
+    }
+    // 순방문자수(visit_count)를 숫자로 변환하여 내림차순 정렬
+    ads.sort((a, b) => Number(b.visit_count) - Number(a.visit_count));
+    const top10 = ads.slice(0, 10);
+    const updatedAds = top10.map((item, index) => {
+      return {
+        rank: index + 1,
+        ad: item.ad,
+        visit_count: item.visit_count,
+        displayText: `${index + 1}위: ${item.ad} - 순방문자수: ${item.visit_count}`
+      };
+    });
+    console.log("불러온 광고별 유입수 데이터:", updatedAds);
+    return updatedAds;
+  } catch (error) {
+    console.error("Error fetching ad inflow data:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+
 // ========== [13] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
@@ -531,7 +578,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("광고") && userInput.includes("순위")) {
+  if (userInput.includes("광고 순위") && userInput.includes("순위")) {
     try {
       const adSales = await getTop10AdSales();
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
@@ -554,7 +601,7 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
-  
+  //오류
   if (userInput.includes("상세페이지 접속순위")) {
     try {
       const productViews = await getTop10ProductViews();
@@ -567,6 +614,19 @@ app.post("/chat", async (req, res) => {
     }
   }
 
+  if (userInput.includes("광고별 유입수")) {
+    try {
+      const adInflow = await getTop10AdInflow();
+      const adInflowText = adInflow.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "광고별 유입수 순위 TOP 10 입니다.<br>" + adInflowText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "광고별 유입수 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+  
+  
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
