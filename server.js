@@ -370,7 +370,7 @@ async function getTop10AdSales() {
         ad: item.ad,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.ad} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${item.ad} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 광고 매체별 구매 순위 데이터:", updatedTop10);
@@ -484,12 +484,12 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("광고") && userInput.includes("순위")) {
+  if (userInput.includes("광고 노출순위") && userInput.includes("순위")) {
     try {
       const adSales = await getTop10AdSales();
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "광고 매체별 구매 순위입니다.<br>" + adSalesText
+        text: "광고 매체별 구매 순위입니다.<br><br>" + adSalesText
       });
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
