@@ -234,7 +234,6 @@ async function getTop10PagesByView() {
     });
     console.log("Pages API 응답 데이터:", response.data);
     
-    // 응답 데이터가 배열이 아니라면, "view" 배열을 사용
     let pages = response.data;
     if (!Array.isArray(pages)) {
       if (pages.view && Array.isArray(pages.view)) {
@@ -269,6 +268,7 @@ async function getTop10PagesByView() {
     throw error;
   }
 }
+
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
 async function getSalesTimesRanking() {
   const { start_date, end_date } = getLastTwoWeeksDates();
@@ -293,7 +293,6 @@ async function getSalesTimesRanking() {
     });
     console.log("Sales Times API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이 아니라면, times 배열 추출
     let times = response.data;
     if (!Array.isArray(times)) {
       if (times.times && Array.isArray(times.times)) {
@@ -305,35 +304,67 @@ async function getSalesTimesRanking() {
       }
     }
     
-    if (times.length === 0) {
-      console.log("Sales Times API: 조회된 데이터가 없습니다.");
-    }
-    
-    // 각 시간대별 데이터 displayText 구성
     const updatedTimes = times.map((time, index) => {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
       const orderCount = time.order_count || 0;
-      // order_amount을 숫자로 변환 후, toLocaleString을 사용해 천 단위 구분 기호 적용 (한국 스타일)
+      // 매출액을 숫자로 변환 후 천 단위 구분기호 적용 (한국 스타일)
       const formattedAmount = Number(time.order_amount || 0).toLocaleString('ko-KR');
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, <br/> 매출액: ${formattedAmount} 원`
+        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount} 원`
       };
     });
     
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
     return updatedTimes;
-    
   } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
 
+// ========== [10] 일별 실제 방문자수 조회 함수 ==========
+async function getDailyUniqueVisitors() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/visitors/unique';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+  };
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Unique Visitors API 응답 데이터:", response.data);
+    let uniques = response.data;
+    if (!Array.isArray(uniques)) {
+      if (uniques.unique && Array.isArray(uniques.unique)) {
+        uniques = uniques.unique;
+      } else if (uniques.data && Array.isArray(uniques.data)) {
+        uniques = uniques.data;
+      } else {
+        throw new Error("Unexpected unique visitors data structure");
+      }
+    }
+    const updatedUniques = uniques.map(item => {
+      return `${item.date} 방문자수: ${item.unique_visit_count}`;
+    });
+    console.log("불러온 일별 실제 방문자수 데이터:", updatedUniques);
+    return updatedUniques;
+  } catch (error) {
+    console.error("Error fetching unique visitors:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
 
-// ========== [채팅 엔드포인트 (/chat)] ==========
+// ========== [11] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -377,10 +408,22 @@ app.post("/chat", async (req, res) => {
     }
   }
 
+  if (userInput.includes("실제 방문자수")) {
+    try {
+      const uniqueVisitors = await getDailyUniqueVisitors();
+      const uniqueText = uniqueVisitors.join("<br>");
+      return res.json({
+        text: "조회 기간 동안의 일별 실제 방문자수입니다.<br>" + uniqueText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [11] 서버 시작 ==========
+// ========== [12] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
