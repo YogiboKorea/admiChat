@@ -220,7 +220,7 @@ async function getTop10PagesByView() {
     start_date,
     end_date,
     limit: 10,
-    sort: 'visit_count', // 방문수 기준 정렬
+    sort: 'visit_count',
     order: 'desc'
   };
 
@@ -279,7 +279,7 @@ async function getSalesTimesRanking() {
     start_date,
     end_date,
     limit: 10,
-    sort: 'order_amount', // 매출액 기준 정렬
+    sort: 'order_amount',
     order: 'desc'
   };
 
@@ -324,7 +324,74 @@ async function getSalesTimesRanking() {
   }
 }
 
-// ========== [10] 일별 실제 방문자수 조회 함수 (일별 방문자수, 처음 방문수, 재방문수) ==========
+// ========== [10] 키워드별 구매 순위 조회 함수 ==========
+async function getTop10AdKeywordSales() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/visitpaths/adkeywordsales';
+  const params = {
+    mall_id: 'yogibo',
+    shop_no: 1,
+    start_date,
+    end_date,
+    device_type: 'total',
+    limit: 100,
+    offset: 0,
+    sort: 'ad', // 기본값
+    order: 'asc'
+  };
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Ad Keyword Sales API 응답 데이터:", response.data);
+    let data = response.data;
+    let sales = [];
+    if (data.adkeywordsales && Array.isArray(data.adkeywordsales)) {
+      sales = data.adkeywordsales;
+    } else {
+      throw new Error("Unexpected ad keyword sales data structure");
+    }
+    // 동일 키워드별로 주문 건수와 매출액 합산
+    const groupByKeyword = {};
+    sales.forEach(item => {
+      const keyword = item.keyword || 'N/A';
+      if (!groupByKeyword[keyword]) {
+        groupByKeyword[keyword] = {
+          keyword,
+          order_count: 0,
+          order_amount: 0
+        };
+      }
+      groupByKeyword[keyword].order_count += item.order_count || 0;
+      groupByKeyword[keyword].order_amount += item.order_amount || 0;
+    });
+    const groupedArray = Object.values(groupByKeyword);
+    groupedArray.sort((a, b) => b.order_amount - a.order_amount);
+    const top10 = groupedArray.slice(0, 10);
+    const updatedTop10 = top10.map((item, index) => {
+      const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
+      return {
+        rank: index + 1,
+        keyword: item.keyword,
+        order_count: item.order_count,
+        order_amount: item.order_amount,
+        displayText: `${index + 1}위: ${item.keyword} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+      };
+    });
+    console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
+    return updatedTop10;
+  } catch (error) {
+    console.error("Error fetching ad keyword sales:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// ========== [11] 일별 방문자수 조회 함수 (일별 방문자수, 처음 방문수, 재방문수) ==========
 async function getDailyVisitorStats() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/visitors/view';
@@ -360,11 +427,8 @@ async function getDailyVisitorStats() {
       }
     }
     const updatedStats = stats.map(item => {
-      const date = new Date(item.date).toISOString().split('T')[0];
-      const visitCount = item.visit_count || 0;
-      const firstVisitCount = item.first_visit_count || 0;
-      const reVisitCount = item.re_visit_count || 0;
-      return `${date} 방문자수: ${visitCount}, 처음 방문수: ${firstVisitCount}, 재방문수: ${reVisitCount}`;
+      const formattedDate = new Date(item.date).toISOString().split('T')[0];
+      return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -374,7 +438,7 @@ async function getDailyVisitorStats() {
   }
 }
 
-// ========== [11] 채팅 엔드포인트 (/chat) ==========
+// ========== [12] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -418,6 +482,18 @@ app.post("/chat", async (req, res) => {
     }
   }
 
+  if (userInput.includes("키워드별 구매 순위") || userInput.includes("키워드 순위")) {
+    try {
+      const keywordSales = await getTop10AdKeywordSales();
+      const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "키워드별 구매 순위입니다.<br>" + keywordListText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
   if (userInput.includes("실제 방문자수")) {
     try {
       const visitorStats = await getDailyVisitorStats();
@@ -433,7 +509,7 @@ app.post("/chat", async (req, res) => {
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [12] 서버 시작 ==========
+// ========== [13] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
