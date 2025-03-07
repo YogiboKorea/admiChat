@@ -188,7 +188,6 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 상세 API 호출하여 상세의 product_name 사용
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
@@ -249,7 +248,6 @@ async function getTop10PagesByView() {
     
     const top10Pages = pages.slice(0, 10);
     
-    // 각 페이지의 url 앞에 'http://yogibo.kr' 추가, 방문자수와 처음 접속수 포함 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
@@ -270,6 +268,18 @@ async function getTop10PagesByView() {
 }
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
+function formatCurrency(amount) {
+  const num = Number(amount) || 0;
+  // 만약 값이 1조 이상이면 조 단위로 표시 (예: 1.23 조)
+  if (num >= 1e12) {
+    return (num / 1e12).toFixed(2) + " 조";
+  } else if (num >= 1e8) {
+    return (num / 1e8).toFixed(2) + " 억";
+  } else {
+    return num.toLocaleString('ko-KR') + " 원";
+  }
+}
+
 async function getSalesTimesRanking() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -308,11 +318,11 @@ async function getSalesTimesRanking() {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
       const orderCount = time.order_count || 0;
-      const formattedAmount = Number(time.order_amount || 0).toLocaleString('ko-KR');
+      const formattedAmount = formatCurrency(time.order_amount || 0);
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount} 원`
+        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
       };
     });
     
@@ -336,7 +346,7 @@ async function getTop10AdKeywordSales() {
     device_type: 'total',
     limit: 100,
     offset: 0,
-    sort: 'ad', // 기본값
+    sort: 'ad',
     order: 'asc'
   };
 
@@ -356,7 +366,6 @@ async function getTop10AdKeywordSales() {
     } else {
       throw new Error("Unexpected ad keyword sales data structure");
     }
-    // 동일 키워드별로 주문 건수와 매출액 합산
     const groupByKeyword = {};
     sales.forEach(item => {
       const keyword = item.keyword || 'N/A';
@@ -374,7 +383,7 @@ async function getTop10AdKeywordSales() {
     groupedArray.sort((a, b) => b.order_amount - a.order_amount);
     const top10 = groupedArray.slice(0, 10);
     const updatedTop10 = top10.map((item, index) => {
-      const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
+      const formattedAmount = formatCurrency(item.order_amount);
       return {
         rank: index + 1,
         keyword: item.keyword,
