@@ -86,12 +86,12 @@ async function refreshAccessToken() {
   return accessToken;
 }
 
-// ========== [5] 최근 2주간 날짜 계산 및 상위 10개 상품 조회 함수 ==========
+// ========== [5] 최근 4주간 날짜 계산 및 상위 10개 상품 조회 함수 ==========
 function getLastTwoWeeksDates() {
   const now = new Date();
   const end_date = now.toISOString().split('T')[0];
   const pastDate = new Date(now);
-  pastDate.setDate(now.getDate() - 14);
+  pastDate.setDate(now.getDate() - 30);
   const start_date = pastDate.toISOString().split('T')[0];
   return { start_date, end_date };
 }
@@ -171,7 +171,7 @@ async function getTop10ProductsByAddCart() {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} <br/>`
         };
       })
     );
@@ -197,7 +197,7 @@ app.post("/chat", async (req, res) => {
       const topProducts = await getTop10ProductsByAddCart();
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "최근 2주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
+        text: "최근 4주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
       });
     } catch (error) {
       return res.status(500).json({ text: "데이터를 가져오는 중 오류가 발생했습니다." });
