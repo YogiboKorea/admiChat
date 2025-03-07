@@ -1,8 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <title>Yogibo Chat</title>
+
   <style>
     /* 기본 리셋 */
     * {
@@ -13,23 +9,25 @@
       font-size: 12px !important;
     }
     body {
-      font-family: Arial, sans-serif;
-      background: #f7f7f7;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
+    font-family: Arial, sans-serif;
+    background: #f7f7f7;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    flex-direction: column;
+}
     .chat-container {
       background: #fff;
-      width: 400px;
-      max-width: 90%;
+      width: 420px;
+      max-width: 100%;
       border: 1px solid #ddd;
       border-radius: 20px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      margin-top:20px;
     }
     .chat-header {
       background: #fff;
@@ -126,19 +124,19 @@
       margin-top: 10px;
       text-align: center;
     }
-    /* 키워드 영역 스타일 */
+    /* 키워드 영역 스타일: 4칸 그리드 (2줄) */
     .key_word {
-      background: #eef;
+      background: #e9e9e9;
       padding: 10px;
-      border-bottom: 1px solid #ddd;
     }
     .key_word ul {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      padding: 0;
-      margin: 0;
-    }
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
+    padding: 0;
+    margin: 0;
+    width: 400px;
+  }
     .key_word ul li {
       background: #58b5ca;
       color: #fff;
@@ -146,6 +144,7 @@
       border-radius: 10px;
       cursor: pointer;
       font-size: 12px;
+      text-align: center;
     }
     .key_word ul li:hover {
       background: #3aa0a9;
@@ -167,7 +166,7 @@
     </ul>
   </div>
   <div class="chat-container">
-    <div class="chat-header">Yogibo Chat</div>
+    <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
       <div class="first_chat_img">
         <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
@@ -192,7 +191,7 @@
     const startDateInput = document.getElementById("start-date");
     const endDateInput = document.getElementById("end-date");
 
-    // 키워드 영역 li 클릭 시 해당 텍스트를 채팅 입력창에 넣고 전송
+    // 키워드 영역 li 클릭 시 해당 텍스트를 메시지 입력란에 채워 전송
     const keyWordItems = document.querySelectorAll('.key_word ul li');
     keyWordItems.forEach(item => {
       item.addEventListener("click", () => {
@@ -257,7 +256,6 @@
       appendUserMessage(userMessage);
       messageInput.value = "";
       
-      // 날짜 값 읽기 (값이 없으면 빈 문자열)
       const start_date = startDateInput.value || "";
       const end_date = endDateInput.value || "";
       
@@ -296,5 +294,3 @@
       }
     });
   </script>
-</body>
-</html>
