@@ -243,7 +243,6 @@ async function getTop10PagesByView() {
     }
     
     const top10Pages = pages.slice(0, 10);
-    
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
@@ -297,7 +296,6 @@ async function getSalesTimesRanking() {
       params
     });
     console.log("Sales Times API 응답 데이터:", response.data);
-
     let times = response.data;
     if (!Array.isArray(times)) {
       if (times.times && Array.isArray(times.times)) {
@@ -308,7 +306,6 @@ async function getSalesTimesRanking() {
         throw new Error("Unexpected sales times data structure");
       }
     }
-    
     const updatedTimes = times.map((time, index) => {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
@@ -320,7 +317,6 @@ async function getSalesTimesRanking() {
         displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
       };
     });
-    
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
     return updatedTimes;
   } catch(error) {
@@ -380,7 +376,7 @@ async function getTop10AdSales() {
   }
 }
 
-// ========== [11] 일별 방문자수 조회 함수 (일별 방문자수, 처음 방문수, 재방문수) ==========
+// ========== [11] 일별 방문자수 조회 함수 ==========
 async function getDailyVisitorStats() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/visitors/view';
@@ -427,16 +423,15 @@ async function getDailyVisitorStats() {
   }
 }
 
-// ========== [12] 도메인 방문수 순위 조회 함수 ==========
-async function getTop10Domains() {
+// ========== [12] 상세페이지 접속 순위 조회 함수 ==========
+async function getTop10ProductViews() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitpaths/domains';
+  const url = 'https://ca-api.cafe24data.com/products/view';
   const params = {
     mall_id: 'yogibo',
     start_date,
     end_date
   };
-
   try {
     const response = await axios.get(url, {
       headers: {
@@ -445,28 +440,29 @@ async function getTop10Domains() {
       },
       params
     });
-    console.log("Domains API 응답 데이터:", response.data);
-    let data = response.data;
-    let domains = [];
-    if (data.domains && Array.isArray(data.domains)) {
-      domains = data.domains;
+    console.log("Product View API 응답 데이터:", response.data);
+    let products = response.data;
+    if (products.count && Array.isArray(products.count)) {
+      products = products.count;
     } else {
-      throw new Error("Unexpected domains data structure");
+      throw new Error("Unexpected product view data structure");
     }
-    domains.sort((a, b) => b.visit_count - a.visit_count);
-    const top10 = domains.slice(0, 10);
-    const updatedDomains = top10.map((item, index) => {
+    // 정렬: count 높은 순으로 내림차순 정렬
+    products.sort((a, b) => b.count - a.count);
+    const top10 = products.slice(0, 10);
+    const updatedProducts = top10.map((item, index) => {
       return {
         rank: index + 1,
-        domain: item.domain,
-        visit_count: item.visit_count,
-        displayText: `${index + 1}위: ${item.domain} - 방문수: ${item.visit_count}`
+        product_no: item.product_no,
+        product_name: item.product_name,
+        count: item.count,
+        displayText: `${index + 1}위: ${item.product_name} (상품번호: ${item.product_no}) - 조회수: ${item.count}`
       };
     });
-    console.log("불러온 도메인 순위 데이터:", updatedDomains);
-    return updatedDomains;
+    console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
+    return updatedProducts;
   } catch (error) {
-    console.error("Error fetching domains:", error.response ? error.response.data : error.message);
+    console.error("Error fetching product view rankings:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
@@ -551,31 +547,30 @@ app.post("/chat", async (req, res) => {
     }
   }
   
-  if (userInput.includes("도메인 순위") || userInput.includes("직전 도메인")) {
+  if (userInput.includes("상세페이지 접속순위")) {
     try {
-      const domains = await getTop10Domains();
-      const domainListText = domains.map(item => item.displayText).join("<br>");
+      const productViews = await getTop10ProductViews();
+      const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "도메인 방문수 순위 TOP 10 정보입니다.<br>" + domainListText
+        text: "상세페이지 접속 순위 TOP 10 입니다.<br>" + productViewsText
       });
     } catch (error) {
-      return res.status(500).json({ text: "도메인 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.status(500).json({ text: "상세페이지 접속 순위 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
 
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [14] 도메인 방문수 순위 조회 함수 ==========
-async function getTop10Domains() {
+// ========== [14] 상세페이지 접속 순위 조회 함수 ==========
+async function getTop10ProductViews() {
   const { start_date, end_date } = getLastTwoWeeksDates();
-  const url = 'https://ca-api.cafe24data.com/visitpaths/domains';
+  const url = 'https://ca-api.cafe24data.com/products/view';
   const params = {
     mall_id: 'yogibo',
     start_date,
     end_date
   };
-
   try {
     const response = await axios.get(url, {
       headers: {
@@ -584,28 +579,28 @@ async function getTop10Domains() {
       },
       params
     });
-    console.log("Domains API 응답 데이터:", response.data);
-    let data = response.data;
-    let domains = [];
-    if (data.domains && Array.isArray(data.domains)) {
-      domains = data.domains;
+    console.log("Product View API 응답 데이터:", response.data);
+    let products = response.data;
+    if (products.count && Array.isArray(products.count)) {
+      products = products.count;
     } else {
-      throw new Error("Unexpected domains data structure");
+      throw new Error("Unexpected product view data structure");
     }
-    domains.sort((a, b) => b.visit_count - a.visit_count);
-    const top10 = domains.slice(0, 10);
-    const updatedDomains = top10.map((item, index) => {
+    products.sort((a, b) => b.count - a.count);
+    const top10 = products.slice(0, 10);
+    const updatedProducts = top10.map((item, index) => {
       return {
         rank: index + 1,
-        domain: item.domain,
-        visit_count: item.visit_count,
-        displayText: `${index + 1}위: ${item.domain} - 방문수: ${item.visit_count}`
+        product_no: item.product_no,
+        product_name: item.product_name,
+        count: item.count,
+        displayText: `${index + 1}위: ${item.product_name} (상품번호: ${item.product_no}) - 조회수: ${item.count}`
       };
     });
-    console.log("불러온 도메인 순위 데이터:", updatedDomains);
-    return updatedDomains;
+    console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
+    return updatedProducts;
   } catch (error) {
-    console.error("Error fetching domains:", error.response ? error.response.data : error.message);
+    console.error("Error fetching product view rankings:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
