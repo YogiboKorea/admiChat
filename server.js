@@ -433,7 +433,17 @@ async function getTop10ProductViews() {
     start_date,
     end_date
   };
-
+  let products;
+  if (Array.isArray(data)) {
+    products = data;
+  } else if (data && Array.isArray(data.count)) {
+    products = data.count;
+  } else if (data && Array.isArray(data.view)) {
+    products = data.view;
+  } else {
+    console.error("Unexpected product view data structure:", data);
+    throw new Error("Unexpected product view data structure");
+  }
   try {
     const response = await axios.get(url, {
       headers: {
