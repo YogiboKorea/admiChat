@@ -650,7 +650,9 @@ async function getDailyVisitorStats(providedDates) {
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
     let stats;
-    if (Array.isArray(response.data)) {
+    if (response.data && Array.isArray(response.data.unique)) {
+      stats = response.data.unique;
+    } else if (Array.isArray(response.data)) {
       stats = response.data;
     } else if (response.data && Array.isArray(response.data.view)) {
       stats = response.data.view;
@@ -659,6 +661,7 @@ async function getDailyVisitorStats(providedDates) {
     } else {
       throw new Error("Unexpected daily visitor stats data structure");
     }
+    
     const updatedStats = stats.map(item => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
       return `${formattedDate} 방문자수: ${item.unique_visit_count}`;
