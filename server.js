@@ -390,7 +390,7 @@ async function getTop10AdKeywordSales() {
         keyword: item.keyword,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.keyword} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${item.keyword} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
@@ -497,7 +497,7 @@ app.post("/chat", async (req, res) => {
       const keywordSales = await getTop10AdKeywordSales();
       const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "키워드별 구매 순위입니다.<br>" + keywordListText
+        text: "네이버/구글애드워즈 등 온라인 키워드 검생광고를 통해 발생한 데이터 입니다.<br><br>" + keywordListText
       });
     } catch (error) {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
