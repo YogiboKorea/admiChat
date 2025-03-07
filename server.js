@@ -193,7 +193,7 @@ async function getTop10ProductsByAddCart() {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName} <br/> - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
         };
       })
     );
@@ -361,7 +361,6 @@ async function getTop10AdSales() {
     } else {
       throw new Error("Unexpected ad sales data structure");
     }
-    // 광고 매체별로 별도 그룹화가 필요 없다면, 단순히 상위 10개 정렬된 데이터 사용
     const top10 = adsales.slice(0, 10);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = formatCurrency(item.order_amount);
@@ -370,7 +369,7 @@ async function getTop10AdSales() {
         ad: item.ad,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.ad} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `${index + 1}위: ${item.ad} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 광고 매체별 구매 순위 데이터:", updatedTop10);
@@ -428,7 +427,51 @@ async function getDailyVisitorStats() {
   }
 }
 
-// ========== [12] 채팅 엔드포인트 (/chat) ==========
+// ========== [12] 도메인 방문수 순위 조회 함수 ==========
+async function getTop10Domains() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/visitpaths/domains';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+  };
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Domains API 응답 데이터:", response.data);
+    let data = response.data;
+    let domains = [];
+    if (data.domains && Array.isArray(data.domains)) {
+      domains = data.domains;
+    } else {
+      throw new Error("Unexpected domains data structure");
+    }
+    domains.sort((a, b) => b.visit_count - a.visit_count);
+    const top10 = domains.slice(0, 10);
+    const updatedDomains = top10.map((item, index) => {
+      return {
+        rank: index + 1,
+        domain: item.domain,
+        visit_count: item.visit_count,
+        displayText: `${index + 1}위: ${item.domain} - 방문수: ${item.visit_count}`
+      };
+    });
+    console.log("불러온 도메인 순위 데이터:", updatedDomains);
+    return updatedDomains;
+  } catch (error) {
+    console.error("Error fetching domains:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// ========== [13] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -484,12 +527,12 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
+  if (userInput.includes("광고") && userInput.includes("순위")) {
     try {
       const adSales = await getTop10AdSales();
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "광고 매체별 구매 순위입니다.<br><br>" + adSalesText
+        text: "광고 매체별 구매 순위입니다.<br>" + adSalesText
       });
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
@@ -507,11 +550,67 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "실제 방문자수 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
+  
+  if (userInput.includes("도메인 순위") || userInput.includes("직전 도메인")) {
+    try {
+      const domains = await getTop10Domains();
+      const domainListText = domains.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "도메인 방문수 순위 TOP 10 정보입니다.<br>" + domainListText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "도메인 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
 
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [13] 서버 시작 ==========
+// ========== [14] 도메인 방문수 순위 조회 함수 ==========
+async function getTop10Domains() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/visitpaths/domains';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+  };
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Domains API 응답 데이터:", response.data);
+    let data = response.data;
+    let domains = [];
+    if (data.domains && Array.isArray(data.domains)) {
+      domains = data.domains;
+    } else {
+      throw new Error("Unexpected domains data structure");
+    }
+    domains.sort((a, b) => b.visit_count - a.visit_count);
+    const top10 = domains.slice(0, 10);
+    const updatedDomains = top10.map((item, index) => {
+      return {
+        rank: index + 1,
+        domain: item.domain,
+        visit_count: item.visit_count,
+        displayText: `${index + 1}위: ${item.domain} - 방문수: ${item.visit_count}`
+      };
+    });
+    console.log("불러온 도메인 순위 데이터:", updatedDomains);
+    return updatedDomains;
+  } catch (error) {
+    console.error("Error fetching domains:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// ========== [15] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
