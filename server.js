@@ -209,17 +209,17 @@ async function getTop10ProductsByAddCart() {
     throw error;
   }
 }
+
 async function getTop10PagesByView() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/pages/view';
-  // sort 파라미터를 'visit_count'로 변경 (페이지 뷰가 아닌 방문수 기준 정렬)
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
     start_date,
     end_date,
     limit: 10,
-    sort: 'visit_count',
+    sort: 'visit_count', // 방문수 기준 정렬
     order: 'desc'
   };
 
@@ -232,9 +232,13 @@ async function getTop10PagesByView() {
       params
     });
     console.log("Pages API 응답 데이터:", response.data);
+    
+    // 응답 데이터가 배열이 아니라면, "view" 배열을 사용
     let pages = response.data;
     if (!Array.isArray(pages)) {
-      if (pages.pages && Array.isArray(pages.pages)) {
+      if (pages.view && Array.isArray(pages.view)) {
+        pages = pages.view;
+      } else if (pages.pages && Array.isArray(pages.pages)) {
         pages = pages.pages;
       } else if (pages.data && Array.isArray(pages.data)) {
         pages = pages.data;
@@ -242,10 +246,15 @@ async function getTop10PagesByView() {
         throw new Error("Unexpected pages data structure");
       }
     }
+    
+    // 상위 10개 페이지 추출
     const top10Pages = pages.slice(0, 10);
+    
+    // 각 페이지의 url, count, visit_count를 사용하여 displayText 구성
     const updatedPages = top10Pages.map((page, index) => {
       const urlText = page.url || 'N/A';
-      const pageView = page.page_view || 0;
+      // 여기서 count를 페이지 뷰로 사용합니다.
+      const pageView = page.count || 0;
       const visitCount = page.visit_count || 0;
       return {
         ...page,
@@ -253,6 +262,7 @@ async function getTop10PagesByView() {
         displayText: `${index + 1}위: ${urlText} - 페이지 뷰: ${pageView}, 방문수: ${visitCount}`
       };
     });
+    
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
     return updatedPages;
   } catch(error) {
@@ -260,6 +270,7 @@ async function getTop10PagesByView() {
     throw error;
   }
 }
+
 
 
 // ========== [9] 채팅 엔드포인트 (/chat) ==========
