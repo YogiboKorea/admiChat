@@ -726,7 +726,7 @@ app.post("/chat", async (req, res) => {
     }
   }
   
-  if (userInput.includes("상세페이지 접속순위")) {
+  if (userInput.includes("상세페이지 접속 순위")) {
     try {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
