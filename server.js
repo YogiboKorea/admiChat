@@ -433,7 +433,7 @@ async function getTop10ProductViews() {
     mall_id: 'yogibo',
     start_date,
     end_date,
-    limit: 1000,  // 전체 데이터를 불러오기 위한 큰 값
+    limit: 300,  // 전체 데이터를 불러오기 위한 큰 값
     offset: 0
   };
 
