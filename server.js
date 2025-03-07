@@ -257,7 +257,7 @@ async function getTop10PagesByView() {
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} - 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
+        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount} <br/>`
       };
     });
     
