@@ -86,36 +86,6 @@ async function refreshAccessToken() {
   return accessToken;
 }
 
-// ========== [4] Cafe24 API 요청 함수 ==========
-async function apiRequest(method, url, data = {}, params = {}) {
-  console.log(`Request: ${method} ${url}`);
-  console.log("Params:", params);
-  console.log("Data:", data);
-  try {
-    const response = await axios({
-      method,
-      url,
-      data,
-      params,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION
-      },
-    });
-    return response.data;
-  } catch (error) {
-    if (error.response && error.response.status === 401) {
-      console.log('Access Token 만료. 갱신 중...');
-      await refreshAccessToken();
-      return apiRequest(method, url, data, params);
-    } else {
-      console.error('API 요청 오류:', error.response ? error.response.data : error.message);
-      throw error;
-    }
-  }
-}
-
 // ========== [5] 최근 2주간 날짜 계산 및 상위 10개 상품 조회 함수 ==========
 function getLastTwoWeeksDates() {
   const now = new Date();
@@ -129,7 +99,7 @@ function getLastTwoWeeksDates() {
 // 제품 상세정보를 가져오는 함수 (/api/v2/admin/products/{product_no})
 // mall_id를 쿼리 파라미터로 추가하여 호출
 async function getProductDetail(product_no) {
-  const url = `https://ca-api.cafe24data.com/api/v2/admin/products/${product_no}?mall_id=${CAFE24_MALLID}`;
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/products/${product_no}?mall_id=${CAFE24_MALLID}`;
   try {
     const response = await axios.get(url, {
       headers: {
@@ -175,7 +145,7 @@ async function getTop10ProductsByAddCart() {
     });
 
     console.log("API 응답 데이터:", response.data);
-
+    //배열
     let products = response.data;
     if (!Array.isArray(products)) {
       if (products.action && Array.isArray(products.action)) {
