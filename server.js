@@ -121,7 +121,7 @@ function getLastTwoWeeksDates() {
   const now = new Date();
   const end_date = now.toISOString().split('T')[0];
   const pastDate = new Date(now);
-  pastDate.setDate(now.getDate() - 30);
+  pastDate.setDate(now.getDate() - 130);
   const start_date = pastDate.toISOString().split('T')[0];
   return { start_date, end_date };
 }
