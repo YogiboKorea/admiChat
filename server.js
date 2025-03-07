@@ -193,7 +193,7 @@ async function getTop10ProductsByAddCart() {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+          displayText: `${index + 1}위: ${finalName} <br/> - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
         };
       })
     );
@@ -484,7 +484,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("광고 노출순위") && userInput.includes("순위")) {
+  if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
     try {
       const adSales = await getTop10AdSales();
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
