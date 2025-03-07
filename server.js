@@ -16,7 +16,7 @@ const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
 const CAFE24_MALLID = process.env.CAFE24_MALLID;  // mall_id가 반드시 설정되어야 함
-const OPEN_URL = process.env.OPEN_URL;  
+const OPEN_URL = process.env.OPEN_URL;
 const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
@@ -86,7 +86,37 @@ async function refreshAccessToken() {
   return accessToken;
 }
 
-// ========== [5] 최근 4주간 날짜 계산 및 상위 10개 상품 조회 함수 ==========
+// ========== [4] Cafe24 API 요청 함수 ==========
+async function apiRequest(method, url, data = {}, params = {}) {
+  console.log(`Request: ${method} ${url}`);
+  console.log("Params:", params);
+  console.log("Data:", data);
+  try {
+    const response = await axios({
+      method,
+      url,
+      data,
+      params,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Cafe24-Api-Version': CAFE24_API_VERSION
+      },
+    });
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.status === 401) {
+      console.log('Access Token 만료. 갱신 중...');
+      await refreshAccessToken();
+      return apiRequest(method, url, data, params);
+    } else {
+      console.error('API 요청 오류:', error.response ? error.response.data : error.message);
+      throw error;
+    }
+  }
+}
+
+// ========== [5] 최근 30일(약 4주간) 날짜 계산 ==========
 function getLastTwoWeeksDates() {
   const now = new Date();
   const end_date = now.toISOString().split('T')[0];
@@ -96,8 +126,7 @@ function getLastTwoWeeksDates() {
   return { start_date, end_date };
 }
 
-// 제품 상세정보를 가져오는 함수 (/api/v2/admin/products/{product_no})
-// mall_id를 쿼리 파라미터로 추가하여 호출
+// ========== [6] 제품 상세정보를 가져오는 함수 ==========
 async function getProductDetail(product_no) {
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products/${product_no}?mall_id=${CAFE24_MALLID}`;
   try {
@@ -107,7 +136,6 @@ async function getProductDetail(product_no) {
         'Content-Type': 'application/json'
       }
     });
-    // 반환된 응답에서 product_name만 추출
     if (response.data && response.data.product && response.data.product.product_name) {
       console.log(`Product detail for ${product_no}:`, response.data.product.product_name);
       return response.data.product.product_name;
@@ -119,20 +147,20 @@ async function getProductDetail(product_no) {
   }
 }
 
-// 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 (상세정보의 product_name만 사용)
+// ========== [7] 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 ==========
 async function getTop10ProductsByAddCart() {
   const { start_date, end_date } = getLastTwoWeeksDates();
   const url = 'https://ca-api.cafe24data.com/carts/action';
   const params = {
-    mall_id: 'yogibo',      // 실제 몰 아이디로 변경
-    shop_no: 1,             // 기본 샵 번호 (DEFAULT 1)
+    mall_id: 'yogibo',  
+    shop_no: 1,
     start_date,
     end_date,
-    device_type: 'total',   // pc, mobile, total 중 선택
-    limit: 100,             // 최소 50, 최대 1000 (여기서는 100)
+    device_type: 'total',
+    limit: 100,
     offset: 0,
-    sort: 'add_cart_count', // 정렬 기준: 장바구니에 담긴수
-    order: 'desc'           // 내림차순 정렬
+    sort: 'add_cart_count',
+    order: 'desc'
   };
 
   try {
@@ -145,7 +173,6 @@ async function getTop10ProductsByAddCart() {
     });
 
     console.log("API 응답 데이터:", response.data);
-    //배열
     let products = response.data;
     if (!Array.isArray(products)) {
       if (products.action && Array.isArray(products.action)) {
@@ -161,17 +188,16 @@ async function getTop10ProductsByAddCart() {
 
     const top10 = products.slice(0, 10);
 
-    // 각 상품에 대해 product_no를 활용하여 상세 API 호출 후, 받은 product_name을 사용
+    // 각 상품에 대해 상세 API를 호출하여 product_name(세부 API의 값)을 가져온 후 displayText 구성
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
         const detailName = await getProductDetail(product.product_no);
-        // detailName이 있으면 이를 사용, 없으면 기본값 '상품'
         const finalName = detailName || '상품';
         return {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} <br/>`
+          displayText: `${index + 1}위: ${finalName} - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
         };
       })
     );
@@ -184,7 +210,60 @@ async function getTop10ProductsByAddCart() {
   }
 }
 
-// ========== [6] 채팅 엔드포인트 (/chat) ==========
+// ========== [8] 페이지 뷰 및 방문수 상위 10개 페이지 조회 함수 ==========
+async function getTop10PagesByView() {
+  const { start_date, end_date } = getLastTwoWeeksDates();
+  const url = 'https://ca-api.cafe24data.com/pages/view';
+  // API의 요구사항에 맞게 필요한 파라미터를 구성하세요.
+  const params = {
+    mall_id: 'yogibo',
+    shop_no: 1,
+    start_date,
+    end_date,
+    limit: 10,
+    sort: 'page_view', // 예시로 페이지 뷰 기준 정렬
+    order: 'desc'
+  };
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Pages API 응답 데이터:", response.data);
+    let pages = response.data;
+    if (!Array.isArray(pages)) {
+      if (pages.pages && Array.isArray(pages.pages)) {
+        pages = pages.pages;
+      } else if (pages.data && Array.isArray(pages.data)) {
+        pages = pages.data;
+      } else {
+        throw new Error("Unexpected pages data structure");
+      }
+    }
+    const top10Pages = pages.slice(0, 10);
+    const updatedPages = top10Pages.map((page, index) => {
+      const urlText = page.url || 'N/A';
+      const pageView = page.page_view || 0;
+      const visitCount = page.visit_count || 0;
+      return {
+        ...page,
+        rank: index + 1,
+        displayText: `${index + 1}위: ${urlText} - 페이지 뷰: ${pageView}, 방문수: ${visitCount}`
+      };
+    });
+    console.log("불러온 상위 10 페이지 데이터:", updatedPages);
+    return updatedPages;
+  } catch(error) {
+    console.error("Error fetching pages:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// ========== [9] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
@@ -197,17 +276,29 @@ app.post("/chat", async (req, res) => {
       const topProducts = await getTop10ProductsByAddCart();
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "최근 4주간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
+        text: "최근 30일간 장바구니에 많이 담긴 상위 10개 상품 정보입니다.<br>" + productListText
       });
     } catch (error) {
-      return res.status(500).json({ text: "데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.status(500).json({ text: "상품 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
+  if (userInput.includes("가장 많이 접속한 페이지") || userInput.includes("페이지 뷰")) {
+    try {
+      const topPages = await getTop10PagesByView();
+      const pageListText = topPages.map(page => page.displayText).join("<br>");
+      return res.json({
+        text: "가장 많이 접속한 페이지 TOP 10 정보입니다.<br>" + pageListText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
 
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
-// ========== [7] 서버 시작 ==========
+// ========== [10] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
