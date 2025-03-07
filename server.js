@@ -293,7 +293,7 @@ async function getSalesTimesRanking() {
     });
     console.log("Sales Times API 응답 데이터:", response.data);
 
-    // 응답 데이터가 배열이 아닐 경우, times 배열 추출
+    // 응답 데이터가 배열이 아니라면, times 배열 추출
     let times = response.data;
     if (!Array.isArray(times)) {
       if (times.times && Array.isArray(times.times)) {
@@ -305,12 +305,11 @@ async function getSalesTimesRanking() {
       }
     }
     
-    // 데이터가 없는 경우 로그 출력
     if (times.length === 0) {
       console.log("Sales Times API: 조회된 데이터가 없습니다.");
     }
     
-    // 각 시간대별 데이터 displayText 구성
+    // 각 시간대별 데이터 displayText 구성 (매출액 뒤에 " 원" 추가)
     const updatedTimes = times.map((time, index) => {
       const hour = time.hour || 'N/A';
       const buyersCount = time.buyers_count || 0;
@@ -319,7 +318,7 @@ async function getSalesTimesRanking() {
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${orderAmount}`
+        displayText: `${index + 1}위: ${hour}시 - 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${orderAmount} 원`
       };
     });
     
