@@ -1,8 +1,6 @@
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;400;700&display=swap" rel="stylesheet">
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dongle&family=Nanum+Gothic&family=Noto+Sans+KR:wght@100..900&family=Yuji+Mai&display=swap" rel="stylesheet">
   <style>
     /* 기본 리셋 */
     * {
@@ -10,44 +8,19 @@
       padding: 0;
       box-sizing: border-box;
       list-style: none;
-      font-size: 13px;
+      font-size:13px;
       font-family: "Noto Sans KR", sans-serif;
     }
-    a { color: #3aa0a9; }
+    a{color:red}
     body {
-      background: #f7f7f7;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-    /* 키워드 영역 */
-    .key_word {
-      background: #e9e9e9;
-      padding: 10px;
-      width: 400px;
-      margin-bottom: 10px;
-    }
-    .key_word ul {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 5px;
-      width: 100%;
-    }
-    .key_word ul li {
-      background: #58b5ca;
-      color: #fff;
-      padding: 5px 10px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 12px;
-      text-align: center;
-    }
-    .key_word ul li:hover {
-      background: #3aa0a9;
-    }
-    /* 채팅 컨테이너 */
+    font-family: Arial, sans-serif;
+    background: #f7f7f7;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    flex-direction: column;
+}
     .chat-container {
       background: #fff;
       width: 420px;
@@ -58,7 +31,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      margin-top: 20px;
+      margin-top:20px;
     }
     .chat-header {
       background: #fff;
@@ -67,7 +40,6 @@
       text-align: center;
       font-size: 14px;
       font-weight: 600;
-      cursor: pointer;
     }
     .chat-messages {
       padding: 15px;
@@ -119,6 +91,10 @@
       padding: 5px;
       flex-direction: column;
     }
+    .chat-input input,
+    .chat-input button {
+      font-size: 1em;
+    }
     .date-inputs {
       display: flex;
       justify-content: space-between;
@@ -152,9 +128,60 @@
       margin-top: 10px;
       text-align: center;
     }
-    /* 그래프 스타일 (필요시 수정) */
-    canvas {
-      margin-top: 10px;
+    /* 키워드 영역 스타일: 4칸 그리드 (2줄) */
+    .key_word {
+      background: #e9e9e9;
+      padding: 10px;
+    }
+    .key_word ul {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
+    padding: 0;
+    margin: 0;
+    width: 400px;
+  }
+    .key_word ul li {
+      background: #58b5ca;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      text-align: center;
+    }
+    .key_word ul li:hover {
+      background: #3aa0a9;
+    }
+
+    /*안쪽 채팅 부분 css*/
+    .product-ranking{
+      display: flex;
+      align-items: center; 
+      gap: 10px; padding:5px; 
+      border: 1px solid #ddd; 
+      border-radius: 5px;
+      background:#fff
+    }
+    .product-ranking .rank{
+      font-weight: bold; color:#333;
+    }
+    .product-ranking .image{
+      flex-shrink: 0;
+    }
+    .product-ranking .image img
+    {
+    max-width:60px; width:60px; height:auto; border-radius: 5px;
+    }
+    .product-ranking .details {
+      display: flex; flex-direction: column;
+    }
+    .product-ranking .product-name{
+      font-weight:600; color: #333;
+    }
+    .product-ranking .product-count
+    {
+      font-size: 11px; color: #555;
     }
   </style>
 </head>
@@ -164,7 +191,7 @@
     <ul>
       <li>기간별 장바구니 순위</li>
       <li>기간별 페이지뷰 순위</li>
-      <li>시간대별 결제금액 순위</li>
+      <li>시간대별 결제 금액 추이</li>
       <li>검색 키워드별 구매 순위</li>
       <li>광고별 판매 순위</li>
       <li>광고별 자사몰 유입수</li>
@@ -174,8 +201,6 @@
       <li>이전 페이지 접속 URL</li>
     </ul>
   </div>
-
-  <!-- 채팅 컨테이너 -->
   <div class="chat-container">
     <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
@@ -189,16 +214,12 @@
         <input id="start-date" type="date" placeholder="시작일">
         <input id="end-date" type="date" placeholder="종료일">
       </div>
-      <textarea id="message-input" placeholder="기간 미 설정시 한달 기준 데이터가 노출됩니다"></textarea>
+      <textarea id="message-input" placeholder="기간 미 설정시 한달기준 데이터가 노출됩니다"></textarea>
       <button id="send-btn">입력</button>
     </div>
   </div>
 
-  <!-- Chart.js 라이브러리 -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Axios 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-
   <script>
     const chatMessages = document.getElementById("chat-messages");
     const messageInput = document.getElementById("message-input");
@@ -206,186 +227,135 @@
     const startDateInput = document.getElementById("start-date");
     const endDateInput = document.getElementById("end-date");
 
-    // 키워드 영역 li 클릭 시 해당 텍스트를 메시지 입력란에 채워 전송
+    // 로컬 날짜 포맷 변환 (YYYY-MM-DD)
+    function getLocalDateString(date) {
+        const year = date.getFullYear();
+        const month = ("0" + (date.getMonth() + 1)).slice(-2);
+        const day = ("0" + date.getDate()).slice(-2);
+        return `${year}-${month}-${day}`;
+    }
+
+    // 최근 30일 기간 기본 설정
+    function getLastTwoWeeksDates(providedDates) {
+        if (providedDates && providedDates.start_date && providedDates.end_date) {
+            return { start_date: providedDates.start_date, end_date: providedDates.end_date };
+        }
+        const now = new Date();
+        const end_date = getLocalDateString(now);
+        const pastDate = new Date(now);
+        pastDate.setDate(now.getDate() - 30);
+        const start_date = getLocalDateString(pastDate);
+        return { start_date, end_date };
+    }
+
+    // 키워드 버튼 클릭 시 메시지 자동 입력 및 전송
     document.querySelectorAll('.key_word ul li').forEach(item => {
-      item.addEventListener("click", () => {
-        messageInput.value = item.innerText;
-        sendMessage();
-      });
+        item.addEventListener("click", () => {
+            messageInput.value = item.innerText;
+            sendMessage(); // 클릭하면 자동 전송
+        });
     });
 
-    // 로컬 날짜 문자열 생성 함수 (YYYY-MM-DD)
-    function getLocalDateString(date) {
-      const year = date.getFullYear();
-      const month = ("0" + (date.getMonth() + 1)).slice(-2);
-      const day = ("0" + date.getDate()).slice(-2);
-      return `${year}-${month}-${day}`;
-    }
-
-    // 최근 30일(4주) 기본 날짜 설정 (프론트에서 제공되지 않으면 사용)
-    function getLastTwoWeeksDates(providedDates) {
-      if (providedDates && providedDates.start_date && providedDates.end_date) {
-        return { start_date: providedDates.start_date, end_date: providedDates.end_date };
-      }
-      const now = new Date();
-      const end_date = getLocalDateString(now);
-      const pastDate = new Date(now);
-      pastDate.setDate(now.getDate() - 30);
-      const start_date = getLocalDateString(pastDate);
-      return { start_date, end_date };
-    }
-
+    // 숫자로 시작하는 목록을 감지하여 <ol> 변환
     function formatNumberedList(text) {
-      const pattern = /\d+\.\s+/g;
-      const matches = text.match(pattern);
-      if (matches && matches.length >= 2) {
-        const listRegex = /(\d+\.\s*[^0-9]+)/g;
-        const items = text.match(listRegex);
-        if (items) {
-          return '<ol style="padding-left: 20px; margin: 0;">' +
-                 items.map(item => `<li>${item.trim()}</li>`).join('') +
-                 '</ol>';
+        const pattern = /\d+\.\s+/g;
+        const matches = text.match(pattern);
+        if (matches && matches.length >= 2) {
+            const listRegex = /(\d+\.\s*[^0-9]+)/g;
+            const items = text.match(listRegex);
+            if (items) {
+                return '<ol style="padding-left: 20px; margin: 0;">' +
+                    items.map(item => `<li>${item.trim()}</li>`).join('') +
+                    '</ol>';
+            }
         }
-      }
-      return text;
+        return text;
     }
 
     // 봇 메시지 추가
     function appendBotMessage(fullText) {
-      const messageElem = document.createElement("div");
-      messageElem.classList.add("message", "bot");
-      const botContainer = document.createElement("div");
-      botContainer.classList.add("bot-container");
-      const botImg = document.createElement("img");
-      botImg.src = "http://yogibo.kr/web/test/tmp-3922227795.webp";
-      botImg.alt = "Bot Profile";
-      botImg.classList.add("bot-profile");
-      const botMessageDiv = document.createElement("div");
-      botMessageDiv.classList.add("bot-message");
-      botMessageDiv.innerHTML = formatNumberedList(fullText);
-      botContainer.appendChild(botImg);
-      botContainer.appendChild(botMessageDiv);
-      messageElem.appendChild(botContainer);
-      chatMessages.appendChild(messageElem);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+        const messageElem = document.createElement("div");
+        messageElem.classList.add("message", "bot");
+        const botContainer = document.createElement("div");
+        botContainer.classList.add("bot-container");
+        const botImg = document.createElement("img");
+        botImg.src = "http://yogibo.kr/web/test/tmp-3922227795.webp";
+        botImg.alt = "Bot Profile";
+        botImg.classList.add("bot-profile");
+        const botMessageDiv = document.createElement("div");
+        botMessageDiv.classList.add("bot-message");
+        botMessageDiv.innerHTML = formatNumberedList(fullText);
+        botContainer.appendChild(botImg);
+        botContainer.appendChild(botMessageDiv);
+        messageElem.appendChild(botContainer);
+        chatMessages.appendChild(messageElem);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     // 사용자 메시지 추가
     function appendUserMessage(text) {
-      const messageElem = document.createElement("div");
-      messageElem.classList.add("message", "user");
-      const messageText = document.createElement("div");
-      messageText.innerHTML = text;
-      messageElem.appendChild(messageText);
-      chatMessages.appendChild(messageElem);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+        const messageElem = document.createElement("div");
+        messageElem.classList.add("message", "user");
+        const messageText = document.createElement("div");
+        messageText.innerHTML = text;
+        messageElem.appendChild(messageText);
+        chatMessages.appendChild(messageElem);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // 메시지 전송 함수
     async function sendMessage() {
-      const userMessage = messageInput.value.trim();
-      if (!userMessage) return;
-      
-      const firstChatImg = document.querySelector('.first_chat_img');
-      if (firstChatImg) {
-        firstChatImg.style.display = 'none';
-      }
-      
-      appendUserMessage(userMessage);
-      messageInput.value = "";
-      
-      const start_date = startDateInput.value || "";
-      const end_date = endDateInput.value || "";
-      
-      try {
-        // 서버에 메시지 전송
-        const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
-          message: userMessage,
-          start_date: start_date,
-          end_date: end_date
-        }, {
-          headers: {
-            "Content-Type": "application/json"
-          }
-        });
-        const data = response.data;
-        console.log("botResponse =>", data);
-        let botResponse = data.text;
-        
-        // videoHtml, imageUrl 등 추가 처리
-        if (data.videoHtml) {
-          botResponse += "<br>" + data.videoHtml;
+        const userMessage = messageInput.value.trim();
+        if (!userMessage) return;
+
+        // 첫 메시지 전송 시 초기 이미지 숨기기
+        const firstChatImg = document.querySelector('.first_chat_img');
+        if (firstChatImg) {
+            firstChatImg.style.display = 'none';
         }
-        if (data.imageUrl) {
-          if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
-            botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
-          }
-        }
-        appendBotMessage(botResponse);
-        
-        // 만약 응답에 chartData가 있다면, Chart.js로 그래프 렌더링
-        if (data.chartData) {
-          console.log("chartData =>", data.chartData);
 
-          // 기존 캔버스 제거 후 새로 생성
-          let existingCanvas = document.getElementById("salesChart");
-          if (existingCanvas) existingCanvas.remove();
+        // 사용자 메시지 출력
+        appendUserMessage(userMessage);
+        messageInput.value = "";
 
-          const canvas = document.createElement("canvas");
-          canvas.id = "salesChart";
-          canvas.style.maxWidth = "100%";
-          canvas.style.height = "300px";
-          chatMessages.appendChild(canvas);
+        // 날짜 값 확인 및 설정
+        const start_date = startDateInput.value || "";
+        const end_date = endDateInput.value || "";
 
-          new Chart(canvas, {
-            type: 'bar',
-            data: {
-              labels: data.chartData.labels, // ["0시", "1시", ...]
-              datasets: [
-                {
-                  label: '구매자수',
-                  data: data.chartData.buyersCounts, // 숫자 배열
-                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                  borderColor: 'rgba(75, 192, 192, 1)',
-                  borderWidth: 1
-                },
-                {
-                  label: '구매건수',
-                  data: data.chartData.orderCounts, // 숫자 배열
-                  backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                  borderColor: 'rgba(153, 102, 255, 1)',
-                  borderWidth: 1
-                },
-                {
-                  label: '매출액',
-                  data: data.chartData.orderAmounts, // 숫자 배열
-                  backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                  borderColor: 'rgba(255, 159, 64, 1)',
-                  borderWidth: 1
+        try {
+            // 서버에 요청
+            const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
+                message: userMessage,
+                start_date: start_date,
+                end_date: end_date
+            }, {
+                headers: {
+                    "Content-Type": "application/json"
                 }
-              ]
-            },
-            options: {
-              scales: {
-                y: {
-                  beginAtZero: true
-                }
-              }
+            });
+
+            const data = response.data;
+            console.log("botResponse =>", data.text);
+            let botResponse = data.text;
+
+            if (data.videoHtml) {
+                botResponse += "<br>" + data.videoHtml;
             }
-          });
+            if (data.imageUrl) {
+                if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
+                    botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
+                }
+            }
+            appendBotMessage(botResponse);
+        } catch (error) {
+            appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
+            console.error("Error:", error);
         }
-      } catch (error) {
-        appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
-        console.error("Error:", error);
-      }
     }
 
-    // 이벤트 리스너
     sendBtn.addEventListener("click", sendMessage);
     messageInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        sendMessage();
-      }
+        if (e.key === "Enter") {
+            sendMessage();
+        }
     });
-  </script>
-
+</script>
