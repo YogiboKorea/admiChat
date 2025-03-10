@@ -201,12 +201,17 @@ async function getTop10ProductsByAddCart(providedDates) {
           rank: index + 1,
           product_name: finalName,
           displayText: `
-            <div class="product-ranking">
-              <span class="rank">${index + 1}위:</span>
-              <span class="product-name" style="font-weight:600;">${finalName}</span>
-              <br/>
-              <img src="${listImage}" style="max-width:60px;width:100%;"/>
-              <span class="product-count">총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 장바구니에 담겨 있습니다.</span>
+            <div class="product-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+              <div class="rank" style="font-weight: bold; color: #007bff;">${index + 1}위:</div>
+              <div class="image" style="flex-shrink: 0;">
+                <img src="${listImage}" style="max-width:60px; width:60px; height:auto; border-radius: 5px;"/>
+              </div>
+              <div class="details" style="display: flex; flex-direction: column;">
+                <div class="product-name" style="font-weight:600; color: #333;">${finalName}</div>
+                <div class="product-count" style="font-size: 11px; color: #555;">
+                  총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 장바구니에 담겨 있습니다.
+                </div>
+              </div>
             </div>
           `
         };
