@@ -183,6 +183,49 @@
     {
       font-size: 11px; color: #555;
     }
+    .chat-input {
+      display: flex;
+      border-top: 1px solid #ddd;
+      padding: 5px;
+      flex-direction: column;
+    }
+    .date-inputs {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .date-inputs input {
+      width: 48%;
+      padding: 5px;
+    }
+    .chat-input textarea {
+      width: 100%;
+      resize: none;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin-bottom: 5px;
+    }
+    .chat-input button {
+      padding: 10px;
+      border: none;
+      background: #58b5ca;
+      color: #fff;
+      cursor: pointer;
+    }
+    .first_chat_img {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    .init-message {
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: center;
+    }
+    /* 그래프 스타일 (필요에 따라 추가 수정) */
+    canvas {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -214,13 +257,13 @@
         <input id="start-date" type="date" placeholder="시작일">
         <input id="end-date" type="date" placeholder="종료일">
       </div>
-      <textarea id="message-input" placeholder="기간 미 설정시 한달기준 데이터가 노출됩니다"></textarea>
+      <textarea id="message-input" placeholder="기간 미 설정시 한달 기준 데이터가 노출됩니다"></textarea>
       <button id="send-btn">입력</button>
     </div>
   </div>
 
-  <!-- Chart.js 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Axios 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
     const chatMessages = document.getElementById("chat-messages");
@@ -358,7 +401,7 @@
               labels: data.chartData.labels,
               datasets: [
                 {
-                  label: '구매자수',
+                  label: '구매자수1',
                   data: data.chartData.buyersCounts,
                   backgroundColor: 'rgba(75, 192, 192, 0.2)',
                   borderColor: 'rgba(75, 192, 192, 1)',
