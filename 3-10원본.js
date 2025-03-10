@@ -264,13 +264,29 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     const updatedPages = top10Pages.map((page, index) => {
-      const urlText = "http://yogibo.kr" + (page.url || 'N/A');
+      const urlMapping = {
+        '/': '메인',
+        '/product/detail.html': '상세페이지',
+        '/product/list.html': '목록페이지',
+        '/product/search.html': '검색페이지'
+      };  
+      const urlText = urlMapping[page.url] || page.url;
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
+        displayText: `
+        <div class="product-ranking">
+          <div class="rank">${index + 1}</div>
+          <div class="details">
+            <div class="product-name"><a href="https://yogibo.kr/${urlText}" target="_blank">${urlText}</div></a>
+            <div class="product-count" >
+             방문자수: ${visitCount}, 첫방문수: ${firstVisitCount}
+            </div>
+          </div>
+        </div>
+      `   
       };
     });
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
@@ -343,6 +359,7 @@ async function getSalesTimesRanking(providedDates) {
     throw error;
   }
 }
+
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
@@ -674,7 +691,7 @@ app.post("/chat", async (req, res) => {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
       return res.json({
-        text: "기간별 페이지뷰 순위 <br><br>" + pageListText
+        text: pageListText
       });
     } catch (error) {
       return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
