@@ -302,7 +302,6 @@ function formatCurrency(amount) {
     return num.toLocaleString('ko-KR') + " 원";
   }
 }
-
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -343,7 +342,17 @@ async function getSalesTimesRanking(providedDates) {
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
+        displayText: `
+          <div class="sales-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
+            <div class="rank" style="font-weight:bold;">${index + 1}</div>
+            <div class="time" style="min-width:50px;">${hour}시</div>
+            <div class="details" style="display:flex; flex-direction:column;">
+              <div class="buyers">구매자수: ${buyersCount}</div>
+              <div class="orders">구매건수: ${orderCount}</div>
+              <div class="amount">매출액: ${formattedAmount}</div>
+            </div>
+          </div>
+        `
       };
     });
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
@@ -353,6 +362,7 @@ async function getSalesTimesRanking(providedDates) {
     throw error;
   }
 }
+
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
@@ -774,7 +784,7 @@ app.post("/chat", async (req, res) => {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "상세페이지 접속 순위 TOP 10 입니다.<br>" + productViewsText
+        text: productViewsText
       });
     } catch (error) {
       return res.status(500).json({ text: "상세페이지 접속 순위 데이터를 가져오는 중 오류가 발생했습니다." });
