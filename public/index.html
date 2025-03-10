@@ -204,7 +204,6 @@
   <div class="chat-container">
     <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
-      <canvas id="salesChart" width="400" height="200"></canvas>
       <div class="first_chat_img">
         <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
         <div class="init-message">마케팅 판매데이터 조회</div>
@@ -319,16 +318,17 @@
     }
   }
 
-  async function createSalesChart() {
+
+    async function createSalesChart(canvasId = 'salesChart') {
     const data = await fetchHourlySales();
     if (!data) return;
     
-    const ctx = document.getElementById('salesChart').getContext('2d');
+    const ctx = document.getElementById(canvasId).getContext('2d');
     const labels = data.map(item => `${item.hour}시`);
     const salesData = data.map(item => item.order_amount);
 
     new Chart(ctx, {
-      type: 'bar', // 막대그래프 선택 (원하는 타입으로 변경 가능)
+      type: 'bar', // 막대그래프
       data: {
         labels,
         datasets: [{
@@ -344,7 +344,6 @@
           y: {
             beginAtZero: true,
             ticks: {
-              // 숫자를 읽기 좋게 포맷 (예: 천 단위 콤마)
               callback: function(value) {
                 return value.toLocaleString();
               }
@@ -355,8 +354,6 @@
     });
   }
 
-  // 페이지 로드 시 차트 생성 또는 버튼 클릭 등으로 실행
-  createSalesChart();
 
 
     async function sendMessage() {
