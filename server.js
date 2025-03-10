@@ -316,7 +316,7 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 10,
+    limit: 24,  // 0시부터 23시까지 모든 데이터를 요청
     sort: 'order_amount',
     order: 'desc'
   };
@@ -340,7 +340,7 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    // 시간대 데이터가 0~23시를 모두 포함하도록 배열 구성 (없으면 0)
+    // 0시부터 23시까지 모든 시간대 데이터를 포함하도록 재구성 (없으면 0)
     const hoursData = [];
     for (let i = 0; i < 24; i++) {
       const hourData = times.find(item => Number(item.hour) === i);
@@ -361,6 +361,7 @@ async function getSalesTimesRanking(providedDates) {
     throw error;
   }
 }
+
 
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
