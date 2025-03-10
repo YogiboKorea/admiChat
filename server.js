@@ -674,7 +674,7 @@ async function getTop10AdKeywordSales(providedDates) {
           <div class="keyword-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
             <div class="rank" style="font-weight:bold;">${index + 1}</div>
             <div class="details" style="display:flex; flex-direction:column;">
-              <div class="keyword">키워드: ${item.keyword}</div>
+              <div class="keyword">${item.keyword}</div>
               <div class="orders">구매건수: ${item.order_count}</div>
               <div class="amount">매출액: ${formattedAmount}</div>
             </div>
@@ -746,7 +746,7 @@ app.post("/chat", async (req, res) => {
       const keywordSales = await getTop10AdKeywordSales(providedDates);
       const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "키워드별 구매 순위입니다.<br>" + keywordListText
+        text: keywordListText
       });
     } catch (error) {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
