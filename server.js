@@ -274,7 +274,7 @@ async function getTop10PagesByView(providedDates) {
         <div class="product-ranking">
           <div class="rank">${index + 1}</div>
           <div class="details">
-            <div class="product-name">${urlText}</div>
+            <div class="product-name"><a href="https://yogibo.kr/${urlText}" target="_blank">${urlText}</div></a>
             <div class="product-count" >
              방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}
             </div>
@@ -684,7 +684,7 @@ app.post("/chat", async (req, res) => {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
       return res.json({
-        text: "기간별 페이지뷰 순위 <br><br>" + pageListText
+        text: pageListText
       });
     } catch (error) {
       return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
