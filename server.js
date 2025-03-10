@@ -274,9 +274,9 @@ async function getTop10PagesByView(providedDates) {
         <div class="product-ranking">
           <div class="rank">${index + 1}</div>
           <div class="details">
-            <div class="product-name">$${urlText}</div>
+            <div class="product-name">${urlText}</div>
             <div class="product-count" >
-              >- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}
+             방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}
             </div>
           </div>
         </div>
