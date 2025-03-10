@@ -264,13 +264,29 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     const updatedPages = top10Pages.map((page, index) => {
-      const urlText = "http://yogibo.kr" + (page.url || 'N/A');
+      const urlMapping = {
+        '/': '메인',
+        '/product/detail.html': '상세페이지',
+        '/product/list.html': '목록페이지',
+        '/product/search.html': '검색페이지'
+      };  
+      const urlText = urlMapping[page.url] || page.url;
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
       return {
         ...page,
         rank: index + 1,
-        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
+        displayText: `
+        <div class="product-ranking">
+          <div class="rank">${index + 1}</div>
+          <div class="details">
+            <div class="product-name"><a href="https://yogibo.kr/${urlText}" target="_blank">${urlText}</div></a>
+            <div class="product-count" >
+             방문자수: ${visitCount}, 첫방문수: ${firstVisitCount}
+            </div>
+          </div>
+        </div>
+      `   
       };
     });
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
@@ -292,7 +308,6 @@ function formatCurrency(amount) {
     return num.toLocaleString('ko-KR') + " 원";
   }
 }
-
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -301,9 +316,9 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 10,
-    sort: 'order_amount',
-    order: 'desc'
+    limit: 24,        // 0시부터 23시까지 모두 요청
+    sort: 'hour',     // 시간(hour) 기준 정렬
+    order: 'asc'      // 오름차순: 0시부터 23시까지
   };
 
   try {
@@ -315,6 +330,7 @@ async function getSalesTimesRanking(providedDates) {
       params
     });
     console.log("Sales Times API 응답 데이터:", response.data);
+    
     let times;
     if (Array.isArray(response.data)) {
       times = response.data;
@@ -325,31 +341,51 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    const updatedTimes = times.map((time, index) => {
-      const hour = time.hour || 'N/A';
-      const buyersCount = time.buyers_count || 0;
-      const orderCount = time.order_count || 0;
-      const formattedAmount = formatCurrency(time.order_amount || 0);
+    
+    // 0시부터 23시까지 모든 시간대를 채워서 데이터가 없으면 0으로 처리
+    const hoursData = [];
+    for (let i = 0; i < 24; i++) {
+      const hourData = times.find(item => Number(item.hour) === i);
+      hoursData.push({
+        hour: i,
+        buyersCount: hourData ? Number(hourData.buyers_count) : 0,
+        orderCount: hourData ? Number(hourData.order_count) : 0,
+        orderAmount: hourData ? Number(hourData.order_amount) : 0
+      });
+    }
+    
+    // displayText 구성 (각 시간대별 구매자수, 구매건수, 매출액)
+    const updatedTimes = hoursData.map((item, index) => {
+      const formattedAmount = formatCurrency(item.orderAmount);
       return {
-        ...time,
         rank: index + 1,
         displayText: `
           <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <span style="font-weight: bold; color: #007bff;">${index + 1}위: ${hour}시</span>
-            <span style="font-size: 11px; color: #555;">구매자수: ${buyersCount}</span>
-            <span style="font-size: 11px; color: #555;">구매건수: ${orderCount}</span>
+            <span style="font-weight: bold; color: #007bff;">${item.hour}시</span>
+            <span style="font-size: 11px; color: #555;">구매자수: ${item.buyersCount}</span>
+            <span style="font-size: 11px; color: #555;">구매건수: ${item.orderCount}</span>
             <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
           </div>
         `
       };
     });
-    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
-    return updatedTimes;
+    
+    console.log("불러온 시간대별 결제금액 데이터:", updatedTimes);
+    
+    // Chart.js용 데이터를 구성 (라벨 및 각 데이터 배열)
+    const labels = hoursData.map(item => `${item.hour}시`);
+    const buyersCounts = hoursData.map(item => item.buyersCount);
+    const orderCounts = hoursData.map(item => item.orderCount);
+    const orderAmounts = hoursData.map(item => item.orderAmount);
+    
+    return { displayTexts: updatedTimes.map(item => item.displayText), labels, buyersCounts, orderCounts, orderAmounts };
   } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
+
 
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
@@ -682,25 +718,31 @@ app.post("/chat", async (req, res) => {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
       return res.json({
-        text: "기간별 페이지뷰 순위 <br><br>" + pageListText
+        text: pageListText
       });
     } catch (error) {
       return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
 
+
   if (userInput.includes("시간대별 결제 금액 추이")) {
     try {
-      const salesRanking = await getSalesTimesRanking(providedDates);
-      const rankingText = salesRanking.map(item => item.displayText).join("<br>");
+      const salesRankingData = await getSalesTimesRanking(providedDates);
+      const rankingText = salesRankingData.displayTexts.join("<br>");
       return res.json({
-        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
+        text: "시간대별 결제금액 순위입니다.<br>" + rankingText,
+        chartData: {
+          labels: salesRankingData.labels,
+          dataPoints: salesRankingData.dataPoints
+        }
       });
     } catch (error) {
       return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
 
+  
   if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
     try {
       const keywordSales = await getTop10AdKeywordSales(providedDates);

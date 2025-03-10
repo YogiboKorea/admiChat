@@ -298,16 +298,104 @@ async function getTop10PagesByView(providedDates) {
 }
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
-function formatCurrency(amount) {
-  const num = Number(amount) || 0;
-  if (num >= 1e12) {
-    return (num / 1e12).toFixed(2) + " 조";
-  } else if (num >= 1e8) {
-    return (num / 1e8).toFixed(2) + " 억";
-  } else {
-    return num.toLocaleString('ko-KR') + " 원";
+async function sendMessage() {
+  const userMessage = messageInput.value.trim();
+  if (!userMessage) return;
+  
+  const firstChatImg = document.querySelector('.first_chat_img');
+  if (firstChatImg) {
+    firstChatImg.style.display = 'none';
+  }
+  
+  appendUserMessage(userMessage);
+  messageInput.value = "";
+  
+  const start_date = startDateInput.value || "";
+  const end_date = endDateInput.value || "";
+  
+  try {
+    const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
+      message: userMessage,
+      start_date: start_date,
+      end_date: end_date
+    }, {
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+    const data = response.data;
+    console.log("botResponse =>", data);
+    let botResponse = data.text;
+    if (data.videoHtml) {
+      botResponse += "<br>" + data.videoHtml;
+    }
+    if (data.imageUrl) {
+      if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
+        botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
+      }
+    }
+    appendBotMessage(botResponse);
+    
+    // Chart.js: 그래프 렌더링 부분
+    if (data.chartData) {
+      console.log("chartData:", data.chartData);
+      // 기존 캔버스가 있다면 제거
+      let existingCanvas = document.getElementById("salesChart");
+      if (existingCanvas) {
+        existingCanvas.remove();
+      }
+      // 새 캔버스 생성 및 chatMessages 영역에 추가
+      const canvas = document.createElement("canvas");
+      canvas.id = "salesChart";
+      canvas.style.maxWidth = "100%";
+      canvas.style.height = "300px"; // 높이를 명시적으로 설정
+      chatMessages.appendChild(canvas);
+      
+      // Chart.js 막대 그래프 생성
+      new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: data.chartData.labels, // 예: ["0시", "1시", ..., "23시"]
+          datasets: [
+            {
+              label: '구매자수',
+              data: data.chartData.buyersCounts, 
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1
+            },
+            {
+              label: '구매건수',
+              data: data.chartData.orderCounts,
+              backgroundColor: 'rgba(153, 102, 255, 0.2)',
+              borderColor: 'rgba(153, 102, 255, 1)',
+              borderWidth: 1
+            },
+            {
+              label: '매출액',
+              data: data.chartData.orderAmounts,
+              backgroundColor: 'rgba(255, 159, 64, 0.2)',
+              borderColor: 'rgba(255, 159, 64, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  } catch (error) {
+    appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
+    console.error("Error:", error);
   }
 }
+
+
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
