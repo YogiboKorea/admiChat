@@ -276,7 +276,7 @@ async function getTop10PagesByView(providedDates) {
           <div class="details">
             <div class="product-name"><a href="https://yogibo.kr/${urlText}" target="_blank">${urlText}</div></a>
             <div class="product-count" >
-             방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}
+             방문자수: ${visitCount}, 첫방문수: ${firstVisitCount}
             </div>
           </div>
         </div>
