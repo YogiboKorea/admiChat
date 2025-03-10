@@ -1,6 +1,8 @@
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Dongle&family=Nanum+Gothic&family=Noto+Sans+KR:wght@100..900&family=Yuji+Mai&display=swap" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;400;700&display=swap" rel="stylesheet">
+
   <style>
     /* 기본 리셋 */
     * {
@@ -8,19 +10,44 @@
       padding: 0;
       box-sizing: border-box;
       list-style: none;
-      font-size:13px;
+      font-size: 13px;
       font-family: "Noto Sans KR", sans-serif;
     }
-    a{color:#3aa0a9}
+    a { color: #3aa0a9; }
     body {
-    font-family: Arial, sans-serif;
-    background: #f7f7f7;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    flex-direction: column;
-}
+      background: #f7f7f7;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    /* 키워드 영역 */
+    .key_word {
+      background: #e9e9e9;
+      padding: 10px;
+      width: 400px;
+      margin-bottom: 10px;
+    }
+    .key_word ul {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5px;
+      width: 100%;
+    }
+    .key_word ul li {
+      background: #58b5ca;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      text-align: center;
+    }
+    .key_word ul li:hover {
+      background: #3aa0a9;
+    }
+    /* 채팅 컨테이너 */
     .chat-container {
       background: #fff;
       width: 420px;
@@ -31,7 +58,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      margin-top:20px;
+      margin-top: 20px;
     }
     .chat-header {
       background: #fff;
@@ -40,6 +67,7 @@
       text-align: center;
       font-size: 14px;
       font-weight: 600;
+      cursor: pointer;
     }
     .chat-messages {
       padding: 15px;
@@ -91,10 +119,6 @@
       padding: 5px;
       flex-direction: column;
     }
-    .chat-input input,
-    .chat-input button {
-      font-size: 1em;
-    }
     .date-inputs {
       display: flex;
       justify-content: space-between;
@@ -128,101 +152,7 @@
       margin-top: 10px;
       text-align: center;
     }
-    /* 키워드 영역 스타일: 4칸 그리드 (2줄) */
-    .key_word {
-      background: #e9e9e9;
-      padding: 10px;
-    }
-    .key_word ul {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 5px;
-    padding: 0;
-    margin: 0;
-    width: 400px;
-  }
-    .key_word ul li {
-      background: #58b5ca;
-      color: #fff;
-      padding: 5px 10px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 12px;
-      text-align: center;
-    }
-    .key_word ul li:hover {
-      background: #3aa0a9;
-    }
-
-    /*안쪽 채팅 부분 css*/
-    .product-ranking{
-      display: flex;
-      align-items: center; 
-      gap: 10px; padding:5px; 
-      border: 1px solid #ddd; 
-      border-radius: 5px;
-      background:#fff
-    }
-    .product-ranking .rank{
-      font-weight: bold; color:#333;
-    }
-    .product-ranking .image{
-      flex-shrink: 0;
-    }
-    .product-ranking .image img
-    {
-    max-width:60px; width:60px; height:auto; border-radius: 5px;
-    }
-    .product-ranking .details {
-      display: flex; flex-direction: column;
-    }
-    .product-ranking .product-name{
-      font-weight:600; color: #333;
-    }
-    .product-ranking .product-count
-    {
-      font-size: 11px; color: #555;
-    }
-    .chat-input {
-      display: flex;
-      border-top: 1px solid #ddd;
-      padding: 5px;
-      flex-direction: column;
-    }
-    .date-inputs {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 5px;
-    }
-    .date-inputs input {
-      width: 48%;
-      padding: 5px;
-    }
-    .chat-input textarea {
-      width: 100%;
-      resize: none;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      margin-bottom: 5px;
-    }
-    .chat-input button {
-      padding: 10px;
-      border: none;
-      background: #58b5ca;
-      color: #fff;
-      cursor: pointer;
-    }
-    .first_chat_img {
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    .init-message {
-      font-size: 12px;
-      margin-top: 10px;
-      text-align: center;
-    }
-    /* 그래프 스타일 (필요에 따라 추가 수정) */
+    /* 그래프 스타일 (필요시 수정) */
     canvas {
       margin-top: 10px;
     }
@@ -234,7 +164,7 @@
     <ul>
       <li>기간별 장바구니 순위</li>
       <li>기간별 페이지뷰 순위</li>
-      <li>시간대별 결제 금액 추이</li>
+      <li>시간대별 결제금액 순위</li>
       <li>검색 키워드별 구매 순위</li>
       <li>광고별 판매 순위</li>
       <li>광고별 자사몰 유입수</li>
@@ -244,6 +174,8 @@
       <li>이전 페이지 접속 URL</li>
     </ul>
   </div>
+
+  <!-- 채팅 컨테이너 -->
   <div class="chat-container">
     <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
@@ -262,9 +194,11 @@
     </div>
   </div>
 
+  <!-- Chart.js 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Axios 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
   <script>
     const chatMessages = document.getElementById("chat-messages");
     const messageInput = document.getElementById("message-input");
@@ -316,6 +250,7 @@
       return text;
     }
 
+    // 봇 메시지 추가
     function appendBotMessage(fullText) {
       const messageElem = document.createElement("div");
       messageElem.classList.add("message", "bot");
@@ -335,6 +270,7 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    // 사용자 메시지 추가
     function appendUserMessage(text) {
       const messageElem = document.createElement("div");
       messageElem.classList.add("message", "user");
@@ -345,6 +281,7 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    // 메시지 전송 함수
     async function sendMessage() {
       const userMessage = messageInput.value.trim();
       if (!userMessage) return;
@@ -361,6 +298,7 @@
       const end_date = endDateInput.value || "";
       
       try {
+        // 서버에 메시지 전송
         const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
           message: userMessage,
           start_date: start_date,
@@ -373,6 +311,8 @@
         const data = response.data;
         console.log("botResponse =>", data);
         let botResponse = data.text;
+        
+        // videoHtml, imageUrl 등 추가 처리
         if (data.videoHtml) {
           botResponse += "<br>" + data.videoHtml;
         }
@@ -383,62 +323,64 @@
         }
         appendBotMessage(botResponse);
         
-        // Chart.js: 만약 응답에 chartData가 있다면 그래프 렌더링
+        // 만약 응답에 chartData가 있다면, Chart.js로 그래프 렌더링
         if (data.chartData) {
-  console.log("chartData =>", data.chartData);
+          console.log("chartData =>", data.chartData);
 
-  // 캔버스 제거 후 새로 생성
-  let existingCanvas = document.getElementById("salesChart");
-  if (existingCanvas) existingCanvas.remove();
+          // 기존 캔버스 제거 후 새로 생성
+          let existingCanvas = document.getElementById("salesChart");
+          if (existingCanvas) existingCanvas.remove();
 
-  const canvas = document.createElement("canvas");
-  canvas.id = "salesChart";
-  canvas.style.maxWidth = "100%";
-  canvas.style.height = "300px";
-  chatMessages.appendChild(canvas);
+          const canvas = document.createElement("canvas");
+          canvas.id = "salesChart";
+          canvas.style.maxWidth = "100%";
+          canvas.style.height = "300px";
+          chatMessages.appendChild(canvas);
 
-  new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: data.chartData.labels,
-      datasets: [
-        {
-          label: '구매자수',
-          data: data.chartData.buyersCounts, // 숫자 배열
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          borderColor: 'rgba(75, 192, 192, 1)',
-          borderWidth: 1
-        },
-        {
-          label: '구매건수',
-          data: data.chartData.orderCounts,   // 숫자 배열
-          backgroundColor: 'rgba(153, 102, 255, 0.2)',
-          borderColor: 'rgba(153, 102, 255, 1)',
-          borderWidth: 1
-        },
-        {
-          label: '매출액',
-          data: data.chartData.orderAmounts,  // 숫자 배열
-          backgroundColor: 'rgba(255, 159, 64, 0.2)',
-          borderColor: 'rgba(255, 159, 64, 1)',
-          borderWidth: 1
+          new Chart(canvas, {
+            type: 'bar',
+            data: {
+              labels: data.chartData.labels, // ["0시", "1시", ...]
+              datasets: [
+                {
+                  label: '구매자수',
+                  data: data.chartData.buyersCounts, // 숫자 배열
+                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  borderWidth: 1
+                },
+                {
+                  label: '구매건수',
+                  data: data.chartData.orderCounts, // 숫자 배열
+                  backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                  borderColor: 'rgba(153, 102, 255, 1)',
+                  borderWidth: 1
+                },
+                {
+                  label: '매출액',
+                  data: data.chartData.orderAmounts, // 숫자 배열
+                  backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                  borderColor: 'rgba(255, 159, 64, 1)',
+                  borderWidth: 1
+                }
+              ]
+            },
+            options: {
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
         }
-      ]
-    },
-    options: {
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
-
       } catch (error) {
         appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
         console.error("Error:", error);
       }
     }
 
+    // 이벤트 리스너
     sendBtn.addEventListener("click", sendMessage);
     messageInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -446,3 +388,4 @@
       }
     });
   </script>
+
