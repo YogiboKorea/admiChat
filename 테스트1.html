@@ -68,7 +68,7 @@
       margin-right: 8px;
     }
     .bot-message {
-      max-width: 100%;
+      max-width: 100%!important;
       background: #f9f9f9;
       color: #333;
       padding: 10px;
@@ -200,9 +200,11 @@
       <li>이전 페이지 접속 URL</li>
     </ul>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <div class="chat-container">
     <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
+      <canvas id="salesChart" width="400" height="200"></canvas>
       <div class="first_chat_img">
         <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
         <div class="init-message">마케팅 판매데이터 조회</div>
@@ -301,6 +303,61 @@
         chatMessages.appendChild(messageElem);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
+
+
+      async function fetchHourlySales() {
+    // 날짜 입력값이 있다면 가져옵니다.
+    const start_date = startDateInput.value || "";
+    const end_date = endDateInput.value || "";
+    try {
+      const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/salesHourly", {
+        params: { start_date, end_date }
+      });
+      return response.data; // [{ hour: 0, order_amount: ... }, { hour: 1, ... }, ... ]
+    } catch (error) {
+      console.error("시간대별 매출 데이터 로딩 오류:", error);
+    }
+  }
+
+  async function createSalesChart() {
+    const data = await fetchHourlySales();
+    if (!data) return;
+    
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    const labels = data.map(item => `${item.hour}시`);
+    const salesData = data.map(item => item.order_amount);
+
+    new Chart(ctx, {
+      type: 'bar', // 막대그래프 선택 (원하는 타입으로 변경 가능)
+      data: {
+        labels,
+        datasets: [{
+          label: ' 매출액',
+          data: salesData,
+          backgroundColor: 'rgba(88,181,202,0.5)',
+          borderColor: 'rgba(88,181,202,1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              // 숫자를 읽기 좋게 포맷 (예: 천 단위 콤마)
+              callback: function(value) {
+                return value.toLocaleString();
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 페이지 로드 시 차트 생성 또는 버튼 클릭 등으로 실행
+  createSalesChart();
+
 
     async function sendMessage() {
         const userMessage = messageInput.value.trim();
