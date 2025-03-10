@@ -263,41 +263,23 @@ async function getTop10PagesByView(providedDates) {
     }
     
     const top10Pages = pages.slice(0, 10);
-    
     const updatedPages = top10Pages.map((page, index) => {
-      // URL 앞에 도메인을 붙이고, cover_image 값(있다면) 사용
       const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
-      // cover_image를 사용 (없다면 빈 문자열)
-      const coverImage = page.cover_image || "";
-      
       return {
         ...page,
         rank: index + 1,
-        displayText: `
-          <div class="page-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <div class="rank" style="font-weight: bold; color: #007bff;">${index + 1}위:</div>
-            <div class="cover-image" style="flex-shrink: 0;">
-              <img src="${coverImage}" alt="Cover Image" style="max-width: 60px; width: 60px; border-radius: 5px;">
-            </div>
-            <div class="details" style="display: flex; flex-direction: column;">
-              <div class="url" style="font-weight: 600; color: #333;">${urlText}</div>
-              <div class="stats" style="font-size: 11px; color: #555;">방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}</div>
-            </div>
-          </div>
-        `
+        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
-    
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
     return updatedPages;
-  } catch(error) {
+  } catch (error) {
     console.error("Error fetching pages:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
-
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
 function formatCurrency(amount) {
