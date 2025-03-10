@@ -222,142 +222,159 @@
    <!-- Chart.js 라이브러리 -->
    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  
    <script>
-     const chatMessages = document.getElementById("chat-messages");
-     const messageInput = document.getElementById("message-input");
-     const sendBtn = document.getElementById("send-btn");
-     const startDateInput = document.getElementById("start-date");
-     const endDateInput = document.getElementById("end-date");
- 
-     // 키워드 영역 li 클릭 시 해당 텍스트를 메시지 입력란에 채워 전송
-     document.querySelectorAll('.key_word ul li').forEach(item => {
-       item.addEventListener("click", () => {
-         messageInput.value = item.innerText;
-         sendMessage();
-       });
-     });
- 
-     function formatNumberedList(text) {
-       const pattern = /\d+\.\s+/g;
-       const matches = text.match(pattern);
-       if (matches && matches.length >= 2) {
-         const listRegex = /(\d+\.\s*[^0-9]+)/g;
-         const items = text.match(listRegex);
-         if (items) {
-           return '<ol style="padding-left: 20px; margin: 0;">' +
-                  items.map(item => `<li>${item.trim()}</li>`).join('') +
-                  '</ol>';
-         }
-       }
-       return text;
-     }
- 
-     function appendBotMessage(fullText) {
-       const messageElem = document.createElement("div");
-       messageElem.classList.add("message", "bot");
-       const botContainer = document.createElement("div");
-       botContainer.classList.add("bot-container");
-       const botImg = document.createElement("img");
-       botImg.src = "http://yogibo.kr/web/test/tmp-3922227795.webp";
-       botImg.alt = "Bot Profile";
-       botImg.classList.add("bot-profile");
-       const botMessageDiv = document.createElement("div");
-       botMessageDiv.classList.add("bot-message");
-       botMessageDiv.innerHTML = formatNumberedList(fullText);
-       botContainer.appendChild(botImg);
-       botContainer.appendChild(botMessageDiv);
-       messageElem.appendChild(botContainer);
-       chatMessages.appendChild(messageElem);
-       chatMessages.scrollTop = chatMessages.scrollHeight;
-     }
- 
-     function appendUserMessage(text) {
-       const messageElem = document.createElement("div");
-       messageElem.classList.add("message", "user");
-       const messageText = document.createElement("div");
-       messageText.innerHTML = text;
-       messageElem.appendChild(messageText);
-       chatMessages.appendChild(messageElem);
-       chatMessages.scrollTop = chatMessages.scrollHeight;
-     }
- 
-     async function sendMessage() {
-       const userMessage = messageInput.value.trim();
-       if (!userMessage) return;
-       
-       const firstChatImg = document.querySelector('.first_chat_img');
-       if (firstChatImg) {
-         firstChatImg.style.display = 'none';
-       }
-       
-       appendUserMessage(userMessage);
-       messageInput.value = "";
-       
-       const start_date = startDateInput.value || "";
-       const end_date = endDateInput.value || "";
-       
-       try {
-         const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
-           message: userMessage,
-           start_date: start_date,
-           end_date: end_date
-         }, {
-           headers: {
-             "Content-Type": "application/json"
-           }
-         });
-         const data = response.data;
-         console.log("botResponse =>", data.text);
-         let botResponse = data.text;
-         if (data.videoHtml) {
-           botResponse += "<br>" + data.videoHtml;
-         }
-         if (data.imageUrl) {
-           if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
-             botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
-           }
-         }
-         appendBotMessage(botResponse);
-         
-         // 만약 응답에 chartData가 있다면, Chart.js로 그래프 렌더링
-         if (data.chartData) {
-           // 그래프를 위한 캔버스 생성 후 채팅 메시지 영역에 추가
-           const canvas = document.createElement("canvas");
-           canvas.id = "salesChart";
-           canvas.style.maxWidth = "100%";
-           chatMessages.appendChild(canvas);
-           // Chart.js를 사용해 막대 그래프 렌더링
-           new Chart(canvas, {
-             type: 'bar',
-             data: {
-               labels: data.chartData.labels,
-               datasets: [{
-                 label: '매출액',
-                 data: data.chartData.dataPoints,
-                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                 borderColor: 'rgba(75, 192, 192, 1)',
-                 borderWidth: 1
-               }]
-             },
-             options: {
-               scales: {
-                 y: {
-                   beginAtZero: true
-                 }
-               }
-             }
-           });
-         }
-       } catch (error) {
-         appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
-         console.error("Error:", error);
-       }
-     }
- 
-     sendBtn.addEventListener("click", sendMessage);
-     messageInput.addEventListener("keydown", (e) => {
-       if (e.key === "Enter") {
-         sendMessage();
-       }
-     });
-   </script>
+    const chatMessages = document.getElementById("chat-messages");
+    const messageInput = document.getElementById("message-input");
+    const sendBtn = document.getElementById("send-btn");
+    const startDateInput = document.getElementById("start-date");
+    const endDateInput = document.getElementById("end-date");
+
+    // 키워드 클릭 시 메시지 자동 전송
+    document.querySelectorAll('.key_word ul li').forEach(item => {
+      item.addEventListener("click", () => {
+        messageInput.value = item.innerText;
+        sendMessage();
+      });
+    });
+
+    // 봇 메시지 추가
+    function appendBotMessage(fullText) {
+      const messageElem = document.createElement("div");
+      messageElem.classList.add("message", "bot");
+
+      const botContainer = document.createElement("div");
+      botContainer.classList.add("bot-container");
+
+      const botImg = document.createElement("img");
+      botImg.src = "http://yogibo.kr/web/test/tmp-3922227795.webp";
+      botImg.alt = "Bot Profile";
+      botImg.classList.add("bot-profile");
+
+      const botMessageDiv = document.createElement("div");
+      botMessageDiv.classList.add("bot-message");
+      botMessageDiv.innerHTML = fullText;
+
+      botContainer.appendChild(botImg);
+      botContainer.appendChild(botMessageDiv);
+      messageElem.appendChild(botContainer);
+      chatMessages.appendChild(messageElem);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 사용자 메시지 추가
+    function appendUserMessage(text) {
+      const messageElem = document.createElement("div");
+      messageElem.classList.add("message", "user");
+      const messageText = document.createElement("div");
+      messageText.innerHTML = text;
+      messageElem.appendChild(messageText);
+      chatMessages.appendChild(messageElem);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 메시지 전송 함수
+    async function sendMessage() {
+      const userMessage = messageInput.value.trim();
+      if (!userMessage) return;
+
+      // 첫 메시지 시 초기 이미지 숨기기
+      const firstChatImg = document.querySelector('.first_chat_img');
+      if (firstChatImg) {
+        firstChatImg.style.display = 'none';
+      }
+
+      appendUserMessage(userMessage);
+      messageInput.value = "";
+
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+
+      try {
+        // 서버에 POST 요청
+        const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
+          message: userMessage,
+          start_date: start_date,
+          end_date: end_date
+        }, {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        const data = response.data;
+        console.log("botResponse =>", data.text);
+
+        // 채팅 메시지 표시
+        let botResponse = data.text;
+        appendBotMessage(botResponse);
+
+        // Chart.js: 만약 응답에 chartData가 있으면 그래프 렌더링
+        if (data.chartData) {
+          console.log("chartData =>", data.chartData);
+
+          // 기존 캔버스가 있다면 제거
+          let existingCanvas = document.getElementById("salesChart");
+          if (existingCanvas) {
+            existingCanvas.remove();
+          }
+
+          // 새 캔버스 생성
+          const canvas = document.createElement("canvas");
+          canvas.id = "salesChart";
+          canvas.style.maxWidth = "100%";
+          canvas.style.height = "300px";
+          chatMessages.appendChild(canvas);
+
+          // 막대 그래프 생성 (예: 구매자수, 구매건수, 매출액)
+          new Chart(canvas, {
+            type: 'bar',
+            data: {
+              labels: data.chartData.labels,          // 예: ["0시","1시",...,"23시"]
+              datasets: [
+                {
+                  label: '구매자수',
+                  data: data.chartData.buyersCounts,   // [숫자, 숫자, ...]
+                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  borderWidth: 1
+                },
+                {
+                  label: '구매건수',
+                  data: data.chartData.orderCounts,     // [숫자, 숫자, ...]
+                  backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                  borderColor: 'rgba(153, 102, 255, 1)',
+                  borderWidth: 1
+                },
+                {
+                  label: '매출액',
+                  data: data.chartData.orderAmounts,    // [숫자, 숫자, ...]
+                  backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                  borderColor: 'rgba(255, 159, 64, 1)',
+                  borderWidth: 1
+                }
+              ]
+            },
+            options: {
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        }
+      } catch (error) {
+        appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
+        console.error("Error:", error);
+      }
+    }
+
+    // 이벤트 리스너
+    sendBtn.addEventListener("click", sendMessage);
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+  </script>

@@ -322,15 +322,17 @@ async function getSalesTimesRanking(providedDates) {
   };
 
   try {
+    // API 호출
     const response = await axios.get(url, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       params
     });
     console.log("Sales Times API 응답 데이터:", response.data);
-    
+
+    // 응답 데이터 파싱
     let times;
     if (Array.isArray(response.data)) {
       times = response.data;
@@ -341,8 +343,8 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    
-    // 0시부터 23시까지 모든 시간대를 채워서 데이터가 없으면 0으로 처리
+
+    // 0시부터 23시까지 hoursData를 채움
     const hoursData = [];
     for (let i = 0; i < 24; i++) {
       const hourData = times.find(item => Number(item.hour) === i);
@@ -353,8 +355,8 @@ async function getSalesTimesRanking(providedDates) {
         orderAmount: hourData ? Number(hourData.order_amount) : 0
       });
     }
-    
-    // displayText 구성 (각 시간대별 구매자수, 구매건수, 매출액)
+
+    // 채팅창 표시용 HTML (각 시간대별 정보)
     const updatedTimes = hoursData.map((item, index) => {
       const formattedAmount = formatCurrency(item.orderAmount);
       return {
@@ -369,17 +371,33 @@ async function getSalesTimesRanking(providedDates) {
         `
       };
     });
-    
+
+    // 로그로 확인
     console.log("불러온 시간대별 결제금액 데이터:", updatedTimes);
-    
-    // Chart.js용 데이터를 구성 (라벨 및 각 데이터 배열)
+
+    // 채팅창에 표시할 text: 제목 + 각 시간대별 displayText 합치기
+    let text = "시간대별 결제금액 순위입니다.<br>";
+    updatedTimes.forEach(item => {
+      text += item.displayText + "<br>";
+    });
+
+    // Chart.js용 데이터 구성
     const labels = hoursData.map(item => `${item.hour}시`);
     const buyersCounts = hoursData.map(item => item.buyersCount);
     const orderCounts = hoursData.map(item => item.orderCount);
     const orderAmounts = hoursData.map(item => item.orderAmount);
-    
-    return { displayTexts: updatedTimes.map(item => item.displayText), labels, buyersCounts, orderCounts, orderAmounts };
-  } catch(error) {
+
+    // 최종 반환: text + chartData
+    return {
+      text,  // 채팅창에 표시할 HTML
+      chartData: {
+        labels,
+        buyersCounts,
+        orderCounts,
+        orderAmounts
+      }
+    };
+  } catch (error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
