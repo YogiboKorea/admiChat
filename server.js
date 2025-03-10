@@ -264,7 +264,13 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     const updatedPages = top10Pages.map((page, index) => {
-      const urlText = page.url === '/' ? '메인' : page.url;
+      const urlMapping = {
+        '/': '메인',
+        '/product/detail.html': '상세페이지',
+        '/product/list.html': '목록페이지',
+        '/product/search.html': '검색페이지'
+      };  
+      const urlText = urlMapping[page.url] || page.url;
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
       return {
