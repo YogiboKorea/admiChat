@@ -398,8 +398,9 @@ async function getSalesTimesRanking(providedDates) {
       }
     };
   } catch (error) {
-    console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
-    throw error;
+    return res.status(500).json({
+      text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다."
+    });
   }
 }
 
