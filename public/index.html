@@ -154,7 +154,34 @@
     }
 
     /*안쪽 채팅 부분 css*/
-    
+    .product-ranking{
+      display: flex;
+      align-items: center; 
+      gap: 10px; padding:5px; 
+      border: 1px solid #ddd; 
+      border-radius: 5px;
+      background:#fff
+    }
+    .product-ranking .rank{
+      font-weight: bold; color:#333;
+    }
+    .product-ranking .image{
+      flex-shrink: 0;
+    }
+    .product-ranking .image img
+    {
+    max-width:60px; width:60px; height:auto; border-radius: 5px;
+    }
+    .product-ranking .details {
+      display: flex; flex-direction: column;
+    }
+    .product-ranking .product-name{
+      font-weight:600; color: #333;
+    }
+    .product-ranking .product-count
+    {
+      font-size: 11px; color: #555;
+    }
   </style>
 </head>
 <body>

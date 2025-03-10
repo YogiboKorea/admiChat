@@ -201,14 +201,14 @@ async function getTop10ProductsByAddCart(providedDates) {
           rank: index + 1,
           product_name: finalName,
           displayText: `
-            <div class="product-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;background:#fff;">
-              <div class="rank" style="font-weight: bold; color:#333">${index + 1}</div>
-              <div class="image" style="flex-shrink: 0;">
-                <img src="${listImage}" style="max-width:60px; width:60px; height:auto; border-radius: 5px;"/>
+            <div class="product-ranking">
+              <div class="rank">${index + 1}</div>
+              <div class="image">
+                <img src="${listImage}" alt="이미지"/>
               </div>
-              <div class="details" style="display: flex; flex-direction: column;">
-                <div class="product-name" style="font-weight:600; color: #333;">${finalName}</div>
-                <div class="product-count" style="font-size: 11px; color: #555;">
+              <div class="details">
+                <div class="product-name">${finalName}</div>
+                <div class="product-count" >
                   총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 담겨 있습니다.
                 </div>
               </div>
