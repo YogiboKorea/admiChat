@@ -706,7 +706,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("시간대별 결제금액 순위")) {
+  if (userInput.includes("시간대별 결제 금액 추이")) {
     try {
       const salesRankingData = await getSalesTimesRanking(providedDates);
       const rankingText = salesRankingData.displayTexts.join("<br>");
