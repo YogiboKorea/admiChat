@@ -311,12 +311,6 @@ function formatCurrency(amount) {
   }
 }
 
-/*******************************************************
- * 시간대별 결제금액 순위 조회 함수 (서버 측 코드 예시)
- *  - 0시~23시까지 데이터를 가져오고, 없으면 0으로 채움
- *  - displayText: 채팅용 HTML
- *  - chartData: Chart.js용 데이터(라벨 및 숫자 배열)
- *******************************************************/
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -405,120 +399,6 @@ async function getSalesTimesRanking(providedDates) {
   }
 }
 
-/*******************************************************
- * 예시: 시간대별 결제금액 순위 메시지 생성 함수
- *  - updatedTimes 배열의 displayText를 합쳐 최종 HTML 생성
- *******************************************************/
-function createSalesTimesText(updatedTimes) {
-  let text = "시간대별 결제금액 순위입니다.<br>";
-  updatedTimes.forEach(item => {
-    text += item.displayText + "<br>";
-  });
-  return text;
-}
-
-/*******************************************************
- * 프론트엔드: sendMessage 함수 예시
- *  - 서버로부터 chartData 받으면 Chart.js 그래프 렌더링
- *******************************************************/
-async function sendMessage() {
-  const userMessage = messageInput.value.trim();
-  if (!userMessage) return;
-  
-  const firstChatImg = document.querySelector('.first_chat_img');
-  if (firstChatImg) {
-    firstChatImg.style.display = 'none';
-  }
-  
-  appendUserMessage(userMessage);
-  messageInput.value = "";
-  
-  const start_date = startDateInput.value || "";
-  const end_date = endDateInput.value || "";
-  
-  try {
-    const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
-      message: userMessage,
-      start_date: start_date,
-      end_date: end_date
-    }, {
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
-    const data = response.data;
-    console.log("botResponse =>", data);
-    let botResponse = data.text;
-    
-    // 기타 videoHtml, imageUrl 처리
-    if (data.videoHtml) {
-      botResponse += "<br>" + data.videoHtml;
-    }
-    if (data.imageUrl) {
-      if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
-        botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
-      }
-    }
-    appendBotMessage(botResponse);
-    
-    // Chart.js로 그래프 렌더링
-    if (data.chartData) {
-      console.log("chartData:", data.chartData);
-      // 기존 캔버스 제거
-      let existingCanvas = document.getElementById("salesChart");
-      if (existingCanvas) {
-        existingCanvas.remove();
-      }
-      // 새 캔버스 생성
-      const canvas = document.createElement("canvas");
-      canvas.id = "salesChart";
-      canvas.style.maxWidth = "100%";
-      canvas.style.height = "300px";
-      chatMessages.appendChild(canvas);
-      
-      // Chart.js 막대 그래프 생성
-      new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: data.chartData.labels,
-          datasets: [
-            {
-              label: '구매자수',
-              data: data.chartData.buyersCounts,
-              backgroundColor: 'rgba(75, 192, 192, 0.2)',
-              borderColor: 'rgba(75, 192, 192, 1)',
-              borderWidth: 1
-            },
-            {
-              label: '구매건수',
-              data: data.chartData.orderCounts,
-              backgroundColor: 'rgba(153, 102, 255, 0.2)',
-              borderColor: 'rgba(153, 102, 255, 1)',
-              borderWidth: 1
-            },
-            {
-              label: '매출액',
-              data: data.chartData.orderAmounts,
-              backgroundColor: 'rgba(255, 159, 64, 0.2)',
-              borderColor: 'rgba(255, 159, 64, 1)',
-              borderWidth: 1
-            }
-          ]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }
-      });
-    }
-  } catch (error) {
-    appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
-    console.error("Error:", error);
-  }
-}
 
 
 
