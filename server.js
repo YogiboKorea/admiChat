@@ -654,7 +654,7 @@ app.post("/chat", async (req, res) => {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
       return res.json({
-        text: "기간별 장바구니 추가된 상품순위 입니다.<br>" + productListText
+        text: productListText
       });
     } catch (error) {
       return res.status(500).json({ text: "상품 데이터를 가져오는 중 오류가 발생했습니다." });
