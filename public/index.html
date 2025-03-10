@@ -387,9 +387,6 @@
         if (data.chartData) {
   console.log("chartData =>", data.chartData);
 
-  // 예: data.chartData.labels = ["0시", "1시", ...]
-  // 예: data.chartData.buyersCounts = [10, 15, 0, ...] (모두 숫자)
-
   // 캔버스 제거 후 새로 생성
   let existingCanvas = document.getElementById("salesChart");
   if (existingCanvas) existingCanvas.remove();
