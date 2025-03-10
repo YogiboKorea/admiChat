@@ -782,6 +782,9 @@ app.post("/chat", async (req, res) => {
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
+
+
+
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();

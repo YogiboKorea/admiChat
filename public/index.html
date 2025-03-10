@@ -204,6 +204,7 @@
   <div class="chat-container">
     <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
     <div id="chat-messages" class="chat-messages">
+
       <div class="first_chat_img">
         <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
         <div class="init-message">마케팅 판매데이터 조회</div>
@@ -318,6 +319,18 @@
     }
   }
 
+    async function fetchHourlySales() {
+    const start_date = startDateInput.value || "";
+    const end_date = endDateInput.value || "";
+    try {
+      const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/salesHourly", {
+        params: { start_date, end_date }
+      });
+      return response.data; // 예: [{ hour: 0, order_amount: ... }, { hour: 1, ... }, ... ]
+    } catch (error) {
+      console.error("시간대별 매출 데이터 로딩 오류:", error);
+    }
+  }
 
     async function createSalesChart(canvasId = 'salesChart') {
     const data = await fetchHourlySales();
@@ -353,7 +366,8 @@
       }
     });
   }
-
+  // 페이지 로드 시 차트 생성 또는 버튼 클릭 등으로 실행
+  createSalesChart();
 
 
     async function sendMessage() {
