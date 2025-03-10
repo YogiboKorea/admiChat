@@ -734,11 +734,12 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-
-
-    if (req.body.message.includes("시간대별 결제 금액 추이")) {
+    if (userInput.includes("시간대별 결제 금액 추이")) {
       try {
+        // 함수는 데이터만 return
         const { text, chartData } = await getSalesTimesRanking(providedDates);
+  
+        // 여기서 한 번만 res.json(...) 호출
         return res.json({ text, chartData });
       } catch (error) {
         return res.status(500).json({
@@ -746,8 +747,6 @@ app.post("/chat", async (req, res) => {
         });
       }
     }
-
-
   
   
   if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
