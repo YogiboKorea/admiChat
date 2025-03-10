@@ -298,18 +298,8 @@ async function getTop10PagesByView(providedDates) {
 }
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
-function formatCurrency(amount) {
-  const num = Number(amount) || 0;
-  if (num >= 1e12) {
-    return (num / 1e12).toFixed(2) + " 조";
-  } else if (num >= 1e8) {
-    return (num / 1e8).toFixed(2) + " 억";
-  } else {
-    return num.toLocaleString('ko-KR') + " 원";
-  }
-}
-
-async function getSalesTimesRanking(providedDates) {
+// [새 함수] 24시간 전체 매출액 데이터를 반환하는 함수
+async function getHourlySalesData(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
   const params = {
@@ -317,7 +307,8 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 10,
+    // limit를 충분히 크게 설정 (API에 따라 달라질 수 있음)
+    limit: 100,
     sort: 'order_amount',
     order: 'desc'
   };
@@ -341,24 +332,43 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    const updatedTimes = times.map((time, index) => {
-      const hour = time.hour || 'N/A';
-      const buyersCount = time.buyers_count || 0;
-      const orderCount = time.order_count || 0;
-      const formattedAmount = formatCurrency(time.order_amount || 0);
-      return {
-        ...time,
-        rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
-      };
+
+    // 0시부터 23시까지 기본값 0 매출액으로 배열 생성
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
+      hour, 
+      order_amount: 0
+    }));
+
+    // API에서 받은 데이터를 해당 시간에 매출액을 업데이트
+    times.forEach(time => {
+      // time.hour가 숫자로 0~23 범위에 있다고 가정합니다.
+      const h = Number(time.hour);
+      if (h >= 0 && h < 24) {
+        hourlyData[h].order_amount = time.order_amount || 0;
+      }
     });
-    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
-    return updatedTimes;
+
+    return hourlyData;
   } catch (error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
+// [새 라우터] /salesHourly 엔드포인트 추가
+app.get("/salesHourly", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const hourlyData = await getHourlySalesData(providedDates);
+    res.json(hourlyData);
+  } catch (error) {
+    res.status(500).json({ error: "시간대별 매출 데이터를 가져오는 중 오류 발생" });
+  }
+});
+
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
