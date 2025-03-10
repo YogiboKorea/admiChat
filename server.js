@@ -280,7 +280,7 @@ async function getTop10PagesByView(providedDates) {
     // 비동기적으로 각 페이지의 og:image 값을 가져와서 displayText 구성
     const updatedPages = await Promise.all(
       top10Pages.map(async (page, index) => {
-        const fullUrl = "http://yogibo.kr" + (page.url || '');
+        const fullUrl = page.url ;
         // getOgImage 함수를 이용해 og:image 값을 가져옴
         const coverImage = await getOgImage(fullUrl);
         const visitCount = page.visit_count || 0;
