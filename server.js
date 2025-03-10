@@ -198,7 +198,14 @@ async function getTop10ProductsByAddCart(providedDates) {
           ...product,
           rank: index + 1,
           product_name: finalName,
-          displayText: `${index + 1}위: ${finalName}<br/> - 총 ${product.add_cart_count || 0} 개 상품이 장바구니에 담겨 있습니다.`
+          displayText: `
+          <div class="product-ranking">
+            <span class="rank">${index + 1}위:</span>
+            <span class="product-name">${finalName}</span>
+            <br/>
+            <span class="product-count">총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 장바구니에 담겨 있습니다.</span>
+          </div>
+        `
         };
       })
     );
@@ -502,7 +509,7 @@ async function getTop10ProductViews(providedDates) {
           product_no: item.product_no,
           product_name: finalName,
           count: item.count,
-          displayText: `${index + 1}위: ${finalName} (상품번호: ${item.product_no}) - 조회수: ${item.count}`
+          displayText: `${index + 1}위: ${finalName} - 조회수: ${item.count}`
         };
       })
     );
