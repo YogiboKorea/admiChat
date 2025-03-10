@@ -264,29 +264,13 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     const updatedPages = top10Pages.map((page, index) => {
-      const urlMapping = {
-        '/': '메인',
-        '/product/detail.html': '상세페이지',
-        '/product/list.html': '목록페이지',
-        '/product/search.html': '검색페이지'
-      };  
-      const urlText = urlMapping[page.url] || page.url;
+      const urlText = "http://yogibo.kr" + (page.url || 'N/A');
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
       return {
         ...page,
         rank: index + 1,
-        displayText: `
-        <div class="product-ranking">
-          <div class="rank">${index + 1}</div>
-          <div class="details">
-            <div class="product-name"><a href="https://yogibo.kr/${urlText}" target="_blank">${urlText}</div></a>
-            <div class="product-count" >
-             방문자수: ${visitCount}, 첫방문수: ${firstVisitCount}
-            </div>
-          </div>
-        </div>
-      `   
+        displayText: `${index + 1}위: ${urlText} <br/>- 방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}`
       };
     });
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
@@ -308,6 +292,7 @@ function formatCurrency(amount) {
     return num.toLocaleString('ko-KR') + " 원";
   }
 }
+
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -348,24 +333,16 @@ async function getSalesTimesRanking(providedDates) {
       return {
         ...time,
         rank: index + 1,
-        displayText: `
-          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <span style="font-weight: bold; color: #007bff;">${index + 1}위: ${hour}시</span>
-            <span style="font-size: 11px; color: #555;">구매자수: ${buyersCount}</span>
-            <span style="font-size: 11px; color: #555;">구매건수: ${orderCount}</span>
-            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
-          </div>
-        `
+        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
       };
     });
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
     return updatedTimes;
-  } catch(error) {
+  } catch (error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
-
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
@@ -697,7 +674,7 @@ app.post("/chat", async (req, res) => {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
       return res.json({
-        text: pageListText
+        text: "기간별 페이지뷰 순위 <br><br>" + pageListText
       });
     } catch (error) {
       return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });

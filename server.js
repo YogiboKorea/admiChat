@@ -316,10 +316,9 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    // 시간대별 데이터를 모두 가져오기 위해 limit와 sort를 시간 기준으로 설정
-    limit: 24,
-    sort: 'hour',
-    order: 'asc'
+    limit: 10,
+    sort: 'order_amount',
+    order: 'desc'
   };
 
   try {
@@ -341,28 +340,27 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    // hoursData: 0~23 시간대 전체 데이터를 생성 (없으면 0)
-    const hoursData = [];
-    for (let i = 0; i < 24; i++) {
-      const hourData = times.find(item => Number(item.hour) === i);
-      hoursData.push({
-        hour: i,
-        order_amount: hourData ? Number(hourData.order_amount) : 0
-      });
-    }
-    // 생성된 데이터를 기반으로 라벨과 데이터 배열 생성
-    const labels = hoursData.map(item => `${item.hour}시`);
-    const dataPoints = hoursData.map(item => item.order_amount);
-
-    // 추가로 채팅 메시지용 displayText 배열 생성(옵션)
-    const displayTexts = hoursData.map((item, index) => {
-      return `${index + 1}위: ${item.hour}시 - 매출액: ${formatCurrency(item.order_amount)}`;
+    const updatedTimes = times.map((time, index) => {
+      const hour = time.hour || 'N/A';
+      const buyersCount = time.buyers_count || 0;
+      const orderCount = time.order_count || 0;
+      const formattedAmount = formatCurrency(time.order_amount || 0);
+      return {
+        ...time,
+        rank: index + 1,
+        displayText: `
+          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+            <span style="font-weight: bold; color: #007bff;">${index + 1}위: ${hour}시</span>
+            <span style="font-size: 11px; color: #555;">구매자수: ${buyersCount}</span>
+            <span style="font-size: 11px; color: #555;">구매건수: ${orderCount}</span>
+            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
+          </div>
+        `
+      };
     });
-
-    console.log("정렬된 시간대별 매출 데이터:", hoursData);
-    // 서버에서는 displayTexts와 함께 chartData(라벨, 데이터)도 반환하도록 함
-    return { labels, dataPoints, displayTexts };
-  } catch (error) {
+    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
+    return updatedTimes;
+  } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
