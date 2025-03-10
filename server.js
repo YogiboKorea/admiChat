@@ -395,6 +395,17 @@ async function sendMessage() {
   }
 }
 
+// 통화 포맷 함수: 숫자를 한국 원 단위로 포맷팅
+function formatCurrency(amount) {
+  const num = Number(amount) || 0;
+  if (num >= 1e12) {
+    return (num / 1e12).toFixed(2) + " 조";
+  } else if (num >= 1e8) {
+    return (num / 1e8).toFixed(2) + " 억";
+  } else {
+    return num.toLocaleString('ko-KR') + " 원";
+  }
+}
 
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -430,7 +441,7 @@ async function getSalesTimesRanking(providedDates) {
       throw new Error("Unexpected sales times data structure");
     }
     
-    // 0시부터 23시까지 모든 시간대를 채워서 데이터가 없으면 0으로 처리
+    // 0시부터 23시까지 모든 시간대를 채워서, 해당 시간 데이터가 없으면 0으로 처리
     const hoursData = [];
     for (let i = 0; i < 24; i++) {
       const hourData = times.find(item => Number(item.hour) === i);
@@ -442,7 +453,7 @@ async function getSalesTimesRanking(providedDates) {
       });
     }
     
-    // displayText 구성 (각 시간대별 구매자수, 구매건수, 매출액)
+    // 각 시간대별 데이터를 displayText로 구성 (flex 레이아웃 사용)
     const updatedTimes = hoursData.map((item, index) => {
       const formattedAmount = formatCurrency(item.orderAmount);
       return {
@@ -466,7 +477,13 @@ async function getSalesTimesRanking(providedDates) {
     const orderCounts = hoursData.map(item => item.orderCount);
     const orderAmounts = hoursData.map(item => item.orderAmount);
     
-    return { displayTexts: updatedTimes.map(item => item.displayText), labels, buyersCounts, orderCounts, orderAmounts };
+    return { 
+      displayTexts: updatedTimes.map(item => item.displayText),
+      labels,
+      buyersCounts,
+      orderCounts,
+      orderAmounts
+    };
   } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
