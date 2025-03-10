@@ -520,8 +520,11 @@ async function getTop10ProductViews(providedDates) {
     // 각 항목에 대해 product_no를 활용해 상세 API 호출, 상세의 product_name 사용
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
-        const detailName = await getProductDetail(item.product_no);
-        const finalName = detailName || item.product_name || '상품';
+        const detail = await getProductDetail(item.product_no);
+        // detail이 존재하면 detail.product_name을, 그렇지 않으면 item.product_name 객체에서 product_name을 추출하거나 기본값 '상품' 사용
+        const finalName = (detail && detail.product_name) || 
+                          (item.product_name && item.product_name.product_name) || 
+                          '상품';
         return {
           rank: index + 1,
           product_no: item.product_no,
@@ -531,7 +534,6 @@ async function getTop10ProductViews(providedDates) {
         };
       })
     );
-    
     console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
     return updatedProducts;
   } catch (error) {
