@@ -333,16 +333,24 @@ async function getSalesTimesRanking(providedDates) {
       return {
         ...time,
         rank: index + 1,
-        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
+        displayText: `
+          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+            <span style="font-weight: bold; color: #007bff;">${index + 1}위: ${hour}시</span>
+            <span style="font-size: 11px; color: #555;">구매자수: ${buyersCount}</span>
+            <span style="font-size: 11px; color: #555;">구매건수: ${orderCount}</span>
+            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
+          </div>
+        `
       };
     });
     console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
     return updatedTimes;
-  } catch (error) {
+  } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
