@@ -670,7 +670,16 @@ async function getTop10AdKeywordSales(providedDates) {
         keyword: item.keyword,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.keyword} <br/>- 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `
+          <div class="keyword-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
+            <div class="rank" style="font-weight:bold;">${index + 1}</div>
+            <div class="details" style="display:flex; flex-direction:column;">
+              <div class="keyword">키워드: ${item.keyword}</div>
+              <div class="orders">구매건수: ${item.order_count}</div>
+              <div class="amount">매출액: ${formattedAmount}</div>
+            </div>
+          </div>
+        `
       };
     });
     console.log("불러온 키워드별 구매 순위 데이터:", updatedTop10);
@@ -680,6 +689,7 @@ async function getTop10AdKeywordSales(providedDates) {
     throw error;
   }
 }
+
 
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
