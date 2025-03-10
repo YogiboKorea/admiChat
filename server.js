@@ -747,19 +747,25 @@ app.post("/chat", async (req, res) => {
   if (userInput.includes("시간대별 결제 금액 추이")) {
     try {
       const salesRankingData = await getSalesTimesRanking(providedDates);
+      // getSalesTimesRanking에서 { displayTexts, labels, buyersCounts, orderCounts, orderAmounts }를 반환한다고 가정
       const rankingText = salesRankingData.displayTexts.join("<br>");
+  
       return res.json({
         text: "시간대별 결제금액 순위입니다.<br>" + rankingText,
         chartData: {
-          labels: salesRankingData.labels,
-          dataPoints: salesRankingData.dataPoints
+          labels: salesRankingData.labels,          // ["0시","1시","2시",...]
+          buyersCounts: salesRankingData.buyersCounts,  // [숫자, 숫자, ...]
+          orderCounts: salesRankingData.orderCounts,    // [숫자, 숫자, ...]
+          orderAmounts: salesRankingData.orderAmounts    // [숫자, 숫자, ...]
         }
       });
     } catch (error) {
-      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.status(500).json({
+        text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다."
+      });
     }
   }
-
+  
   
   if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
     try {
