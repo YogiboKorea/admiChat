@@ -308,7 +308,6 @@ function formatCurrency(amount) {
     return num.toLocaleString('ko-KR') + " 원";
   }
 }
-
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -317,10 +316,9 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    // 시간대별 데이터를 모두 가져오기 위해 limit와 sort를 시간 기준으로 설정
-    limit: 24,
-    sort: 'hour',
-    order: 'asc'
+    limit: 24,        // 0시부터 23시까지 모두 요청
+    sort: 'hour',     // 시간(hour) 기준 정렬
+    order: 'asc'      // 오름차순: 0시부터 23시까지
   };
 
   try {
@@ -332,6 +330,7 @@ async function getSalesTimesRanking(providedDates) {
       params
     });
     console.log("Sales Times API 응답 데이터:", response.data);
+    
     let times;
     if (Array.isArray(response.data)) {
       times = response.data;
@@ -342,32 +341,50 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    // hoursData: 0~23 시간대 전체 데이터를 생성 (없으면 0)
+    
+    // 0시부터 23시까지 모든 시간대를 채워서 데이터가 없으면 0으로 처리
     const hoursData = [];
     for (let i = 0; i < 24; i++) {
       const hourData = times.find(item => Number(item.hour) === i);
       hoursData.push({
         hour: i,
-        order_amount: hourData ? Number(hourData.order_amount) : 0
+        buyersCount: hourData ? Number(hourData.buyers_count) : 0,
+        orderCount: hourData ? Number(hourData.order_count) : 0,
+        orderAmount: hourData ? Number(hourData.order_amount) : 0
       });
     }
-    // 생성된 데이터를 기반으로 라벨과 데이터 배열 생성
-    const labels = hoursData.map(item => `${item.hour}시`);
-    const dataPoints = hoursData.map(item => item.order_amount);
-
-    // 추가로 채팅 메시지용 displayText 배열 생성(옵션)
-    const displayTexts = hoursData.map((item, index) => {
-      return `${index + 1}위: ${item.hour}시 - 매출액: ${formatCurrency(item.order_amount)}`;
+    
+    // displayText 구성 (각 시간대별 구매자수, 구매건수, 매출액)
+    const updatedTimes = hoursData.map((item, index) => {
+      const formattedAmount = formatCurrency(item.orderAmount);
+      return {
+        rank: index + 1,
+        displayText: `
+          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+            <span style="font-weight: bold; color: #007bff;">${item.hour}시</span>
+            <span style="font-size: 11px; color: #555;">구매자수: ${item.buyersCount}</span>
+            <span style="font-size: 11px; color: #555;">구매건수: ${item.orderCount}</span>
+            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
+          </div>
+        `
+      };
     });
-
-    console.log("정렬된 시간대별 매출 데이터:", hoursData);
-    // 서버에서는 displayTexts와 함께 chartData(라벨, 데이터)도 반환하도록 함
-    return { labels, dataPoints, displayTexts };
-  } catch (error) {
+    
+    console.log("불러온 시간대별 결제금액 데이터:", updatedTimes);
+    
+    // Chart.js용 데이터를 구성 (라벨 및 각 데이터 배열)
+    const labels = hoursData.map(item => `${item.hour}시`);
+    const buyersCounts = hoursData.map(item => item.buyersCount);
+    const orderCounts = hoursData.map(item => item.orderCount);
+    const orderAmounts = hoursData.map(item => item.orderAmount);
+    
+    return { displayTexts: updatedTimes.map(item => item.displayText), labels, buyersCounts, orderCounts, orderAmounts };
+  } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
 
 
 
