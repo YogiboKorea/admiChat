@@ -141,9 +141,11 @@ async function getProductDetail(product_no) {
         'Content-Type': 'application/json'
       }
     });
-    if (response.data && response.data.product && response.data.product.product_name) {
-      console.log(`Product detail for ${product_no}:`, response.data.product.product_name);
-      return response.data.product.product_name;
+    if (response.data && response.data.product) {
+      const product = response.data.product;
+      console.log(`Product detail for ${product_no}:`, product.product_name);
+      // product_name과 list_image를 함께 반환
+      return { product_name: product.product_name, list_image: product.list_image };
     }
     return null;
   } catch (error) {
@@ -151,7 +153,6 @@ async function getProductDetail(product_no) {
     return null;
   }
 }
-
 // ========== [7] 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 ==========
 async function getTop10ProductsByAddCart(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -192,20 +193,22 @@ async function getTop10ProductsByAddCart(providedDates) {
     const top10 = products.slice(0, 10);
     const updatedTop10 = await Promise.all(
       top10.map(async (product, index) => {
-        const detailName = await getProductDetail(product.product_no);
-        const finalName = detailName || '상품';
+        const detail = await getProductDetail(product.product_no);
+        const finalName = detail ? detail.product_name : '상품';
+        const listImage = detail ? detail.list_image : "";
         return {
           ...product,
           rank: index + 1,
           product_name: finalName,
           displayText: `
-          <div class="product-ranking">
-            <span class="rank">${index + 1}위:</span>
-            <span class="product-name">${finalName}</span>
-            <br/>
-            <span class="product-count">총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 장바구니에 담겨 있습니다.</span>
-          </div>
-        `
+            <div class="product-ranking">
+              <span class="rank">${index + 1}위:</span>
+              <span class="product-name" style="font-weight:600;">${finalName}</span>
+              <br/>
+              <img src="${listImage}" style="max-width:60px;width:100%;"/>
+              <span class="product-count">총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 장바구니에 담겨 있습니다.</span>
+            </div>
+          `
         };
       })
     );
