@@ -226,6 +226,19 @@ async function getTop10ProductsByAddCart(providedDates) {
 }
 
 // ========== [8] 페이지 뷰 및 방문수 상위 10개 페이지 조회 함수 ==========
+//페이지 미리보기 뷰 기능 추가 
+async function getOgImage(pageUrl) {
+  try {
+    const response = await axios.get(pageUrl);
+    const html = response.data;
+    const $ = cheerio.load(html);
+    const ogImage = $('meta[property="og:image"]').attr('content');
+    return ogImage || "";
+  } catch (error) {
+    console.error("Error fetching og:image for", pageUrl, error.message);
+    return "";
+  }
+}
 async function getTop10PagesByView(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/pages/view';
@@ -264,31 +277,32 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     
-    const updatedPages = top10Pages.map((page, index) => {
-      // URL 앞에 도메인을 붙이고, cover_image 값(있다면) 사용
-      const urlText = "http://yogibo.kr" + (page.url || 'N/A');
-      const visitCount = page.visit_count || 0;
-      const firstVisitCount = page.first_visit_count || 0;
-      // cover_image를 사용 (없다면 빈 문자열)
-      const coverImage = page.cover_image || "";
-      
-      return {
-        ...page,
-        rank: index + 1,
-        displayText: `
-          <div class="page-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <div class="rank" style="font-weight: bold; color: #007bff;">${index + 1}위:</div>
-            <div class="cover-image" style="flex-shrink: 0;">
-              <img src="${coverImage}" alt="Cover Image" style="max-width: 60px; width: 60px; border-radius: 5px;">
+    // 비동기적으로 각 페이지의 og:image 값을 가져와서 displayText 구성
+    const updatedPages = await Promise.all(
+      top10Pages.map(async (page, index) => {
+        const fullUrl = "http://yogibo.kr" + (page.url || '');
+        // getOgImage 함수를 이용해 og:image 값을 가져옴
+        const coverImage = await getOgImage(fullUrl);
+        const visitCount = page.visit_count || 0;
+        const firstVisitCount = page.first_visit_count || 0;
+        return {
+          ...page,
+          rank: index + 1,
+          displayText: `
+            <div class="page-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+              <div class="rank" style="font-weight: bold; color: #007bff;">${index + 1}위:</div>
+              <div class="cover-image" style="flex-shrink: 0;">
+                <img src="${coverImage}" alt="Cover Image" style="max-width: 60px; width: 60px; border-radius: 5px;">
+              </div>
+              <div class="details" style="display: flex; flex-direction: column;">
+                <div class="url" style="font-weight: 600; color: #333;">${fullUrl}</div>
+                <div class="stats" style="font-size: 11px; color: #555;">방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}</div>
+              </div>
             </div>
-            <div class="details" style="display: flex; flex-direction: column;">
-              <div class="url" style="font-weight: 600; color: #333;">${urlText}</div>
-              <div class="stats" style="font-size: 11px; color: #555;">방문자수: ${visitCount}, 처음 접속수: ${firstVisitCount}</div>
-            </div>
-          </div>
-        `
-      };
-    });
+          `
+        };
+      })
+    );
     
     console.log("불러온 상위 10 페이지 데이터:", updatedPages);
     return updatedPages;
@@ -297,6 +311,7 @@ async function getTop10PagesByView(providedDates) {
     throw error;
   }
 }
+
 
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
