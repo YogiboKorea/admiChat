@@ -298,6 +298,17 @@ async function getTop10PagesByView(providedDates) {
 }
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
+function formatCurrency(amount) {
+  const num = Number(amount) || 0;
+  if (num >= 1e12) {
+    return (num / 1e12).toFixed(2) + " 조";
+  } else if (num >= 1e8) {
+    return (num / 1e8).toFixed(2) + " 억";
+  } else {
+    return num.toLocaleString('ko-KR') + " 원";
+  }
+}
+
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -306,23 +317,20 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 24,        // 0시부터 23시까지 모두 요청
-    sort: 'hour',     // 시간(hour) 기준 정렬
-    order: 'asc'      // 오름차순: 0시부터 23시까지
+    limit: 10,
+    sort: 'order_amount',
+    order: 'desc'
   };
 
   try {
-    // API 호출
     const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       params
     });
     console.log("Sales Times API 응답 데이터:", response.data);
-
-    // 응답 데이터 파싱
     let times;
     if (Array.isArray(response.data)) {
       times = response.data;
@@ -333,69 +341,24 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-
-    // 0시부터 23시까지 hoursData를 채움
-    const hoursData = [];
-    for (let i = 0; i < 24; i++) {
-      const hourData = times.find(item => Number(item.hour) === i);
-      hoursData.push({
-        hour: i,
-        buyersCount: hourData ? Number(hourData.buyers_count) : 0,
-        orderCount: hourData ? Number(hourData.order_count) : 0,
-        orderAmount: hourData ? Number(hourData.order_amount) : 0
-      });
-    }
-
-    // 채팅창 표시용 HTML (각 시간대별 정보)
-    const updatedTimes = hoursData.map((item, index) => {
-      const formattedAmount = formatCurrency(item.orderAmount);
+    const updatedTimes = times.map((time, index) => {
+      const hour = time.hour || 'N/A';
+      const buyersCount = time.buyers_count || 0;
+      const orderCount = time.order_count || 0;
+      const formattedAmount = formatCurrency(time.order_amount || 0);
       return {
+        ...time,
         rank: index + 1,
-        displayText: `
-          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <span style="font-weight: bold; color: #007bff;">${item.hour}시</span>
-            <span style="font-size: 11px; color: #555;">구매자수: ${item.buyersCount}</span>
-            <span style="font-size: 11px; color: #555;">구매건수: ${item.orderCount}</span>
-            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
-          </div>
-        `
+        displayText: `${index + 1}위: ${hour}시 <br/>- 구매자수: ${buyersCount}, 구매건수: ${orderCount}, 매출액: ${formattedAmount}`
       };
     });
-
-    // 로그로 확인
-    console.log("불러온 시간대별 결제금액 데이터:", updatedTimes);
-
-    // 채팅창에 표시할 text: 제목 + 각 시간대별 displayText 합치기
-    let text = "시간대별 결제금액 순위입니다.<br>";
-    updatedTimes.forEach(item => {
-      text += item.displayText + "<br>";
-    });
-
-    // Chart.js용 데이터 구성
-    const labels = hoursData.map(item => `${item.hour}시`);
-    const buyersCounts = hoursData.map(item => item.buyersCount);
-    const orderCounts = hoursData.map(item => item.orderCount);
-    const orderAmounts = hoursData.map(item => item.orderAmount);
-
-    // 최종 반환: text + chartData
-  return res.json({
-    text,
-    chartData: {
-      labels,
-      buyersCounts,
-      orderCounts,
-      orderAmounts
-    }
-  });
+    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
+    return updatedTimes;
   } catch (error) {
-    return res.status(500).json({
-      text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다."
-    });
+    console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
+    throw error;
   }
 }
-
-
-
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
@@ -734,21 +697,18 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-    if (userInput.includes("시간대별 결제 금액 추이")) {
-      try {
-        // 함수는 데이터만 return
-        const { text, chartData } = await getSalesTimesRanking(providedDates);
-  
-        // 여기서 한 번만 res.json(...) 호출
-        return res.json({ text, chartData });
-      } catch (error) {
-        return res.status(500).json({
-          text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다."
-        });
-      }
+  if (userInput.includes("시간대별 결제 금액 추이")) {
+    try {
+      const salesRanking = await getSalesTimesRanking(providedDates);
+      const rankingText = salesRanking.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
     }
-  
-  
+  }
+
   if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
     try {
       const keywordSales = await getTop10AdKeywordSales(providedDates);
