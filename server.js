@@ -298,16 +298,6 @@ async function getTop10PagesByView(providedDates) {
 }
 
 // ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
-function formatCurrency(amount) {
-  const num = Number(amount) || 0;
-  if (num >= 1e12) {
-    return (num / 1e12).toFixed(2) + " 조";
-  } else if (num >= 1e8) {
-    return (num / 1e8).toFixed(2) + " 억";
-  } else {
-    return num.toLocaleString('ko-KR') + " 원";
-  }
-}
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
