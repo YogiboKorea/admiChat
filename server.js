@@ -340,26 +340,22 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    const updatedTimes = times.map((time, index) => {
-      const hour = time.hour || 'N/A';
-      const buyersCount = time.buyers_count || 0;
-      const orderCount = time.order_count || 0;
-      const formattedAmount = formatCurrency(time.order_amount || 0);
-      return {
-        ...time,
-        rank: index + 1,
-        displayText: `
-          <div style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
-            <span style="font-weight: bold; color: #007bff;">${index + 1}위: ${hour}시</span>
-            <span style="font-size: 11px; color: #555;">구매자수: ${buyersCount}</span>
-            <span style="font-size: 11px; color: #555;">구매건수: ${orderCount}</span>
-            <span style="font-size: 11px; color: #555;">매출액: ${formattedAmount}</span>
-          </div>
-        `
-      };
-    });
-    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
-    return updatedTimes;
+    // 시간대 데이터가 0~23시를 모두 포함하도록 배열 구성 (없으면 0)
+    const hoursData = [];
+    for (let i = 0; i < 24; i++) {
+      const hourData = times.find(item => Number(item.hour) === i);
+      hoursData.push({
+        hour: i,
+        buyersCount: hourData ? Number(hourData.buyers_count) : 0,
+        orderCount: hourData ? Number(hourData.order_count) : 0,
+        orderAmount: hourData ? Number(hourData.order_amount) : 0
+      });
+    }
+    const labels = hoursData.map(item => `${item.hour}시`);
+    const buyersCounts = hoursData.map(item => item.buyersCount);
+    const orderCounts = hoursData.map(item => item.orderCount);
+    const orderAmounts = hoursData.map(item => item.orderAmount);
+    return { labels, buyersCounts, orderCounts, orderAmounts };
   } catch(error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
