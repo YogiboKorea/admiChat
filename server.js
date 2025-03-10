@@ -201,7 +201,7 @@ async function getTop10ProductsByAddCart(providedDates) {
           rank: index + 1,
           product_name: finalName,
           displayText: `
-            <div class="product-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;">
+            <div class="product-ranking" style="display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 5px;background:#fff;">
               <div class="rank" style="font-weight: bold; color:#e52e0a">${index + 1}</div>
               <div class="image" style="flex-shrink: 0;">
                 <img src="${listImage}" style="max-width:60px; width:60px; height:auto; border-radius: 5px;"/>
