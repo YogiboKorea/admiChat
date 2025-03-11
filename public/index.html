@@ -377,65 +377,47 @@
   return prefix + "_" + Math.random().toString(36).substr(2, 9);
 }
 
-  // 광고 매체별 판매 그래프 메시지 추가 함수
-  function appendAdSalesChart() {
-    const canvasId = generateUniqueId("adSalesChart");
-    const messageElem = document.createElement("div");
-    messageElem.classList.add("message", "bot");
-    
-    // 캔버스 요소 생성
-    const canvas = document.createElement("canvas");
-    canvas.id = canvasId;
-    canvas.width = 400;
-    canvas.height = 200;
-    
-    messageElem.appendChild(canvas);
-    chatMessages.appendChild(messageElem);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // 캔버스에 차트 생성
-    createAdSalesChart(canvasId);
-  }
-
-  async function createAdSalesChart(canvasId) {
-    const start_date = startDateInput.value || "";
-    const end_date = endDateInput.value || "";
-    try {
-      const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/adSalesGraph", {
-        params: { start_date, end_date }
-      });
-      const { labels, orderAmounts } = response.data;
-      const ctx = document.getElementById(canvasId).getContext('2d');
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: '광고 매체별 판매 매출액',
-            data: orderAmounts,
-            backgroundColor: 'rgba(75,192,192,0.5)',
-            borderColor: 'rgba(75,192,192,1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: function(value) {
-                  return value.toLocaleString();
-                }
+async function createAdSalesChart(canvasId) {
+  const start_date = startDateInput.value || "";
+  const end_date = endDateInput.value || "";
+  try {
+    const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/adSalesGraph", {
+      params: { start_date, end_date }
+    });
+    const { labels, orderAmounts } = response.data;
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '광고 매체별 판매 매출액',
+          data: orderAmounts,
+          backgroundColor: 'rgba(75,192,192,0.5)',
+          borderColor: 'rgba(75,192,192,1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',  // 수평 막대형 차트를 위해 추가
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return value.toLocaleString();
               }
             }
           }
         }
-      });
-    } catch (error) {
-      console.error("Error fetching ad sales graph data:", error);
-      appendBotMessage("광고 매체별 판매 그래프를 불러오는 중 오류가 발생했습니다.");
-    }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching ad sales graph data:", error);
+    appendBotMessage("광고 매체별 판매 그래프를 불러오는 중 오류가 발생했습니다.");
   }
+}
+
 
   // 메시지 전송 함수
   async function sendMessage() {
