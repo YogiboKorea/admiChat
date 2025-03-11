@@ -505,7 +505,7 @@
       const end_date = endDateInput.value || "";
       try {
         // API에서 날짜 기준 오름차순으로 데이터를 받아옵니다.
-        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/visitors/view", {
+        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/dailyVisitorStats", {
           params: {
             mall_id: 'yogibo',
             shop_no: 1,
@@ -674,6 +674,10 @@
           appendBotMessage("아래 그래프에서 키워드별 구매 순위를 확인하세요.");
           appendKeywordSalesChartMessage();
         }
+        else if (userMessage.includes("일별 방문자 순위")) {
+              // 새로 추가한 일일 방문자 통계 텍스트 출력 함수 호출
+              appendDailyVisitorStatsMessage();
+          }     
         else {
           let botResponse = data.text;
           if (data.videoHtml) {
