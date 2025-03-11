@@ -115,6 +115,41 @@ async function apiRequest(method, url, data = {}, params = {}) {
     }
   }
 }
+const YOGIBO_SYSTEM_PROMPT = `
+  너는 마케팅 전문가야 데이터에 추가된 값들을 보고 정확한 응답및 제안사항을 마케터 들에게 전달 해주는 역할을 수행하면되
+`;
+
+
+//쳇 프롬포트 추가
+async function getGPT3TurboResponse(userInput) {
+  try {
+    const response = await axios.post(
+      OPEN_URL,
+      {
+        model: FINETUNED_MODEL,
+        messages: [
+          { role: "system", content: YOGIBO_SYSTEM_PROMPT },
+          { role: "user", content: userInput }
+        ]
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    const gptAnswer = response.data.choices[0].message.content;
+    return gptAnswer;
+  } catch (error) {
+    console.error("Error calling OpenAI:", error.message);
+    return "요기보 챗봇 오류가 발생했습니다. 다시 시도 부탁드립니다.";
+  }
+}
+
+
+
+
 
 // ========== [5] 최근 30일(약 4주간) 날짜 계산 (optional 날짜 사용) ==========
 function getLastTwoWeeksDates(providedDates) {
@@ -832,110 +867,68 @@ app.post("/chat", async (req, res) => {
     start_date: req.body.start_date,
     end_date: req.body.end_date
   };
-  
+
   if (!userInput) {
     return res.status(400).json({ error: "Message is required" });
   }
 
-  if (userInput.includes("기간별 장바구니 순위")) {
-    try {
+  try {
+    // 특정 키워드 처리 (예: 장바구니, 페이지뷰, 결제금액, 키워드 순위, 광고별 판매 순위, 광고별 유입수, 일별 방문자, 상세페이지 접속 순위)
+    if (userInput.includes("기간별 장바구니 순위")) {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
-      return res.json({
-        text: productListText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "상품 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: productListText });
     }
-  }
 
-  if (userInput.includes("기간별 페이지뷰 순위") || userInput.includes("페이지 뷰")) {
-    try {
+    if (userInput.includes("기간별 페이지뷰 순위") || userInput.includes("페이지 뷰")) {
       const topPages = await getTop10PagesByView(providedDates);
       const pageListText = topPages.map(page => page.displayText).join("<br>");
-      return res.json({
-        text: pageListText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "페이지 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: pageListText });
     }
-  }
 
-  if (userInput.includes("시간대별 결제 금액 추이")) {
-    try {
+    if (userInput.includes("시간대별 결제 금액 추이")) {
       const salesRanking = await getSalesTimesRanking(providedDates);
       const rankingText = salesRanking.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: "시간대별 결제금액 순위입니다.<br>" + rankingText });
     }
-  }
 
-  if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
-    try {
+    if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
       const keywordSales = await getTop10AdKeywordSales(providedDates);
       const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: keywordListText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: keywordListText });
     }
-  }
 
-  if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
-    try {
+    if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
       const adSales = await getTop10AdSales(providedDates);
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: adSalesText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: adSalesText });
     }
-  }
 
-  if (userInput.includes("광고별 자사몰 유입수")) {
-    try {
+    if (userInput.includes("광고별 자사몰 유입수")) {
       const adInflow = await getTop10AdInflow(providedDates);
       const adInflowText = adInflow.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: "광고별 유입수 순위 TOP 10 입니다.<br>" + adInflowText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "광고별 유입수 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: "광고별 유입수 순위 TOP 10 입니다.<br>" + adInflowText });
     }
-  }
 
-  
-  if (userInput.includes("일별 방문자 확인")) {
-    try {
+    if (userInput.includes("일별 방문자 확인")) {
       const visitorStats = await getDailyVisitorStats(providedDates);
-      // visitorStats 배열에 이미 순위와 관련된 displayText가 포함되어 있음
       const visitorText = visitorStats.join("<br>");
-      return res.json({
-        text: "조회 기간 동안의 일별 실제 방문자 순위입니다.<br>" + visitorText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "실제 방문자 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: "조회 기간 동안의 일별 실제 방문자 순위입니다.<br>" + visitorText });
     }
-  }
-  
-  if (userInput.includes("상세페이지 접속 순위")) {
-    try {
+
+    if (userInput.includes("상세페이지 접속 순위")) {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
-      return res.json({
-        text: productViewsText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "상세페이지 접속 순위 데이터를 가져오는 중 오류가 발생했습니다." });
+      return res.json({ text: productViewsText });
     }
+    
+    // 프롬프트 기능: 위 조건에 해당하지 않는 경우 GPT 응답 반환
+    const gptResponse = await getGPT3TurboResponse(userInput);
+    return res.json({ text: gptResponse });
+  } catch (error) {
+    console.error("Error in /chat endpoint:", error.response ? error.response.data : error.message);
+    return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
-
-  return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
 
 // ========== [17] 서버 시작 ==========
