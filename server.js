@@ -30,7 +30,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
-
 // ========== [3] MongoDB 토큰 관리 함수 ==========
 async function getTokensFromDB() {
   const client = new MongoClient(MONGODB_URI);
@@ -871,6 +870,7 @@ app.get("/keywordSalesGraph", async (req, res) => {
 
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
+  await refreshAccessToken();
   const userInput = req.body.message;
   const memberId = req.body.memberId;
   const providedDates = {
