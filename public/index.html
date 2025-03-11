@@ -498,56 +498,51 @@
         appendBotMessage("키워드별 구매 순위 그래프를 불러오는 중 오류가 발생했습니다.");
       }
     }
-  
-    // 일일 방문자 차트 생성 함수 (라인 차트)
+
+    function parseDailyVisitorStats(statsTextArray) {
+      const dates = [];
+      const visitCounts = [];
+      const firstVisitCounts = [];
+      const reVisitCounts = [];
+      
+      // 날짜: "YYYY-MM-DD" 형식, 수치: "방문자수: 3945, 처음 방문수: 2398, 재방문수: 1552"
+      const dateRegex = /(\d{4}-\d{2}-\d{2})/;
+      const numbersRegex = /방문자수:\s*(\d+),\s*처음 방문수:\s*(\d+),\s*재방문수:\s*(\d+)/;
+      
+      statsTextArray.forEach(item => {
+        const dateMatch = item.match(dateRegex);
+        const numbersMatch = item.match(numbersRegex);
+        if (dateMatch && numbersMatch) {
+          dates.push(dateMatch[1]);
+          visitCounts.push(Number(numbersMatch[1]));
+          firstVisitCounts.push(Number(numbersMatch[2]));
+          reVisitCounts.push(Number(numbersMatch[3]));
+        }
+      });
+      
+      return { dates, visitCounts, firstVisitCounts, reVisitCounts };
+    } 
     async function createDailyVisitorChart(canvasId) {
       const start_date = startDateInput.value || "";
       const end_date = endDateInput.value || "";
       try {
-        // API에서 날짜 기준 오름차순으로 데이터를 받아옵니다.
+        // 서버의 /dailyVisitorStats 엔드포인트가 HTML 텍스트 배열을 반환한다고 가정합니다.
         const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/dailyVisitorStats", {
-          params: {
-            mall_id: 'yogibo',
-            shop_no: 1,
-            start_date,
-            end_date,
-            device_type: 'total',
-            format_type: 'day',
-            limit: 100,
-            offset: 0,
-            sort: 'date',
-            order: 'asc'
-          },
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
+          params: { start_date, end_date },
+          headers: { 'Content-Type': 'application/json' }
         });
+        console.log("Daily Visitor Stats API 응답 데이터:", response.data);
         
-        let stats;
-        // 응답 데이터 구조에 따라 stats 추출 (예: data.unique 또는 data.view)
-        if (Array.isArray(response.data)) {
-          stats = response.data;
-        } else if (response.data && Array.isArray(response.data.unique)) {
-          stats = response.data.unique;
-        } else if (response.data && Array.isArray(response.data.view)) {
-          stats = response.data.view;
-        } else if (response.data && Array.isArray(response.data.data)) {
-          stats = response.data.data;
-        } else {
-          throw new Error("Unexpected daily visitor stats data structure");
-        }
+        // 서버에서 반환한 데이터를 statsTextArray에 저장
+        const statsTextArray = response.data;
         
-        // 날짜 순서대로 정렬 (API가 asc로 정렬되어 있더라도 확실하게 정렬)
-        stats.sort((a, b) => new Date(a.date) - new Date(b.date));
+        // 파싱하여 차트에 사용할 구조화된 데이터 추출
+        const { dates, visitCounts, firstVisitCounts, reVisitCounts } = parseDailyVisitorStats(statsTextArray);
         
-        // 각 데이터를 배열로 추출
-        const dates = stats.map(item => new Date(item.date).toISOString().split('T')[0]);
-        const visitCounts = stats.map(item => item.visit_count);
-        const firstVisitCounts = stats.map(item => item.first_visit_count);
-        const reVisitCounts = stats.map(item => item.re_visit_count);
-        
+        // 캔버스 요소 얻기
         const ctx = document.getElementById(canvasId).getContext('2d');
+        
+        // Chart.js 라인 차트 생성
         new Chart(ctx, {
           type: 'line',
           data: {
@@ -608,11 +603,11 @@
           }
         });
       } catch (error) {
-        console.error("Error fetching daily visitor stats for chart:", error);
+        console.error("Error fetching daily visitor stats for chart from text:", error);
         appendBotMessage("일일 방문자 차트를 불러오는 중 오류가 발생했습니다.");
       }
     }
-  
+
     // 차트 메시지 추가 함수: 시간대별 매출액 차트 호출
     function appendChartMessage() {
       const canvasId = createCanvasElement();
@@ -675,10 +670,10 @@
           appendKeywordSalesChartMessage();
         }
         else if (userMessage.includes("일별 방문자 순위")) {
-              // 새로 추가한 일일 방문자 통계 텍스트 출력 함수 호출
-              appendBotMessage("일별 방문자 순위 리스트 입니다");
-              createDailyVisitorChart();
-          }     
+            appendBotMessage("아래 차트에서 일별 방문자 순위를 확인하세요.");
+            const canvasId = createCanvasElement();
+            createDailyVisitorChart(canvasId);
+        }  
         else {
           let botResponse = data.text;
           if (data.videoHtml) {

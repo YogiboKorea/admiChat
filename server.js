@@ -490,7 +490,6 @@ app.get("/adSalesGraph", async (req, res) => {
     res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
   }
 });
-
 async function getDailyVisitorStats(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitors/view';
@@ -534,13 +533,13 @@ async function getDailyVisitorStats(providedDates) {
     }
     
     console.log("Extracted stats length:", stats.length);
-    // visit_count 기준 내림차순 정렬
+    // visit_count 기준 내림차순 정렬 (필요에 따라 제거 가능)
     stats.sort((a, b) => b.visit_count - a.visit_count);
     
-    // 각 항목에 대해 displayText 구성
-    const updatedStats = stats.map((item, index) => {
+    // 각 항목에 대해 순위 없이 날짜와 수치만 구성
+    const updatedStats = stats.map(item => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${index + 1}위: ${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
+      return `${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -549,6 +548,7 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
+
 
 app.get("/dailyVisitorStats", async (req, res) => {
   const providedDates = {
@@ -891,7 +891,7 @@ app.post("/chat", async (req, res) => {
   }
 
   
-  if (userInput.includes("일별 방문자 순위")) {
+  if (userInput.includes("일별 방문자 확인")) {
     try {
       const visitorStats = await getDailyVisitorStats(providedDates);
       // visitorStats 배열에 이미 순위와 관련된 displayText가 포함되어 있음
