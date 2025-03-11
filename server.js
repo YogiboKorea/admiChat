@@ -696,7 +696,7 @@ async function getTop10AdInflow(providedDates) {
     const updatedAds = top10.map((item, index) => {
       return {
         rank: index + 1,
-        ad: item.ad,
+        ad: item.ad === "채널 없음" ? "북마크" : item.ad,
         visit_count: item.visit_count,
         displayText: `${index + 1}위: ${item.ad} - 순방문자수: ${item.visit_count}`
       };
