@@ -118,21 +118,29 @@ async function apiRequest(method, url, data = {}, params = {}) {
 
 const YOGIBO_SYSTEM_PROMPT = `
 "너는 요기보 기업의 마케터로 빈백/소파 브랜드 전문 마케터로 데이터 분석및 차트 분석 다양한 데이터를 가지고 있어 또한 다양한 이벤트들을 기획단계부터 마케팅 광고에 까지
-전문적인 지식을 가지고 있는 사람이야"
+전문적인 지식을 가지고 있는 사람이야 "
 `;
 
-
-//쳇 프롬포트 추가
-async function getGPT3TurboResponse(userInput) {
+async function getGPT3TurboResponse(userInput, aggregatedData) {
   try {
+    // 메시지 배열에 시스템 프롬프트와 추가 집계 데이터를 포함
+    const messages = [
+      { role: "system", content: YOGIBO_SYSTEM_PROMPT }
+    ];
+    
+    // 집계 데이터가 있을 경우 추가 (예: "최근 캠페인 데이터: ...")
+    if (aggregatedData) {
+      messages.push({ role: "system", content: `집계 데이터: ${aggregatedData}` });
+    }
+    
+    // 마지막에 사용자의 질문 추가
+    messages.push({ role: "user", content: userInput });
+    
     const response = await axios.post(
       OPEN_URL,
       {
         model: FINETUNED_MODEL,
-        messages: [
-          { role: "system", content: YOGIBO_SYSTEM_PROMPT },
-          { role: "user", content: userInput }
-        ]
+        messages: messages
       },
       {
         headers: {
@@ -144,7 +152,7 @@ async function getGPT3TurboResponse(userInput) {
     const gptAnswer = response.data.choices[0].message.content;
     return gptAnswer;
   } catch (error) {
-    console.error("Error calling OpenAI:", error.message);
+    console.error("OpenAI 호출 중 오류:", error.message);
     return "요기보 챗봇 오류가 발생했습니다. 다시 시도 부탁드립니다.";
   }
 }
@@ -864,7 +872,6 @@ app.get("/keywordSalesGraph", async (req, res) => {
 app.post("/chat", async (req, res) => {
   const userInput = req.body.message;
   const memberId = req.body.memberId;
-  // 프론트단에서 날짜가 제공되면 받아서 사용
   const providedDates = {
     start_date: req.body.start_date,
     end_date: req.body.end_date
@@ -875,7 +882,7 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // 특정 키워드 처리 (예: 장바구니, 페이지뷰, 결제금액, 키워드 순위, 광고별 판매 순위, 광고별 유입수, 일별 방문자, 상세페이지 접속 순위)
+    // 기존 조건 처리 (장바구니, 페이지뷰, 결제금액, 키워드 순위, 광고별 판매 순위, 광고별 유입수, 일별 방문자, 상세페이지 접속 순위)
     if (userInput.includes("기간별 장바구니 순위")) {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
@@ -923,15 +930,23 @@ app.post("/chat", async (req, res) => {
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({ text: productViewsText });
     }
-    
-    // 프롬프트 기능: 위 조건에 해당하지 않는 경우 GPT 응답 반환
-    const gptResponse = await getGPT3TurboResponse(userInput);
+
+    // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
+    let aggregatedData = "";
+    if (userInput.includes("최근 캠페인 데이터") || userInput.includes("데이터 분석")) {
+      // 예시: 집계 데이터를 요약한 문자열 (실제 데이터에 맞게 수정 필요)
+      aggregatedData = "The latest campaign data shows a 12% increase in engagement and a 15% increase in conversions compared to the previous quarter. 📈💡";
+    }
+
+    // 위 조건에 해당하지 않으면 GPT 프롬프트를 사용하여 일반 응답 생성
+    const gptResponse = await getGPT3TurboResponse(userInput, aggregatedData);
     return res.json({ text: gptResponse });
   } catch (error) {
     console.error("Error in /chat endpoint:", error.response ? error.response.data : error.message);
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
