@@ -471,6 +471,7 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
+// 서버측: /adSalesGraph 엔드포인트 추가
 app.get("/adSalesGraph", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -827,10 +828,11 @@ app.post("/chat", async (req, res) => {
 
   if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
     try {
+      appendAdSalesChart();
       const adSales = await getTop10AdSales(providedDates);
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
       return res.json({
-        text: "광고 매체별 구매 순위입니다.<br>" + adSalesText
+        text: adSalesText
       });
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
