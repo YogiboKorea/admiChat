@@ -506,7 +506,17 @@ async function getDailyVisitorStats(providedDates) {
     // 각 항목에 대해 순위, 날짜, 방문자수, 처음 방문수, 재방문수를 포함한 displayText 구성
     const updatedStats = stats.map((item, index) => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `${index + 1}위: ${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
+      return `
+        <div class="sales-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
+          <div class="rank" style="font-weight:bold; min-width:50px;">${index + 1}위</div>
+          <div class="details" style="display:flex; flex-direction:column;">
+            <div class="date">날짜: ${formattedDate}</div>
+            <div class="visitors">방문자수: ${item.visit_count}</div>
+            <div class="first-visit">처음 방문수: ${item.first_visit_count}</div>
+            <div class="revisit">재방문수: ${item.re_visit_count}</div>
+          </div>
+        </div>
+      `;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
