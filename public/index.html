@@ -220,7 +220,6 @@
       <button id="send-btn">입력</button>
     </div>
   </div>
-
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
@@ -282,7 +281,8 @@
         const botContainer = document.createElement("div");
         botContainer.classList.add("bot-container");
         const botImg = document.createElement("img");
-        botImg.src = "http://yogibo.kr/web/test/tmp-3922227795.webp";
+        // HTTPS로 변경하여 Mixed Content 경고 방지
+        botImg.src = "https://yogibo.kr/web/test/tmp-3922227795.webp";
         botImg.alt = "Bot Profile";
         botImg.classList.add("bot-profile");
         const botMessageDiv = document.createElement("div");
@@ -411,6 +411,62 @@
       }
     }
   
+    // 키워드별 구매 순위 차트 생성 함수 (서버의 /keywordSalesGraph 엔드포인트 호출)
+    async function createKeywordSalesChart(canvasId) {
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+      try {
+        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/keywordSalesGraph", {
+          params: { start_date, end_date }
+        });
+        const { labels, orderAmounts } = response.data;
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: '키워드별 구매 순위 (매출액)',
+              data: orderAmounts,
+              backgroundColor: 'rgba(75,192,192,0.5)',
+              borderColor: 'rgba(75,192,192,1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  // 천단위 콤마 찍고 "원" 붙이기
+                  callback: function(value) {
+                    return value.toLocaleString('ko-KR') + " 원";
+                  }
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.label || '';
+                    if (label) { label += ': '; }
+                    if (context.raw !== null) {
+                      label += context.raw.toLocaleString('ko-KR') + " 원";
+                    }
+                    return label;
+                  }
+                }
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching keywordSalesGraph data:", error);
+        appendBotMessage("키워드별 구매 순위 그래프를 불러오는 중 오류가 발생했습니다.");
+      }
+    }
+  
     // 차트 메시지 추가 함수: 시간대별 매출액 차트 호출
     function appendChartMessage() {
       const canvasId = createCanvasElement();
@@ -421,6 +477,12 @@
     function appendAdChartMessage() {
       const canvasId = createCanvasElement();
       createAdSalesChart(canvasId);
+    }
+  
+    // 차트 메시지 추가 함수: 키워드별 구매 순위 차트 호출
+    function appendKeywordSalesChartMessage() {
+      const canvasId = createCanvasElement();
+      createKeywordSalesChart(canvasId);
     }
   
     // 메시지 전송 함수
@@ -456,10 +518,15 @@
                 appendBotMessage("아래 그래프에서 시간대별 매출액을 확인하세요.");
                 appendChartMessage();
             }
-            // 광고 매체별 판매 그래프 처리 (예시)
+            // 광고 매체별 판매 그래프 처리
             else if (userMessage.includes("광고별 판매 순위")) {
                 appendBotMessage("아래 그래프에서 광고 매체별 판매 매출액을 확인하세요.");
                 appendAdChartMessage();
+            }
+            // 키워드별 구매 순위 차트 처리
+            else if (userMessage.includes("검색 키워드별 구매 순위")) {
+                appendBotMessage("아래 그래프에서 키워드별 구매 순위를 확인하세요.");
+                appendKeywordSalesChartMessage();
             }
             else {
                 let botResponse = data.text;
@@ -468,7 +535,7 @@
                 }
                 if (data.imageUrl) {
                     if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
-                        botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";    
+                        botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
                     }
                 }
                 appendBotMessage(botResponse);
@@ -487,4 +554,3 @@
     });
   </script>
   
-

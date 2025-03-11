@@ -444,7 +444,7 @@ async function getTop10AdSales(providedDates) {
     } else {
       throw new Error("Unexpected ad sales data structure");
     }
-    const top10 = adsales.slice(0, 4);
+    const top10 = adsales.slice(0, 5);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = formatCurrency(item.order_amount);
       return {
@@ -687,8 +687,7 @@ async function getTop10AdInflow(providedDates) {
     throw error;
   }
 }
-
-// ========== [14] 키워드별 구매 순위 조회 함수 ==========
+// ========== [14] 키워드별 구매 순위 조회 함수 (기존 코드) ==========
 async function getTop10AdKeywordSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitpaths/keywordsales';
@@ -763,6 +762,25 @@ async function getTop10AdKeywordSales(providedDates) {
     throw error;
   }
 }
+
+// ========== [새 엔드포인트] 키워드별 구매 순위 차트 데이터 반환 ==========
+app.get("/keywordSalesGraph", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const keywordSales = await getTop10AdKeywordSales(providedDates);
+    // 차트용 데이터: 각 키워드와 해당 매출액
+    const labels = keywordSales.map(item => item.keyword);
+    const orderAmounts = keywordSales.map(item => item.order_amount);
+    res.json({ labels, orderAmounts });
+  } catch (error) {
+    console.error("Error fetching keyword sales graph data:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "검색 키워드별 구매 데이터를 가져오는 중 오류 발생" });
+  }
+});
+
 
 
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
