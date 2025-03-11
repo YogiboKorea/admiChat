@@ -472,6 +472,25 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
+// ========== 서버측: /adSalesGraph 엔드포인트 추가 ==========
+app.get("/adSalesGraph", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const adSales = await getTop10AdSales(providedDates);
+    // 광고 이름과 매출액 데이터를 차트에 사용할 수 있도록 추출
+    const labels = adSales.map(item => item.ad);
+    const orderAmounts = adSales.map(item => item.order_amount);
+    res.json({ labels, orderAmounts });
+  } catch (error) {
+    console.error("Error fetching ad sales graph data:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
+  }
+});
+
+
 
 
 async function getDailyVisitorStats(providedDates) {
@@ -807,8 +826,17 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
-
-  if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
+  if (userInput.includes("광고별 판매 그래프")) {
+    // 그래프 응답 처리
+    try {
+      const adSales = await getTop10AdSales(providedDates);
+      const labels = adSales.map(item => item.ad);
+      const orderAmounts = adSales.map(item => item.order_amount);
+      return res.json({ labels, orderAmounts });
+    } catch (error) {
+      return res.status(500).json({ text: "광고 매체별 판매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  } else if (userInput.includes("광고별 판매 순위")) {
     // 텍스트 응답 처리
     try {
       const adSales = await getTop10AdSales(providedDates);
@@ -819,17 +847,8 @@ app.post("/chat", async (req, res) => {
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
-  } else if (userInput.includes("광고별 판매 그래프")) {
-    // 그래프 응답 처리
-    try {
-      const adSales = await getTop10AdSales(providedDates);
-      const labels = adSales.map(item => item.ad);
-      const orderAmounts = adSales.map(item => item.order_amount);
-      return res.json({ labels, orderAmounts });
-    } catch (error) {
-      return res.status(500).json({ text: "광고 매체별 판매 데이터를 가져오는 중 오류가 발생했습니다." });
-    }
   }
+  
   
   if (userInput.includes("광고별 자사몰 유입수")) {
     try {
@@ -871,28 +890,6 @@ app.post("/chat", async (req, res) => {
 
   return res.json({ text: "입력하신 메시지를 처리할 수 없습니다." });
 });
-
-
-
-// ========== 서버측: /adSalesGraph 엔드포인트 추가 ==========
-app.get("/adSalesGraph", async (req, res) => {
-  const providedDates = {
-    start_date: req.query.start_date,
-    end_date: req.query.end_date
-  };
-  try {
-    const adSales = await getTop10AdSales(providedDates);
-    // 광고 이름과 매출액 데이터를 차트에 사용할 수 있도록 추출
-    const labels = adSales.map(item => item.ad);
-    const orderAmounts = adSales.map(item => item.order_amount);
-    res.json({ labels, orderAmounts });
-  } catch (error) {
-    console.error("Error fetching ad sales graph data:", error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
-  }
-});
-
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
