@@ -410,8 +410,8 @@
         appendBotMessage("광고 매체별 판매 그래프를 불러오는 중 오류가 발생했습니다.");
       }
     }
-  
-    // 키워드별 구매 순위 차트 생성 함수 (서버의 /keywordSalesGraph 엔드포인트 호출)
+  // 키워드별 구매 순위 차트 생성 함수 (서버의 /keywordSalesGraph 엔드포인트 호출)
+    // Doughnut 차트 버전
     async function createKeywordSalesChart(canvasId) {
       const start_date = startDateInput.value || "";
       const end_date = endDateInput.value || "";
@@ -422,29 +422,48 @@
         const { labels, orderAmounts } = response.data;
         const ctx = document.getElementById(canvasId).getContext('2d');
         new Chart(ctx, {
-          type: 'bar',
+          type: 'doughnut',
           data: {
             labels: labels,
             datasets: [{
               label: '키워드별 구매 순위 (매출액)',
               data: orderAmounts,
-              backgroundColor: 'rgba(75,192,192,0.5)',
-              borderColor: 'rgba(75,192,192,1)',
+              backgroundColor: [
+                'rgba(75,192,192,0.5)',
+                'rgba(255,99,132,0.5)',
+                'rgba(54,162,235,0.5)',
+                'rgba(255,206,86,0.5)',
+                'rgba(153,102,255,0.5)',
+                'rgba(255,159,64,0.5)',
+                'rgba(199,199,199,0.5)',
+                'rgba(83,102,255,0.5)',
+                'rgba(255,153,102,0.5)',
+                'rgba(102,255,102,0.5)',
+                'rgba(102,102,255,0.5)',
+                'rgba(255,102,255,0.5)',
+                'rgba(192,192,192,0.5)',
+                'rgba(255,204,153,0.5)'
+              ],
+              borderColor: [
+                'rgba(75,192,192,1)',
+                'rgba(255,99,132,1)',
+                'rgba(54,162,235,1)',
+                'rgba(255,206,86,1)',
+                'rgba(153,102,255,1)',
+                'rgba(255,159,64,1)',
+                'rgba(199,199,199,1)',
+                'rgba(83,102,255,1)',
+                'rgba(255,153,102,1)',
+                'rgba(102,255,102,1)',
+                'rgba(102,102,255,1)',
+                'rgba(255,102,255,1)',
+                'rgba(192,192,192,1)',
+                'rgba(255,204,153,1)'
+              ],
               borderWidth: 1
             }]
           },
           options: {
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  // 천단위 콤마 찍고 "원" 붙이기
-                  callback: function(value) {
-                    return value.toLocaleString('ko-KR') + " 원";
-                  }
-                }
-              }
-            },
             plugins: {
               tooltip: {
                 callbacks: {
@@ -466,7 +485,6 @@
         appendBotMessage("키워드별 구매 순위 그래프를 불러오는 중 오류가 발생했습니다.");
       }
     }
-  
     // 차트 메시지 추가 함수: 시간대별 매출액 차트 호출
     function appendChartMessage() {
       const canvasId = createCanvasElement();

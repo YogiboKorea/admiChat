@@ -299,7 +299,8 @@ async function getTop10PagesByView(providedDates) {
 
 //원단위 데이터 
 function formatCurrency(amount) {
-  const num = Number(amount) || 0;
+  const num = parseFloat(amount);
+  if (isNaN(num)) return "0 원";
   if (num >= 1e12) {
     return (num / 1e12).toFixed(2) + " 조";
   } else if (num >= 1e8) {
@@ -735,7 +736,7 @@ async function getTop10AdKeywordSales(providedDates) {
     });
     const groupedArray = Object.values(groupByKeyword);
     groupedArray.sort((a, b) => b.order_amount - a.order_amount);
-    const top10 = groupedArray.slice(0, 10);
+    const top10 = groupedArray.slice(0, 14);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
       return {
