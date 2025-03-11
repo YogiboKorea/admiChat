@@ -411,6 +411,7 @@ app.get("/salesHourly", async (req, res) => {
 });
 
 
+
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
