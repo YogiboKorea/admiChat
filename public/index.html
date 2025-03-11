@@ -409,9 +409,9 @@
           // 만약 서버 응답 텍스트에 "시간대별 결제 금액 추이"가 포함되어 있고, 그래프로 보여주도록 되어 있다면
           if (userMessage.includes("시간대별 결제 금액 추이")) {
               // 텍스트 응답 대신 캔버스 그래프를 추가
+              appendBotMessage("아래 그래프에서 시간대별 매출액을 확인하세요.");  
               appendChartMessage();
               // 텍스트 응답도 함께 추가할 수 있습니다.
-              appendBotMessage("아래 그래프에서 시간대별 매출액을 확인하세요.");
           } else {
               let botResponse = data.text;
               if (data.videoHtml) {
