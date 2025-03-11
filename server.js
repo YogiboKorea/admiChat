@@ -436,10 +436,11 @@ async function getTop10AdSales(providedDates) {
       params
     });
     console.log("Ad Sales API 응답 데이터:", response.data);
-    let data = response.data;
     let adsales = [];
-    if (data.adsales && Array.isArray(data.adsales)) {
-      adsales = data.adsales;
+    if (response.data && response.data.adsales && Array.isArray(response.data.adsales)) {
+      adsales = response.data.adsales;
+    } else if (response.data && Array.isArray(response.data)) {
+      adsales = response.data;
     } else {
       throw new Error("Unexpected ad sales data structure");
     }
@@ -471,7 +472,7 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
-// 서버측: /adSalesGraph 엔드포인트 추가
+// ========== 서버측: /adSalesGraph 엔드포인트 추가 ==========
 app.get("/adSalesGraph", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -479,7 +480,7 @@ app.get("/adSalesGraph", async (req, res) => {
   };
   try {
     const adSales = await getTop10AdSales(providedDates);
-    // adSales 배열에서 광고 이름과 판매 매출액 데이터를 추출
+    // 광고 이름과 매출액 데이터를 차트에 사용할 수 있도록 추출
     const labels = adSales.map(item => item.ad);
     const orderAmounts = adSales.map(item => item.order_amount);
     res.json({ labels, orderAmounts });
