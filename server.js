@@ -708,6 +708,25 @@ async function getTop10AdInflow(providedDates) {
     throw error;
   }
 }
+app.get("/adInflowGraph", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const adInflow = await getTop10AdInflow(providedDates);
+    // 차트에 사용할 데이터: 각 광고명과 해당 유입수
+    const labels = adInflow.map(item => item.ad);
+    const visitCounts = adInflow.map(item => Number(item.visit_count));
+    res.json({ labels, visitCounts });
+  } catch (error) {
+    console.error("Error fetching ad inflow graph data:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "광고별 유입수 데이터를 가져오는 중 오류 발생" });
+  }
+});
+
+
+
 // ========== [14] 키워드별 구매 순위 조회 함수 (기존 코드) ==========
 async function getTop10AdKeywordSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);

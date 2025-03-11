@@ -195,7 +195,7 @@
       <li>검색 키워드별 구매 순위</li>
       <li>광고별 판매 순위</li>
       <li>광고별 자사몰 유입수</li>
-      <li>일별 방문자 순위</li>
+      <li>일별 방문자 확인</li>
       <li>상세페이지 접속 순위</li>
       <!--
       <li>기간별 판매순위</li>
@@ -608,6 +608,76 @@
       }
     }
 
+    async function createAdInflowChart(canvasId) {
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+      try {
+        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/adInflowGraph", {
+          params: { start_date, end_date },
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const { labels, visitCounts } = response.data;
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: '광고별 유입수',
+              data: visitCounts,
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.5)',
+                'rgba(54, 162, 235, 0.5)',
+                'rgba(255, 206, 86, 0.5)',
+                'rgba(75, 192, 192, 0.5)',
+                'rgba(153, 102, 255, 0.5)',
+                'rgba(255, 159, 64, 0.5)',
+                'rgba(199, 199, 199, 0.5)',
+                'rgba(83, 102, 255, 0.5)',
+                'rgba(102, 255, 102, 0.5)',
+                'rgba(102, 102, 255, 0.5)'
+              ],
+              borderColor: [
+                'rgba(255, 99, 132, 1)',
+                'rgba(54, 162, 235, 1)',
+                'rgba(255, 206, 86, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(153, 102, 255, 1)',
+                'rgba(255, 159, 64, 1)',
+                'rgba(199, 199, 199, 1)',
+                'rgba(83, 102, 255, 1)',
+                'rgba(102, 255, 102, 1)',
+                'rgba(102, 102, 255, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.label || '';
+                    if (label) { label += ': '; }
+                    if (context.raw !== null) {
+                      label += Number(context.raw).toLocaleString('ko-KR') + " 명";
+                    }
+                    return label;
+                  }
+                }
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching ad inflow graph data:", error);
+        appendBotMessage("광고별 유입수 차트를 불러오는 중 오류가 발생했습니다.");
+      }
+    }
+
+
+
+
     // 차트 메시지 추가 함수: 시간대별 매출액 차트 호출
     function appendChartMessage() {
       const canvasId = createCanvasElement();
@@ -625,7 +695,13 @@
       const canvasId = createCanvasElement();
       createKeywordSalesChart(canvasId);
     }
-  
+    // 차트 메시지 추가 함수: 광고 유입수
+    function appendAdInflowChartMessage() {
+      const canvasId = createCanvasElement();
+      createAdInflowChart(canvasId);
+    }
+
+
     // 메시지 전송 함수
     async function sendMessage() {
       const userMessage = messageInput.value.trim();
@@ -669,11 +745,16 @@
           appendBotMessage("아래 그래프에서 키워드별 구매 순위를 확인하세요.");
           appendKeywordSalesChartMessage();
         }
-        else if (userMessage.includes("일별 방문자 순위")) {
+        else if (userMessage.includes("일별 방문자 확인")) {
             appendBotMessage("아래 차트에서 일별 방문자 순위를 확인하세요.");
             const canvasId = createCanvasElement();
             createDailyVisitorChart(canvasId);
-        }  
+        } 
+        else if (userMessage.includes("광고별 자사몰 유입수")) {
+            appendBotMessage("광고별 자사몰 유입수 순위를 확인하세요.");
+            const canvasId = createCanvasElement();
+            createAdInflowChart(canvasId);
+        } 
         else {
           let botResponse = data.text;
           if (data.videoHtml) {
