@@ -827,10 +827,11 @@ app.post("/chat", async (req, res) => {
 
   if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
     try {
-      const adSales = await getTop10AdSales(providedDates);
-      const adSalesText = adSales.map(item => item.displayText).join("<br>");
+      // 그래프용 응답: 클라이언트는 이 응답을 받고 차트 렌더링 함
       return res.json({
-        text: "광고 매체별 구매 순위입니다.<br>" + adSalesText
+        type: 'graph',
+        graphType: 'adSales',
+        message: "아래 그래프에서 광고 매체별 구매 순위를 확인하세요."
       });
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
