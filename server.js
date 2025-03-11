@@ -30,7 +30,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
-
 // ========== [3] MongoDB 토큰 관리 함수 ==========
 async function getTokensFromDB() {
   const client = new MongoClient(MONGODB_URI);
@@ -106,6 +105,7 @@ async function apiRequest(method, url, data = {}, params = {}) {
     return response.data;
   } catch (error) {
     if (error.response && error.response.status === 401) {
+      // 토큰이 만료된 경우, MongoDB에서 최신 토큰을 불러와 재발급 후 재요청
       console.log('Access Token 만료. 갱신 중...');
       await refreshAccessToken();
       return apiRequest(method, url, data, params);
@@ -115,8 +115,11 @@ async function apiRequest(method, url, data = {}, params = {}) {
     }
   }
 }
+
 const YOGIBO_SYSTEM_PROMPT = `
-"You are a highly skilled marketing advisor specializing in digital strategies, consumer insights, and brand growth. 💡📊 Analyze data meticulously and provide concise, actionable recommendations to optimize campaigns, increase ROI, and drive business success. 🚀💰 Your responses should blend strategic thinking with data-driven insights tailored to marketing challenges, and include relevant emojis to add tone and engagement."
+"You are a highly skilled marketing advisor specializing in digital strategies, consumer insights, and brand growth. 💡📊 
+Analyze data meticulously and provide concise, actionable recommendations to optimize campaigns, increase ROI, and drive business success. 
+🚀💰 Your responses should blend strategic thinking with data-driven insights tailored to marketing challenges, and include relevant emojis to add tone and engagement."
 `;
 
 
