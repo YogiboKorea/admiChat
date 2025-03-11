@@ -491,9 +491,6 @@ app.get("/adSalesGraph", async (req, res) => {
   }
 });
 
-
-
-
 async function getDailyVisitorStats(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitors/view';
@@ -518,6 +515,8 @@ async function getDailyVisitorStats(providedDates) {
       params
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
+    // 디버깅: 응답 데이터의 키 확인
+    console.log("Response keys:", Object.keys(response.data));
     
     let stats;
     if (Array.isArray(response.data)) {
@@ -528,14 +527,17 @@ async function getDailyVisitorStats(providedDates) {
       stats = response.data.view;
     } else if (response.data && Array.isArray(response.data.data)) {
       stats = response.data.data;
+    } else if (response.data && Array.isArray(response.data.visitors)) {
+      stats = response.data.visitors;
     } else {
       throw new Error("Unexpected daily visitor stats data structure");
     }
     
+    console.log("Extracted stats length:", stats.length);
     // visit_count 기준 내림차순 정렬
     stats.sort((a, b) => b.visit_count - a.visit_count);
     
-    // 각 항목에 대해 순위, 날짜, 방문자수, 처음 방문수, 재방문수를 포함한 displayText 구성
+    // 각 항목에 대해 displayText 구성
     const updatedStats = stats.map((item, index) => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
       return `${index + 1}위: ${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
@@ -547,6 +549,7 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
+
 app.get("/dailyVisitorStats", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
