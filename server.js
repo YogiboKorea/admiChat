@@ -444,7 +444,7 @@ async function getTop10AdSales(providedDates) {
     } else {
       throw new Error("Unexpected ad sales data structure");
     }
-    const top10 = adsales.slice(0, 10);
+    const top10 = adsales.slice(0, 4);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = formatCurrency(item.order_amount);
       return {
@@ -803,32 +803,6 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-
-  if (userInput.includes("광고별 판매 그래프")) {
-    // 그래프 응답 처리
-    try {
-      const adSales = await getTop10AdSales(providedDates);
-      const labels = adSales.map(item => item.ad);
-      const orderAmounts = adSales.map(item => item.order_amount);
-      return res.json({ labels, orderAmounts });
-    } catch (error) {
-      return res.status(500).json({ text: "광고 매체별 판매 데이터를 가져오는 중 오류가 발생했습니다." });
-    }
-  } else if (userInput.includes("광고별 판매 순위")) {
-    // 텍스트 응답 처리
-    try {
-      const adSales = await getTop10AdSales(providedDates);
-      const adSalesText = adSales.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: adSalesText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
-    }
-  }
-  
-  
-
   if (userInput.includes("시간대별 결제 금액 추이")) {
     try {
       const salesRanking = await getSalesTimesRanking(providedDates);
@@ -852,8 +826,19 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
- 
-  
+
+  if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
+    try {
+      const adSales = await getTop10AdSales(providedDates);
+      const adSalesText = adSales.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: adSalesText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
   if (userInput.includes("광고별 자사몰 유입수")) {
     try {
       const adInflow = await getTop10AdInflow(providedDates);
