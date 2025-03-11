@@ -828,6 +828,7 @@ app.post("/chat", async (req, res) => {
   }
 
   if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
+    // 텍스트 응답 처리
     try {
       const adSales = await getTop10AdSales(providedDates);
       const adSalesText = adSales.map(item => item.displayText).join("<br>");
@@ -837,8 +838,18 @@ app.post("/chat", async (req, res) => {
     } catch (error) {
       return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
+  } else if (userInput.includes("광고별 판매 그래프")) {
+    // 그래프 응답 처리
+    try {
+      const adSales = await getTop10AdSales(providedDates);
+      const labels = adSales.map(item => item.ad);
+      const orderAmounts = adSales.map(item => item.order_amount);
+      return res.json({ labels, orderAmounts });
+    } catch (error) {
+      return res.status(500).json({ text: "광고 매체별 판매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
   }
-
+  
   if (userInput.includes("광고별 자사몰 유입수")) {
     try {
       const adInflow = await getTop10AdInflow(providedDates);
