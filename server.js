@@ -297,7 +297,7 @@ async function getTop10PagesByView(providedDates) {
   }
 }
 
-// ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
+//원단위 데이터 
 function formatCurrency(amount) {
   const num = Number(amount) || 0;
   if (num >= 1e12) {
@@ -309,16 +309,17 @@ function formatCurrency(amount) {
   }
 }
 
-
+// ========== [9] 시간대별 결제금액 순위 조회 함수 ==========
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
+  // limit는 충분히 크게 설정하여 전체 데이터를 받아오도록 함
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
     start_date,
     end_date,
-    limit: 24,
+    limit: 100,
     sort: 'order_amount',
     order: 'desc'
   };
@@ -342,34 +343,72 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    const updatedTimes = times.map((time, index) => {
-      const hour = time.hour || 'N/A';
-      const buyersCount = time.buyers_count || 0;
-      const orderCount = time.order_count || 0;
-      const formattedAmount = formatCurrency(time.order_amount || 0);
+
+    // 0시부터 23시까지 기본값(구매자수, 구매건수, 매출액 모두 0)을 가진 배열 생성
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      buyers_count: 0,
+      order_count: 0,
+      order_amount: 0
+    }));
+
+    // API 데이터로 해당 시간대의 값을 업데이트 (동일 시간대가 여러 건이면 덮어쓰거나 누적 처리)
+    times.forEach(time => {
+      const h = Number(time.hour);
+      if (!isNaN(h) && h >= 0 && h < 24) {
+        // 만약 여러 건이 있다면 누적하거나 최신 데이터로 대체할 수 있음 (여기서는 대체)
+        hourlyData[h].buyers_count = time.buyers_count || 0;
+        hourlyData[h].order_count = time.order_count || 0;
+        hourlyData[h].order_amount = time.order_amount || 0;
+      }
+    });
+
+    // 각 시간대를 00시, 01시, ... 23시 형식으로 표시하도록 구성
+    const updatedTimes = hourlyData.map((time) => {
+      const hourLabel = time.hour < 10 ? "0" + time.hour : time.hour;
+      const formattedAmount = formatCurrency(time.order_amount);
       return {
-        ...time,
-        rank: index + 1,
+        rank: time.hour,
+        hour: time.hour,
+        buyers_count: time.buyers_count,
+        order_count: time.order_count,
+        order_amount: time.order_amount,
         displayText: `
           <div class="sales-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
-            <div class="rank" style="font-weight:bold;">${index + 1}</div>
-            <div class="time" style="min-width:50px;">${hour}시</div>
+            <div class="rank" style="font-weight:bold; min-width:50px;">${hourLabel}시</div>
             <div class="details" style="display:flex; flex-direction:column;">
-              <div class="buyers">구매자수: ${buyersCount}</div>
-              <div class="orders">구매건수: ${orderCount}</div>
+              <div class="buyers">구매자수: ${time.buyers_count}</div>
+              <div class="orders">구매건수: ${time.order_count}</div>
               <div class="amount">매출액: ${formattedAmount}</div>
             </div>
           </div>
         `
       };
     });
-    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
+
+    console.log("불러온 00~23시 시간대별 결제금액 데이터:", updatedTimes);
     return updatedTimes;
   } catch (error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
+
+//시간대별 매출 통계
+app.get("/salesHourly", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const hourlyData = await getSalesTimesRanking(providedDates);
+    res.json(hourlyData);
+  } catch (error) {
+    console.error("Error fetching sales times (salesHourly):", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "시간대별 매출 데이터를 가져오는 중 오류 발생" });
+  }
+});
 
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
@@ -422,20 +461,6 @@ async function getTop10AdSales(providedDates) {
     throw error;
   }
 }
-
-app.get("/salesHourly", async (req, res) => {
-  const providedDates = {
-    start_date: req.query.start_date,
-    end_date: req.query.end_date
-  };
-  try {
-    const hourlyData = await getSalesTimesRanking(providedDates);
-    res.json(hourlyData);
-  } catch (error) {
-    console.error("Error fetching sales times (salesHourly):", error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "시간대별 매출 데이터를 가져오는 중 오류 발생" });
-  }
-});
 
 async function getDailyVisitorStats(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
