@@ -451,7 +451,16 @@ async function getTop10AdSales(providedDates) {
         ad: item.ad,
         order_count: item.order_count,
         order_amount: item.order_amount,
-        displayText: `${index + 1}위: ${item.ad} - 구매건수: ${item.order_count}, 매출액: ${formattedAmount}`
+        displayText: `
+          <div class="keyword-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
+            <div class="rank" style="font-weight:bold; min-width:50px;">${index + 1}위</div>
+            <div class="details" style="display:flex; flex-direction:column;">
+              <div class="keyword">광고: ${item.ad}</div>
+              <div class="orders">구매건수: ${item.order_count}</div>
+              <div class="amount">매출액: ${formattedAmount}</div>
+            </div>
+          </div>
+        `
       };
     });
     console.log("불러온 광고 매체별 구매 순위 데이터:", updatedTop10);
@@ -461,6 +470,26 @@ async function getTop10AdSales(providedDates) {
     throw error;
   }
 }
+
+app.get("/adSalesGraph", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const adSales = await getTop10AdSales(providedDates);
+    // adSales 배열에서 광고 이름과 판매 매출액 데이터를 추출
+    const labels = adSales.map(item => item.ad);
+    const orderAmounts = adSales.map(item => item.order_amount);
+    res.json({ labels, orderAmounts });
+  } catch (error) {
+    console.error("Error fetching ad sales graph data:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
+  }
+});
+
+
+
 
 async function getDailyVisitorStats(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -506,17 +535,7 @@ async function getDailyVisitorStats(providedDates) {
     // 각 항목에 대해 순위, 날짜, 방문자수, 처음 방문수, 재방문수를 포함한 displayText 구성
     const updatedStats = stats.map((item, index) => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
-      return `
-        <div class="sales-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
-          <div class="rank" style="font-weight:bold; min-width:50px;">${index + 1}위</div>
-          <div class="details" style="display:flex; flex-direction:column;">
-            <div class="date">날짜: ${formattedDate}</div>
-            <div class="visitors">방문자수: ${item.visit_count}</div>
-            <div class="first-visit">처음 방문수: ${item.first_visit_count}</div>
-            <div class="revisit">재방문수: ${item.re_visit_count}</div>
-          </div>
-        </div>
-      `;
+      return `${index + 1}위: ${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
     });
     console.log("불러온 일별 방문자수 데이터:", updatedStats);
     return updatedStats;
@@ -525,25 +544,6 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
-
-app.get("/adSalesGraph", async (req, res) => {
-  const providedDates = {
-    start_date: req.query.start_date,
-    end_date: req.query.end_date
-  };
-  try {
-    const adSales = await getTop10AdSales(providedDates);
-    // adSales 배열에서 광고 이름과 판매 매출액 데이터를 추출
-    const labels = adSales.map(item => item.ad);
-    const orderAmounts = adSales.map(item => item.order_amount);
-    res.json({ labels, orderAmounts });
-  } catch (error) {
-    console.error("Error fetching ad sales graph data:", error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
-  }
-});
-
-
 // ========== [12] 상세페이지 접속 순위 조회 함수 ==========
 async function getTop10ProductViews(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -848,6 +848,8 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "광고별 유입수 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
+
+  
   if (userInput.includes("일별 방문자 순위")) {
     try {
       const visitorStats = await getDailyVisitorStats(providedDates);
