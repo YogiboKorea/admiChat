@@ -264,7 +264,13 @@ async function getTop10PagesByView(providedDates) {
     
     const top10Pages = pages.slice(0, 10);
     const updatedPages = top10Pages.map((page, index) => {
-      const urlText = page.url === '/' ? '메인' : page.url;
+      const urlMapping = {
+        '/': '메인',
+        '/product/detail.html': '상세페이지',
+        '/product/list.html': '목록페이지',
+        '/product/search.html': '검색페이지'
+      };  
+      const urlText = urlMapping[page.url] || page.url;
       const visitCount = page.visit_count || 0;
       const firstVisitCount = page.first_visit_count || 0;
       return {
@@ -302,6 +308,7 @@ function formatCurrency(amount) {
     return num.toLocaleString('ko-KR') + " 원";
   }
 }
+
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
@@ -310,7 +317,8 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 10,
+    // limit를 충분히 크게 설정 (혹은 제거)하여 모든 데이터를 받아옵니다.
+    limit: 100,
     sort: 'order_amount',
     order: 'desc'
   };
@@ -334,18 +342,40 @@ async function getSalesTimesRanking(providedDates) {
     } else {
       throw new Error("Unexpected sales times data structure");
     }
-    const updatedTimes = times.map((time, index) => {
-      const hour = time.hour || 'N/A';
-      const buyersCount = time.buyers_count || 0;
-      const orderCount = time.order_count || 0;
-      const formattedAmount = formatCurrency(time.order_amount || 0);
+
+    // 0시부터 23시까지 기본값(구매자수, 구매건수, 매출액 모두 0)을 가진 배열 생성
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      buyers_count: 0,
+      order_count: 0,
+      order_amount: 0
+    }));
+
+    // API 데이터로 해당 시간대의 값을 업데이트 (동일 시간대가 여러 건이면 누적)
+    times.forEach(time => {
+      const h = Number(time.hour);
+      if (!isNaN(h) && h >= 0 && h < 24) {
+        hourlyData[h].buyers_count += time.buyers_count || 0;
+        hourlyData[h].order_count += time.order_count || 0;
+        hourlyData[h].order_amount += time.order_amount || 0;
+      }
+    });
+
+    // 각 시간대 데이터를 displayText에 flex 레이아웃 HTML로 구성
+    const updatedTimes = hourlyData.map((time, index) => {
+      const hourLabel = `${time.hour}시`;
+      const buyersCount = time.buyers_count;
+      const orderCount = time.order_count;
+      const formattedAmount = formatCurrency(time.order_amount);
       return {
-        ...time,
         rank: index + 1,
+        hour: time.hour,
+        buyers_count: buyersCount,
+        order_count: orderCount,
+        order_amount: time.order_amount,
         displayText: `
           <div class="sales-ranking" style="display:flex; align-items:center; gap:10px; padding:5px; border:1px solid #ddd; border-radius:5px; background:#fff;">
-            <div class="rank" style="font-weight:bold;">${index + 1}</div>
-            <div class="time" style="min-width:50px;">${hour}시</div>
+            <div class="rank" style="font-weight:bold; min-width:50px;">${hourLabel}</div>
             <div class="details" style="display:flex; flex-direction:column;">
               <div class="buyers">구매자수: ${buyersCount}</div>
               <div class="orders">구매건수: ${orderCount}</div>
@@ -355,13 +385,15 @@ async function getSalesTimesRanking(providedDates) {
         `
       };
     });
-    console.log("불러온 시간대별 결제금액 순위 데이터:", updatedTimes);
+
+    console.log("불러온 00~23시 시간대별 결제금액 데이터:", updatedTimes);
     return updatedTimes;
   } catch (error) {
     console.error("Error fetching sales times:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
+
 
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
