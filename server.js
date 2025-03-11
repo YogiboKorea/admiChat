@@ -825,14 +825,19 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
     }
   }
+
   if (userInput.includes("광고별 판매 순위") && userInput.includes("순위")) {
-    // 텍스트 응답 대신 캔버스 그래프를 추가
-    appendAdSalesChart();
-    return res.json({
-      text: "아래 그래프에서 광고 매체별 판매 순위를 확인하세요."
-    });
+    try {
+      const adSales = await getTop10AdSales(providedDates);
+      const adSalesText = adSales.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: adSalesText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "광고 매체별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
   }
-  
+
   if (userInput.includes("광고별 자사몰 유입수")) {
     try {
       const adInflow = await getTop10AdInflow(providedDates);
