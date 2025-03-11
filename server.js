@@ -299,8 +299,8 @@ async function getTop10PagesByView(providedDates) {
 
 //원단위 데이터 
 function formatCurrency(amount) {
-  const num = parseFloat(amount);
-  if (isNaN(num)) return "0 원";
+  const amount = parseInt(item.order_amount, 10); // 문자열을 10진수 정수로 변환
+  const num = Number(amount) || 0;
   if (num >= 1e12) {
     return (num / 1e12).toFixed(2) + " 조";
   } else if (num >= 1e8) {
