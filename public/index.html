@@ -676,7 +676,8 @@
         }
         else if (userMessage.includes("일별 방문자 순위")) {
               // 새로 추가한 일일 방문자 통계 텍스트 출력 함수 호출
-              appendDailyVisitorStatsMessage();
+              appendBotMessage("일별 방문자 순위 리스트 입니다");
+              createDailyVisitorChart();
           }     
         else {
           let botResponse = data.text;
