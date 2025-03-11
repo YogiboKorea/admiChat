@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dongle&family=Nanum+Gothic&family=Noto+Sans+KR:wght@100..900&family=Yuji+Mai&display=swap" rel="stylesheet">
@@ -13,6 +14,7 @@
     }
     a{color:#3aa0a9}
     body {
+      min-width: 320px;
     font-family: Arial, sans-serif;
     background: #f7f7f7;
     display: flex;
@@ -139,7 +141,7 @@
     gap: 5px;
     padding: 0;
     margin: 0;
-    width: 400px;
+    width: 100%;
   }
     .key_word ul li {
       background: #58b5ca;
@@ -183,43 +185,58 @@
     {
       font-size: 11px; color: #555;
     }
+
+    @media (max-width: 420px) {
+      .chat-container {
+        margin: 10px;
+      }
+      .chat-header, .chat-messages, .chat-input {
+        padding: 10px;
+      }
+      body {
+        font-size: 12px;
+      }
+    }
+
   </style>
 </head>
 <body>
-  <!-- 키워드 영역 -->
-  <div class="key_word">
-    <ul>
-      <li>기간별 장바구니 순위</li>
-      <li>기간별 페이지뷰 순위</li>
-      <li>시간대별 결제 금액 추이</li>
-      <li>검색 키워드별 구매 순위</li>
-      <li>광고별 판매 순위</li>
-      <li>광고별 자사몰 유입수</li>
-      <li>일별 방문자 확인</li>
-      <li>상세페이지 접속 순위</li>
-      <!--
-      <li>기간별 판매순위</li>
-      <li>이전 페이지 접속 URL</li>
-      -->
-    </ul>
-  </div>
-  <div class="chat-container">
-    <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
-    <div id="chat-messages" class="chat-messages">
-      <div class="first_chat_img">
-        <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
-        <div class="init-message">마케팅 판매데이터 조회</div>
+  <div style="width:95%;margin:0 auto;">
+    <!-- 키워드 영역 -->
+    <div class="key_word">
+      <ul>
+        <li>기간별 장바구니 순위</li>
+        <li>기간별 페이지뷰 순위</li>
+        <li>시간대별 결제 금액 추이</li>
+        <li>검색 키워드별 구매 순위</li>
+        <li>광고별 판매 순위</li>
+        <li>광고별 자사몰 유입수</li>
+        <li>일별 방문자 확인</li>
+        <li>상세페이지 접속 순위</li>
+        <!--
+        <li>기간별 판매순위</li>
+        <li>이전 페이지 접속 URL</li>
+        -->
+      </ul>
+    </div>
+    <div class="chat-container">
+      <div class="chat-header" onclick="location.href='https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'">Yogibo Chat</div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="first_chat_img">
+          <img src="http://yogibo.kr/web/test/tmp-3922227795.webp" style="width:80px;" alt=""/>
+          <div class="init-message">마케팅 판매데이터 조회</div>
+        </div>
+      </div>
+      <div class="chat-input">
+        <div class="date-inputs">
+          <input id="start-date" type="date" placeholder="시작일">
+          <input id="end-date" type="date" placeholder="종료일">
+        </div>
+        <textarea id="message-input" placeholder="기간 미 설정시 한달기준 데이터가 노출됩니다"></textarea>
+        <button id="send-btn">입력</button>
       </div>
     </div>
-    <div class="chat-input">
-      <div class="date-inputs">
-        <input id="start-date" type="date" placeholder="시작일">
-        <input id="end-date" type="date" placeholder="종료일">
-      </div>
-      <textarea id="message-input" placeholder="기간 미 설정시 한달기준 데이터가 노출됩니다"></textarea>
-      <button id="send-btn">입력</button>
-    </div>
-  </div>
+</div>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
