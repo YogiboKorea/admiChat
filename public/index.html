@@ -228,83 +228,82 @@
     const sendBtn = document.getElementById("send-btn");
     const startDateInput = document.getElementById("start-date");
     const endDateInput = document.getElementById("end-date");
-
-
+  
     // 로컬 날짜 포맷 변환 (YYYY-MM-DD)
     function getLocalDateString(date) {
-        const year = date.getFullYear();
-        const month = ("0" + (date.getMonth() + 1)).slice(-2);
-        const day = ("0" + date.getDate()).slice(-2);
-        return `${year}-${month}-${day}`;
+      const year = date.getFullYear();
+      const month = ("0" + (date.getMonth() + 1)).slice(-2);
+      const day = ("0" + date.getDate()).slice(-2);
+      return `${year}-${month}-${day}`;
     }
   
     // 최근 30일 기간 기본 설정
     function getLastTwoWeeksDates(providedDates) {
-        if (providedDates && providedDates.start_date && providedDates.end_date) {
-            return { start_date: providedDates.start_date, end_date: providedDates.end_date };
-        }
-        const now = new Date();
-        const end_date = getLocalDateString(now);
-        const pastDate = new Date(now);
-        pastDate.setDate(now.getDate() - 30);
-        const start_date = getLocalDateString(pastDate);
-        return { start_date, end_date };
+      if (providedDates && providedDates.start_date && providedDates.end_date) {
+        return { start_date: providedDates.start_date, end_date: providedDates.end_date };
+      }
+      const now = new Date();
+      const end_date = getLocalDateString(now);
+      const pastDate = new Date(now);
+      pastDate.setDate(now.getDate() - 30);
+      const start_date = getLocalDateString(pastDate);
+      return { start_date, end_date };
     }
   
     // 키워드 버튼 클릭 시 메시지 자동 입력 및 전송
     document.querySelectorAll('.key_word ul li').forEach(item => {
-        item.addEventListener("click", () => {
-            messageInput.value = item.innerText;
-            sendMessage(); // 클릭하면 자동 전송
-        });
+      item.addEventListener("click", () => {
+        messageInput.value = item.innerText;
+        sendMessage(); // 클릭하면 자동 전송
+      });
     });
   
     // 숫자로 시작하는 목록을 감지하여 <ol> 변환
     function formatNumberedList(text) {
-        const pattern = /\d+\.\s+/g;
-        const matches = text.match(pattern);
-        if (matches && matches.length >= 2) {
-            const listRegex = /(\d+\.\s*[^0-9]+)/g;
-            const items = text.match(listRegex);
-            if (items) {
-                return '<ol style="padding-left: 20px; margin: 0;">' +
-                    items.map(item => `<li>${item.trim()}</li>`).join('') +
-                    '</ol>';
-            }
+      const pattern = /\d+\.\s+/g;
+      const matches = text.match(pattern);
+      if (matches && matches.length >= 2) {
+        const listRegex = /(\d+\.\s*[^0-9]+)/g;
+        const items = text.match(listRegex);
+        if (items) {
+          return '<ol style="padding-left: 20px; margin: 0;">' +
+            items.map(item => `<li>${item.trim()}</li>`).join('') +
+            '</ol>';
         }
-        return text;
+      }
+      return text;
     }
   
     // 봇 메시지 추가 (일반 텍스트)
     function appendBotMessage(fullText) {
-        const messageElem = document.createElement("div");
-        messageElem.classList.add("message", "bot");
-        const botContainer = document.createElement("div");
-        botContainer.classList.add("bot-container");
-        const botImg = document.createElement("img");
-        // HTTPS로 변경하여 Mixed Content 경고 방지
-        botImg.src = "https://yogibo.kr/web/test/tmp-3922227795.webp";
-        botImg.alt = "Bot Profile";
-        botImg.classList.add("bot-profile");
-        const botMessageDiv = document.createElement("div");
-        botMessageDiv.classList.add("bot-message");
-        botMessageDiv.innerHTML = formatNumberedList(fullText);
-        botContainer.appendChild(botImg);
-        botContainer.appendChild(botMessageDiv);
-        messageElem.appendChild(botContainer);
-        chatMessages.appendChild(messageElem);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+      const messageElem = document.createElement("div");
+      messageElem.classList.add("message", "bot");
+      const botContainer = document.createElement("div");
+      botContainer.classList.add("bot-container");
+      const botImg = document.createElement("img");
+      // HTTPS로 변경하여 Mixed Content 경고 방지
+      botImg.src = "https://yogibo.kr/web/test/tmp-3922227795.webp";
+      botImg.alt = "Bot Profile";
+      botImg.classList.add("bot-profile");
+      const botMessageDiv = document.createElement("div");
+      botMessageDiv.classList.add("bot-message");
+      botMessageDiv.innerHTML = formatNumberedList(fullText);
+      botContainer.appendChild(botImg);
+      botContainer.appendChild(botMessageDiv);
+      messageElem.appendChild(botContainer);
+      chatMessages.appendChild(messageElem);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     }
   
     // 사용자 메시지 추가
     function appendUserMessage(text) {
-        const messageElem = document.createElement("div");
-        messageElem.classList.add("message", "user");
-        const messageText = document.createElement("div");
-        messageText.innerHTML = text;
-        messageElem.appendChild(messageText);
-        chatMessages.appendChild(messageElem);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+      const messageElem = document.createElement("div");
+      messageElem.classList.add("message", "user");
+      const messageText = document.createElement("div");
+      messageText.innerHTML = text;
+      messageElem.appendChild(messageText);
+      chatMessages.appendChild(messageElem);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     }
   
     // 고유 캔버스 ID 생성 (중복 방지)
@@ -327,7 +326,7 @@
       return canvasId;
     }
   
-    // 시간대별 매출액 차트 생성 함수
+    // 시간대별 매출액 차트 생성 함수 (바 차트)
     async function createSalesChart(canvasId) {
       const start_date = startDateInput.value || "";
       const end_date = endDateInput.value || "";
@@ -370,7 +369,7 @@
       }
     }
   
-    // 광고 매체별 판매 매출액 차트 생성 함수
+    // 광고 매체별 판매 매출액 차트 생성 함수 (바 차트)
     async function createAdSalesChart(canvasId) {
       const start_date = startDateInput.value || "";
       const end_date = endDateInput.value || "";
@@ -411,96 +410,209 @@
         appendBotMessage("광고 매체별 판매 그래프를 불러오는 중 오류가 발생했습니다.");
       }
     }
-  // Doughnut 차트 버전
-  async function createKeywordSalesChart(canvasId) {
-    const start_date = startDateInput.value || "";
-    const end_date = endDateInput.value || "";
-    try {
-      const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/keywordSalesGraph", {
-        params: { start_date, end_date }
-      });
-      const { labels, orderAmounts } = response.data;
-      
-      // orderAmounts에 포함된 천단위 구분 기호(콤마)를 제거하고 숫자로 변환
-      const numericOrderAmounts = orderAmounts.map(val => {
-        const raw = val.toString().replace(/,/g, '');
-        return parseFloat(raw);
-      });
-      
-      const ctx = document.getElementById(canvasId).getContext('2d');
-      new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: '키워드별 구매 순위 (매출액)',
-            data: numericOrderAmounts,
-            backgroundColor: [
-              'rgba(75,192,192,0.5)',
-              'rgba(255,99,132,0.5)',
-              'rgba(54,162,235,0.5)',
-              'rgba(255,206,86,0.5)',
-              'rgba(153,102,255,0.5)',
-              'rgba(255,159,64,0.5)',
-              'rgba(199,199,199,0.5)',
-              'rgba(83,102,255,0.5)',
-              'rgba(255,153,102,0.5)',
-              'rgba(102,255,102,0.5)',
-              'rgba(102,102,255,0.5)',
-              'rgba(255,102,255,0.5)',
-              'rgba(192,192,192,0.5)',
-              'rgba(255,204,153,0.5)',
-              'rgba(23,204,153,0.5)',
-              'rgba(23,23,153,0.5)',
-               'rgba(232,105,153,0.5)'
-
-            ],
-            borderColor: [
-              'rgba(75,192,192,1)',
-              'rgba(255,99,132,1)',
-              'rgba(54,162,235,1)',
-              'rgba(255,206,86,1)',
-              'rgba(153,102,255,1)',
-              'rgba(255,159,64,1)',
-              'rgba(199,199,199,1)',
-              'rgba(83,102,255,1)',
-              'rgba(255,153,102,1)',
-              'rgba(102,255,102,1)',
-              'rgba(102,102,255,1)',
-              'rgba(255,102,255,1)',
-              'rgba(192,192,192,1)',
-              'rgba(255,204,153,1)',
-              'rgba(23,204,153,0.5)',
-              'rgba(23,23,153,0.5)',
-              'rgba(232,105,153,0.5)'
-            ],
-            borderWidth: 1
-          }]
-        },
-        options: {
-          plugins: {
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  let label = context.label || '';
-                  if (label) { label += ': '; }
-                  if (context.raw !== null) {
-                    // context.raw가 이미 숫자라면 toLocaleString 사용
-                    label += Number(context.raw).toLocaleString('ko-KR') + " 원";
+  
+    // Doughnut 차트 버전: 키워드별 구매 순위 차트 생성 함수
+    async function createKeywordSalesChart(canvasId) {
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+      try {
+        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/keywordSalesGraph", {
+          params: { start_date, end_date }
+        });
+        const { labels, orderAmounts } = response.data;
+        
+        // orderAmounts에 포함된 천단위 구분 기호(콤마)를 제거하고 숫자로 변환
+        const numericOrderAmounts = orderAmounts.map(val => {
+          const raw = val.toString().replace(/,/g, '');
+          return parseFloat(raw);
+        });
+        
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: '키워드별 구매 순위 (매출액)',
+              data: numericOrderAmounts,
+              backgroundColor: [
+                'rgba(75,192,192,0.5)',
+                'rgba(255,99,132,0.5)',
+                'rgba(54,162,235,0.5)',
+                'rgba(255,206,86,0.5)',
+                'rgba(153,102,255,0.5)',
+                'rgba(255,159,64,0.5)',
+                'rgba(199,199,199,0.5)',
+                'rgba(83,102,255,0.5)',
+                'rgba(255,153,102,0.5)',
+                'rgba(102,255,102,0.5)',
+                'rgba(102,102,255,0.5)',
+                'rgba(255,102,255,0.5)',
+                'rgba(192,192,192,0.5)',
+                'rgba(255,204,153,0.5)',
+                'rgba(23,204,153,0.5)',
+                'rgba(23,23,153,0.5)',
+                'rgba(232,105,153,0.5)'
+              ],
+              borderColor: [
+                'rgba(75,192,192,1)',
+                'rgba(255,99,132,1)',
+                'rgba(54,162,235,1)',
+                'rgba(255,206,86,1)',
+                'rgba(153,102,255,1)',
+                'rgba(255,159,64,1)',
+                'rgba(199,199,199,1)',
+                'rgba(83,102,255,1)',
+                'rgba(255,153,102,1)',
+                'rgba(102,255,102,1)',
+                'rgba(102,102,255,1)',
+                'rgba(255,102,255,1)',
+                'rgba(192,192,192,1)',
+                'rgba(255,204,153,1)',
+                'rgba(23,204,153,1)',
+                'rgba(23,23,153,1)',
+                'rgba(232,105,153,1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.label || '';
+                    if (label) { label += ': '; }
+                    if (context.raw !== null) {
+                      label += Number(context.raw).toLocaleString('ko-KR') + " 원";
+                    }
+                    return label;
                   }
-                  return label;
                 }
               }
             }
           }
-        }
-      });
-    } catch (error) {
-      console.error("Error fetching keywordSalesGraph data:", error);
-      appendBotMessage("키워드별 구매 순위 그래프를 불러오는 중 오류가 발생했습니다.");
+        });
+      } catch (error) {
+        console.error("Error fetching keywordSalesGraph data:", error);
+        appendBotMessage("키워드별 구매 순위 그래프를 불러오는 중 오류가 발생했습니다.");
+      }
     }
-  }
-
+  
+    // 일일 방문자 차트 생성 함수 (라인 차트)
+    async function createDailyVisitorChart(canvasId) {
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+      try {
+        // API에서 날짜 기준 오름차순으로 데이터를 받아옵니다.
+        const response = await axios.get("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/visitors/view", {
+          params: {
+            mall_id: 'yogibo',
+            shop_no: 1,
+            start_date,
+            end_date,
+            device_type: 'total',
+            format_type: 'day',
+            limit: 100,
+            offset: 0,
+            sort: 'date',
+            order: 'asc'
+          },
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        let stats;
+        // 응답 데이터 구조에 따라 stats 추출 (예: data.unique 또는 data.view)
+        if (Array.isArray(response.data)) {
+          stats = response.data;
+        } else if (response.data && Array.isArray(response.data.unique)) {
+          stats = response.data.unique;
+        } else if (response.data && Array.isArray(response.data.view)) {
+          stats = response.data.view;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          stats = response.data.data;
+        } else {
+          throw new Error("Unexpected daily visitor stats data structure");
+        }
+        
+        // 날짜 순서대로 정렬 (API가 asc로 정렬되어 있더라도 확실하게 정렬)
+        stats.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        // 각 데이터를 배열로 추출
+        const dates = stats.map(item => new Date(item.date).toISOString().split('T')[0]);
+        const visitCounts = stats.map(item => item.visit_count);
+        const firstVisitCounts = stats.map(item => item.first_visit_count);
+        const reVisitCounts = stats.map(item => item.re_visit_count);
+        
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: dates,
+            datasets: [
+              {
+                label: '방문자수',
+                data: visitCounts,
+                borderColor: 'rgba(75,192,192,1)',
+                backgroundColor: 'rgba(75,192,192,0.2)',
+                fill: false,
+                tension: 0.1
+              },
+              {
+                label: '처음 방문수',
+                data: firstVisitCounts,
+                borderColor: 'rgba(255,99,132,1)',
+                backgroundColor: 'rgba(255,99,132,0.2)',
+                fill: false,
+                tension: 0.1
+              },
+              {
+                label: '재방문수',
+                data: reVisitCounts,
+                borderColor: 'rgba(54,162,235,1)',
+                backgroundColor: 'rgba(54,162,235,0.2)',
+                fill: false,
+                tension: 0.1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) { label += ': '; }
+                    if (context.raw !== null) {
+                      label += Number(context.raw).toLocaleString('ko-KR') + " 명";
+                    }
+                    return label;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: function(value) {
+                    return value.toLocaleString('ko-KR') + " 명";
+                  }
+                }
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching daily visitor stats for chart:", error);
+        appendBotMessage("일일 방문자 차트를 불러오는 중 오류가 발생했습니다.");
+      }
+    }
+  
     // 차트 메시지 추가 함수: 시간대별 매출액 차트 호출
     function appendChartMessage() {
       const canvasId = createCanvasElement();
@@ -521,70 +633,70 @@
   
     // 메시지 전송 함수
     async function sendMessage() {
-        const userMessage = messageInput.value.trim();
-        if (!userMessage) return;
+      const userMessage = messageInput.value.trim();
+      if (!userMessage) return;
   
-        const firstChatImg = document.querySelector('.first_chat_img');
-        if (firstChatImg) {
-            firstChatImg.style.display = 'none';
+      const firstChatImg = document.querySelector('.first_chat_img');
+      if (firstChatImg) {
+        firstChatImg.style.display = 'none';
+      }
+  
+      appendUserMessage(userMessage);
+      messageInput.value = "";
+  
+      const start_date = startDateInput.value || "";
+      const end_date = endDateInput.value || "";
+  
+      try {
+        const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
+          message: userMessage,
+          start_date: start_date,
+          end_date: end_date
+        }, {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+  
+        const data = response.data;
+        // 시간대별 결제 금액 추이 그래프 처리
+        if (userMessage.includes("시간대별 결제 금액 추이")) {
+          appendBotMessage("아래 그래프에서 시간대별 매출액을 확인하세요.");
+          appendChartMessage();
         }
-  
-        appendUserMessage(userMessage);
-        messageInput.value = "";
-  
-        const start_date = startDateInput.value || "";
-        const end_date = endDateInput.value || "";
-  
-        try {
-            const response = await axios.post("https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/chat", {
-                message: userMessage,
-                start_date: start_date,
-                end_date: end_date
-            }, {
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            });
-  
-            const data = response.data;
-            // 시간대별 결제 금액 추이 그래프 처리
-            if (userMessage.includes("시간대별 결제 금액 추이")) {
-                appendBotMessage("아래 그래프에서 시간대별 매출액을 확인하세요.");
-                appendChartMessage();
-            }
-            // 광고 매체별 판매 그래프 처리
-            else if (userMessage.includes("광고별 판매 순위")) {
-                appendBotMessage("아래 그래프에서 광고 매체별 판매 매출액을 확인하세요.");
-                appendAdChartMessage();
-            }
-            // 키워드별 구매 순위 차트 처리
-            else if (userMessage.includes("검색 키워드별 구매 순위")) {
-                appendBotMessage("아래 그래프에서 키워드별 구매 순위를 확인하세요.");
-                appendKeywordSalesChartMessage();
-            }
-            else {
-                let botResponse = data.text;
-                if (data.videoHtml) {
-                    botResponse += "<br>" + data.videoHtml;
-                }
-                if (data.imageUrl) {
-                    if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
-                        botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
-                    }
-                }
-                appendBotMessage(botResponse);
-            }
-        } catch (error) {
-            appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
-            console.error("Error:", error);
+        // 광고 매체별 판매 그래프 처리
+        else if (userMessage.includes("광고별 판매 순위")) {
+          appendBotMessage("아래 그래프에서 광고 매체별 판매 매출액을 확인하세요.");
+          appendAdChartMessage();
         }
+        // 키워드별 구매 순위 차트 처리 (검색 키워드별 구매 순위)
+        else if (userMessage.includes("검색 키워드별 구매 순위")) {
+          appendBotMessage("아래 그래프에서 키워드별 구매 순위를 확인하세요.");
+          appendKeywordSalesChartMessage();
+        }
+        else {
+          let botResponse = data.text;
+          if (data.videoHtml) {
+            botResponse += "<br>" + data.videoHtml;
+          }
+          if (data.imageUrl) {
+            if (!botResponse.includes("<img") && !botResponse.includes("<iframe")) {
+              botResponse += "<br><img src='" + data.imageUrl + "' alt='image' style='max-width:100%;'/>";
+            }
+          }
+          appendBotMessage(botResponse);
+        }
+      } catch (error) {
+        appendBotMessage("오류가 발생했습니다. 다시 시도해주세요.");
+        console.error("Error:", error);
+      }
     }
   
     sendBtn.addEventListener("click", sendMessage);
     messageInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            sendMessage();
-        }
+      if (e.key === "Enter") {
+        sendMessage();
+      }
     });
   </script>
   

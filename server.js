@@ -547,6 +547,23 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
+app.get("/dailyVisitorStats", async (req, res) => {
+  const providedDates = {
+    start_date: req.query.start_date,
+    end_date: req.query.end_date
+  };
+  try {
+    const stats = await getDailyVisitorStats(providedDates);
+    res.json(stats);
+  } catch (error) {
+    console.error("Error fetching daily visitor stats:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "일별 방문자 데이터를 가져오는 중 오류가 발생했습니다." });
+  }
+});
+
+
+
+
 // ========== [12] 상세페이지 접속 순위 조회 함수 ==========
 async function getTop10ProductViews(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -736,7 +753,7 @@ async function getTop10AdKeywordSales(providedDates) {
     });
     const groupedArray = Object.values(groupByKeyword);
     groupedArray.sort((a, b) => b.order_amount - a.order_amount);
-    const top10 = groupedArray.slice(0, 14);
+    const top10 = groupedArray.slice(0, 20);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
       return {
