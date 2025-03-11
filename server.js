@@ -756,7 +756,7 @@ async function getTop10AdKeywordSales(providedDates) {
     });
     const groupedArray = Object.values(groupByKeyword);
     groupedArray.sort((a, b) => b.order_amount - a.order_amount);
-    const top10 = groupedArray.slice(0, 20);
+    const top10 = groupedArray.slice(0, 12);
     const updatedTop10 = top10.map((item, index) => {
       const formattedAmount = Number(item.order_amount).toLocaleString('ko-KR') + " 원";
       return {
