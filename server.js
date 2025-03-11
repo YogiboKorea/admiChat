@@ -803,29 +803,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 
-  if (userInput.includes("시간대별 결제 금액 추이")) {
-    try {
-      const salesRanking = await getSalesTimesRanking(providedDates);
-      const rankingText = salesRanking.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
-    }
-  }
 
-  if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
-    try {
-      const keywordSales = await getTop10AdKeywordSales(providedDates);
-      const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
-      return res.json({
-        text: keywordListText
-      });
-    } catch (error) {
-      return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
-    }
-  }
   if (userInput.includes("광고별 판매 그래프")) {
     // 그래프 응답 처리
     try {
@@ -849,6 +827,32 @@ app.post("/chat", async (req, res) => {
     }
   }
   
+  
+
+  if (userInput.includes("시간대별 결제 금액 추이")) {
+    try {
+      const salesRanking = await getSalesTimesRanking(providedDates);
+      const rankingText = salesRanking.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: "시간대별 결제금액 순위입니다.<br>" + rankingText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "시간대별 결제금액 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+
+  if (userInput.includes("검색 키워드별 구매 순위") || userInput.includes("키워드 순위")) {
+    try {
+      const keywordSales = await getTop10AdKeywordSales(providedDates);
+      const keywordListText = keywordSales.map(item => item.displayText).join("<br>");
+      return res.json({
+        text: keywordListText
+      });
+    } catch (error) {
+      return res.status(500).json({ text: "키워드별 구매 데이터를 가져오는 중 오류가 발생했습니다." });
+    }
+  }
+ 
   
   if (userInput.includes("광고별 자사몰 유입수")) {
     try {
