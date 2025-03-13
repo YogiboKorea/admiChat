@@ -945,16 +945,11 @@ function calculateAndSortRanking(categoryProducts, salesData) {
     
     return rankedData;
 }
-
 async function getRealTimeSalesRanking(providedDates) {
-  let start_date, end_date;
-  if (providedDates && providedDates.start_date && providedDates.end_date) {
-    start_date = providedDates.start_date;
-    end_date = providedDates.end_date;
-  } else {
-    const now = moment().tz('Asia/Seoul');
-    start_date = now.clone().subtract(3, 'days').format('YYYY-MM-DD 00:00:00');
-    end_date = now.format('YYYY-MM-DD 23:59:59');
+  // providedDates에서 start_date와 end_date가 반드시 제공되어야 합니다.
+  const { start_date, end_date } = providedDates;
+  if (!start_date || !end_date) {
+    return "시작일(start_date)과 종료일(end_date)이 제공되지 않았습니다.";
   }
 
   try {
@@ -978,7 +973,7 @@ async function getRealTimeSalesRanking(providedDates) {
     const rankedData = calculateAndSortRanking(categoryProducts, salesData);
     console.log('계산된 순위 데이터:', rankedData);
 
-    // 4. (필요한 경우) 순위 변동 비교 함수 실행. 만약 compareRankings 함수가 없다면 이 부분은 생략 가능합니다.
+    // 4. (필요한 경우) 순위 변동 비교 함수 실행. 만약 compareRankings 함수가 없다면 생략 가능합니다.
     let finalRankings = rankedData;
     if (typeof compareRankings === 'function') {
       finalRankings = await compareRankings(rankedData);
