@@ -1008,9 +1008,8 @@ async function getRealTimeSalesRanking(providedDates) {
         </div>     
         <div class="details">
           <div class="product-name">${item.finalName}</div>
-          <div>상품번호: ${item.product_no}</div>
           <div>판매수량: ${item.total_sales}</div>
-          <div>총매출액: ${item.calculated_total_price}</div>
+          <div>총매출액: ${formatCurrency(item.calculated_total_price)}</div>
         </div>
       </div>`;
     });
