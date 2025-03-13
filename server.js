@@ -1001,16 +1001,19 @@ async function getRealTimeSalesRanking(providedDates) {
     // 5. 결과 HTML 포맷팅 (상품명과 이미지 포함)
     let output = `<div style="font-weight:bold; margin-bottom:10px;">실시간 판매 순위 (기간: ${start_date} ~ ${end_date}):</div>`;
     finalRankingsWithDetails.forEach(item => {
-      output += `<div style="margin-bottom:5px; border-bottom:1px solid #ccc; padding:5px 0;">
-        <div style="font-size:16px; font-weight:bold;">순위 ${item.rank}:</div>
-        <div class="product-name">${item.finalName}</div>
-        <img src="${item.listImage}" alt="이미지" style="max-width:100px; display:block; margin-bottom:5px;"/>
-        <div>상품번호: ${item.product_no}</div>
-        <div>판매수량: ${item.total_sales}</div>
-        <div>총매출액: ${item.calculated_total_price}</div>
+      output += `<div class="product-ranking">
+        <div class="rank"> ${item.rank}</div>
+        <div class="image">
+          <img src="${item.listImage}" alt="이미지"/>
+        </div>     
+        <div class="details">
+          <div class="product-name">${item.finalName}</div>
+          <div>상품번호: ${item.product_no}</div>
+          <div>판매수량: ${item.total_sales}</div>
+          <div>총매출액: ${item.calculated_total_price}</div>
+        </div>
       </div>`;
     });
-
     return output;
   } catch (error) {
     console.error('실시간 판매 순위 데이터 수집 오류:', error.message);
