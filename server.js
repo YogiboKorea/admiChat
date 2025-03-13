@@ -946,10 +946,17 @@ function calculateAndSortRanking(categoryProducts, salesData) {
     return rankedData;
 }
 async function getRealTimeSalesRanking(providedDates) {
-  // providedDates에서 start_date와 end_date가 반드시 제공되어야 합니다.
-  const { start_date, end_date } = providedDates;
-  if (!start_date || !end_date) {
-    return "시작일(start_date)과 종료일(end_date)이 제공되지 않았습니다.";
+  let start_date, end_date;
+  if (providedDates && providedDates.start_date && providedDates.end_date) {
+    start_date = providedDates.start_date;
+    end_date = providedDates.end_date;
+  } else {
+    // 기간 미지정 시: 현재 날짜를 end_date로, 30일 전을 start_date로 설정
+    const now = new Date();
+    end_date = now.toISOString().split('T')[0];
+    const pastDate = new Date(now);
+    pastDate.setDate(now.getDate() - 30);
+    start_date = pastDate.toISOString().split('T')[0];
   }
 
   try {
@@ -973,20 +980,34 @@ async function getRealTimeSalesRanking(providedDates) {
     const rankedData = calculateAndSortRanking(categoryProducts, salesData);
     console.log('계산된 순위 데이터:', rankedData);
 
-    // 4. (필요한 경우) 순위 변동 비교 함수 실행. 만약 compareRankings 함수가 없다면 생략 가능합니다.
     let finalRankings = rankedData;
     if (typeof compareRankings === 'function') {
       finalRankings = await compareRankings(rankedData);
       console.log('업데이트된 순위 데이터:', finalRankings);
     }
 
-    // 5. 결과 HTML 포맷팅 (예시)
+    // 4. 각 상품별 상세 정보를 가져와 상품명과 이미지를 추가 (getProductDetail 참고)
+    const finalRankingsWithDetails = await Promise.all(finalRankings.map(async (item) => {
+      const detail = await getProductDetail(item.product_no);
+      const finalName = detail ? detail.product_name : '상품';
+      const listImage = detail ? detail.list_image : "";
+      return {
+        ...item,
+        finalName,
+        listImage
+      };
+    }));
+
+    // 5. 결과 HTML 포맷팅 (상품명과 이미지 포함)
     let output = `<div style="font-weight:bold; margin-bottom:10px;">실시간 판매 순위 (기간: ${start_date} ~ ${end_date}):</div>`;
-    finalRankings.forEach(item => {
-      output += `<div style="margin-bottom:5px;">
-        순위 ${item.rank}: 상품번호 ${item.product_no} &nbsp;|&nbsp;
-        판매수량: ${item.total_sales} &nbsp;|&nbsp;
-        총매출액: ${item.calculated_total_price}
+    finalRankingsWithDetails.forEach(item => {
+      output += `<div style="margin-bottom:5px; border-bottom:1px solid #ccc; padding:5px 0;">
+        <div style="font-size:16px; font-weight:bold;">순위 ${item.rank}:</div>
+        <div class="product-name">${item.finalName}</div>
+        <img src="${item.listImage}" alt="이미지" style="max-width:100px; display:block; margin-bottom:5px;"/>
+        <div>상품번호: ${item.product_no}</div>
+        <div>판매수량: ${item.total_sales}</div>
+        <div>총매출액: ${item.calculated_total_price}</div>
       </div>`;
     });
 
@@ -996,6 +1017,7 @@ async function getRealTimeSalesRanking(providedDates) {
     return "실시간 판매 순위 데이터를 가져오는 중 오류가 발생했습니다.";
   }
 }
+
 
 
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
