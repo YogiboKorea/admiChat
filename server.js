@@ -1028,6 +1028,110 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
 
 
 
+
+// ========== [12] 상세페이지 접속 순위 조회 함수 (카테고리 필터 적용) ==========
+async function getTop10ProductViewsByCategory(providedDates, providedCategoryNumber) {
+  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+  const url = 'https://ca-api.cafe24data.com/products/view';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+  };
+  
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Product View API 응답 데이터:", response.data);
+    
+    // 응답 데이터가 문자열이면 JSON 파싱
+    let data = response.data;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        console.error("응답 데이터를 JSON으로 파싱하는 데 실패:", e);
+        throw new Error("응답 데이터가 유효한 JSON이 아닙니다.");
+      }
+    }
+    
+    // 배열 추출: 우선 data.view, 없으면 data.count, 그 외 배열이면 그대로 사용
+    let products = [];
+    if (data && Array.isArray(data.view)) {
+      products = data.view;
+    } else if (data && Array.isArray(data.count)) {
+      products = data.count;
+    } else if (Array.isArray(data)) {
+      products = data;
+    } else {
+      console.error("Unexpected product view data structure:", data);
+      throw new Error("Unexpected product view data structure");
+    }
+    
+    // 유효 항목 필터링: product_no, count, 그리고 특정 카테고리 번호가 일치하는지 확인
+    products = products.filter(item => 
+      item.product_no && 
+      typeof item.count === "number" &&
+      item.category_no === providedCategoryNumber
+    );
+    
+    if (products.length === 0) {
+      console.log("조회된 해당 카테고리의 상품 뷰 데이터가 없습니다.");
+      return [];
+    }
+    
+    // 조회수(count) 기준 내림차순 정렬 후 상위 10개 선택
+    products.sort((a, b) => b.count - a.count);
+    const top10 = products.slice(0, 10);
+    
+    // 각 항목에 대해 product_no를 활용해 상세 API 호출, 상세의 product_name 사용
+    const updatedProducts = await Promise.all(
+      top10.map(async (item, index) => {
+        const detail = await getProductDetail(item.product_no);
+        // detail이 존재하면 detail.product_name, 그렇지 않으면 item.product_name 객체에서 product_name 추출
+        const finalName = (detail && detail.product_name) ||
+                          (item.product_name && item.product_name.product_name) ||
+                          '상품';
+        // detail이 있으면 이미지 URL, 없으면 빈 문자열
+        const listImage = detail ? detail.list_image : "";
+        
+        return {
+          rank: index + 1,
+          product_no: item.product_no,
+          product_name: finalName,
+          count: item.count,
+          displayText: `
+            <div class="product-ranking">
+              <div class="rank">${index + 1}</div>
+              <div class="image">
+                <img src="${listImage}" alt="이미지"/>
+              </div>
+              <div class="details">
+                <div class="product-name">${finalName}</div>
+                <div class="product-count">
+                  조회수: ${item.count}
+                </div>
+              </div>
+            </div>
+          `
+        };
+      })
+    );
+    console.log("불러온 상세페이지 접속 순위 데이터 (카테고리 필터 적용):", updatedProducts);
+    return updatedProducts;
+  } catch (error) {
+    console.error("Error fetching product view rankings:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+
+
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   await refreshAccessToken();
@@ -1092,6 +1196,28 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: productViewsText });
     }
 
+
+    
+    // 신규: 카테고리 상세페이지 접속 순위 호출 (예: "카테고리 상세페이지 접속 순위" 혹은 "카테고리 123 상세페이지 접속 순위")
+    if (userInput.includes("카테고리") && userInput.includes("상세페이지 접속 순위")) {
+      let categoryNumber;
+      // 입력 메시지에서 카테고리 번호 추출 (예: "카테고리 123 상세페이지 접속 순위"에서 123 추출)
+      const categoryMatch = userInput.match(/카테고리\s*(\d+)/);
+      if (categoryMatch && categoryMatch[1]) {
+        categoryNumber = parseInt(categoryMatch[1], 10);
+      } else {
+        // 번호가 명시되지 않은 경우, 기본값 사용
+        categoryNumber = parseInt(CATEGORY_NO);
+      }
+      const productViewsByCategory = await getTop10ProductViewsByCategory(providedDates, categoryNumber);
+      if (!productViewsByCategory || productViewsByCategory.length === 0) {
+        return res.json({ text: "해당 카테고리의 상세페이지 접속 순위 데이터를 찾을 수 없습니다." });
+      }
+      const displayText = productViewsByCategory.map(item => item.displayText).join("<br>");
+      return res.json({ text: displayText });
+    }
+
+    
     if (userInput.includes("소파 실시간 판매순위")) {
       // 소파 카테고리 번호: 858
       const realTimeRanking = await getRealTimeSalesRanking(858, providedDates);
