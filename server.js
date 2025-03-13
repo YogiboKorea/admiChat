@@ -998,13 +998,19 @@ async function getRealTimeSalesRanking(providedDates) {
       };
     }));
 
-    // 5. 결과 HTML 포맷팅 (상품명과 이미지 포함)
-    let output = `<div style="font-weight:bold; margin-bottom:10px;">실시간 판매 순위 (기간: ${start_date} ~ ${end_date}):</div>`;
-    finalRankingsWithDetails.forEach(item => {
-      output += `<div class="product-ranking">
-        <div class="rank"> ${item.rank}</div>
+    // 판매수량이 0인 항목은 필터링 처리
+    const filteredRankings = finalRankingsWithDetails.filter(item => item.total_sales > 0);
+    if (filteredRankings.length === 0) {
+      return "해당 기간 내에 판매된 상품이 없습니다.";
+    }
+
+    // 5. 결과 HTML 포맷팅 (상품명과 이미지, 총매출액은 원화로 표시)
+    let output = `<div style="font-weight:bold; margin-bottom:10px;">기간별 판매 순위 (기간: ${start_date} ~ ${end_date})</div>`;
+    filteredRankings.forEach(item => {
+      output += `<div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
+        <div class="rank">순위 ${item.rank}</div>
         <div class="image">
-          <img src="${item.listImage}" alt="이미지"/>
+          <img src="${item.listImage}" alt="이미지" style="max-width:100px;"/>
         </div>     
         <div class="details">
           <div class="product-name">${item.finalName}</div>
@@ -1019,6 +1025,7 @@ async function getRealTimeSalesRanking(providedDates) {
     return "실시간 판매 순위 데이터를 가져오는 중 오류가 발생했습니다.";
   }
 }
+
 
 
 
