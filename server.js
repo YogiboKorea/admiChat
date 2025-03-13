@@ -1007,7 +1007,7 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
     let output = `<div style="font-weight:bold; margin-bottom:10px;">판매 순위 (기간: ${start_date} ~ ${end_date})</div>`;
     filteredRankings.forEach(item => {
       output += `<div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
-        <div class="rank">${item.rank}</div>
+        <div class="rank"> ${item.rank}</div>
         <div class="image">
           <img src="${item.listImage}" alt="이미지" style="max-width:100px;"/>
         </div>     
@@ -1105,6 +1105,13 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
 
+
+    const categoryMatch = userInput.match(/^(\d+)\s+/);
+    if (categoryMatch) {
+      const categoryNo = parseInt(categoryMatch[1], 10);
+      const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
+      return res.json({ text: realTimeRanking });
+    }
 
     // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
     let aggregatedData = "";
