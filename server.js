@@ -1004,10 +1004,10 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
     }
 
     // 5. 결과 HTML 포맷팅 (상품명, 이미지, 총매출액은 원화로 표시)
-    let output = `<div style="font-weight:bold; margin-bottom:10px;">판매 순위 (카테고리 ${categoryNo}, 기간: ${start_date} ~ ${end_date})</div>`;
+    let output = `<div style="font-weight:bold; margin-bottom:10px;">판매 순위 (기간: ${start_date} ~ ${end_date})</div>`;
     filteredRankings.forEach(item => {
       output += `<div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
-        <div class="rank">순위 ${item.rank}</div>
+        <div class="rank">${item.rank}</div>
         <div class="image">
           <img src="${item.listImage}" alt="이미지" style="max-width:100px;"/>
         </div>     
