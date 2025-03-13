@@ -7,7 +7,6 @@ const compression = require("compression");
 const axios = require("axios");
 const { MongoClient } = require("mongodb");
 require("dotenv").config();
-const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
 let accessToken = process.env.ACCESS_TOKEN || 'pPhbiZ29IZ9kuJmZ3jr15C';
@@ -945,7 +944,7 @@ function calculateAndSortRanking(categoryProducts, salesData) {
     
     return rankedData;
 }
-async function getRealTimeSalesRanking(providedDates) {
+async function getRealTimeSalesRanking(categoryNo, providedDates) {
   let start_date, end_date;
   if (providedDates && providedDates.start_date && providedDates.end_date) {
     start_date = providedDates.start_date;
@@ -960,17 +959,17 @@ async function getRealTimeSalesRanking(providedDates) {
   }
 
   try {
-    console.log(`실시간 판매 순위 데이터 수집 시작: ${start_date} ~ ${end_date}`);
+    console.log(`실시간 판매 순위 데이터 수집 시작 (카테고리 ${categoryNo}): ${start_date} ~ ${end_date}`);
     
-    // 1. 카테고리 상품 조회 (URL 주소 그대로 유지)
-    const categoryProducts = await getCategoryProducts(CATEGORY_NO);
+    // 1. 카테고리 상품 조회 (categoryNo 사용)
+    const categoryProducts = await getCategoryProducts(categoryNo);
     if (!categoryProducts || categoryProducts.length === 0) {
       return "해당 카테고리에는 상품이 없습니다.";
     }
     const productNos = categoryProducts.map(p => p.product_no);
     console.log("카테고리 상품 번호:", productNos);
 
-    // 2. 판매 데이터 조회 (URL 주소 그대로 유지)
+    // 2. 판매 데이터 조회
     const salesData = await getSalesDataForProducts(productNos, start_date, end_date);
     if (!salesData || salesData.length === 0) {
       return "판매 데이터가 없습니다.";
@@ -986,7 +985,7 @@ async function getRealTimeSalesRanking(providedDates) {
       console.log('업데이트된 순위 데이터:', finalRankings);
     }
 
-    // 4. 각 상품별 상세 정보를 가져와 상품명과 이미지를 추가 (getProductDetail 참고)
+    // 4. 각 상품별 상세 정보를 가져와 상품명과 이미지를 추가
     const finalRankingsWithDetails = await Promise.all(finalRankings.map(async (item) => {
       const detail = await getProductDetail(item.product_no);
       const finalName = detail ? detail.product_name : '상품';
@@ -998,14 +997,14 @@ async function getRealTimeSalesRanking(providedDates) {
       };
     }));
 
-    // 판매수량이 0인 항목은 필터링 처리
+    // 판매수량이 0인 항목은 필터링
     const filteredRankings = finalRankingsWithDetails.filter(item => item.total_sales > 0);
     if (filteredRankings.length === 0) {
       return "해당 기간 내에 판매된 상품이 없습니다.";
     }
 
-    // 5. 결과 HTML 포맷팅 (상품명과 이미지, 총매출액은 원화로 표시)
-    let output = `<div style="font-weight:bold; margin-bottom:10px;">기간별 판매 순위 (기간: ${start_date} ~ ${end_date})</div>`;
+    // 5. 결과 HTML 포맷팅 (상품명, 이미지, 총매출액은 원화로 표시)
+    let output = `<div style="font-weight:bold; margin-bottom:10px;">판매 순위 (카테고리 ${categoryNo}, 기간: ${start_date} ~ ${end_date})</div>`;
     filteredRankings.forEach(item => {
       output += `<div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
         <div class="rank">순위 ${item.rank}</div>
@@ -1093,10 +1092,19 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: productViewsText });
     }
 
-    if (userInput.includes("실시간 판매순위")) {
-      const realTimeRanking = await getRealTimeSalesRanking(providedDates);
+    if (userInput.includes("소파 실시간 판매순위")) {
+      // 소파 카테고리 번호: 858
+      const realTimeRanking = await getRealTimeSalesRanking(858, providedDates);
       return res.json({ text: realTimeRanking });
     }
+    
+
+    if (userInput.includes("바디필로우 실시간 판매순위")) {
+      // 바디필로우 카테고리 번호: 876
+      const realTimeRanking = await getRealTimeSalesRanking(876, providedDates);
+      return res.json({ text: realTimeRanking });
+    }
+
 
     // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
     let aggregatedData = "";
