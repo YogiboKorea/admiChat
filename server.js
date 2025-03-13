@@ -8,6 +8,7 @@ const axios = require("axios");
 const { MongoClient } = require("mongodb");
 require("dotenv").config();
 
+
 // ========== [1] 환경변수 및 기본 설정 ==========
 let accessToken = process.env.ACCESS_TOKEN || 'pPhbiZ29IZ9kuJmZ3jr15C';
 let refreshToken = process.env.REFRESH_TOKEN || 'CMLScZx0Bh3sIxlFTHDeMD';
@@ -20,7 +21,7 @@ const OPEN_URL = process.env.OPEN_URL;
 const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
-
+const CATEGORY_NO = process.env.CATEGORY_NO || 858; // 카테고리 번호 (예: 858)
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
 app.use(cors());
@@ -868,6 +869,140 @@ app.get("/keywordSalesGraph", async (req, res) => {
 
 
 
+// ========== 실시간 판매 순위 에 대한 데이터 를 가졍괴 ==========
+// 1. 카테고리 상품 조회
+async function getCategoryProducts(category_no) {
+    // URL 주소가 반드시 포함되어야 합니다.
+    const url = `https://yogibo.cafe24api.com/api/v2/admin/categories/${category_no}/products`;
+    const params = { display_group: 1 };
+    try {
+        const data = await apiRequest('GET', url, {}, params);
+        console.log(`카테고리 ${category_no}의 상품 수:`, data.products.length);
+        return data.products;
+    } catch (error) {
+        console.error('카테고리 상품 조회 오류:', error.message);
+        throw error;
+    }
+}
+
+// 2. 특정 상품들의 판매 데이터 조회
+async function getSalesDataForProducts(productNos, start_date, end_date) {
+    const url = `https://yogibo.cafe24api.com/api/v2/admin/reports/salesvolume`;
+    const params = {
+        shop_no: 1,
+        start_date,
+        end_date,
+        product_no: productNos.join(','),
+    };
+    try {
+        const data = await apiRequest('GET', url, {}, params);
+        console.log('판매 데이터 조회 완료:', data.salesvolume.length);
+        return data.salesvolume;
+    } catch (error) {
+        console.error('판매 데이터 조회 오류:', error.message);
+        throw error;
+    }
+}
+
+// 3. 판매 순위 계산 및 정렬
+function calculateAndSortRanking(categoryProducts, salesData) {
+    // 카테고리 상품의 product_no 목록 생성
+    const productNosSet = new Set(categoryProducts.map(p => p.product_no));
+    // 판매 데이터 중 해당 카테고리 상품에 해당하는 데이터만 필터링
+    const filteredSales = salesData.filter(item => productNosSet.has(item.product_no));
+    
+    // 동일 상품번호의 데이터 합산 (판매 수량, 판매 금액)
+    const mergedData = filteredSales.reduce((acc, curr) => {
+        const existing = acc.find(item => item.product_no === curr.product_no);
+        // product_price를 숫자로 처리 (문자열일 경우 replace 후 파싱, 숫자일 경우 그대로 사용)
+        const currPrice = typeof curr.product_price === 'string' 
+                          ? parseInt(curr.product_price.replace(/,/g, ''), 10)
+                          : curr.product_price;
+        if (existing) {
+            existing.total_sales += parseInt(curr.total_sales, 10);
+            existing.product_price += currPrice;
+        } else {
+            acc.push({
+                ...curr,
+                total_sales: parseInt(curr.total_sales, 10),
+                product_price: currPrice
+            });
+        }
+        return acc;
+    }, []);
+    
+    // 각 상품별 계산된 총 판매 금액 (판매금액 * 판매수량)
+    const rankedData = mergedData.map(item => ({
+        ...item,
+        calculated_total_price: item.product_price * item.total_sales
+    }));
+    
+    // 내림차순 정렬 및 순위 번호 부여
+    rankedData.sort((a, b) => b.calculated_total_price - a.calculated_total_price);
+    rankedData.forEach((item, index) => {
+        item.rank = index + 1;
+    });
+    
+    return rankedData;
+}
+
+async function getRealTimeSalesRanking(providedDates) {
+  let start_date, end_date;
+  if (providedDates && providedDates.start_date && providedDates.end_date) {
+    start_date = providedDates.start_date;
+    end_date = providedDates.end_date;
+  } else {
+    const now = moment().tz('Asia/Seoul');
+    start_date = now.clone().subtract(3, 'days').format('YYYY-MM-DD 00:00:00');
+    end_date = now.format('YYYY-MM-DD 23:59:59');
+  }
+
+  try {
+    console.log(`실시간 판매 순위 데이터 수집 시작: ${start_date} ~ ${end_date}`);
+    
+    // 1. 카테고리 상품 조회 (URL 주소 그대로 유지)
+    const categoryProducts = await getCategoryProducts(CATEGORY_NO);
+    if (!categoryProducts || categoryProducts.length === 0) {
+      return "해당 카테고리에는 상품이 없습니다.";
+    }
+    const productNos = categoryProducts.map(p => p.product_no);
+    console.log("카테고리 상품 번호:", productNos);
+
+    // 2. 판매 데이터 조회 (URL 주소 그대로 유지)
+    const salesData = await getSalesDataForProducts(productNos, start_date, end_date);
+    if (!salesData || salesData.length === 0) {
+      return "판매 데이터가 없습니다.";
+    }
+
+    // 3. 판매 순위 계산 및 정렬
+    const rankedData = calculateAndSortRanking(categoryProducts, salesData);
+    console.log('계산된 순위 데이터:', rankedData);
+
+    // 4. (필요한 경우) 순위 변동 비교 함수 실행. 만약 compareRankings 함수가 없다면 이 부분은 생략 가능합니다.
+    let finalRankings = rankedData;
+    if (typeof compareRankings === 'function') {
+      finalRankings = await compareRankings(rankedData);
+      console.log('업데이트된 순위 데이터:', finalRankings);
+    }
+
+    // 5. 결과 HTML 포맷팅 (예시)
+    let output = `<div style="font-weight:bold; margin-bottom:10px;">실시간 판매 순위 (기간: ${start_date} ~ ${end_date}):</div>`;
+    finalRankings.forEach(item => {
+      output += `<div style="margin-bottom:5px;">
+        순위 ${item.rank}: 상품번호 ${item.product_no} &nbsp;|&nbsp;
+        판매수량: ${item.total_sales} &nbsp;|&nbsp;
+        총매출액: ${item.calculated_total_price}
+      </div>`;
+    });
+
+    return output;
+  } catch (error) {
+    console.error('실시간 판매 순위 데이터 수집 오류:', error.message);
+    return "실시간 판매 순위 데이터를 가져오는 중 오류가 발생했습니다.";
+  }
+}
+
+
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   await refreshAccessToken();
@@ -930,6 +1065,11 @@ app.post("/chat", async (req, res) => {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({ text: productViewsText });
+    }
+
+    if (userInput.includes("실시간 판매순위")) {
+      const realTimeRanking = await getRealTimeSalesRanking();
+      return res.json({ text: realTimeRanking });
     }
 
     // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
