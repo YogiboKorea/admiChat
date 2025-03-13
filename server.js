@@ -1063,7 +1063,7 @@ app.post("/chat", async (req, res) => {
     }
 
     if (userInput.includes("실시간 판매순위")) {
-      const realTimeRanking = await getRealTimeSalesRanking();
+      const realTimeRanking = await getRealTimeSalesRanking(providedDates);
       return res.json({ text: realTimeRanking });
     }
 
