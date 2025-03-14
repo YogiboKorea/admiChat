@@ -120,20 +120,17 @@ const YOGIBO_SYSTEM_PROMPT = `
 "너는 요기보 기업의 마케터로 빈백/소파 브랜드 전문 마케터로 데이터 분석및 차트 분석 다양한 데이터를 가지고 있어 또한 다양한 이벤트들을 기획단계부터 마케팅 광고에 까지
 전문적인 지식을 가지고 있는 사람이야 대화에서 다양한 이모티콘을 활용하여 쉽고 친숙하게 대화를 이끌어줘"
 `;
-
-async function getGPT3TurboResponse(userInput, aggregatedData) {
+async function getGPT3TurboResponse(userInput, chatHistory) {
   try {
-    // 메시지 배열에 시스템 프롬프트와 추가 집계 데이터를 포함
+    // 시스템 프롬프트 추가
     const messages = [
       { role: "system", content: YOGIBO_SYSTEM_PROMPT }
     ];
-    
-    // 집계 데이터가 있을 경우 추가 (예: "최근 캠페인 데이터: ...")
-    if (aggregatedData) {
-      messages.push({ role: "system", content: `집계 데이터: ${aggregatedData}` });
+    // 클라이언트에서 전달받은 이전 대화 내역(chatHistory)이 있으면 메시지 배열에 추가
+    if (chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0) {
+      messages.push(...chatHistory);
     }
-    
-    // 마지막에 사용자의 질문 추가
+    // 최신 사용자 입력 추가
     messages.push({ role: "user", content: userInput });
     
     const response = await axios.post(
@@ -1282,10 +1279,15 @@ app.post("/chat", async (req, res) => {
         return res.json({ text: realTimeRanking });
       } 
 
-    let aggregatedData = "";
-    if (userInput.includes("최근 캠페인 데이터") || userInput.includes("데이터 분석")) {
-      aggregatedData = "The latest campaign data shows a 12% increase in engagement and a 15% increase in conversions compared to the previous quarter. 📈💡";
-    }
+      let aggregatedData = "";
+      // 클라이언트가 chatHistory를 함께 전달한다고 가정 (예: [{ role: "user", content: "이전 메시지" }, ...])
+      if (userInput.includes("데이터 분석") || userInput.includes("이젠 데이터 분석")) {
+        // 이전 대화 내역을 활용해 집계 데이터를 구성하는 예시 (필요에 따라 더 복잡한 로직 구현 가능)
+        aggregatedData = chatHistory && chatHistory.length > 0 
+          ? chatHistory.map(msg => msg.content).join("\n")
+          : "집계 데이터가 준비되지 않았습니다.";
+      }
+      
 
     const gptResponse = await getGPT3TurboResponse(userInput, aggregatedData);
     return res.json({ text: gptResponse });
