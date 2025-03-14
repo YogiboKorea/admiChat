@@ -927,7 +927,7 @@ function calculateAndSortRanking(categoryProducts, salesData) {
     // 각 상품별 계산된 총 판매 금액 (판매금액 * 판매수량)
     const rankedData = mergedData.map(item => ({
         ...item,
-        calculated_total_price: item.product_price * item.total_sales
+        calculated_total_price: item.product_price
     }));
     
     // 내림차순 정렬 및 순위 번호 부여
@@ -1008,7 +1008,7 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
         <div class="details">
           <div class="product-name">${item.finalName}</div>
           <div>판매수량: ${item.total_sales}</div>
-          <div>총매출액: ${formatCurrency(item.total_sales)}</div>
+          <div>총매출액: ${formatCurrency(item.calculated_total_price)}</div>
         </div>
       </div>`;
     });
