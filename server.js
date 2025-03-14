@@ -1084,7 +1084,7 @@ async function getCategoryProductViewRanking(category_no, providedDates) {
       console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
       return [];
     }
-    // product_no를 키로 하는 맵 생성 (상품 정보: finalName, listImage 등 포함)
+    // product_no를 키로 하는 맵 생성 (상품 정보: product_name, list_image 등 포함)
     const productMap = new Map(categoryProducts.map(product => [product.product_no, product]));
     console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(productMap.keys()));
     
@@ -1106,10 +1106,10 @@ async function getCategoryProductViewRanking(category_no, providedDates) {
     filteredViewData.sort((a, b) => b.count - a.count);
     filteredViewData.forEach((item, index) => {
       item.rank = index + 1;
-      // product_no를 사용해 상품 정보를 결합
+      // product_no를 사용해 상품 정보를 결합 (올바른 키 사용)
       const product = productMap.get(item.product_no);
-      item.finalName = product.finalName; // 예: 상품명
-      item.listImage = product.listImage; // 예: 상품 이미지 URL
+      item.finalName = product.product_name; // 변경: product_name 사용
+      item.listImage = product.list_image;   // 변경: list_image 사용
     });
     
     console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
