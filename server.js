@@ -1132,7 +1132,7 @@ app.post("/chat", async (req, res) => {
     start_date: req.body.start_date,
     end_date: req.body.end_date
   };
-
+  const chatHistory = req.body.chatHistory || [];
   if (!userInput) {
     return res.status(400).json({ error: "Message is required" });
   }
@@ -1270,26 +1270,15 @@ app.post("/chat", async (req, res) => {
       }
       
 
-
-      // 그 외 숫자만 있는 경우 (실시간 판매 순위 등)
-      const categoryMatch = userInput.match(/^(\d+)\s+/);
-      if (categoryMatch) {
-        const categoryNo = parseInt(categoryMatch[1], 10);
-        const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
-        return res.json({ text: realTimeRanking });
-      } 
-
-      let aggregatedData = "";
-      // 클라이언트가 chatHistory를 함께 전달한다고 가정 (예: [{ role: "user", content: "이전 메시지" }, ...])
-      if (userInput.includes("데이터 분석") || userInput.includes("이젠 데이터 분석")) {
-        // 이전 대화 내역을 활용해 집계 데이터를 구성하는 예시 (필요에 따라 더 복잡한 로직 구현 가능)
-        aggregatedData = chatHistory && chatHistory.length > 0 
-          ? chatHistory.map(msg => msg.content).join("\n")
-          : "집계 데이터가 준비되지 않았습니다.";
-      }
-      
-
-    const gptResponse = await getGPT3TurboResponse(userInput, aggregatedData);
+    // 집계 데이터: 클라이언트에서 chatHistory 배열을 전달한다고 가정
+    let aggregatedData = "";
+    if (userInput.includes("데이터 분석") || userInput.includes("이젠 데이터 분석")) {
+      aggregatedData = (chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0)
+        ? chatHistory.map(msg => msg.content).join("\n")
+        : "집계 데이터가 준비되지 않았습니다.";
+    }
+    
+    const gptResponse = await getGPT3TurboResponse(userInput, chatHistory);
     return res.json({ text: gptResponse });
   } catch (error) {
     console.error("Error in /chat endpoint:", error.response ? error.response.data : error.message);
