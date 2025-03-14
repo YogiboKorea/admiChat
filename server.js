@@ -20,7 +20,8 @@ const OPEN_URL = process.env.OPEN_URL;
 const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
-const CATEGORY_NO = process.env.CATEGORY_NO || 858; // 카테고리 번호 (예: 858)
+const CATEGORY_NO = process.env.CATEGORY_NO || 858; // 기본 카테고리 번호 (예: 858)
+
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
 app.use(cors());
@@ -30,6 +31,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
+
 // ========== [3] MongoDB 토큰 관리 함수 ==========
 async function getTokensFromDB() {
   const client = new MongoClient(MONGODB_URI);
@@ -80,11 +82,11 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
 
 async function refreshAccessToken() {
   console.log('401 에러 발생: MongoDB에서 토큰 정보 다시 가져오기...');
-  // 기존 토큰 갱신 로직: MongoDB에서 최신 토큰을 다시 불러옴
   await getTokensFromDB();
   console.log('MongoDB에서 토큰 갱신 완료:', accessToken, refreshToken);
   return accessToken;
 }
+
 // ========== [4] Cafe24 API 요청 함수 ==========
 async function apiRequest(method, url, data = {}, params = {}) {
   console.log(`Request: ${method} ${url}`);
@@ -105,7 +107,6 @@ async function apiRequest(method, url, data = {}, params = {}) {
     return response.data;
   } catch (error) {
     if (error.response && error.response.status === 401) {
-      // 토큰이 만료된 경우, MongoDB에서 최신 토큰을 불러와 재발급 후 재요청
       console.log('Access Token 만료. 갱신 중...');
       await refreshAccessToken();
       return apiRequest(method, url, data, params);
@@ -123,17 +124,12 @@ const YOGIBO_SYSTEM_PROMPT = `
 
 async function getGPT3TurboResponse(userInput, aggregatedData) {
   try {
-    // 메시지 배열에 시스템 프롬프트와 추가 집계 데이터를 포함
     const messages = [
       { role: "system", content: YOGIBO_SYSTEM_PROMPT }
     ];
-    
-    // 집계 데이터가 있을 경우 추가 (예: "최근 캠페인 데이터: ...")
     if (aggregatedData) {
       messages.push({ role: "system", content: `집계 데이터: ${aggregatedData}` });
     }
-    
-    // 마지막에 사용자의 질문 추가
     messages.push({ role: "user", content: userInput });
     
     const response = await axios.post(
@@ -157,17 +153,11 @@ async function getGPT3TurboResponse(userInput, aggregatedData) {
   }
 }
 
-
-
-
-
 // ========== [5] 최근 30일(약 4주간) 날짜 계산 (optional 날짜 사용) ==========
 function getLastTwoWeeksDates(providedDates) {
-  // 프론트단에서 start_date와 end_date가 제공되면 해당 값을 사용
   if (providedDates && providedDates.start_date && providedDates.end_date) {
     return { start_date: providedDates.start_date, end_date: providedDates.end_date };
   }
-  // 제공되지 않은 경우, 현재 기준 30일 전부터 오늘까지 사용
   const now = new Date();
   const end_date = now.toISOString().split('T')[0];
   const pastDate = new Date(now);
@@ -189,7 +179,6 @@ async function getProductDetail(product_no) {
     if (response.data && response.data.product) {
       const product = response.data.product;
       console.log(`Product detail for ${product_no}:`, product.product_name);
-      // product_name과 list_image를 함께 반환
       return { product_name: product.product_name, list_image: product.list_image };
     }
     return null;
@@ -198,6 +187,7 @@ async function getProductDetail(product_no) {
     return null;
   }
 }
+
 // ========== [7] 장바구니에 담긴 수 기준 상위 10개 상품 조회 함수 ==========
 async function getTop10ProductsByAddCart(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -253,7 +243,7 @@ async function getTop10ProductsByAddCart(providedDates) {
               </div>
               <div class="details">
                 <div class="product-name">${finalName}</div>
-                <div class="product-count" >
+                <div class="product-count">
                   총 <strong>${product.add_cart_count || 0}</strong> 개 상품이 담겨 있습니다.
                 </div>
               </div>
@@ -342,7 +332,7 @@ async function getTop10PagesByView(providedDates) {
   }
 }
 
-//원단위 데이터 
+// ========== 원단위 데이터 포맷 ==========
 function formatCurrency(amount) {
   const num = Number(amount) || 0;
   if (num >= 1e12) {
@@ -358,7 +348,6 @@ function formatCurrency(amount) {
 async function getSalesTimesRanking(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/sales/times';
-  // limit는 충분히 크게 설정하여 전체 데이터를 받아오도록 함
   const params = {
     mall_id: 'yogibo',
     shop_no: 1,
@@ -389,7 +378,6 @@ async function getSalesTimesRanking(providedDates) {
       throw new Error("Unexpected sales times data structure");
     }
 
-    // 0시부터 23시까지 기본값(구매자수, 구매건수, 매출액 모두 0)을 가진 배열 생성
     const hourlyData = Array.from({ length: 24 }, (_, hour) => ({
       hour,
       buyers_count: 0,
@@ -397,18 +385,15 @@ async function getSalesTimesRanking(providedDates) {
       order_amount: 0
     }));
 
-    // API 데이터로 해당 시간대의 값을 업데이트 (동일 시간대가 여러 건이면 덮어쓰거나 누적 처리)
     times.forEach(time => {
       const h = Number(time.hour);
       if (!isNaN(h) && h >= 0 && h < 24) {
-        // 만약 여러 건이 있다면 누적하거나 최신 데이터로 대체할 수 있음 (여기서는 대체)
         hourlyData[h].buyers_count = time.buyers_count || 0;
         hourlyData[h].order_count = time.order_count || 0;
         hourlyData[h].order_amount = time.order_amount || 0;
       }
     });
 
-    // 각 시간대를 00시, 01시, ... 23시 형식으로 표시하도록 구성
     const updatedTimes = hourlyData.map((time) => {
       const hourLabel = time.hour < 10 ? "0" + time.hour : time.hour;
       const formattedAmount = formatCurrency(time.order_amount);
@@ -439,8 +424,6 @@ async function getSalesTimesRanking(providedDates) {
   }
 }
 
-
-//시간대별 매출 통계
 app.get("/salesHourly", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -454,8 +437,6 @@ app.get("/salesHourly", async (req, res) => {
     res.status(500).json({ error: "시간대별 매출 데이터를 가져오는 중 오류 발생" });
   }
 });
-
-
 
 // ========== [10] 광고 매체별 구매 순위 조회 함수 ==========
 async function getTop10AdSales(providedDates) {
@@ -518,7 +499,7 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
-// ========== 서버측: /adSalesGraph 엔드포인트 추가 ==========
+// ========== 서버측: /adSalesGraph 엔드포인트 ==========
 app.get("/adSalesGraph", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -526,15 +507,15 @@ app.get("/adSalesGraph", async (req, res) => {
   };
   try {
     const adSales = await getTop10AdSales(providedDates);
-    // 광고 이름과 매출액 데이터를 차트에 사용할 수 있도록 추출
     const labels = adSales.map(item => item.ad);
     const orderAmounts = adSales.map(item => item.order_amount);
     res.json({ labels, orderAmounts });
   } catch (error) {
-    console.error("Error fetching ad sales graph data:", error.response ? error.response.data : error.message);
+    console.error("Error fetching ad inflow graph data:", error.response ? error.response.data : error.message);
     res.status(500).json({ error: "광고 매체별 판매 데이터를 가져오는 중 오류 발생" });
   }
 });
+
 async function getDailyVisitorStats(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitors/view';
@@ -559,7 +540,6 @@ async function getDailyVisitorStats(providedDates) {
       params
     });
     console.log("Daily Visitor Stats API 응답 데이터:", response.data);
-    // 디버깅: 응답 데이터의 키 확인
     console.log("Response keys:", Object.keys(response.data));
     
     let stats;
@@ -578,10 +558,8 @@ async function getDailyVisitorStats(providedDates) {
     }
     
     console.log("Extracted stats length:", stats.length);
-    // visit_count 기준 내림차순 정렬 (필요에 따라 제거 가능)
     stats.sort((a, b) => b.visit_count - a.visit_count);
     
-    // 각 항목에 대해 순위 없이 날짜와 수치만 구성
     const updatedStats = stats.map(item => {
       const formattedDate = new Date(item.date).toISOString().split('T')[0];
       return `${formattedDate} <br/>- 방문자수: ${item.visit_count}, 처음 방문수: ${item.first_visit_count}, 재방문수: ${item.re_visit_count}`;
@@ -593,7 +571,6 @@ async function getDailyVisitorStats(providedDates) {
     throw error;
   }
 }
-
 
 app.get("/dailyVisitorStats", async (req, res) => {
   const providedDates = {
@@ -609,170 +586,7 @@ app.get("/dailyVisitorStats", async (req, res) => {
   }
 });
 
-
-
-
-// ========== [12] 상세페이지 접속 순위 조회 함수 ==========
-async function getTop10ProductViews(providedDates) {
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
-  const url = 'https://ca-api.cafe24data.com/products/view';
-  const params = {
-    mall_id: 'yogibo',
-    start_date,
-    end_date
-  };
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      params
-    });
-    console.log("Product View API 응답 데이터:", response.data);
-    
-    // 응답 데이터가 문자열이면 JSON 파싱
-    let data = response.data;
-    if (typeof data === "string") {
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        console.error("응답 데이터를 JSON으로 파싱하는 데 실패:", e);
-        throw new Error("응답 데이터가 유효한 JSON이 아닙니다.");
-      }
-    }
-    
-    // 배열 추출: 우선 data.view, 없으면 data.count, 그 외 배열이면 그대로 사용
-    let products = [];
-    if (data && Array.isArray(data.view)) {
-      products = data.view;
-    } else if (data && Array.isArray(data.count)) {
-      products = data.count;
-    } else if (Array.isArray(data)) {
-      products = data;
-    } else {
-      console.error("Unexpected product view data structure:", data);
-      throw new Error("Unexpected product view data structure");
-    }
-    
-    // 유효 항목 필터링: product_no와 count가 있는지 확인
-    products = products.filter(item => item.product_no && typeof item.count === "number");
-    
-    if (products.length === 0) {
-      console.log("조회된 상품 뷰 데이터가 없습니다.");
-      return [];
-    }
-    
-    // 조회수(count) 기준 내림차순 정렬
-    products.sort((a, b) => b.count - a.count);
-    const top10 = products.slice(0, 10);
-    
-    // 각 항목에 대해 product_no를 활용해 상세 API 호출, 상세의 product_name 사용
-    const updatedProducts = await Promise.all(
-      top10.map(async (item, index) => {
-        const detail = await getProductDetail(item.product_no);
-        // detail이 존재하면 detail.product_name, 그렇지 않으면 item.product_name 객체에서 product_name 추출
-        const finalName = (detail && detail.product_name) ||
-                          (item.product_name && item.product_name.product_name) ||
-                          '상품';
-        // detail이 있으면 이미지 URL, 없으면 빈 문자열
-        const listImage = detail ? detail.list_image : "";
-        
-        return {
-          rank: index + 1,
-          product_no: item.product_no,
-          product_name: finalName,
-          count: item.count,
-          displayText: `
-            <div class="product-ranking">
-              <div class="rank">${index + 1}</div>
-              <div class="image">
-                <img src="${listImage}" alt="이미지"/>
-              </div>
-              <div class="details">
-                <div class="product-name">${finalName}</div>
-                <div class="product-count">
-                  조회수: ${item.count}
-                </div>
-              </div>
-            </div>
-          `
-        };
-      })
-    );
-    console.log("불러온 상세페이지 접속 순위 데이터:", updatedProducts);
-    return updatedProducts;
-  } catch (error) {
-    console.error("Error fetching product view rankings:", error.response ? error.response.data : error.message);
-    throw error;
-  }
-}
-
-// ========== [13] 광고별 유입수 순위 조회 함수 ==========
-async function getTop10AdInflow(providedDates) {
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
-  const url = 'https://ca-api.cafe24data.com/visitpaths/ads';
-  const params = {
-    mall_id: 'yogibo',
-    start_date,
-    end_date
-    // 필요시 shop_no, device_type 등 추가
-  };
-
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      params
-    });
-    console.log("Ad Inflow API 응답 데이터:", response.data);
-    let data = response.data;
-    let ads = [];
-    if (data.ads && Array.isArray(data.ads)) {
-      ads = data.ads;
-    } else {
-      throw new Error("Unexpected ad inflow data structure");
-    }
-    // 순방문자수(visit_count)를 숫자로 변환 후 내림차순 정렬
-    ads.sort((a, b) => Number(b.visit_count) - Number(a.visit_count));
-    const top10 = ads.slice(0, 10);
-    const updatedAds = top10.map((item, index) => {
-      return {
-        rank: index + 1,
-        ad: item.ad === "채널 없음" ? "북마크" : item.ad,
-        visit_count: item.visit_count,
-        displayText: `${index + 1}위: ${item.ad} - 순방문자수: ${item.visit_count}`
-      };
-    });
-    console.log("불러온 광고별 유입수 데이터:", updatedAds);
-    return updatedAds;
-  } catch (error) {
-    console.error("Error fetching ad inflow data:", error.response ? error.response.data : error.message);
-    throw error;
-  }
-}
-app.get("/adInflowGraph", async (req, res) => {
-  const providedDates = {
-    start_date: req.query.start_date,
-    end_date: req.query.end_date
-  };
-  try {
-    const adInflow = await getTop10AdInflow(providedDates);
-    // 차트에 사용할 데이터: 각 광고명과 해당 유입수
-    const labels = adInflow.map(item => item.ad);
-    const visitCounts = adInflow.map(item => Number(item.visit_count));
-    res.json({ labels, visitCounts });
-  } catch (error) {
-    console.error("Error fetching ad inflow graph data:", error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "광고별 유입수 데이터를 가져오는 중 오류 발생" });
-  }
-});
-
-
-
-// ========== [14] 키워드별 구매 순위 조회 함수 (기존 코드) ==========
+// ========== [14] 키워드별 구매 순위 조회 함수 ==========
 async function getTop10AdKeywordSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/visitpaths/keywordsales';
@@ -804,7 +618,6 @@ async function getTop10AdKeywordSales(providedDates) {
     } else {
       throw new Error("Unexpected keyword sales data structure");
     }
-    // 동일 키워드별로 주문 건수와 매출액 합산
     const groupByKeyword = {};
     sales.forEach(item => {
       const keyword = item.keyword || 'N/A';
@@ -848,7 +661,6 @@ async function getTop10AdKeywordSales(providedDates) {
   }
 }
 
-// ========== [새 엔드포인트] 키워드별 구매 순위 차트 데이터 반환 ==========
 app.get("/keywordSalesGraph", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -856,7 +668,6 @@ app.get("/keywordSalesGraph", async (req, res) => {
   };
   try {
     const keywordSales = await getTop10AdKeywordSales(providedDates);
-    // 차트용 데이터: 각 키워드와 해당 매출액
     const labels = keywordSales.map(item => item.keyword);
     const orderAmounts = keywordSales.map(item => item.order_amount);
     res.json({ labels, orderAmounts });
@@ -866,91 +677,79 @@ app.get("/keywordSalesGraph", async (req, res) => {
   }
 });
 
-
-
-// ========== 실시간 판매 순위 에 대한 데이터 를 가졍괴 ==========
-// 1. 카테고리 상품 조회
+// ========== 실시간 판매 순위 관련 함수 ==========
 async function getCategoryProducts(category_no) {
-    // URL 주소가 반드시 포함되어야 합니다.
-    const url = `https://yogibo.cafe24api.com/api/v2/admin/categories/${category_no}/products`;
-    const params = { display_group: 1 };
-    try {
-        const data = await apiRequest('GET', url, {}, params);
-        console.log(`카테고리 ${category_no}의 상품 수:`, data.products.length);
-        return data.products;
-    } catch (error) {
-        console.error('카테고리 상품 조회 오류:', error.message);
-        throw error;
-    }
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/categories/${category_no}/products`;
+  const params = { display_group: 1 };
+  try {
+    const data = await apiRequest('GET', url, {}, params);
+    console.log(`카테고리 ${category_no}의 상품 수:`, data.products.length);
+    return data.products;
+  } catch (error) {
+    console.error('카테고리 상품 조회 오류:', error.message);
+    throw error;
+  }
 }
 
-// 2. 특정 상품들의 판매 데이터 조회
 async function getSalesDataForProducts(productNos, start_date, end_date) {
-    const url = `https://yogibo.cafe24api.com/api/v2/admin/reports/salesvolume`;
-    const params = {
-        shop_no: 1,
-        start_date,
-        end_date,
-        product_no: productNos.join(','),
-    };
-    try {
-        const data = await apiRequest('GET', url, {}, params);
-        console.log('판매 데이터 조회 완료:', data.salesvolume.length);
-        return data.salesvolume;
-    } catch (error) {
-        console.error('판매 데이터 조회 오류:', error.message);
-        throw error;
-    }
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/reports/salesvolume`;
+  const params = {
+    shop_no: 1,
+    start_date,
+    end_date,
+    product_no: productNos.join(','),
+  };
+  try {
+    const data = await apiRequest('GET', url, {}, params);
+    console.log('판매 데이터 조회 완료:', data.salesvolume.length);
+    return data.salesvolume;
+  } catch (error) {
+    console.error('판매 데이터 조회 오류:', error.message);
+    throw error;
+  }
 }
 
-// 3. 판매 순위 계산 및 정렬
 function calculateAndSortRanking(categoryProducts, salesData) {
-    // 카테고리 상품의 product_no 목록 생성
-    const productNosSet = new Set(categoryProducts.map(p => p.product_no));
-    // 판매 데이터 중 해당 카테고리 상품에 해당하는 데이터만 필터링
-    const filteredSales = salesData.filter(item => productNosSet.has(item.product_no));
-    
-    // 동일 상품번호의 데이터 합산 (판매 수량, 판매 금액)
-    const mergedData = filteredSales.reduce((acc, curr) => {
-        const existing = acc.find(item => item.product_no === curr.product_no);
-        // product_price를 숫자로 처리 (문자열일 경우 replace 후 파싱, 숫자일 경우 그대로 사용)
-        const currPrice = typeof curr.product_price === 'string' 
-                          ? parseInt(curr.product_price.replace(/,/g, ''), 10)
-                          : curr.product_price;
-        if (existing) {
-            existing.total_sales += parseInt(curr.total_sales, 10);
-            existing.product_price += currPrice;
-        } else {
-            acc.push({
-                ...curr,
-                total_sales: parseInt(curr.total_sales, 10),
-                product_price: currPrice
-            });
-        }
-        return acc;
-    }, []);
-    
-    // 각 상품별 계산된 총 판매 금액 (판매금액 * 판매수량)
-    const rankedData = mergedData.map(item => ({
-        ...item,
-        calculated_total_price: item.product_price * item.total_sales
-    }));
-    
-    // 내림차순 정렬 및 순위 번호 부여
-    rankedData.sort((a, b) => b.calculated_total_price - a.calculated_total_price);
-    rankedData.forEach((item, index) => {
-        item.rank = index + 1;
-    });
-    
-    return rankedData;
+  const productNosSet = new Set(categoryProducts.map(p => p.product_no));
+  const filteredSales = salesData.filter(item => productNosSet.has(item.product_no));
+  
+  const mergedData = filteredSales.reduce((acc, curr) => {
+    const existing = acc.find(item => item.product_no === curr.product_no);
+    const currPrice = typeof curr.product_price === 'string' 
+                      ? parseInt(curr.product_price.replace(/,/g, ''), 10)
+                      : curr.product_price;
+    if (existing) {
+      existing.total_sales += parseInt(curr.total_sales, 10);
+      existing.product_price += currPrice;
+    } else {
+      acc.push({
+        ...curr,
+        total_sales: parseInt(curr.total_sales, 10),
+        product_price: currPrice
+      });
+    }
+    return acc;
+  }, []);
+  
+  const rankedData = mergedData.map(item => ({
+    ...item,
+    calculated_total_price: item.product_price * item.total_sales
+  }));
+  
+  rankedData.sort((a, b) => b.calculated_total_price - a.calculated_total_price);
+  rankedData.forEach((item, index) => {
+    item.rank = index + 1;
+  });
+  
+  return rankedData;
 }
+
 async function getRealTimeSalesRanking(categoryNo, providedDates) {
   let start_date, end_date;
   if (providedDates && providedDates.start_date && providedDates.end_date) {
     start_date = providedDates.start_date;
     end_date = providedDates.end_date;
   } else {
-    // 기간 미지정 시: 현재 날짜를 end_date로, 30일 전을 start_date로 설정
     const now = new Date();
     end_date = now.toISOString().split('T')[0];
     const pastDate = new Date(now);
@@ -961,7 +760,6 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
   try {
     console.log(`실시간 판매 순위 데이터 수집 시작 (카테고리 ${categoryNo}): ${start_date} ~ ${end_date}`);
     
-    // 1. 카테고리 상품 조회 (categoryNo 사용)
     const categoryProducts = await getCategoryProducts(categoryNo);
     if (!categoryProducts || categoryProducts.length === 0) {
       return "해당 카테고리에는 상품이 없습니다.";
@@ -969,13 +767,11 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
     const productNos = categoryProducts.map(p => p.product_no);
     console.log("카테고리 상품 번호:", productNos);
 
-    // 2. 판매 데이터 조회
     const salesData = await getSalesDataForProducts(productNos, start_date, end_date);
     if (!salesData || salesData.length === 0) {
       return "판매 데이터가 없습니다.";
     }
 
-    // 3. 판매 순위 계산 및 정렬
     const rankedData = calculateAndSortRanking(categoryProducts, salesData);
     console.log('계산된 순위 데이터:', rankedData);
 
@@ -985,7 +781,6 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
       console.log('업데이트된 순위 데이터:', finalRankings);
     }
 
-    // 4. 각 상품별 상세 정보를 가져와 상품명과 이미지를 추가
     const finalRankingsWithDetails = await Promise.all(finalRankings.map(async (item) => {
       const detail = await getProductDetail(item.product_no);
       const finalName = detail ? detail.product_name : '상품';
@@ -997,13 +792,11 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
       };
     }));
 
-    // 판매수량이 0인 항목은 필터링
     const filteredRankings = finalRankingsWithDetails.filter(item => item.total_sales > 0);
     if (filteredRankings.length === 0) {
       return "해당 기간 내에 판매된 상품이 없습니다.";
     }
 
-    // 5. 결과 HTML 포맷팅 (상품명, 이미지, 총매출액은 원화로 표시)
     let output = `<div style="font-weight:bold; margin-bottom:10px;">판매 순위 (기간: ${start_date} ~ ${end_date})</div>`;
     filteredRankings.forEach(item => {
       output += `<div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
@@ -1025,12 +818,8 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
   }
 }
 
-
-
-
-
-// ========== [12] 상세페이지 접속 순위 조회 함수 (카테고리 필터 적용) ==========
-async function getTop10ProductViewsByCategory(providedDates, providedCategoryNumber) {
+// ========== [12] 전체 상세페이지 접속 순위 조회 함수 (getView) ==========
+async function getView(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   const url = 'https://ca-api.cafe24data.com/products/view';
   const params = {
@@ -1038,7 +827,6 @@ async function getTop10ProductViewsByCategory(providedDates, providedCategoryNum
     start_date,
     end_date
   };
-  
   try {
     const response = await axios.get(url, {
       headers: {
@@ -1049,7 +837,6 @@ async function getTop10ProductViewsByCategory(providedDates, providedCategoryNum
     });
     console.log("Product View API 응답 데이터:", response.data);
     
-    // 응답 데이터가 문자열이면 JSON 파싱
     let data = response.data;
     if (typeof data === "string") {
       try {
@@ -1060,7 +847,6 @@ async function getTop10ProductViewsByCategory(providedDates, providedCategoryNum
       }
     }
     
-    // 배열 추출: 우선 data.view, 없으면 data.count, 그 외 배열이면 그대로 사용
     let products = [];
     if (data && Array.isArray(data.view)) {
       products = data.view;
@@ -1073,64 +859,13 @@ async function getTop10ProductViewsByCategory(providedDates, providedCategoryNum
       throw new Error("Unexpected product view data structure");
     }
     
-    // 유효 항목 필터링: product_no, count, 그리고 특정 카테고리 번호가 일치하는지 확인
-    products = products.filter(item => 
-      item.product_no && 
-      typeof item.count === "number" &&
-      item.category_no === providedCategoryNumber
-    );
-    
-    if (products.length === 0) {
-      console.log("조회된 해당 카테고리의 상품 뷰 데이터가 없습니다.");
-      return [];
-    }
-    
-    // 조회수(count) 기준 내림차순 정렬 후 상위 10개 선택
-    products.sort((a, b) => b.count - a.count);
-    const top10 = products.slice(0, 10);
-    
-    // 각 항목에 대해 product_no를 활용해 상세 API 호출, 상세의 product_name 사용
-    const updatedProducts = await Promise.all(
-      top10.map(async (item, index) => {
-        const detail = await getProductDetail(item.product_no);
-        // detail이 존재하면 detail.product_name, 그렇지 않으면 item.product_name 객체에서 product_name 추출
-        const finalName = (detail && detail.product_name) ||
-                          (item.product_name && item.product_name.product_name) ||
-                          '상품';
-        // detail이 있으면 이미지 URL, 없으면 빈 문자열
-        const listImage = detail ? detail.list_image : "";
-        
-        return {
-          rank: index + 1,
-          product_no: item.product_no,
-          product_name: finalName,
-          count: item.count,
-          displayText: `
-            <div class="product-ranking">
-              <div class="rank">${index + 1}</div>
-              <div class="image">
-                <img src="${listImage}" alt="이미지"/>
-              </div>
-              <div class="details">
-                <div class="product-name">${finalName}</div>
-                <div class="product-count">
-                  조회수: ${item.count}
-                </div>
-              </div>
-            </div>
-          `
-        };
-      })
-    );
-    console.log("불러온 상세페이지 접속 순위 데이터 (카테고리 필터 적용):", updatedProducts);
-    return updatedProducts;
+    products = products.filter(item => item.product_no && typeof item.count === "number");
+    return products;
   } catch (error) {
-    console.error("Error fetching product view rankings:", error.response ? error.response.data : error.message);
+    console.error("Error fetching product view data:", error.response ? error.response.data : error.message);
     throw error;
   }
 }
-
-
 
 // ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
 async function getCategoryProductViewRanking(category_no, providedDates) {
@@ -1183,7 +918,6 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // 기존 조건 처리 (장바구니, 페이지뷰, 결제금액, 키워드 순위, 광고별 판매 순위, 광고별 유입수, 일별 방문자, 상세페이지 접속 순위)
     if (userInput.includes("기간별 장바구니 순위")) {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
@@ -1226,37 +960,32 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: "조회 기간 동안의 일별 실제 방문자 순위입니다.<br>" + visitorText });
     }
 
-    if (userInput.includes("상세페이지 접속 순위")) {
+    if (userInput.includes("상세페이지 접속 순위") && !userInput.includes("클릭률")) {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({ text: productViewsText });
     }
 
     if (userInput.includes("소파 실시간 판매순위")) {
-      // 소파 카테고리 번호: 858
       const realTimeRanking = await getRealTimeSalesRanking(858, providedDates);
       return res.json({ text: realTimeRanking });
     }
     
-
     if (userInput.includes("바디필로우 실시간 판매순위")) {
-      // 바디필로우 카테고리 번호: 876
       const realTimeRanking = await getRealTimeSalesRanking(876, providedDates);
       return res.json({ text: realTimeRanking });
     }
 
-
+    // 카테고리 번호와 관련된 실시간 판매순위 (예: "123 ..." 앞에 번호가 있으면)
     const categoryMatch = userInput.match(/^(\d+)\s+/);
     if (categoryMatch) {
       const categoryNo = parseInt(categoryMatch[1], 10);
       const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
       return res.json({ text: realTimeRanking });
     }
-
-
-
-     // 신규: "클릭률" 또는 "카테고리 ... 클릭률" 요청 시, 해당 카테고리의 상세페이지 접속 순위(클릭률) 조회
-     if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
+    
+    // 신규: "클릭률" 또는 "카테고리 ... 클릭률" 요청 시, 해당 카테고리의 상세페이지 접속 순위(클릭률) 조회
+    if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
       let categoryNumber;
       const catMatch = userInput.match(/카테고리\s*(\d+)/);
       if (catMatch && catMatch[1]) {
@@ -1280,14 +1009,11 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: displayText });
     }
 
-    // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
     let aggregatedData = "";
     if (userInput.includes("최근 캠페인 데이터") || userInput.includes("데이터 분석")) {
-      // 예시: 집계 데이터를 요약한 문자열 (실제 데이터에 맞게 수정 필요)
       aggregatedData = "The latest campaign data shows a 12% increase in engagement and a 15% increase in conversions compared to the previous quarter. 📈💡";
     }
 
-    // 위 조건에 해당하지 않으면 GPT 프롬프트를 사용하여 일반 응답 생성
     const gptResponse = await getGPT3TurboResponse(userInput, aggregatedData);
     return res.json({ text: gptResponse });
   } catch (error) {
@@ -1295,7 +1021,6 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
