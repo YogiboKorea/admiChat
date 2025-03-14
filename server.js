@@ -499,7 +499,6 @@ async function getTop10AdSales(providedDates) {
   }
 }
 
-// ========== 서버측: /adSalesGraph 엔드포인트 ==========
 app.get("/adSalesGraph", async (req, res) => {
   const providedDates = {
     start_date: req.query.start_date,
@@ -976,7 +975,27 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
 
-    // 카테고리 번호와 관련된 실시간 판매순위 (예: "123 ..." 앞에 번호가 있으면)
+    // 우선 "숫자 + 클릭률" 패턴을 우선 체크
+    const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
+    if (clickRateMatch) {
+      const categoryNo = parseInt(clickRateMatch[1], 10);
+      const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
+      if (!filteredViewData || filteredViewData.length === 0) {
+        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
+      }
+      const displayText = filteredViewData.map(item => {
+        return `
+          <div class="product-ranking">
+            <div class="rank">${item.rank}</div>
+            <div class="product-no">상품번호: ${item.product_no}</div>
+            <div class="product-count">조회수: ${item.count}</div>
+          </div>
+        `;
+      }).join("<br>");
+      return res.json({ text: displayText });
+    }
+    
+    // 기존: 앞에 숫자만 있으면 실시간 판매 순위 처리
     const categoryMatch = userInput.match(/^(\d+)\s+/);
     if (categoryMatch) {
       const categoryNo = parseInt(categoryMatch[1], 10);
@@ -984,7 +1003,7 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
     
-    // 신규: "클릭률" 또는 "카테고리 ... 클릭률" 요청 시, 해당 카테고리의 상세페이지 접속 순위(클릭률) 조회
+    // 만약 "카테고리 ... 클릭률" 텍스트가 포함된 경우
     if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
       let categoryNumber;
       const catMatch = userInput.match(/카테고리\s*(\d+)/);
