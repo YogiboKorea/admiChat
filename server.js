@@ -1198,9 +1198,8 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
 
-      //실시간 클릴률
-     // 먼저 "클릭률" 조건을 우선 처리 (예: "899 클릭률")
-      const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
+    //실시간 클릴률
+    const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
       if (clickRateMatch) {
         const categoryNo = parseInt(clickRateMatch[1], 10);
         const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
@@ -1216,13 +1215,40 @@ app.post("/chat", async (req, res) => {
             </div>
               <div class="details">
                 <div class="product-name">${item.product_name}</div>
-                <div class="product-count">조회수: ${item.count}</div>
+                <div class="product-count" style="font-size:14px;color:#ff0000;">클릭률: ${item.count}</div>
               </div>
             </div>
           `;
         }).join("<br>");
         return res.json({ text: displayText });
       }
+
+      //이벤트 상품의 경우에는 해당 카테고리에 추가시 클릭률이 나옴
+      if (userInput.includes("이벤트 상품 클릭률")) {
+        const categoryNo = 956;
+        const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
+        if (!filteredViewData || filteredViewData.length === 0) {
+          return res.json({ text: "해당 기간동안 클릭률이 발생하지 않았습니다." });
+        }
+        const displayText = filteredViewData.map(item => {
+          return `
+            <div class="product-ranking">
+              <div class="rank">${item.rank}</div>
+              <div class="product-info">
+                <img src="${item.list_image}" alt="${item.product_name}" class="product-image" />
+                <div class="product-details">
+                  <div class="product-name">${item.product_name}</div>
+                  <div class="product-no">상품번호: ${item.product_no}</div>
+                  <div class="product-count">조회수: ${item.count}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("<br>");
+        return res.json({ text: displayText });
+      }
+
+
 
       // 그 외 숫자만 있는 경우 (실시간 판매 순위 등)
       const categoryMatch = userInput.match(/^(\d+)\s+/);
