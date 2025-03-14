@@ -1210,17 +1210,17 @@ app.post("/chat", async (req, res) => {
         const displayText = filteredViewData.map(item => {
           return `
           <div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
-              <div class="rank">${item.rank}</div>
-              <div class="image">
-                <img src="${item.list_image}" alt="${item.product_name}" style="max-width:100px;"/>
+            <div class="rank">${item.rank}</div>
+            <div class="image">
+              <img src="${item.list_image}" alt="${item.product_name}" style="max-width:100px;"/>
+            </div>
+              <div class="details">
+                <div class="product-name">${item.product_name}</div>
+                <div class="product-count">조회수: ${item.count}</div>
               </div>
-                <div class="details">
-                  <div class="product-name">${item.product_name}</div>
-                  <div class="product-count">조회수: ${item.count}</div>
-                </div>
             </div>
           `;
-        });
+        }).join("<br>");
         return res.json({ text: displayText });
       }
 
