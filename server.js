@@ -1075,17 +1075,15 @@ async function getView(providedDates) {
 // ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
 async function getCategoryProductViewRanking(category_no, providedDates) {
   try {
-    // 카테고리 상품 목록 조회
     const categoryProducts = await getCategoryProducts(category_no);
     if (!categoryProducts || categoryProducts.length === 0) {
       console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
       return [];
     }
-    // product_no를 키로 하는 맵 생성 (상품 정보: product_name, list_image 등 포함)
+    // product_no를 키로 하는 맵 생성 (API가 제공하는 데이터 사용)
     const productMap = new Map(categoryProducts.map(product => [product.product_no, product]));
     console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(productMap.keys()));
     
-    // 전체 상세페이지 접속 데이터 조회
     const allViewData = await getView(providedDates);
     if (!allViewData || allViewData.length === 0) {
       console.log("전체 상세페이지 접속 순위 데이터가 없습니다.");
@@ -1103,10 +1101,10 @@ async function getCategoryProductViewRanking(category_no, providedDates) {
     filteredViewData.sort((a, b) => b.count - a.count);
     filteredViewData.forEach((item, index) => {
       item.rank = index + 1;
-      // product_no를 사용해 상품 정보를 결합 (올바른 키 사용)
       const product = productMap.get(item.product_no);
-      item.finalName = product.product_name; // 변경: product_name 사용
-      item.listImage = product.list_image;   // 변경: list_image 사용
+      // product API에서 제공하는 값이 없으면 item.product_name(이미 view 데이터에 있는 값) 사용
+      item.finalName = product.product_name || item.product_name || '상품';
+      item.listImage = product.list_image || "";
     });
     
     console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
@@ -1190,7 +1188,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
 
-    // 우선 "숫자 + 클릭률" 패턴을 우선 체크
     const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
     if (clickRateMatch) {
       const categoryNo = parseInt(clickRateMatch[1], 10);
@@ -1210,7 +1207,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: displayText });
     }
     
-    // 기존: 앞에 숫자만 있으면 실시간 판매 순위 처리
     const categoryMatch = userInput.match(/^(\d+)\s+/);
     if (categoryMatch) {
       const categoryNo = parseInt(categoryMatch[1], 10);
@@ -1218,7 +1214,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
     
-    // 만약 "카테고리 ... 클릭률" 텍스트가 포함된 경우
     if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
       let categoryNumber;
       const catMatch = userInput.match(/카테고리\s*(\d+)/);
