@@ -642,7 +642,7 @@ async function getTop10ProductViews(providedDates) {
       }
     }
     
-    // 배열 추출: 우선 data.view, 없으면 data.count, 그 외 배열이면 그대로 사용
+    // 배열 추출: data.view, data.count, 그 외 배열이면 그대로 사용
     let products = [];
     if (data && Array.isArray(data.view)) {
       products = data.view;
@@ -663,7 +663,7 @@ async function getTop10ProductViews(providedDates) {
       return [];
     }
     
-    // 조회수(count) 기준 내림차순 정렬
+    // 조회수(count) 기준 내림차순 정렬 후 상위 10개 선택
     products.sort((a, b) => b.count - a.count);
     const top10 = products.slice(0, 10);
     
@@ -671,12 +671,10 @@ async function getTop10ProductViews(providedDates) {
     const updatedProducts = await Promise.all(
       top10.map(async (item, index) => {
         const detail = await getProductDetail(item.product_no);
-        // detail이 존재하면 detail.product_name, 그렇지 않으면 item.product_name 객체에서 product_name 추출
-        const finalName = (detail && detail.product_name) ||
-                          (item.product_name && item.product_name.product_name) ||
-                          '상품';
+        // detail이 존재하면 detail.product_name, 없으면 item.product_name(문자열 그대로) 사용
+        const finalName = (detail && detail.product_name) || item.product_name || '상품';
         // detail이 있으면 이미지 URL, 없으면 빈 문자열
-        const listImage = detail ? detail.list_image : "";
+        const listImage = (detail && detail.list_image) || "";
         
         return {
           rank: index + 1,
@@ -707,7 +705,6 @@ async function getTop10ProductViews(providedDates) {
     throw error;
   }
 }
-
 // ========== [13] 광고별 유입수 순위 조회 함수 ==========
 async function getTop10AdInflow(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
