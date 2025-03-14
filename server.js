@@ -1026,6 +1026,91 @@ async function getRealTimeSalesRanking(categoryNo, providedDates) {
 }
 
 
+// ========== [12] 전체 상세페이지 접속 순위 조회 함수 (getView) ==========
+async function getView(providedDates) {
+  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+  const url = 'https://ca-api.cafe24data.com/products/view';
+  const params = {
+    mall_id: 'yogibo',
+    start_date,
+    end_date
+  };
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      params
+    });
+    console.log("Product View API 응답 데이터:", response.data);
+    
+    let data = response.data;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch (e) {
+        console.error("응답 데이터를 JSON으로 파싱하는 데 실패:", e);
+        throw new Error("응답 데이터가 유효한 JSON이 아닙니다.");
+      }
+    }
+    
+    let products = [];
+    if (data && Array.isArray(data.view)) {
+      products = data.view;
+    } else if (data && Array.isArray(data.count)) {
+      products = data.count;
+    } else if (Array.isArray(data)) {
+      products = data;
+    } else {
+      console.error("Unexpected product view data structure:", data);
+      throw new Error("Unexpected product view data structure");
+    }
+    
+    products = products.filter(item => item.product_no && typeof item.count === "number");
+    return products;
+  } catch (error) {
+    console.error("Error fetching product view data:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+// ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
+async function getCategoryProductViewRanking(category_no, providedDates) {
+  try {
+    const categoryProducts = await getCategoryProducts(category_no);
+    if (!categoryProducts || categoryProducts.length === 0) {
+      console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
+      return [];
+    }
+    const categoryProductNos = new Set(categoryProducts.map(product => product.product_no));
+    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(categoryProductNos));
+    
+    const allViewData = await getView(providedDates);
+    if (!allViewData || allViewData.length === 0) {
+      console.log("전체 상세페이지 접속 순위 데이터가 없습니다.");
+      return [];
+    }
+    
+    const filteredViewData = allViewData.filter(item => categoryProductNos.has(item.product_no));
+    if (filteredViewData.length === 0) {
+      console.log("해당 카테고리의 상세페이지 접속 순위 데이터가 없습니다.");
+      return [];
+    }
+    
+    filteredViewData.sort((a, b) => b.count - a.count);
+    filteredViewData.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+    
+    console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
+    return filteredViewData;
+  } catch (error) {
+    console.error("카테고리 상세페이지 접속 순위 데이터 조회 오류:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   await refreshAccessToken();
@@ -1104,12 +1189,42 @@ app.post("/chat", async (req, res) => {
     }
 
 
+
+
+    
+    // 카테고리 별 클릭률 기존: 앞에 숫자만 있으면 실시간 판매 순위 처리
     const categoryMatch = userInput.match(/^(\d+)\s+/);
     if (categoryMatch) {
       const categoryNo = parseInt(categoryMatch[1], 10);
       const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
       return res.json({ text: realTimeRanking });
     }
+    
+    // 만약 "카테고리 ... 클릭률" 텍스트가 포함된 경우
+    if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
+      let categoryNumber;
+      const catMatch = userInput.match(/카테고리\s*(\d+)/);
+      if (catMatch && catMatch[1]) {
+        categoryNumber = parseInt(catMatch[1], 10);
+      } else {
+        categoryNumber = parseInt(CATEGORY_NO, 10);
+      }
+      const filteredViewData = await getCategoryProductViewRanking(categoryNumber, providedDates);
+      if (!filteredViewData || filteredViewData.length === 0) {
+        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
+      }
+      const displayText = filteredViewData.map(item => {
+        return `
+          <div class="product-ranking">
+            <div class="rank">${item.rank}</div>
+            <div class="product-no">상품번호: ${item.product_no}</div>
+            <div class="product-count">조회수: ${item.count}</div>
+          </div>
+        `;
+      }).join("<br>");
+      return res.json({ text: displayText });
+    }
+
 
     // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
     let aggregatedData = "";
