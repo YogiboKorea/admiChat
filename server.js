@@ -1212,7 +1212,7 @@ app.post("/chat", async (req, res) => {
             <div class="product-ranking">
               <div class="rank">${item.rank}</div>
               <div class="product-info">
-                <img src="${item.list_image}" alt="${item.product_name}" class="product-image" />
+                <img src="${item.list_image}" alt="${item.product_name}" style="max-width:100px;"/>
                 <div class="product-details">
                   <div class="product-name">${item.product_name}</div>
                   <div class="product-no">상품번호: ${item.product_no}</div>
