@@ -1132,6 +1132,42 @@ async function getTop10ProductViewsByCategory(providedDates, providedCategoryNum
 
 
 
+// ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
+async function getCategoryProductViewRanking(category_no, providedDates) {
+  try {
+    const categoryProducts = await getCategoryProducts(category_no);
+    if (!categoryProducts || categoryProducts.length === 0) {
+      console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
+      return [];
+    }
+    const categoryProductNos = new Set(categoryProducts.map(product => product.product_no));
+    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(categoryProductNos));
+    
+    const allViewData = await getView(providedDates);
+    if (!allViewData || allViewData.length === 0) {
+      console.log("전체 상세페이지 접속 순위 데이터가 없습니다.");
+      return [];
+    }
+    
+    const filteredViewData = allViewData.filter(item => categoryProductNos.has(item.product_no));
+    if (filteredViewData.length === 0) {
+      console.log("해당 카테고리의 상세페이지 접속 순위 데이터가 없습니다.");
+      return [];
+    }
+    
+    filteredViewData.sort((a, b) => b.count - a.count);
+    filteredViewData.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+    
+    console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
+    return filteredViewData;
+  } catch (error) {
+    console.error("카테고리 상세페이지 접속 순위 데이터 조회 오류:", error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
 // ========== [16] 채팅 엔드포인트 (/chat) ==========
 app.post("/chat", async (req, res) => {
   await refreshAccessToken();
@@ -1196,28 +1232,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: productViewsText });
     }
 
-
-    
-    // 신규: 카테고리 상세페이지 접속 순위 호출 (예: "카테고리 상세페이지 접속 순위" 혹은 "카테고리 123 상세페이지 접속 순위")
-    if (userInput.includes("카테고리") && userInput.includes("상세페이지 접속 순위")) {
-      let categoryNumber;
-      // 입력 메시지에서 카테고리 번호 추출 (예: "카테고리 123 상세페이지 접속 순위"에서 123 추출)
-      const categoryMatch = userInput.match(/카테고리\s*(\d+)/);
-      if (categoryMatch && categoryMatch[1]) {
-        categoryNumber = parseInt(categoryMatch[1], 10);
-      } else {
-        // 번호가 명시되지 않은 경우, 기본값 사용
-        categoryNumber = parseInt(CATEGORY_NO);
-      }
-      const productViewsByCategory = await getTop10ProductViewsByCategory(providedDates, categoryNumber);
-      if (!productViewsByCategory || productViewsByCategory.length === 0) {
-        return res.json({ text: "해당 카테고리의 상세페이지 접속 순위 데이터를 찾을 수 없습니다." });
-      }
-      const displayText = productViewsByCategory.map(item => item.displayText).join("<br>");
-      return res.json({ text: displayText });
-    }
-
-    
     if (userInput.includes("소파 실시간 판매순위")) {
       // 소파 카테고리 번호: 858
       const realTimeRanking = await getRealTimeSalesRanking(858, providedDates);
@@ -1237,6 +1251,33 @@ app.post("/chat", async (req, res) => {
       const categoryNo = parseInt(categoryMatch[1], 10);
       const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
       return res.json({ text: realTimeRanking });
+    }
+
+
+
+     // 신규: "클릭률" 또는 "카테고리 ... 클릭률" 요청 시, 해당 카테고리의 상세페이지 접속 순위(클릭률) 조회
+     if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
+      let categoryNumber;
+      const catMatch = userInput.match(/카테고리\s*(\d+)/);
+      if (catMatch && catMatch[1]) {
+        categoryNumber = parseInt(catMatch[1], 10);
+      } else {
+        categoryNumber = parseInt(CATEGORY_NO, 10);
+      }
+      const filteredViewData = await getCategoryProductViewRanking(categoryNumber, providedDates);
+      if (!filteredViewData || filteredViewData.length === 0) {
+        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
+      }
+      const displayText = filteredViewData.map(item => {
+        return `
+          <div class="product-ranking">
+            <div class="rank">${item.rank}</div>
+            <div class="product-no">상품번호: ${item.product_no}</div>
+            <div class="product-count">조회수: ${item.count}</div>
+          </div>
+        `;
+      }).join("<br>");
+      return res.json({ text: displayText });
     }
 
     // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
