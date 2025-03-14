@@ -208,7 +208,7 @@ async function getTop10ProductsByAddCart(providedDates) {
     start_date,
     end_date,
     device_type: 'total',
-    limit: 100,
+    limit: 500,
     offset: 0,
     sort: 'add_cart_count',
     order: 'desc'
@@ -1030,7 +1030,8 @@ async function getView(providedDates) {
   const params = {
     mall_id: 'yogibo',
     start_date,
-    end_date
+    end_date,
+    limit:1000,
   };
   try {
     const response = await axios.get(url, {
@@ -1262,7 +1263,7 @@ app.post("/chat", async (req, res) => {
             </div>
               <div class="details">
                 <div class="product-name">${item.product_name}</div>
-                <div class="product-count" style="font-size:14px;color:#ff0000;">클릭률: ${item.count}</div>
+                <div class="product-count" style="font-size:14px;color:#ff0000;">클릭률: ${item.count}회</div>
               </div>
             </div>
           `;
