@@ -1126,7 +1126,6 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // 기존 조건 처리 (장바구니, 페이지뷰, 결제금액, 키워드 순위, 광고별 판매 순위, 광고별 유입수, 일별 방문자, 상세페이지 접속 순위)
     if (userInput.includes("기간별 장바구니 순위")) {
       const topProducts = await getTop10ProductsByAddCart(providedDates);
       const productListText = topProducts.map(prod => prod.displayText).join("<br>");
@@ -1169,30 +1168,43 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: "조회 기간 동안의 일별 실제 방문자 순위입니다.<br>" + visitorText });
     }
 
-    if (userInput.includes("상세페이지 접속 순위")) {
+    if (userInput.includes("상세페이지 접속 순위") && !userInput.includes("클릭률")) {
       const productViews = await getTop10ProductViews(providedDates);
       const productViewsText = productViews.map(prod => prod.displayText).join("<br>");
       return res.json({ text: productViewsText });
     }
 
     if (userInput.includes("소파 실시간 판매순위")) {
-      // 소파 카테고리 번호: 858
       const realTimeRanking = await getRealTimeSalesRanking(858, providedDates);
       return res.json({ text: realTimeRanking });
     }
     
-
     if (userInput.includes("바디필로우 실시간 판매순위")) {
-      // 바디필로우 카테고리 번호: 876
       const realTimeRanking = await getRealTimeSalesRanking(876, providedDates);
       return res.json({ text: realTimeRanking });
     }
 
-
-
-
+    // 우선 "숫자 + 클릭률" 패턴을 우선 체크
+    const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
+    if (clickRateMatch) {
+      const categoryNo = parseInt(clickRateMatch[1], 10);
+      const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
+      if (!filteredViewData || filteredViewData.length === 0) {
+        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
+      }
+      const displayText = filteredViewData.map(item => {
+        return `
+          <div class="product-ranking">
+            <div class="rank">${item.rank}</div>
+            <div class="product-no">상품번호: ${item.product_no}</div>
+            <div class="product-count">조회수: ${item.count}</div>
+          </div>
+        `;
+      }).join("<br>");
+      return res.json({ text: displayText });
+    }
     
-    // 카테고리 별 클릭률 기존: 앞에 숫자만 있으면 실시간 판매 순위 처리
+    // 기존: 앞에 숫자만 있으면 실시간 판매 순위 처리
     const categoryMatch = userInput.match(/^(\d+)\s+/);
     if (categoryMatch) {
       const categoryNo = parseInt(categoryMatch[1], 10);
@@ -1225,15 +1237,11 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: displayText });
     }
 
-
-    // 프롬프트 기능: 집계된 데이터를 기반으로 질문하는 경우 추가 컨텍스트 제공
     let aggregatedData = "";
     if (userInput.includes("최근 캠페인 데이터") || userInput.includes("데이터 분석")) {
-      // 예시: 집계 데이터를 요약한 문자열 (실제 데이터에 맞게 수정 필요)
       aggregatedData = "The latest campaign data shows a 12% increase in engagement and a 15% increase in conversions compared to the previous quarter. 📈💡";
     }
 
-    // 위 조건에 해당하지 않으면 GPT 프롬프트를 사용하여 일반 응답 생성
     const gptResponse = await getGPT3TurboResponse(userInput, aggregatedData);
     return res.json({ text: gptResponse });
   } catch (error) {
@@ -1241,7 +1249,6 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
