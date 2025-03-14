@@ -1223,14 +1223,37 @@ app.post("/chat", async (req, res) => {
         return res.json({ text: displayText });
       }
 
-      //이벤트 상품의 경우에는 해당 카테고리에 추가시 클릭률이 나옴
       if (userInput.includes("이벤트 상품 클릭률")) {
-        const categoryNo = 956;
-        const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
-        if (!filteredViewData || filteredViewData.length === 0) {
-          return res.json({ text: "해당 기간동안 클릭률이 발생하지 않았습니다." });
+        // 두 개의 카테고리 번호를 배열로 정의
+        const categories = [956, 957,958];
+        
+        // Promise.all을 사용해 각 카테고리의 데이터를 병렬로 호출
+        const results = await Promise.all(
+          categories.map(async (categoryNo) => {
+            const data = await getCategoryProductViewRanking(categoryNo, providedDates);
+            return { categoryNo, data };
+          })
+        );
+      
+        // 두 카테고리의 결과를 하나의 배열로 합침
+        const mergedData = results.reduce((acc, cur) => {
+          if (cur.data && cur.data.length > 0) {
+            return acc.concat(cur.data);
+          }
+          return acc;
+        }, []);
+      
+        if (!mergedData || mergedData.length === 0) {
+          return res.json({ text: "해당 카테고리(960, 961번)의 클릭률 데이터를 찾을 수 없습니다." });
         }
-        const displayText = filteredViewData.map(item => {
+      
+        // 최종 데이터를 정렬하거나 별도로 가공할 수 있음 (예: rank 재설정 등)
+        mergedData.sort((a, b) => b.count - a.count);
+        mergedData.forEach((item, index) => {
+          item.rank = index + 1;
+        });
+      
+        const displayText = mergedData.map(item => {
           return `
           <div class="product-ranking" style="margin-bottom:10px; border-bottom:1px solid #ccc; padding:5px 0;">
             <div class="rank">${item.rank}</div>
@@ -1244,9 +1267,10 @@ app.post("/chat", async (req, res) => {
             </div>
           `;
         }).join("<br>");
+        
         return res.json({ text: displayText });
       }
-
+      
 
 
       // 그 외 숫자만 있는 경우 (실시간 판매 순위 등)
