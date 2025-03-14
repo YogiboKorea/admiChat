@@ -1078,29 +1078,38 @@ async function getView(providedDates) {
 // ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
 async function getCategoryProductViewRanking(category_no, providedDates) {
   try {
+    // 카테고리 상품 목록 조회
     const categoryProducts = await getCategoryProducts(category_no);
     if (!categoryProducts || categoryProducts.length === 0) {
       console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
       return [];
     }
-    const categoryProductNos = new Set(categoryProducts.map(product => product.product_no));
-    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(categoryProductNos));
+    // product_no를 키로 하는 맵 생성 (상품 정보: finalName, listImage 등 포함)
+    const productMap = new Map(categoryProducts.map(product => [product.product_no, product]));
+    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(productMap.keys()));
     
+    // 전체 상세페이지 접속 데이터 조회
     const allViewData = await getView(providedDates);
     if (!allViewData || allViewData.length === 0) {
       console.log("전체 상세페이지 접속 순위 데이터가 없습니다.");
       return [];
     }
     
-    const filteredViewData = allViewData.filter(item => categoryProductNos.has(item.product_no));
+    // 카테고리 내의 상품에 해당하는 데이터 필터링
+    const filteredViewData = allViewData.filter(item => productMap.has(item.product_no));
     if (filteredViewData.length === 0) {
       console.log("해당 카테고리의 상세페이지 접속 순위 데이터가 없습니다.");
       return [];
     }
     
+    // 접속 수(count) 기준 내림차순 정렬 및 순위(rank) 부여
     filteredViewData.sort((a, b) => b.count - a.count);
     filteredViewData.forEach((item, index) => {
       item.rank = index + 1;
+      // product_no를 사용해 상품 정보를 결합
+      const product = productMap.get(item.product_no);
+      item.finalName = product.finalName; // 예: 상품명
+      item.listImage = product.listImage; // 예: 상품 이미지 URL
     });
     
     console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
@@ -1229,8 +1238,14 @@ app.post("/chat", async (req, res) => {
         return `
           <div class="product-ranking">
             <div class="rank">${item.rank}</div>
-            <div class="product-no">상품번호: ${item.product_no}</div>
-            <div class="product-count">조회수: ${item.count}</div>
+            <div class="product-info">
+              <img src="${item.listImage}" alt="${item.finalName}" class="product-image" />
+              <div class="product-details">
+                <div class="product-name">${item.finalName}</div>
+                <div class="product-no">상품번호: ${item.product_no}</div>
+                <div class="product-count">조회수: ${item.count}</div>
+              </div>
+            </div>
           </div>
         `;
       }).join("<br>");
