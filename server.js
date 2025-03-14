@@ -1075,40 +1075,50 @@ async function getView(providedDates) {
 // ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
 async function getCategoryProductViewRanking(category_no, providedDates) {
   try {
+    // 1. 카테고리 내 상품 목록 조회
     const categoryProducts = await getCategoryProducts(category_no);
     if (!categoryProducts || categoryProducts.length === 0) {
       console.log(`카테고리 ${category_no}에는 등록된 상품이 없습니다.`);
       return [];
     }
-    // product_no를 키로 하는 맵 생성 (API가 제공하는 데이터 사용)
-    const productMap = new Map(categoryProducts.map(product => [product.product_no, product]));
-    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(productMap.keys()));
+    // 카테고리 상품의 product_no 목록 Set 생성
+    const categoryProductNos = new Set(categoryProducts.map(product => product.product_no));
+    console.log(`카테고리 ${category_no}의 product_no 목록:`, Array.from(categoryProductNos));
     
+    // 2. 전체 상세페이지 접속 순위 데이터 조회 (getView 함수 사용)
     const allViewData = await getView(providedDates);
     if (!allViewData || allViewData.length === 0) {
       console.log("전체 상세페이지 접속 순위 데이터가 없습니다.");
       return [];
     }
     
-    // 카테고리 내의 상품에 해당하는 데이터 필터링
-    const filteredViewData = allViewData.filter(item => productMap.has(item.product_no));
+    // 3. 카테고리 상품의 product_no에 해당하는 항목만 필터링
+    const filteredViewData = allViewData.filter(item => categoryProductNos.has(item.product_no));
     if (filteredViewData.length === 0) {
       console.log("해당 카테고리의 상세페이지 접속 순위 데이터가 없습니다.");
       return [];
     }
     
-    // 접속 수(count) 기준 내림차순 정렬 및 순위(rank) 부여
+    // 4. 조회수(count) 기준 내림차순 정렬 후 순위(rank) 부여
     filteredViewData.sort((a, b) => b.count - a.count);
     filteredViewData.forEach((item, index) => {
       item.rank = index + 1;
-      const product = productMap.get(item.product_no);
-      // product API에서 제공하는 값이 없으면 item.product_name(이미 view 데이터에 있는 값) 사용
-      item.finalName = product.product_name || item.product_name || '상품';
-      item.listImage = product.list_image || "";
     });
     
-    console.log("필터링된 상세페이지 접속 순위 데이터:", filteredViewData);
-    return filteredViewData;
+    // 5. 각 항목의 product_no를 활용해 상세 정보(product_name, list_image) 불러오기
+    const finalData = await Promise.all(
+      filteredViewData.map(async (item) => {
+        const detail = await getProductDetail(item.product_no);
+        return {
+          ...item,
+          product_name: detail ? detail.product_name : item.product_name,
+          list_image: detail ? detail.list_image : ""
+        };
+      })
+    );
+    
+    console.log("최종 필터링된 상세페이지 접속 순위 데이터:", finalData);
+    return finalData;
   } catch (error) {
     console.error("카테고리 상세페이지 접속 순위 데이터 조회 오류:", error.response ? error.response.data : error.message);
     throw error;
@@ -1188,61 +1198,40 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: realTimeRanking });
     }
 
-    const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
-    if (clickRateMatch) {
-      const categoryNo = parseInt(clickRateMatch[1], 10);
-      const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
-      if (!filteredViewData || filteredViewData.length === 0) {
-        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
-      }
-      const displayText = filteredViewData.map(item => {
-        return `
-          <div class="product-ranking">
-            <div class="rank">${item.rank}</div>
-            <div class="product-no">상품번호: ${item.product_no}</div>
-            <div class="product-count">조회수: ${item.count}</div>
-          </div>
-        `;
-      }).join("<br>");
-      return res.json({ text: displayText });
-    }
-    
-    const categoryMatch = userInput.match(/^(\d+)\s+/);
-    if (categoryMatch) {
-      const categoryNo = parseInt(categoryMatch[1], 10);
-      const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
-      return res.json({ text: realTimeRanking });
-    }
-    
-    if (userInput.includes("클릭률") && userInput.includes("카테고리")) {
-      let categoryNumber;
-      const catMatch = userInput.match(/카테고리\s*(\d+)/);
-      if (catMatch && catMatch[1]) {
-        categoryNumber = parseInt(catMatch[1], 10);
-      } else {
-        categoryNumber = parseInt(CATEGORY_NO, 10);
-      }
-      const filteredViewData = await getCategoryProductViewRanking(categoryNumber, providedDates);
-      if (!filteredViewData || filteredViewData.length === 0) {
-        return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
-      }
-      const displayText = filteredViewData.map(item => {
-        return `
-          <div class="product-ranking">
-            <div class="rank">${item.rank}</div>
-            <div class="product-info">
-              <img src="${item.listImage}" alt="${item.finalName}" class="product-image" />
-              <div class="product-details">
-                <div class="product-name">${item.finalName}</div>
-                <div class="product-no">상품번호: ${item.product_no}</div>
-                <div class="product-count">조회수: ${item.count}</div>
+      //실시간 클릴률
+     // 먼저 "클릭률" 조건을 우선 처리 (예: "899 클릭률")
+      const clickRateMatch = userInput.match(/^(\d+)\s*클릭률/);
+      if (clickRateMatch) {
+        const categoryNo = parseInt(clickRateMatch[1], 10);
+        const filteredViewData = await getCategoryProductViewRanking(categoryNo, providedDates);
+        if (!filteredViewData || filteredViewData.length === 0) {
+          return res.json({ text: "해당 카테고리의 클릭률 데이터를 찾을 수 없습니다." });
+        }
+        const displayText = filteredViewData.map(item => {
+          return `
+            <div class="product-ranking">
+              <div class="rank">${item.rank}</div>
+              <div class="product-info">
+                <img src="${item.list_image}" alt="${item.product_name}" class="product-image" />
+                <div class="product-details">
+                  <div class="product-name">${item.product_name}</div>
+                  <div class="product-no">상품번호: ${item.product_no}</div>
+                  <div class="product-count">조회수: ${item.count}</div>
+                </div>
               </div>
             </div>
-          </div>
-        `;
-      }).join("<br>");
-      return res.json({ text: displayText });
-    }
+          `;
+        }).join("<br>");
+        return res.json({ text: displayText });
+      }
+
+      // 그 외 숫자만 있는 경우 (실시간 판매 순위 등)
+      const categoryMatch = userInput.match(/^(\d+)\s+/);
+      if (categoryMatch) {
+        const categoryNo = parseInt(categoryMatch[1], 10);
+        const realTimeRanking = await getRealTimeSalesRanking(categoryNo, providedDates);
+        return res.json({ text: realTimeRanking });
+      } 
 
     let aggregatedData = "";
     if (userInput.includes("최근 캠페인 데이터") || userInput.includes("데이터 분석")) {
