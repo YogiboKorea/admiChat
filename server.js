@@ -1285,44 +1285,42 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드로부터 전달받은 dataValue 값을 콘솔에 출력합니다.
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
 
+  // Cafe24 API의 기본 URL (여기서 실제 mall id 등 필요한 값이 올바르게 설정되어 있는지 확인)
+  const baseUrl = 'https://yogibo.cafe24api.com/api/v2/admin/products';
+  // 쿼리 파라미터로 limit=100을 수동으로 추가
+  const query = new URLSearchParams({ limit: 100 }).toString();
+  const url = `${baseUrl}?${query}`;
+  console.log("Constructed URL:", url);
+
   try {
-    let searchProductNames = [];
-
-    if (dataValue) {
-      // 먼저 /api/products?search=dataValue 엔드포인트를 호출하여 검색 결과를 받아옵니다.
-      // (이 엔드포인트는 dataValue 기준으로 검색된 상품들의 정보를 반환한다고 가정)
-      const searchUrl = `/api/products?search=${encodeURIComponent(dataValue)}`;
-      // 여기서는 axios를 이용해 내부 호출합니다.
-      const searchResponse = await axios.get(searchUrl);
-      const searchResults = searchResponse.data; // 예: [{ product_name: "상품A", ... }, { product_name: "상품B", ... }]
-      console.log("Search results count:", searchResults.length);
-      // 검색 결과에서 상품명만 추출 (각 객체에 product_name 필드가 있다고 가정)
-      searchProductNames = searchResults.map(item => item.product_name);
-    }
-
-    // Cafe24 API에서 전체 상품 리스트(최대 100개)를 불러옵니다.
-    const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
-    const response = await apiRequest("GET", url, {}, { limit: 100 });
-    const products = response.products || [];
+    // axios를 직접 사용하여 요청 (apiRequest 대신)
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,         // accessToken 변수가 올바르게 설정되어 있어야 함
+        'Content-Type': 'application/json',
+        'X-Cafe24-Api-Version': CAFE24_API_VERSION,       // 예: '2024-06-01'
+      },
+    });
+    const products = response.data.products || [];
     console.log("전체 상품 개수:", products.length);
 
     let result;
-    if (searchProductNames.length > 0) {
-      // 검색 결과에 포함된 상품명 중 하나와 일치하는 상품만 필터링
-      const matchedProducts = products.filter(product => searchProductNames.includes(product.product_name));
+    if (dataValue) {
+      // dataValue를 콤마로 분리 후 각 토큰(공백 제거)
+      const tokens = dataValue.split(',').map(token => token.trim());
+      // tokens 배열 중 하나와 일치하는 product_name을 가진 상품 필터링
+      const matchedProducts = products.filter(product => tokens.includes(product.product_name));
       console.log("필터링된 상품 개수:", matchedProducts.length);
       result = matchedProducts.map(product => ({
         product_name: product.product_name,
         price: product.price
       }));
     } else {
-      // dataValue가 없거나 검색 결과가 없으면 전체 상품 리스트를 반환
       result = products.map(product => ({
         product_name: product.product_name,
         price: product.price
@@ -1334,6 +1332,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     return res.status(500).json({ error: "Error fetching product list" });
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
