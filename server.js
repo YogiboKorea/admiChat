@@ -1297,8 +1297,9 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 
 
+
   // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
-  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
 
   try {
