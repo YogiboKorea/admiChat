@@ -1301,25 +1301,27 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
-
   try {
     const response = await axios.get(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
-      }
+      },
     });
-    // Cafe24 API 응답은 { products: [ ... ] } 형태라고 가정합니다.
     const products = response.data.products || [];
-    console.log("검색된 상품 개수:", products.length);
-    return res.json(products);
+    console.log("API 응답 상품 개수:", products.length);
+
+    // 혹시 API 필터링이 부분 일치로 동작한다면, 정확히 일치하는 항목만 추가로 필터링합니다.
+    const exactMatches = products.filter(product => product.product_name === dataValue);
+    console.log("정확히 일치하는 상품 개수:", exactMatches.length);
+
+    return res.json(exactMatches);
   } catch (error) {
     console.error("Error fetching product:", error.response ? error.response.data : error.message);
     return res.status(500).json({ error: "Error fetching product" });
   }
 });
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
