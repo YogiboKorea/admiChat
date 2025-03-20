@@ -1286,19 +1286,18 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
+  // 프론트엔드로부터 전달받은 dataValue 값
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
-
   if (!dataValue) {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
 
-
-  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
-  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
+  // 실제 mall id (환경변수 또는 하드코딩)
+  const mallid = process.env.CAFE24_MALLID || "yogibo";
+  // product_name 필터 조건을 URL에 추가 (예: dataValue가 "요기보 미니"라면)
+  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
   console.log("Constructed URL:", url);
 
   try {
@@ -1307,12 +1306,16 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
-      }
+      },
     });
-    // Cafe24 API 응답은 { products: [ ... ] } 형태라고 가정합니다.
     const products = response.data.products || [];
-    console.log("검색된 상품 개수:", products.length);
-    return res.json(products);
+    console.log("API 응답 상품 개수:", products.length);
+
+    // 혹시 API 필터링이 부분 일치로 동작한다면, 정확히 일치하는 항목만 추가로 필터링합니다.
+    const exactMatches = products.filter(product => product.product_name === dataValue);
+    console.log("정확히 일치하는 상품 개수:", exactMatches.length);
+
+    return res.json(exactMatches);
   } catch (error) {
     console.error("Error fetching product:", error.response ? error.response.data : error.message);
     return res.status(500).json({ error: "Error fetching product" });
