@@ -1286,23 +1286,22 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
   // 쿼리 파라미터로 전달된 dataValue를 기준으로 필터링합니다.
   const dataValue = req.query.dataValue;
   if (!dataValue) {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
-  // Cafe24 API의 상품 리스트 URL (모든 상품을 가져온다고 가정)
+  // Cafe24 API의 상품 리스트 URL (limit 500)
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
-    // 기존 apiRequest 함수를 사용하여 상품 리스트를 가져옴
-    const response = await apiRequest("GET", url, {}, {});
-    // 응답 객체에서 상품 배열 추출 (필드명은 API 문서에 따라 다를 수 있음)
+    // 쿼리 파라미터에 limit=500을 추가하여 최대 500개의 상품 정보를 가져옵니다.
+    const response = await apiRequest("GET", url, {}, { limit: 500 });
+    // 응답 예시와 같이, 응답 객체는 { products: [ ... ] } 형태로 받습니다.
     const products = response.products || [];
     // product_name이 dataValue와 정확히 일치하는 상품만 필터링
     const matchedProducts = products.filter(product => product.product_name === dataValue);
-    // 각 상품에서 product_name과 price만 추출 (price 필드는 실제 API 응답에 따라 달라질 수 있음)
+    // 각 상품에서 product_name과 price만 추출 (응답 예시에서 price는 문자열 또는 숫자일 수 있음)
     const result = matchedProducts.map(product => ({
       product_name: product.product_name,
       price: product.price
