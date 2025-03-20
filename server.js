@@ -1296,12 +1296,17 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
     // 쿼리 파라미터에 limit=500을 추가하여 최대 500개의 상품 정보를 가져옵니다.
-    const response = await apiRequest("GET", url, {}, { limit: 500 });
-    // 응답 예시와 같이, 응답 객체는 { products: [ ... ] } 형태로 받습니다.
+    const response = await apiRequest("GET", url, {}, { limit: 10 });
+    
+    // 응답 객체 확인: 전체 상품 리스트의 개수를 로그에 출력
     const products = response.products || [];
+    console.log("전체 상품 개수:", products.length);
+
     // product_name이 dataValue와 정확히 일치하는 상품만 필터링
     const matchedProducts = products.filter(product => product.product_name === dataValue);
-    // 각 상품에서 product_name과 price만 추출 (응답 예시에서 price는 문자열 또는 숫자일 수 있음)
+    console.log("필터링된 상품 개수:", matchedProducts.length);
+
+    // 각 상품에서 product_name과 price만 추출
     const result = matchedProducts.map(product => ({
       product_name: product.product_name,
       price: product.price
@@ -1312,31 +1317,6 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     return res.status(500).json({ error: "Error fetching product list" });
   }
 });
-
-
-// 상품 리스트 검색 및 태그 추가 (새로운 엔드포인트 사용)
-async function fetchAndDisplayProducts(searchKeyword) {
-  try {
-      // 새 엔드포인트 호출: dataValue 쿼리파라미터로 검색어 전달
-      const response = await axios.get(`/api/v2/admin/products/search?dataValue=${encodeURIComponent(searchKeyword)}`);
-      const products = response.data;  // 서버는 product_name과 price만 반환
-
-      // DOM에 제품 리스트 표시
-      const productList = document.getElementById('productList');
-      productList.innerHTML = products
-          .map(
-              (product) => `
-              <div onclick="addDotAndTag(${JSON.stringify(product)})">
-                  <p>${product.product_name}</p>
-                  <p>${product.price}</p>
-              </div>
-          `
-          )
-          .join('');
-  } catch (err) {
-      console.error(err);
-  }
-}
 
 
 
