@@ -1286,8 +1286,10 @@ app.post("/chat", async (req, res) => {
   }
 });
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // dataValue가 있을 경우에만 필터링합니다.
+  // 프론트엔드로부터 전달받은 dataValue 값을 콘솔에 출력합니다.
   const dataValue = req.query.dataValue;
+  console.log("Received dataValue from client:", dataValue);
+
   // Cafe24 API의 상품 리스트 URL (limit 500)
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
