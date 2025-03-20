@@ -1286,6 +1286,22 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+
+function hasFiveCharMatch(productName, searchTerm) {
+  // 만약 searchTerm이 5글자보다 짧다면, 그냥 포함 여부로 확인
+  if (searchTerm.length < 5) {
+    return productName.includes(searchTerm);
+  }
+  // searchTerm에서 연속된 5글자 부분 문자열이 하나라도 productName에 포함되어 있으면 true 반환
+  for (let i = 0; i <= searchTerm.length - 5; i++) {
+    const substring = searchTerm.substring(i, i + 5);
+    if (productName.includes(substring)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드로부터 전달받은 dataValue 값
   const dataValue = req.query.dataValue;
@@ -1296,8 +1312,8 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
 
   // 실제 mall id (환경변수 또는 하드코딩)
   const mallid = process.env.CAFE24_MALLID || "yogibo";
-  // product_name 필터 조건을 URL에 추가 (예: dataValue가 "요기보 미니"라면)
-  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
+  // product_name 필터 조건을 URL에 추가 (여기서는 전체 항목을 가져온 후 별도로 필터링)
+  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no`;
   console.log("Constructed URL:", url);
 
   try {
@@ -1311,11 +1327,18 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     const products = response.data.products || [];
     console.log("API 응답 상품 개수:", products.length);
 
-    // 혹시 API 필터링이 부분 일치로 동작한다면, 정확히 일치하는 항목만 추가로 필터링합니다.
-    const exactMatches = products.filter(product => product.product_name === dataValue);
-    console.log("정확히 일치하는 상품 개수:", exactMatches.length);
+    // dataValue와 5글자 이상의 부분 문자열 매칭 여부를 기준으로 필터링합니다.
+    const matchedProducts = products.filter(product => 
+      hasFiveCharMatch(product.product_name, dataValue)
+    );
+    console.log("필터링된 상품 개수:", matchedProducts.length);
 
-    return res.json(exactMatches);
+    const result = matchedProducts.map(product => ({
+      product_name: product.product_name,
+      price: product.price
+    }));
+
+    return res.json(result);
   } catch (error) {
     console.error("Error fetching product:", error.response ? error.response.data : error.message);
     return res.status(500).json({ error: "Error fetching product" });
