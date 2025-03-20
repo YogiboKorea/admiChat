@@ -1286,46 +1286,54 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드로부터 전달받은 dataValue 값을 콘솔에 출력합니다.
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
 
-  // Cafe24 API의 상품 리스트 URL (limit 500)
-  const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
-    // 쿼리 파라미터에 limit=500을 추가하여 최대 500개의 상품 정보를 가져옵니다.
-    const response = await apiRequest("GET", url);
+    let searchProductNames = [];
+
+    if (dataValue) {
+      // 먼저 /api/products?search=dataValue 엔드포인트를 호출하여 검색 결과를 받아옵니다.
+      // (이 엔드포인트는 dataValue 기준으로 검색된 상품들의 정보를 반환한다고 가정)
+      const searchUrl = `/api/products?search=${encodeURIComponent(dataValue)}`;
+      // 여기서는 axios를 이용해 내부 호출합니다.
+      const searchResponse = await axios.get(searchUrl);
+      const searchResults = searchResponse.data; // 예: [{ product_name: "상품A", ... }, { product_name: "상품B", ... }]
+      console.log("Search results count:", searchResults.length);
+      // 검색 결과에서 상품명만 추출 (각 객체에 product_name 필드가 있다고 가정)
+      searchProductNames = searchResults.map(item => item.product_name);
+    }
+
+    // Cafe24 API에서 전체 상품 리스트(최대 100개)를 불러옵니다.
+    const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
+    const response = await apiRequest("GET", url, {}, { limit: 100 });
     const products = response.products || [];
     console.log("전체 상품 개수:", products.length);
 
     let result;
-    if (dataValue) {
-      // 콤마로 분리한 후 각 토큰을 배열에 담기 (공백 제거)
-      const tokens = dataValue.split(',').map(token => token.trim());
-      // 배열 tokens 중 하나와 일치하는 product_name을 찾습니다.
-      const matchedProducts = products.filter(product => tokens.includes(product.product_name));
+    if (searchProductNames.length > 0) {
+      // 검색 결과에 포함된 상품명 중 하나와 일치하는 상품만 필터링
+      const matchedProducts = products.filter(product => searchProductNames.includes(product.product_name));
       console.log("필터링된 상품 개수:", matchedProducts.length);
       result = matchedProducts.map(product => ({
         product_name: product.product_name,
         price: product.price
       }));
     } else {
-      // dataValue가 없으면 전체 상품 리스트를 반환
+      // dataValue가 없거나 검색 결과가 없으면 전체 상품 리스트를 반환
       result = products.map(product => ({
         product_name: product.product_name,
         price: product.price
       }));
-    }    
+    }
     return res.json(result);
   } catch (error) {
     console.error("Error fetching product list:", error.response ? error.response.data : error.message);
     return res.status(500).json({ error: "Error fetching product list" });
   }
 });
-
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
