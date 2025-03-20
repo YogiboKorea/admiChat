@@ -1291,16 +1291,19 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
-
   if (!dataValue) {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
 
-
-
-  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
-  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
+  // 여기서 accessToken은 이미 MongoDB에서 갱신 및 로드된 최신 토큰을 사용합니다.
+  // 실제 mall id (환경변수 또는 하드코딩)
+  const mallid = process.env.CAFE24_MALLID || "yogibo";
+  
+  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 정확히 일치)
+  // limit을 100으로 설정합니다.
+  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
+
   try {
     const response = await axios.get(url, {
       headers: {
@@ -1312,7 +1315,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     const products = response.data.products || [];
     console.log("API 응답 상품 개수:", products.length);
 
-    // 혹시 API 필터링이 부분 일치로 동작한다면, 정확히 일치하는 항목만 추가로 필터링합니다.
+    // API 필터링이 부분 일치로 동작할 경우를 대비하여, 정확히 일치하는 항목만 추가로 필터링합니다.
     const exactMatches = products.filter(product => product.product_name === dataValue);
     console.log("정확히 일치하는 상품 개수:", exactMatches.length);
 
@@ -1322,6 +1325,8 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     return res.status(500).json({ error: "Error fetching product" });
   }
 });
+
+
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
