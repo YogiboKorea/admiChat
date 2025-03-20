@@ -1297,7 +1297,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     if (dataValue) {
       // 먼저 /api/products?search=dataValue 엔드포인트를 호출하여 검색 결과를 받아옵니다.
       // (이 엔드포인트는 dataValue 기준으로 검색된 상품들의 정보를 반환한다고 가정)
-      const searchUrl = `https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/api/products?search=${encodeURIComponent(dataValue)}`;
+      const searchUrl = `/api/products?search=${encodeURIComponent(dataValue)}`;
       // 여기서는 axios를 이용해 내부 호출합니다.
       const searchResponse = await axios.get(searchUrl);
       const searchResults = searchResponse.data; // 예: [{ product_name: "상품A", ... }, { product_name: "상품B", ... }]
