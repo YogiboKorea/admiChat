@@ -1296,7 +1296,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
     // 쿼리 파라미터에 limit=500을 추가하여 최대 500개의 상품 정보를 가져옵니다.
-    const response = await apiRequest("GET", url, {}, { limit: 100 });
+    const response = await apiRequest("GET", url, {}, { limit: 500 });
     const products = response.products || [];
     console.log("전체 상품 개수:", products.length);
 
