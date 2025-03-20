@@ -1287,33 +1287,18 @@ app.post("/chat", async (req, res) => {
 });
 
 
-function hasFiveCharMatch(productName, searchTerm) {
-  // 만약 searchTerm이 5글자보다 짧다면, 그냥 포함 여부로 확인
-  if (searchTerm.length < 5) {
-    return productName.includes(searchTerm);
-  }
-  // searchTerm에서 연속된 5글자 부분 문자열이 하나라도 productName에 포함되어 있으면 true 반환
-  for (let i = 0; i <= searchTerm.length - 5; i++) {
-    const substring = searchTerm.substring(i, i + 5);
-    if (productName.includes(substring)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // 프론트엔드로부터 전달받은 dataValue 값
+  // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
+
   if (!dataValue) {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
 
-  // 실제 mall id (환경변수 또는 하드코딩)
-  const mallid = process.env.CAFE24_MALLID || "yogibo";
-  // product_name 필터 조건을 URL에 추가 (여기서는 전체 항목을 가져온 후 별도로 필터링)
-  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no`;
+
+  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
   console.log("Constructed URL:", url);
 
   try {
@@ -1322,23 +1307,12 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
-      },
+      }
     });
+    // Cafe24 API 응답은 { products: [ ... ] } 형태라고 가정합니다.
     const products = response.data.products || [];
-    console.log("API 응답 상품 개수:", products.length);
-
-    // dataValue와 5글자 이상의 부분 문자열 매칭 여부를 기준으로 필터링합니다.
-    const matchedProducts = products.filter(product => 
-      hasFiveCharMatch(product.product_name, dataValue)
-    );
-    console.log("필터링된 상품 개수:", matchedProducts.length);
-
-    const result = matchedProducts.map(product => ({
-      product_name: product.product_name,
-      price: product.price
-    }));
-
-    return res.json(result);
+    console.log("검색된 상품 개수:", products.length);
+    return res.json(products);
   } catch (error) {
     console.error("Error fetching product:", error.response ? error.response.data : error.message);
     return res.status(500).json({ error: "Error fetching product" });
