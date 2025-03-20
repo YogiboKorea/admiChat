@@ -1285,6 +1285,8 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
+
+
 app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드로부터 전달받은 dataValue 값을 콘솔에 출력합니다.
   const dataValue = req.query.dataValue;
@@ -1300,8 +1302,10 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
 
     let result;
     if (dataValue) {
-      // dataValue가 있으면 product_name이 dataValue와 정확히 일치하는 상품만 필터링
-      const matchedProducts = products.filter(product => product.product_name === dataValue);
+      // 콤마로 분리한 후 각 토큰을 배열에 담기 (공백 제거)
+      const tokens = dataValue.split(',').map(token => token.trim());
+      // 배열 tokens 중 하나와 일치하는 product_name을 찾습니다.
+      const matchedProducts = products.filter(product => tokens.includes(product.product_name));
       console.log("필터링된 상품 개수:", matchedProducts.length);
       result = matchedProducts.map(product => ({
         product_name: product.product_name,
@@ -1313,7 +1317,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
         product_name: product.product_name,
         price: product.price
       }));
-    }
+    }    
     return res.json(result);
   } catch (error) {
     console.error("Error fetching product list:", error.response ? error.response.data : error.message);
