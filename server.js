@@ -1285,51 +1285,37 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
+
+
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // 프론트엔드로부터 전달받은 dataValue 값을 콘솔에 출력합니다.
+  // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
 
-  // Cafe24 API의 기본 URL (여기서 실제 mall id 등 필요한 값이 올바르게 설정되어 있는지 확인)
-  const baseUrl = 'https://yogibo.cafe24api.com/api/v2/admin/products';
-  // 쿼리 파라미터로 limit=100을 수동으로 추가
-  const query = new URLSearchParams({ limit: 100 }).toString();
-  const url = `${baseUrl}?${query}`;
+  if (!dataValue) {
+    return res.status(400).json({ error: "dataValue query parameter is required" });
+  }
+
+
+  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 일치)
+  const url = `https://yogibo.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}`;
   console.log("Constructed URL:", url);
 
   try {
-    // axios를 직접 사용하여 요청 (apiRequest 대신)
     const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,         // accessToken 변수가 올바르게 설정되어 있어야 함
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION,       // 예: '2024-06-01'
-      },
+        'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
+      }
     });
+    // Cafe24 API 응답은 { products: [ ... ] } 형태라고 가정합니다.
     const products = response.data.products || [];
-    console.log("전체 상품 개수:", products.length);
-
-    let result;
-    if (dataValue) {
-      // dataValue를 콤마로 분리 후 각 토큰(공백 제거)
-      const tokens = dataValue.split(',').map(token => token.trim());
-      // tokens 배열 중 하나와 일치하는 product_name을 가진 상품 필터링
-      const matchedProducts = products.filter(product => tokens.includes(product.product_name));
-      console.log("필터링된 상품 개수:", matchedProducts.length);
-      result = matchedProducts.map(product => ({
-        product_name: product.product_name,
-        price: product.price
-      }));
-    } else {
-      result = products.map(product => ({
-        product_name: product.product_name,
-        price: product.price
-      }));
-    }
-    return res.json(result);
+    console.log("검색된 상품 개수:", products.length);
+    return res.json(products);
   } catch (error) {
-    console.error("Error fetching product list:", error.response ? error.response.data : error.message);
-    return res.status(500).json({ error: "Error fetching product list" });
+    console.error("Error fetching product:", error.response ? error.response.data : error.message);
+    return res.status(500).json({ error: "Error fetching product" });
   }
 });
 
