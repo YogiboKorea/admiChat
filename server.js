@@ -1314,6 +1314,29 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
 });
 
 
+// 상품 리스트 검색 및 태그 추가 (새로운 엔드포인트 사용)
+async function fetchAndDisplayProducts(searchKeyword) {
+  try {
+      // 새 엔드포인트 호출: dataValue 쿼리파라미터로 검색어 전달
+      const response = await axios.get(`/api/v2/admin/products/search?dataValue=${encodeURIComponent(searchKeyword)}`);
+      const products = response.data;  // 서버는 product_name과 price만 반환
+
+      // DOM에 제품 리스트 표시
+      const productList = document.getElementById('productList');
+      productList.innerHTML = products
+          .map(
+              (product) => `
+              <div onclick="addDotAndTag(${JSON.stringify(product)})">
+                  <p>${product.product_name}</p>
+                  <p>${product.price}</p>
+              </div>
+          `
+          )
+          .join('');
+  } catch (err) {
+      console.error(err);
+  }
+}
 
 
 
