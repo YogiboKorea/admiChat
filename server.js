@@ -1285,32 +1285,33 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // 쿼리 파라미터로 전달된 dataValue를 기준으로 필터링합니다.
+  // dataValue가 있을 경우에만 필터링합니다.
   const dataValue = req.query.dataValue;
-  if (!dataValue) {
-    return res.status(400).json({ error: "dataValue query parameter is required" });
-  }
   // Cafe24 API의 상품 리스트 URL (limit 500)
   const url = `https://yogibo.cafe24api.com/api/v2/admin/products`;
   try {
     // 쿼리 파라미터에 limit=500을 추가하여 최대 500개의 상품 정보를 가져옵니다.
     const response = await apiRequest("GET", url, {}, { limit: 10 });
-    
-    // 응답 객체 확인: 전체 상품 리스트의 개수를 로그에 출력
     const products = response.products || [];
     console.log("전체 상품 개수:", products.length);
 
-    // product_name이 dataValue와 정확히 일치하는 상품만 필터링
-    const matchedProducts = products.filter(product => product.product_name === dataValue);
-    console.log("필터링된 상품 개수:", matchedProducts.length);
-
-    // 각 상품에서 product_name과 price만 추출
-    const result = matchedProducts.map(product => ({
-      product_name: product.product_name,
-      price: product.price
-    }));
+    let result;
+    if (dataValue) {
+      // dataValue가 있으면 product_name이 dataValue와 정확히 일치하는 상품만 필터링
+      const matchedProducts = products.filter(product => product.product_name === dataValue);
+      console.log("필터링된 상품 개수:", matchedProducts.length);
+      result = matchedProducts.map(product => ({
+        product_name: product.product_name,
+        price: product.price
+      }));
+    } else {
+      // dataValue가 없으면 전체 상품 리스트를 반환
+      result = products.map(product => ({
+        product_name: product.product_name,
+        price: product.price
+      }));
+    }
     return res.json(result);
   } catch (error) {
     console.error("Error fetching product list:", error.response ? error.response.data : error.message);
