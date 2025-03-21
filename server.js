@@ -185,7 +185,7 @@ async function getProductDetail(product_no) {
     });
     if (response.data && response.data.product) {
       const product = response.data.product;
-      console.log(`Product detail for ${product_no}:`, product.product_name);
+      console.log(`Product detail for ${product_no}:`, product.product_name,product.list_image,product.price);
       // product_name과 list_image를 함께 반환
       return { product_name: product.product_name, list_image: product.list_image };
     }
