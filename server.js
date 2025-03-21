@@ -1367,16 +1367,19 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 });
 
-const serverUrl = process.env.SERVER_URL || 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-axios.get(`${serverUrl}/api/instagramFeed`)
-  .then(response => {
-    const feedData = response.data;
-    console.log(feedData);
-  })
-  .catch(error => {
-    console.error("Instagram 피드 로딩 오류:", error);
-  });
-  
+app.get("/api/instagramFeed", async (req, res) => {
+  const token = process.env.INSTAGRAM_TOKEN; // 서버 환경변수 사용
+  // Instagram API 호출 등 로직 구현 후 결과 반환
+  // 예시:
+  try {
+    const response = await axios.get(`https://graph.instagram.com/...&access_token=${token}`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: "Instagram API 호출 오류" });
+  }
+});
+
+
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
