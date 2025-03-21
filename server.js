@@ -1366,16 +1366,21 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     }
   }
 });
-
-app.get("/api/instagramFeed", async (req, res) => {
-  const token = process.env.INSTAGRAM_TOKEN; // 서버 환경변수 사용
-  // Instagram API 호출 등 로직 구현 후 결과 반환
-  // 예시:
+app.get('/api/instagramFeed', async (req, res) => {
   try {
-    const response = await axios.get(`https://graph.instagram.com/...&access_token=${token}`);
+    const token = process.env.INSTAGRAM_TOKEN; // 서버 환경변수에서 토큰 가져오기
+    // Instagram API 호출 예시 (실제 URL 및 필드는 API 문서에 따라 조정)
+    const response = await axios.get(`https://graph.instagram.com/me/media`, {
+      params: {
+        access_token: token,
+        fields: 'id,caption,media_url,permalink,media_type,timestamp',
+        limit: 16,
+      }
+    });
     res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: "Instagram API 호출 오류" });
+    console.error("Instagram API 호출 오류:", error.response ? error.response.data : error.message);
+    res.status(500).json({ error: "Instagram API 호출 중 오류 발생" });
   }
 });
 
