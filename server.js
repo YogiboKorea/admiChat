@@ -1385,6 +1385,14 @@ app.get("/api/instagramFeed", async (req, res) => {
 });
 
 
+app.get('/api/instagramToken', (req, res) => {
+  const token = process.env.INSTAGRAM_TOKEN;
+  if (token) {
+    res.json({ token });
+  } else {
+    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+  }
+});
 
 
 // ========== [17] 서버 시작 ==========
