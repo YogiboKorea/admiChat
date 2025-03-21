@@ -1367,17 +1367,16 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 });
 
-const serverUrl = process.env.INSTAGRAM_TOKEN;
-axios.get('/api/instagramFeed')
+const serverUrl = process.env.SERVER_URL || 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+axios.get(`${serverUrl}/api/instagramFeed`)
   .then(response => {
     const feedData = response.data;
-    // 가져온 데이터를 기반으로 UI를 업데이트합니다.
     console.log(feedData);
   })
   .catch(error => {
     console.error("Instagram 피드 로딩 오류:", error);
   });
-
+  
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
