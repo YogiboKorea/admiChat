@@ -185,12 +185,13 @@ async function getProductDetail(product_no) {
     });
     if (response.data && response.data.product) {
       const product = response.data.product;
-      console.log(`Product detail for ${product_no}:`, product.product_name, product.list_image, product.price);
+      console.log(`Product detail for ${product_no}:`, product.product_name, product.list_image, product.price,product.summary_description);
       // product_name, list_image, 그리고 price를 함께 반환
       return { 
         product_name: product.product_name, 
         list_image: product.list_image,
-        price: product.price
+        price: product.price,
+        summary:product.summary_description
       };
     }
     return null;
