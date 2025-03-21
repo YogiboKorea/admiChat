@@ -1367,7 +1367,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 });
 
-const token = process.env.INSTAGRAM_TOKEN||'IGAAOFvq6aOWFBZAE9IdlFoUWRyUXBNRzhQclNuMUxJVWdjdHYweUJhMFJIVjRrSlVIaWZAZAMHgxaGFYZAHNOUnRBaHhTUzJuajNSYjZA0andBVnQ4eTRuWGRhM002YVllcTRVcEpzY2FlRVJaZAUMwUTFINllVdlNwYTZA2ZAjJOTlRPcwZDZD';
+const serverUrl = process.env.INSTAGRAM_TOKEN;
 axios.get('/api/instagramFeed')
   .then(response => {
     const feedData = response.data;
