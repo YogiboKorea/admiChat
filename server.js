@@ -1367,7 +1367,16 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 });
 
-
+const token = process.env.INSTAGRAM_TOKEN||'IGAAOFvq6aOWFBZAE9IdlFoUWRyUXBNRzhQclNuMUxJVWdjdHYweUJhMFJIVjRrSlVIaWZAZAMHgxaGFYZAHNOUnRBaHhTUzJuajNSYjZA0andBVnQ4eTRuWGRhM002YVllcTRVcEpzY2FlRVJaZAUMwUTFINllVdlNwYTZA2ZAjJOTlRPcwZDZD';
+axios.get('/api/instagramFeed')
+  .then(response => {
+    const feedData = response.data;
+    // 가져온 데이터를 기반으로 UI를 업데이트합니다.
+    console.log(feedData);
+  })
+  .catch(error => {
+    console.error("Instagram 피드 로딩 오류:", error);
+  });
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
