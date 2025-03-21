@@ -1366,23 +1366,25 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     }
   }
 });
-app.get('/api/instagramFeed', async (req, res) => {
+
+
+const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
+app.get("/api/instagramFeed", async (req, res) => {
   try {
-    const token = process.env.INSTAGRAM_TOKEN; // 서버 환경변수에서 토큰 가져오기
-    // Instagram API 호출 예시 (실제 URL 및 필드는 API 문서에 따라 조정)
-    const response = await axios.get(`https://graph.instagram.com/me/media`, {
-      params: {
-        access_token: token,
-        fields: 'id,caption,media_url,permalink,media_type,timestamp',
-        limit: 16,
-      }
-    });
-    res.json(response.data);
+    const pageLimit = 16;
+    // Instagram Graph API 요청 URL 구성
+    const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
+    
+    const response = await axios.get(url);
+    const feedData = response.data;
+    res.json(feedData);
   } catch (error) {
-    console.error("Instagram API 호출 오류:", error.response ? error.response.data : error.message);
-    res.status(500).json({ error: "Instagram API 호출 중 오류 발생" });
+    console.error("Error fetching Instagram feed:", error.message);
+    res.status(500).json({ error: "Failed to fetch Instagram feed" });
   }
 });
+
+
 
 
 // ========== [17] 서버 시작 ==========
