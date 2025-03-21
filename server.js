@@ -1304,7 +1304,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   // 실제 mall id (환경변수 또는 하드코딩)
   const mallid = process.env.CAFE24_MALLID || "yogibo";
   // product_name 필터 조건을 추가하여 특정 항목만 조회, limit=100
-  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=10`;
+  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
 
   try {
