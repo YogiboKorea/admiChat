@@ -1292,18 +1292,14 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-
 app.get("/api/v2/admin/products/search", async (req, res) => {
-  // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
   if (!dataValue) {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
 
-  // 실제 mall id (환경변수 또는 하드코딩)
   const mallid = process.env.CAFE24_MALLID || "yogibo";
-  // product_name 필터 조건을 추가하여 특정 항목만 조회, limit=100
   const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
 
@@ -1312,17 +1308,15 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
+        'X-Cafe24-Api-Version': CAFE24_API_VERSION,
       },
     });
     const products = response.data.products || [];
     console.log("API 응답 상품 개수:", products.length);
 
-    // product_name이 dataValue와 정확히 일치하는 상품만 추가 필터링
     const exactMatches = products.filter(product => product.product_name === dataValue);
     console.log("정확히 일치하는 상품 개수:", exactMatches.length);
 
-    // 만약 정확히 일치하는 상품이 1개라면 상세 정보를 가져와서 반환합니다.
     if (exactMatches.length === 1) {
       const product_no = exactMatches[0].product_no;
       const detail = await getProductDetail(product_no);
@@ -1331,8 +1325,45 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
       return res.json(exactMatches);
     }
   } catch (error) {
-    console.error("Error fetching product:", error.response ? error.response.data : error.message);
-    return res.status(500).json({ error: "Error fetching product" });
+    // 401 에러인 경우, MongoDB에서 토큰 갱신 후 재요청
+    if (error.response && error.response.status === 401) {
+      try {
+        // MongoDB에서 토큰 정보를 가져옵니다.
+        // 예시: db는 MongoDB 클라이언트 인스턴스, tokenCollectionName은 컬렉션명입니다.
+        const tokensDoc = await db.collection(tokenCollectionName).findOne({});
+        accessToken = tokensDoc.accessToken;
+        refreshToken = tokensDoc.refreshToken;
+        console.log("Fetched new tokens from MongoDB:", tokensDoc);
+
+        // 새로운 토큰을 사용하여 재요청
+        const retryResponse = await axios.get(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': CAFE24_API_VERSION,
+          },
+        });
+        const products = retryResponse.data.products || [];
+        console.log("API 응답 상품 개수 (retry):", products.length);
+
+        const exactMatches = products.filter(product => product.product_name === dataValue);
+        console.log("정확히 일치하는 상품 개수 (retry):", exactMatches.length);
+
+        if (exactMatches.length === 1) {
+          const product_no = exactMatches[0].product_no;
+          const detail = await getProductDetail(product_no);
+          return res.json(detail);
+        } else {
+          return res.json(exactMatches);
+        }
+      } catch (mongoError) {
+        console.error("MongoDB 토큰 가져오기 오류:", mongoError);
+        return res.status(500).json({ error: "MongoDB 토큰 가져오기 오류" });
+      }
+    } else {
+      console.error("Error fetching product:", error.response ? error.response.data : error.message);
+      return res.status(500).json({ error: "Error fetching product" });
+    }
   }
 });
 
