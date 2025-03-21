@@ -1300,7 +1300,7 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
   }
 
   const mallid = process.env.CAFE24_MALLID || "yogibo";
-  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
+  const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=50`;
   console.log("Constructed URL:", url);
 
   try {
