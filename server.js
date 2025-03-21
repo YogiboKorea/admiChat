@@ -1285,9 +1285,7 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
 });
-
-
-app.get("/api/v2/admin/products/search", async (req, res) => {
+.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
@@ -1295,38 +1293,54 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     return res.status(400).json({ error: "dataValue query parameter is required" });
   }
 
-  // 여기서 accessToken은 이미 MongoDB에서 갱신 및 로드된 최신 토큰을 사용합니다.
-  // 실제 mall id (환경변수 또는 하드코딩)
+  // 이미 MongoDB에서 갱신 및 로드된 accessToken 사용
   const mallid = process.env.CAFE24_MALLID || "yogibo";
-  
-  // product_name 필터 조건을 추가하여 특정 항목만 조회 (예: product_name이 dataValue와 정확히 일치)
-  // limit을 100으로 설정합니다.
+  // product_name 필터 조건을 추가하여 특정 항목만 조회, limit=100
   const url = `https://${mallid}.cafe24api.com/api/v2/admin/products?fields=product_name,product_no&product_name=${encodeURIComponent(dataValue)}&limit=100`;
   console.log("Constructed URL:", url);
 
+  // axios 요청을 위한 헤더 객체
+  let headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
+  };
+
   try {
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION,  // 예: '2024-06-01'
-      },
-    });
-    const products = response.data.products || [];
+    // 먼저 API 호출
+    let response = await axios.get(url, { headers });
+    let products = response.data.products || [];
     console.log("API 응답 상품 개수:", products.length);
 
-    // API 필터링이 부분 일치로 동작할 경우를 대비하여, 정확히 일치하는 항목만 추가로 필터링합니다.
+    // 정확히 일치하는 항목만 추가 필터링
     const exactMatches = products.filter(product => product.product_name === dataValue);
     console.log("정확히 일치하는 상품 개수:", exactMatches.length);
-
     return res.json(exactMatches);
   } catch (error) {
-    console.error("Error fetching product:", error.response ? error.response.data : error.message);
-    return res.status(500).json({ error: "Error fetching product" });
+    // 401 에러인 경우, MongoDB에서 최신 토큰 데이터를 다시 가져와 헤더를 업데이트한 후 재요청
+    if (error.response && error.response.status === 401) {
+      console.log("401 에러 발생: accessToken 만료. MongoDB에서 최신 토큰을 다시 가져옵니다.");
+      try {
+        // refreshAccessToken() 대신 getTokensFromDB()를 호출하여 최신 토큰을 가져옵니다.
+        await getTokensFromDB();
+        // 업데이트된 토큰으로 헤더 재설정
+        headers.Authorization = `Bearer ${accessToken}`;
+        const retryResponse = await axios.get(url, { headers });
+        const products = retryResponse.data.products || [];
+        console.log("API 응답 상품 개수 (재요청):", products.length);
+        const exactMatches = products.filter(product => product.product_name === dataValue);
+        console.log("정확히 일치하는 상품 개수 (재요청):", exactMatches.length);
+        return res.json(exactMatches);
+      } catch (retryError) {
+        console.error("토큰 갱신 후 상품 조회 오류:", retryError.response ? retryError.response.data : retryError.message);
+        return res.status(500).json({ error: "Error fetching product after refreshing token" });
+      }
+    } else {
+      console.error("Error fetching product:", error.response ? error.response.data : error.message);
+      return res.status(500).json({ error: "Error fetching product" });
+    }
   }
 });
-
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
