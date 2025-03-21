@@ -1284,8 +1284,7 @@ app.post("/chat", async (req, res) => {
     console.error("Error in /chat endpoint:", error.response ? error.response.data : error.message);
     return res.status(500).json({ text: "메시지를 처리하는 중 오류가 발생했습니다." });
   }
-});
-.get("/api/v2/admin/products/search", async (req, res) => {
+});app.get("/api/v2/admin/products/search", async (req, res) => {
   // 프론트엔드에서 전달받은 dataValue 값 (예: "요기보 미니")
   const dataValue = req.query.dataValue;
   console.log("Received dataValue from client:", dataValue);
@@ -1341,6 +1340,7 @@ app.post("/chat", async (req, res) => {
     }
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
