@@ -191,7 +191,8 @@ async function getProductDetail(product_no) {
         product_name: product.product_name, 
         list_image: product.list_image,
         price: product.price,
-        summary:product.summary_description
+        summary:product.summary_description,
+        productNo:product.product_no
       };
     }
     return null;
@@ -1329,7 +1330,6 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     if (error.response && error.response.status === 401) {
       try {
         // MongoDB에서 토큰 정보를 가져옵니다.
-        // 예시: db는 MongoDB 클라이언트 인스턴스, tokenCollectionName은 컬렉션명입니다.
         const tokensDoc = await db.collection(tokenCollectionName).findOne({});
         accessToken = tokensDoc.accessToken;
         refreshToken = tokensDoc.refreshToken;
@@ -1374,7 +1374,6 @@ app.get("/api/instagramFeed", async (req, res) => {
     const pageLimit = 16;
     // Instagram Graph API 요청 URL 구성
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
-    
     const response = await axios.get(url);
     const feedData = response.data;
     res.json(feedData);
