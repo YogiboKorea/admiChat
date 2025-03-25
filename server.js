@@ -1326,14 +1326,12 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
       return res.json(exactMatches);
     }
   } catch (error) {
-    // 401 에러인 경우, MongoDB에서 토큰 갱신 후 재요청
+    // 401 에러인 경우, MongoDB에서 토큰 정보를 갱신
     if (error.response && error.response.status === 401) {
       try {
-        // MongoDB에서 토큰 정보를 가져옵니다.
-        const tokensDoc = await db.collection(tokenCollectionName).findOne({});
-        accessToken = tokensDoc.accessToken;
-        refreshToken = tokensDoc.refreshToken;
-        console.log("Fetched new tokens from MongoDB:", tokensDoc);
+        // db 변수 대신 getTokensFromDB() 함수를 호출하여 최신 토큰을 불러옵니다.
+        await getTokensFromDB();
+        console.log("토큰 갱신 완료. New tokens:", accessToken, refreshToken);
 
         // 새로운 토큰을 사용하여 재요청
         const retryResponse = await axios.get(url, {
@@ -1366,7 +1364,6 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
     }
   }
 });
-
 
 const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
 app.get("/api/instagramFeed", async (req, res) => {
