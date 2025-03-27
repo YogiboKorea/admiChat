@@ -1393,6 +1393,7 @@ app.get('/api/instagramToken', (req, res) => {
 
 
 //럭키 드로우 이벤트 추가 
+// 럭키 드로우 이벤트 추가 
 
 /**
  * 예시: member_id를 기반으로 고객 데이터를 가져오기
@@ -1400,7 +1401,8 @@ app.get('/api/instagramToken', (req, res) => {
 async function getCustomerDataByMemberId(memberId) {
   // 무조건 MongoDB에서 토큰을 로드하여 사용
   await getTokensFromDB();
-  const url = `https://${MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
+  // MALLID 대신 CAFE24_MALLID를 사용합니다.
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
   const params = { member_id: memberId };
   try {
     const data = await apiRequest('GET', url, {}, params);
@@ -1411,7 +1413,6 @@ async function getCustomerDataByMemberId(memberId) {
     throw error;
   }
 }
-
 
 // MongoDB 연결 및 Express 서버 설정 (이벤트 참여 데이터 저장)
 const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
@@ -1528,6 +1529,9 @@ clientInstance.connect()
       }
     });
   })
+  .catch(err => {
+    console.error('MongoDB 연결 실패:', err);
+  });
 
 
 // ========== [17] 서버 시작 ==========
