@@ -1418,7 +1418,7 @@ const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true }
 clientInstance.connect()
   .then(() => {
     console.log('MongoDB 연결 성공');
-    const db = clientInstance.db(dbName);
+    const db = clientInstance.db(DB_NAME);
     const entriesCollection = db.collection('entries');
     
     // 참여자 수 반환 라우트 (entriesCollection 사용)
