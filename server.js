@@ -1414,7 +1414,7 @@ async function getCustomerDataByMemberId(memberId) {
 
 
 // MongoDB 연결 및 Express 서버 설정 (이벤트 참여 데이터 저장)
-const clientInstance = new MongoClient(mongoUri, { useUnifiedTopology: true });
+const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
 clientInstance.connect()
   .then(() => {
     console.log('MongoDB 연결 성공');
