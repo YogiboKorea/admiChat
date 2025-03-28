@@ -1566,11 +1566,10 @@ app.get('/api/coupon', (req, res) => {
   if (!couponType || !couponDB[couponType] || couponDB[couponType].length === 0) {
     return res.status(404).json({ error: "쿠폰이 없습니다." });
   }
-  // 발급된 쿠폰은 DB에서 제거하는 방식(예시)
-  const couponCode = couponDB[couponType].shift();
+  // DB에서 제거하지 않고 첫 번째 쿠폰 번호를 반환 (제한 없음)
+  const couponCode = couponDB[couponType][0];
   res.json({ couponCode });
 });
-
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
