@@ -1536,6 +1536,18 @@ clientInstance.connect()
 
 //쿠폰 데이터
 // 쿠폰 세그먼트 정보 (서버에서 관리)
+
+MongoClient.connect(mongoUri, { useUnifiedTopology: true })
+  .then(client => {
+    db = client.db(DB_NAME);
+    participationCollection = db.collection('eventRoll');
+    console.log("Connected to MongoDB");
+  })
+  .catch(err => {
+    console.error("Failed to connect to MongoDB", err);
+  });
+
+
 const segmentsData = [
   { label: '40% 쿠폰', probability: 50 },
   { label: '50% 쿠폰', probability: 50 },
@@ -1570,6 +1582,30 @@ app.get('/api/coupon', (req, res) => {
   const couponCode = couponDB[couponType][0];
   res.json({ couponCode });
 });
+
+
+// 회원 참여 기록 API
+app.post('/api/participate', async (req, res) => {
+  const { memberId } = req.body;
+  if (!memberId) {
+    return res.status(400).json({ error: "회원 아이디가 필요합니다." });
+  }
+  try {
+    // 이미 참여한 회원인지 체크
+    const existing = await participationCollection.findOne({ memberId: memberId });
+    if (existing) {
+      return res.status(400).json({ error: "이미 참여하셨습니다." });
+    }
+    // 참여 기록 저장 (제한 없음)
+    await participationCollection.insertOne({ memberId: memberId, participatedAt: new Date() });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
