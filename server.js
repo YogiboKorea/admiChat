@@ -1533,49 +1533,43 @@ clientInstance.connect()
     console.error('MongoDB 연결 실패:', err);
   });
 
-//룰렛 이벤트 호
 
-// 쿠폰 세그먼트 정보 엔드포인트
+//쿠폰 데이터
+// 쿠폰 세그먼트 정보 (서버에서 관리)
+const segmentsData = [
+  { label: '40% 쿠폰', probability: 99 },
+  { label: '50% 쿠폰', probability: 0.1 },
+  { label: '90% 쿠폰', probability: 0.1 }
+];
+
+// 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
+const couponDB = {
+  "40% 쿠폰": [
+    "6081382143900000866"
+  ],
+  "50% 쿠폰": [
+    "6081382180800000867"
+  ],
+  "90% 쿠폰": [
+    "6081382248600000868"
+  ]
+};
+
+// 세그먼트 정보 제공 API
 app.get('/api/segments', (req, res) => {
-  // 실제 환경에서는 DB에서 가져오거나 로직에 따라 처리
-  res.json({
-    segments: [
-      { label: '40% 쿠폰', probability: 99 },
-      { label: '50% 쿠폰', probability: 0.1 },
-      { label: '90% 쿠폰', probability: 0.1 }
-    ]
-  });
+  res.json({ segments: segmentsData });
 });
 
-// 쿠폰 번호 생성 엔드포인트
+// 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
 app.get('/api/coupon', (req, res) => {
   const couponType = req.query.couponType;
-  let prefix = "";
-  switch(couponType) {
-    case "40% 쿠폰":
-      prefix = "40OFF-";
-      break;
-    case "50% 쿠폰":
-      prefix = "50OFF-";
-      break;
-    case "90% 쿠폰":
-      prefix = "90OFF-";
-      break;
-    default:
-      prefix = "";
+  if (!couponType || !couponDB[couponType] || couponDB[couponType].length === 0) {
+    return res.status(404).json({ error: "쿠폰이 없습니다." });
   }
-  // 예시로 6자리 랜덤 알파벳+숫자 조합
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let randomPart = '';
-  for (let i = 0; i < 6; i++) {
-    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  const couponCode = prefix + randomPart;
+  // 발급된 쿠폰은 DB에서 제거하는 방식(예시)
+  const couponCode = couponDB[couponType].shift();
   res.json({ couponCode });
 });
-
-
-
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
