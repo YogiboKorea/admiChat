@@ -1537,7 +1537,7 @@ clientInstance.connect()
 //쿠폰 데이터
 // 쿠폰 세그먼트 정보 (서버에서 관리)
 
-MongoClient.connect(mongoUri, { useUnifiedTopology: true })
+MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   .then(client => {
     db = client.db(DB_NAME);
     participationCollection = db.collection('eventRoll');
