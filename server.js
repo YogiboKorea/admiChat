@@ -1537,9 +1537,9 @@ clientInstance.connect()
 //쿠폰 데이터
 // 쿠폰 세그먼트 정보 (서버에서 관리)
 const segmentsData = [
-  { label: '40% 쿠폰', probability: 0.5 },
-  { label: '50% 쿠폰', probability: 99 },
-  { label: '90% 쿠폰', probability: 0.5 }
+  { label: '40% 쿠폰', probability: 50 },
+  { label: '50% 쿠폰', probability: 50 },
+  { label: '90% 쿠폰', probability: 0 }
 ];
 
 // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
