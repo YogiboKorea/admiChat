@@ -1554,21 +1554,25 @@ clientInstance.connect()
 
   // 쿠폰 세그먼트 정보 (서버에서 관리)
   const segmentsData = [
-  { label: '40% 쿠폰', probability: 50 },
-  { label: '50% 쿠폰', probability: 50 },
-  { label: '90% 쿠폰', probability: 0 }
+  { label: '30% 쿠폰', probability: 0 }, 
+  { label: '40% 쿠폰', probability: 0 },
+  { label: '50% 쿠폰', probability: 99 },
+  { label: '90% 쿠폰', probability: 0.0001 },
   ];
 
   // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
   const couponDB = {
+    "30% 쿠폰": [
+      ""
+    ],
   "40% 쿠폰": [
-    "6081382143900000866"
+    ""
   ],
   "50% 쿠폰": [
     "6081382180800000867"
   ],
   "90% 쿠폰": [
-    "6081382248600000868"
+    "6081382180800000867"
   ]
   };
 
