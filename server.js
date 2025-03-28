@@ -1533,6 +1533,49 @@ clientInstance.connect()
     console.error('MongoDB 연결 실패:', err);
   });
 
+//룰렛 이벤트 호
+
+// 쿠폰 세그먼트 정보 엔드포인트
+app.get('/api/segments', (req, res) => {
+  // 실제 환경에서는 DB에서 가져오거나 로직에 따라 처리
+  res.json({
+    segments: [
+      { label: '40% 쿠폰', probability: 99 },
+      { label: '50% 쿠폰', probability: 0.1 },
+      { label: '90% 쿠폰', probability: 0.1 }
+    ]
+  });
+});
+
+// 쿠폰 번호 생성 엔드포인트
+app.get('/api/coupon', (req, res) => {
+  const couponType = req.query.couponType;
+  let prefix = "";
+  switch(couponType) {
+    case "40% 쿠폰":
+      prefix = "40OFF-";
+      break;
+    case "50% 쿠폰":
+      prefix = "50OFF-";
+      break;
+    case "90% 쿠폰":
+      prefix = "90OFF-";
+      break;
+    default:
+      prefix = "";
+  }
+  // 예시로 6자리 랜덤 알파벳+숫자 조합
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let randomPart = '';
+  for (let i = 0; i < 6; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const couponCode = prefix + randomPart;
+  res.json({ couponCode });
+});
+
+
+
 
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
