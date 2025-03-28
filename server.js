@@ -1534,28 +1534,33 @@ clientInstance.connect()
   });
 
 
-//쿠폰 데이터
-// 쿠폰 세그먼트 정보 (서버에서 관리)
-
-MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
+    
+  // MongoDB 연결
+  MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   .then(client => {
     db = client.db(DB_NAME);
     participationCollection = db.collection('eventRoll');
     console.log("Connected to MongoDB");
+
+    // MongoDB 연결 후에 서버 시작
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
   })
   .catch(err => {
     console.error("Failed to connect to MongoDB", err);
   });
 
-
-const segmentsData = [
+  // 쿠폰 세그먼트 정보 (서버에서 관리)
+  const segmentsData = [
   { label: '40% 쿠폰', probability: 50 },
   { label: '50% 쿠폰', probability: 50 },
   { label: '90% 쿠폰', probability: 0 }
-];
+  ];
 
-// 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
-const couponDB = {
+  // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
+  const couponDB = {
   "40% 쿠폰": [
     "6081382143900000866"
   ],
@@ -1565,15 +1570,15 @@ const couponDB = {
   "90% 쿠폰": [
     "6081382248600000868"
   ]
-};
+  };
 
-// 세그먼트 정보 제공 API
-app.get('/api/segments', (req, res) => {
+  // 세그먼트 정보 제공 API
+  app.get('/api/segments', (req, res) => {
   res.json({ segments: segmentsData });
-});
+  });
 
-// 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
-app.get('/api/coupon', (req, res) => {
+  // 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
+  app.get('/api/coupon', (req, res) => {
   const couponType = req.query.couponType;
   if (!couponType || !couponDB[couponType] || couponDB[couponType].length === 0) {
     return res.status(404).json({ error: "쿠폰이 없습니다." });
@@ -1581,11 +1586,10 @@ app.get('/api/coupon', (req, res) => {
   // DB에서 제거하지 않고 첫 번째 쿠폰 번호를 반환 (제한 없음)
   const couponCode = couponDB[couponType][0];
   res.json({ couponCode });
-});
+  });
 
-
-// 회원 참여 기록 API
-app.post('/api/participate', async (req, res) => {
+  // 회원 참여 기록 API
+  app.post('/api/participate', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) {
     return res.status(400).json({ error: "회원 아이디가 필요합니다." });
@@ -1603,7 +1607,7 @@ app.post('/api/participate', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "서버 오류" });
   }
-});
+  });
 
 
 // ========== [17] 서버 시작 ==========
