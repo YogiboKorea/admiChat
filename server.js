@@ -1554,8 +1554,12 @@ clientInstance.connect()
 
   // 쿠폰 세그먼트 정보 (서버에서 관리)
   const segmentsData = [
+  { label: '20% 쿠폰', probability: 0 },   
   { label: '30% 쿠폰', probability: 0 }, 
   { label: '40% 쿠폰', probability: 0 },
+  { label: '50% 쿠폰', probability: 99 },
+  { label: '50% 쿠폰', probability: 99 },
+  { label: '50% 쿠폰', probability: 99 },
   { label: '50% 쿠폰', probability: 99 },
   { label: '90% 쿠폰', probability: 0.0001 },
   ];
