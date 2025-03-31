@@ -1534,100 +1534,87 @@ clientInstance.connect()
   });
 
 
-    
-  // MongoDB 연결
-  MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
-  .then(client => {
-    db = client.db(DB_NAME);
-    participationCollection = db.collection('eventRoll');
-    console.log("Connected to MongoDB");
+    // MongoDB 연결
+MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
+.then(client => {
+  db = client.db(DB_NAME);
+  participationCollection = db.collection('eventRoll');
+  console.log("Connected to MongoDB");
 
-    // MongoDB 연결 후에 서버 시작
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error("Failed to connect to MongoDB", err);
-  });
-
-  // 쿠폰 세그먼트 정보 (서버에서 관리)
-  const segmentsData = [
-    { label: '40%', image: segmentImages[0], probability: 0 },
-    { label: '50%', image: segmentImages[1], probability: 99 },
-    { label: '60%', image: segmentImages[2], probability: 99 },
-    { label: '70%', image: segmentImages[3], probability: 99 },
-    { label: '90%', image: segmentImages[4], probability: 0.0001 },
-    { label: '80%', image: segmentImages[5], probability: 99 },
-  ];
-
-  app.get('/api/segments', (req, res) => {
-    res.json({ segments: segmentsData });
-  });
-
-  // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
-  const couponDB = {
-    "30% 쿠폰": [
-      ""
-    ],
-    "40% 쿠폰": [
-      ""
-    ],
-    "60% 쿠폰": [
-      ""
-    ],
-    "50% 쿠폰": [
-      "6081382180800000867"
-    ],
-    "90% 쿠폰": [
-      "6081382180800000867"
-    ]
-  };
-
-  // 세그먼트 정보 제공 API
-  app.get('/api/segments', (req, res) => {
-  res.json({ segments: segmentsData });
-  });
-
-  // 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
-  app.get('/api/coupon', (req, res) => {
-  const couponType = req.query.couponType;
-  if (!couponType || !couponDB[couponType] || couponDB[couponType].length === 0) {
-    return res.status(404).json({ error: "쿠폰이 없습니다." });
-  }
-  // DB에서 제거하지 않고 첫 번째 쿠폰 번호를 반환 (제한 없음)
-  const couponCode = couponDB[couponType][0];
-  res.json({ couponCode });
-  });
-
-  // 회원 참여 기록 API
-  app.post('/api/participate', async (req, res) => {
-  const { memberId } = req.body;
-  if (!memberId) {
-    return res.status(400).json({ error: "회원 아이디가 필요합니다." });
-  }
-  try {
-    // 이미 참여한 회원인지 체크
-    const existing = await participationCollection.findOne({ memberId: memberId });
-    if (existing) {
-      return res.status(400).json({ error: "이미 참여하셨습니다." });
-    }
-    // 참여 기록 저장 (제한 없음)
-    await participationCollection.insertOne({ memberId: memberId, participatedAt: new Date() });
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "서버 오류" });
-  }
-  });
-
-
-// ========== [17] 서버 시작 ==========
-(async function initialize() {
-  await getTokensFromDB();
-  const PORT = process.env.PORT || 6000;
+  // MongoDB 연결 후에 서버 시작 (포트 3000 또는 환경변수 PORT 사용)
+  const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
+})
+.catch(err => {
+  console.error("Failed to connect to MongoDB", err);
+});
+
+// 쿠폰 세그먼트 정보 (서버에서 관리)
+// 브라우저 전용 객체인 segmentImages를 사용하지 않고, 이미지 경로 문자열을 사용합니다.
+const segmentsData = [
+{ label: '40%', image: 'images/coupon40.png', probability: 0 },
+{ label: '50%', image: 'images/coupon50.png', probability: 99 },
+{ label: '60%', image: 'images/coupon60.png', probability: 99 },
+{ label: '70%', image: 'images/coupon70.png', probability: 99 },
+{ label: '90%', image: 'images/coupon90.png', probability: 0.0001 },
+{ label: '80%', image: 'images/coupon80.png', probability: 99 }
+];
+
+// 세그먼트 정보 제공 API (중복 제거)
+app.get('/api/segments', (req, res) => {
+res.json({ segments: segmentsData });
+});
+
+// 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
+const couponDB = {
+"30% 쿠폰": [ "" ],
+"40% 쿠폰": [ "" ],
+"60% 쿠폰": [ "" ],
+"50% 쿠폰": [ "6081382180800000867" ],
+"90% 쿠폰": [ "6081382180800000867" ]
+};
+
+// 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
+app.get('/api/coupon', (req, res) => {
+const couponType = req.query.couponType;
+if (!couponType || !couponDB[couponType] || couponDB[couponType].length === 0) {
+  return res.status(404).json({ error: "쿠폰이 없습니다." });
+}
+// DB에서 제거하지 않고 첫 번째 쿠폰 번호를 반환 (제한 없음)
+const couponCode = couponDB[couponType][0];
+res.json({ couponCode });
+});
+
+// 회원 참여 기록 API
+app.post('/api/participate', async (req, res) => {
+const { memberId } = req.body;
+if (!memberId) {
+  return res.status(400).json({ error: "회원 아이디가 필요합니다." });
+}
+try {
+  // 이미 참여한 회원인지 체크
+  const existing = await participationCollection.findOne({ memberId: memberId });
+  if (existing) {
+    return res.status(400).json({ error: "이미 참여하셨습니다." });
+  }
+  // 참여 기록 저장 (제한 없음)
+  await participationCollection.insertOne({ memberId: memberId, participatedAt: new Date() });
+  res.json({ success: true });
+} catch (err) {
+  console.error(err);
+  res.status(500).json({ error: "서버 오류" });
+}
+});
+
+// ========== [17] 서버 시작 ==========
+// (추가 초기화 작업이 필요한 경우)
+// 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
+(async function initialize() {
+await getTokensFromDB();
+const PORT = process.env.PORT || 6000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 })();
