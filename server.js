@@ -1554,12 +1554,12 @@ clientInstance.connect()
 
   // 쿠폰 세그먼트 정보 (서버에서 관리)
   const segmentsData = [
-  { label: '40%', probability: 0 },   
-  { label: '50%', probability: 99 },
-  { label: '60%', probability: 99 },
-  { label: '70%', probability: 99 },
-  { label: '90%', probability: 0.0001 },
-  { label: '80%', probability: 99 },
+    { label: '40%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 0 },   
+    { label: '50%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 99 },
+    { label: '60%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 99 },
+    { label: '70%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 99 },
+    { label: '90%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 0.0001 },
+    { label: '80%', imageUrl: 'https://yogibo.kr/web/test/90.jpg', probability: 99 },
   ];
 
   // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
