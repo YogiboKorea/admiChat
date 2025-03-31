@@ -1553,7 +1553,7 @@ clientInstance.connect()
   });
 
   // 쿠폰 세그먼트 정보 (서버에서 관리)
-  const segments = [
+  const segmentsData = [
     { label: '40%', image: segmentImages[0], probability: 0 },
     { label: '50%', image: segmentImages[1], probability: 99 },
     { label: '60%', image: segmentImages[2], probability: 99 },
@@ -1561,6 +1561,10 @@ clientInstance.connect()
     { label: '90%', image: segmentImages[4], probability: 0.0001 },
     { label: '80%', image: segmentImages[5], probability: 99 },
   ];
+
+  app.get('/api/segments', (req, res) => {
+    res.json({ segments: segmentsData });
+  });
 
   // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
   const couponDB = {
