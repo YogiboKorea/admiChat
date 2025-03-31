@@ -1555,9 +1555,9 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
 // 브라우저 전용 객체인 segmentImages를 사용하지 않고, 이미지 경로 문자열을 사용합니다.
 const segmentsData = [
   { label: '40%', probability: 0 },
-  { label: '50%', probability: 99 },
-  { label: '60%', probability: 99 },
-  { label: '70%', probability: 99 },
+  { label: '50%', probability: 0 },
+  { label: '60%', probability: 0 },
+  { label: '70%', probability: 0 },
   { label: '90%', probability: 0.0001 },
   { label: '80%', probability: 99 }
 ];
@@ -1568,12 +1568,12 @@ app.get('/api/segments', (req, res) => {
 
 // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
 const couponDB = {
-"40% 쿠폰": [ "6081382180800000867" ],
-"50% 쿠폰": [ "6081382180800000867" ],
-"60% 쿠폰": [ "6081382180800000867" ],
-"70% 쿠폰": [ "6081382180800000867" ],
-"80% 쿠폰": [ "6081382180800000867" ],
-"90% 쿠폰": [ "6081382180800000867" ]
+"40% 쿠폰": [ "40%" ],
+"50% 쿠폰": [ "50%" ],
+"60% 쿠폰": [ "60%" ],
+"70% 쿠폰": [ "70%" ],
+"80% 쿠폰": [ "80%" ],
+"90% 쿠폰": [ "90%" ]
 };
 
 // 쿠폰 번호 발급 API (요청 시 해당 쿠폰 타입의 쿠폰 번호를 할당)
