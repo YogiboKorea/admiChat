@@ -1558,8 +1558,8 @@ clientInstance.connect()
   { label: '50%', probability: 99 },
   { label: '60%', probability: 99 },
   { label: '70%', probability: 99 },
-  { label: '80%', probability: 99 },
   { label: '90%', probability: 0.0001 },
+  { label: '80%', probability: 99 },
   ];
 
   // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
