@@ -1554,17 +1554,16 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
 // 쿠폰 세그먼트 정보 (서버에서 관리)
 // 브라우저 전용 객체인 segmentImages를 사용하지 않고, 이미지 경로 문자열을 사용합니다.
 const segmentsData = [
-{ label: '40%', image: 'images/coupon40.png', probability: 0 },
-{ label: '50%', image: 'images/coupon50.png', probability: 99 },
-{ label: '60%', image: 'images/coupon60.png', probability: 99 },
-{ label: '70%', image: 'images/coupon70.png', probability: 99 },
-{ label: '90%', image: 'images/coupon90.png', probability: 0.0001 },
-{ label: '80%', image: 'images/coupon80.png', probability: 99 }
+  { label: '40%', probability: 0 },
+  { label: '50%', probability: 99 },
+  { label: '60%', probability: 99 },
+  { label: '70%', probability: 99 },
+  { label: '90%', probability: 0.0001 },
+  { label: '80%', probability: 99 }
 ];
 
-// 세그먼트 정보 제공 API (중복 제거)
 app.get('/api/segments', (req, res) => {
-res.json({ segments: segmentsData });
+  res.json({ segments: segmentsData });
 });
 
 // 각 쿠폰 타입별로 미리 관리되는 쿠폰 번호 데이터 (예시)
