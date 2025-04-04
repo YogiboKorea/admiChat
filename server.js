@@ -1420,7 +1420,12 @@ async function saveInstagramFeedData(feedData) {
     console.error("Error saving Instagram feed data to DB:", err);
   }
 }
-
+app.post('/api/trackClick', (req, res) => {
+  const { postId } = req.body;
+  console.log(`Received click event for post: ${postId}`);
+  // 여기서 DB 업데이트나 로그 기록 등의 작업을 수행
+  res.status(200).json({ message: 'Click tracked successfully' });
+});
 
 //럭키 드로우 이벤트 추가 
 // 럭키 드로우 이벤트 추가 
