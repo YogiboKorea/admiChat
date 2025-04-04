@@ -1367,6 +1367,8 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
 });
 
 const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
+
+// 기존 /api/instagramFeed 엔드포인트 수정
 app.get("/api/instagramFeed", async (req, res) => {
   try {
     const pageLimit = 16;
@@ -1374,6 +1376,10 @@ app.get("/api/instagramFeed", async (req, res) => {
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
     const feedData = response.data;
+    
+    // 가져온 인스타그램 데이터를 DB에 저장
+    saveInstagramFeedData(feedData);
+    
     res.json(feedData);
   } catch (error) {
     console.error("Error fetching Instagram feed:", error.message);
@@ -1390,6 +1396,30 @@ app.get('/api/instagramToken', (req, res) => {
     res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
   }
 });
+
+// 인스타그램 피드 데이터를 MongoDB에 저장하는 함수 추가
+async function saveInstagramFeedData(feedData) {
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const instagramCollection = db.collection('instagramData');
+    
+    const feedItems = feedData.data || [];
+    for (const item of feedItems) {
+      // 각 인스타그램 게시물을 id를 기준으로 upsert 처리
+      await instagramCollection.updateOne(
+        { id: item.id },
+        { $set: item },
+        { upsert: true }
+      );
+    }
+    await client.close();
+    console.log("Instagram feed data saved to DB successfully.");
+  } catch (err) {
+    console.error("Error saving Instagram feed data to DB:", err);
+  }
+}
 
 
 //럭키 드로우 이벤트 추가 
