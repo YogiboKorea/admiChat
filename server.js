@@ -1420,13 +1420,31 @@ async function saveInstagramFeedData(feedData) {
     console.error("Error saving Instagram feed data to DB:", err);
   }
 }
-app.post('/api/trackClick', (req, res) => {
+app.post('/api/trackClick', async (req, res) => {
   const { postId } = req.body;
-  console.log(`Received click event for post: ${postId}`);
-  // 여기서 DB 업데이트나 로그 기록 등의 작업을 수행
-  res.status(200).json({ message: 'Click tracked successfully' });
+  if (!postId) {
+    return res.status(400).json({ error: 'postId 값이 필요합니다.' });
+  }
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('instaClickdata');
+    
+    // postId를 기준으로 클릭 카운터를 1 증가 (upsert: document가 없으면 생성)
+    await collection.updateOne(
+      { postId: postId },
+      { $inc: { counter: 1 } },
+      { upsert: true }
+    );
+    
+    await client.close();
+    res.status(200).json({ message: 'Click tracked successfully', postId });
+  } catch (error) {
+    console.error("Error tracking click event:", error);
+    res.status(500).json({ error: 'Error tracking click event' });
+  }
 });
-
 //럭키 드로우 이벤트 추가 
 // 럭키 드로우 이벤트 추가 
 
