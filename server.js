@@ -1078,7 +1078,7 @@ async function getView(providedDates) {
   }
 }
 
-// ========== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
+// ====27272727722727====== [12] 이벤트 페이지 클릭률 (카테고리 상세페이지 접속 순위) ==========
 async function getCategoryProductViewRanking(category_no, providedDates) {
   try {
     // 1. 카테고리 내 상품 목록 조회
@@ -1445,9 +1445,32 @@ app.post('/api/trackClick', async (req, res) => {
     res.status(500).json({ error: 'Error tracking click event' });
   }
 });
-//럭키 드로우 이벤트 추가 
-// 럭키 드로우 이벤트 추가 
+//인스타 클릭데이터 가져오기
+app.get('/api/getClickCount', async (req, res) => {
+  const postId = req.query.postId;
+  if (!postId) {
+    return res.status(400).json({ error: 'postId query parameter is required' });
+  }
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('instaClickdata');
+    
+    // postId 기준으로 document를 찾고, counter 필드 반환 (없으면 0)
+    const doc = await collection.findOne({ postId: postId });
+    const clickCount = doc && doc.counter ? doc.counter : 0;
+    
+    await client.close();
+    res.status(200).json({ clickCount });
+  } catch (error) {
+    console.error("Error fetching click count:", error);
+    res.status(500).json({ error: 'Error fetching click count' });
+  }
+});
 
+
+//럭키 드로우 이벤트 추가 
 /**
  * 예시: member_id를 기반으로 고객 데이터를 가져오기
  */
@@ -1466,6 +1489,7 @@ async function getCustomerDataByMemberId(memberId) {
     throw error;
   }
 }
+
 
 // MongoDB 연결 및 Express 서버 설정 (이벤트 참여 데이터 저장)
 const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
