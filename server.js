@@ -1367,6 +1367,8 @@ app.get("/api/v2/admin/products/search", async (req, res) => {
 });
 
 const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
+const SALLYFELLTOKEN = process.env.SALLYFELLTOKEN;
+
 
 // 기존 /api/instagramFeed 엔드포인트 수정
 app.get("/api/instagramFeed", async (req, res) => {
