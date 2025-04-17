@@ -1231,7 +1231,7 @@ app.post("/chat", async (req, res) => {
 
       if (userInput.includes("이벤트 상품 클릭률")) {
         // 두 개의 카테고리 번호를 배열로 정의
-        const categories = [956, 957,958];
+        const categories = [632, 629,630,899,901,994,995];
         
         // Promise.all을 사용해 각 카테고리의 데이터를 병렬로 호출
         const results = await Promise.all(
