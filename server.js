@@ -1397,6 +1397,17 @@ app.get('/api/instagramToken', (req, res) => {
   }
 });
 
+
+app.get('/api/sallyfeelToken', (req, res) => {
+  const token = process.env.SALLYFELLTOKEN;
+  if (token) {
+    res.json({ token });
+  } else {
+    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+  }
+});
+
+
 // 인스타그램 피드 데이터를 MongoDB에 저장하는 함수 추가
 async function saveInstagramFeedData(feedData) {
   try {
