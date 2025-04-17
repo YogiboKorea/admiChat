@@ -1387,6 +1387,26 @@ app.get("/api/instagramFeed", async (req, res) => {
   }
 });
 
+//샐리필 전용
+app.get("/api/instagramSallyFeed", async (req, res) => {
+  try {
+    const pageLimit = 16;
+    // Instagram Graph API 요청 URL 구성
+    const url = `https://graph.instagram.com/v22.0/me/media?access_token=${SALLYFELLTOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
+    const response = await axios.get(url);
+    const feedData = response.data;
+    
+    // 가져온 인스타그램 데이터를 DB에 저장
+    saveInstagramFeedData(feedData);
+    
+    res.json(feedData);
+  } catch (error) {
+    console.error("Error fetching Instagram feed:", error.message);
+    res.status(500).json({ error: "Failed to fetch Instagram feed" });
+  }
+});
+
+
 
 app.get('/api/instagramToken', (req, res) => {
   const token = process.env.INSTAGRAM_TOKEN;
