@@ -1373,7 +1373,7 @@ const SALLYFELLTOKEN = process.env.SALLYFELLTOKEN;
 // 기존 /api/instagramFeed 엔드포인트 수정
 app.get("/api/instagramFeed", async (req, res) => {
   try {
-    const pageLimit = 16;
+    const pageLimit = 40;
     // Instagram Graph API 요청 URL 구성
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
