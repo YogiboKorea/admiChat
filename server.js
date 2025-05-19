@@ -1757,6 +1757,12 @@ app.post('/api/event/click', async (req, res) => {
 });
 
 
+function getFormattedDate(date = new Date()) {
+  const seoulString = date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
+  const seoulDate   = new Date(seoulString);
+  return seoulDate.toISOString().slice(0, 10);
+}
+
 // 2) 이벤트 전용 날짜별 클릭 통계 조회 API
 //    - route: /api/event/click/stats?date=YYYY-MM-DD
 app.get('/api/event/click/stats', async (req, res) => {
