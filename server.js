@@ -1661,6 +1661,9 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   console.error("Failed to connect to MongoDB", err);
 });
 
+
+
+
 // 쿠폰 세그먼트 정보 (서버에서 관리)
 // 브라우저 전용 객체인 segmentImages를 사용하지 않고, 이미지 경로 문자열을 사용합니다.
 const segmentsData = [
@@ -1717,6 +1720,76 @@ try {
   res.status(500).json({ error: "서버 오류" });
 }
 });
+
+
+//클릭 데이터 추가 코드 
+
+let clickCollection;
+
+// 날짜를 "YYYY-MM-DD" 형태로, 한국 시간(Asia/Seoul) 기준으로 반환
+function getFormattedDate(date = new Date()) {
+  const seoulString = date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
+  const seoulDate   = new Date(seoulString);
+  return seoulDate.toISOString().slice(0, 10);
+}
+// 1) 클릭 기록 API
+app.post('/click', async (req, res) => {
+  try {
+    const { sectionId } = req.body;
+    if (!sectionId) {
+      return res.status(400).json({ error: 'sectionId is required' });
+    }
+
+    const now  = new Date();
+    const date = getFormattedDate(now);
+
+    await clickCollection.updateOne(
+      { sectionId, date },
+      { $inc: { count: 1 }, $push: { timestamps: now } },
+      { upsert: true }
+    );
+
+    res.json({ message: 'Click recorded', sectionId, date });
+  } catch (err) {
+    console.error('Error saving click:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// 2) 날짜별 클릭 통계 조회 API
+app.get('/click/stats', async (req, res) => {
+  try {
+    const date = req.query.date || getFormattedDate();
+    const docs = await clickCollection.find({ date }).toArray();
+
+    const result = docs.map(d => ({
+      sectionId: d.sectionId,
+      clicks:    d.count
+    }));
+
+    res.json({ date, result });
+  } catch (err) {
+    console.error('Error fetching stats:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// MongoDB 연결 및 서버 시작
+MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
+  .then(client => {
+    const db = client.db(DB_NAME);
+    clickCollection = db.collection('clickDataEvent');
+    console.log('✅ MongoDB connected');
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err);
+  });
+
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
