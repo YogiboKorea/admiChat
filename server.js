@@ -1722,26 +1722,29 @@ try {
 });
 
 
-//클릭 데이터 추가 코드 
 
-let clickCollection;
 
-// 날짜를 "YYYY-MM-DD" 형태로, 한국 시간(Asia/Seoul) 기준으로 반환
+
+// 한국 시간 기준으로 YYYY-MM-DD 형식의 날짜 반환
 function getFormattedDate(date = new Date()) {
   const seoulString = date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
   const seoulDate   = new Date(seoulString);
   return seoulDate.toISOString().slice(0, 10);
 }
-// 1) 클릭 기록 API
-app.post('/click', async (req, res) => {
-  try {
-    const { sectionId } = req.body;
-    if (!sectionId) {
-      return res.status(400).json({ error: 'sectionId is required' });
-    }
 
-    const now  = new Date();
-    const date = getFormattedDate(now);
+// 1) 클릭 기록 API
+app.post('/clickSavew', async (req, res) => {
+  const { sectionId } = req.body;
+  if (!sectionId) return res.status(400).json({ error: 'sectionId is required' });
+
+  const now  = new Date();
+  const date = getFormattedDate(now);
+  const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const clickCollection = db.collection('clickDataSave');
 
     await clickCollection.updateOne(
       { sectionId, date },
@@ -1753,41 +1756,32 @@ app.post('/click', async (req, res) => {
   } catch (err) {
     console.error('Error saving click:', err);
     res.status(500).json({ error: 'DB Error' });
+  } finally {
+    await client.close();
   }
 });
 
 // 2) 날짜별 클릭 통계 조회 API
 app.get('/click/stats', async (req, res) => {
-  try {
-    const date = req.query.date || getFormattedDate();
-    const docs = await clickCollection.find({ date }).toArray();
+  const date = req.query.date || getFormattedDate();
+  const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 
-    const result = docs.map(d => ({
-      sectionId: d.sectionId,
-      clicks:    d.count
-    }));
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const clickCollection = db.collection('clickData');
+
+    const docs = await clickCollection.find({ date }).toArray();
+    const result = docs.map(d => ({ sectionId: d.sectionId, clicks: d.count }));
 
     res.json({ date, result });
   } catch (err) {
     console.error('Error fetching stats:', err);
     res.status(500).json({ error: 'DB Error' });
+  } finally {
+    await client.close();
   }
 });
-
-// MongoDB 연결 및 서버 시작
-MongoClient.connect(MONGO_URI, { useUnifiedTopology: true })
-  .then(client => {
-    const db = client.db(DB_NAME);
-    clickCollection = db.collection('clickDataEvent');
-    console.log('✅ MongoDB connected');
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection failed:', err);
-  });
 
 
 
