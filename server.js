@@ -1723,66 +1723,65 @@ try {
 
 
 
-
-
-// 한국 시간 기준으로 YYYY-MM-DD 형식의 날짜 반환
-function getFormattedDate(date = new Date()) {
-  const seoulString = date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
-  const seoulDate   = new Date(seoulString);
-  return seoulDate.toISOString().slice(0, 10);
-}
-
-// 1) 클릭 기록 API
-app.post('/clickSavew', async (req, res) => {
+// 1) 이벤트 전용 클릭 저장 API
+//    - route: /api/event/click
+app.post('/api/event/click', async (req, res) => {
   const { sectionId } = req.body;
-  if (!sectionId) return res.status(400).json({ error: 'sectionId is required' });
+  if (!sectionId) {
+    return res.status(400).json({ error: 'sectionId is required' });
+  }
 
   const now  = new Date();
   const date = getFormattedDate(now);
-  const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
 
   try {
     await client.connect();
     const db = client.db(DB_NAME);
-    const clickCollection = db.collection('clickDataSave');
+    // 기존 clickData, clickDataSave 와 혼동 없도록 컬렉션 이름 분리
+    const col = db.collection('eventClickData');
 
-    await clickCollection.updateOne(
+    await col.updateOne(
       { sectionId, date },
       { $inc: { count: 1 }, $push: { timestamps: now } },
       { upsert: true }
     );
 
-    res.json({ message: 'Click recorded', sectionId, date });
+    res.json({ message: 'Event click recorded', sectionId, date });
   } catch (err) {
-    console.error('Error saving click:', err);
+    console.error('Error saving event click:', err);
     res.status(500).json({ error: 'DB Error' });
   } finally {
     await client.close();
   }
 });
 
-// 2) 날짜별 클릭 통계 조회 API
-app.get('/click/stats', async (req, res) => {
+
+// 2) 이벤트 전용 날짜별 클릭 통계 조회 API
+//    - route: /api/event/click/stats?date=YYYY-MM-DD
+app.get('/api/event/click/stats', async (req, res) => {
   const date = req.query.date || getFormattedDate();
-  const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
 
   try {
     await client.connect();
     const db = client.db(DB_NAME);
-    const clickCollection = db.collection('clickData');
+    const col = db.collection('eventClickData');
 
-    const docs = await clickCollection.find({ date }).toArray();
-    const result = docs.map(d => ({ sectionId: d.sectionId, clicks: d.count }));
+    const docs = await col.find({ date }).toArray();
+    const result = docs.map(d => ({
+      sectionId: d.sectionId,
+      clicks:    d.count
+    }));
 
     res.json({ date, result });
   } catch (err) {
-    console.error('Error fetching stats:', err);
+    console.error('Error fetching event stats:', err);
     res.status(500).json({ error: 'DB Error' });
   } finally {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
