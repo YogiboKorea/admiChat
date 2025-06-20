@@ -1790,31 +1790,28 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
-
-// ========== 포인트 적립·차감 API 추가 ==========
+//포인트 지급관련 데이터
 app.post('/api/points', async (req, res) => {
-  const { memberId, amount, type, orderId = '', reason = '' } = req.body;
-  // 유효성 검사
+  const { memberId, keyword } = req.body;
   if (!memberId || typeof memberId !== 'string') {
-    return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
+    return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
   }
-  if (typeof amount !== 'number' || amount < 0) {
-    return res.status(400).json({ success: false, error: 'amount는 0 이상의 숫자이어야 합니다.' });
-  }
-  if (!['increase', 'decrease'].includes(type)) {
-    return res.status(400).json({ success: false, error: "type은 'increase' 또는 'decrease'이어야 합니다." });
+  const amount = KEYWORD_REWARDS[keyword];
+  if (!amount) {
+    return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
 
   const payload = {
     shop_no:   1,
     member_id: memberId,
-    order_id:  orderId,
-    amount,
-    type,
-    reason,
+    order_id:  '',            // 필요 시 주문번호를 지정
+    amount,                   // 매핑된 금액 (여기선 1)
+    type:      'increase',    // 무조건 증가
+    reason:    `${keyword} 프로모션 적립금 지급`
   };
 
   try {
+    // apiRequest 도구와 CAFE24_MALLID 변수를 그대로 사용
     const data = await apiRequest(
       'POST',
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
@@ -1822,15 +1819,14 @@ app.post('/api/points', async (req, res) => {
     );
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('적립금 증감 오류:', err.response ? err.response.data : err.message);
+    console.error('포인트 지급 오류:', err.response?.data || err.message);
     const status = err.response?.status || 500;
     return res.status(status).json({
       success: false,
-      error: err.response ? err.response.data : err.message
+      error: err.response?.data || err.message
     });
   }
 });
-
 
 
 
