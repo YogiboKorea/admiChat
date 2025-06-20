@@ -1836,16 +1836,14 @@ app.post('/api/points', async (req, res) => {
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
-    return res.status(400).json({ success: false, error: `유효하지 않은 키워드입니다.` });
+    return res.status(400).send('앗, 아쉽게 틀렸네요! 다시 한번 도전해 보세요 :)');
   }
 
   try {
     // 2) 중복 참여 확인 (MongoDB 조회)
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
-      return res
-        .status(400)
-        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+      return res.status(400).send('이미 참여 완료한 이벤트입니다.');
     }
 
     // 3) Cafe24 API로 포인트 적립
@@ -1880,9 +1878,7 @@ app.post('/api/points', async (req, res) => {
 
     // 동시성 등으로 인해 unique index 위반시에도 중복 처리
     if (err.code === 11000) {
-      return res
-        .status(400)
-        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+      return res.status(400).send('이미 참여 완료한 이벤트입니다.');
     }
 
     const status = err.response?.status || 500;
