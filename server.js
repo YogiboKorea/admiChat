@@ -1820,7 +1820,8 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   .catch(err => {
     console.error('❌ MongoDB 연결 실패:', err);
   });
-// ── [포인트 적립용 엔드포인트 수정] ──
+
+// ── 포인트 적립용 엔드포인트 ──
 const KEYWORD_REWARDS = {
   '우파루파': 1
 };
@@ -1838,7 +1839,7 @@ app.post('/api/points', async (req, res) => {
   }
 
   try {
-    // 2) 중복 참여 확인 (MongoDB 조회)
+    // 2) 중복 참여 확인
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
       return res
@@ -1849,12 +1850,12 @@ app.post('/api/points', async (req, res) => {
     // 3) 프로모션 전용 고유 order_id 생성
     const orderId = `promo_${memberId}_${keyword}_${Date.now()}`;
 
-    // 4) Cafe24 Admin API로 포인트 적립 (flatten payload)
+    // 4) Cafe24 Admin API 호출 (flattened payload)
     const payload = {
       shop_no:   1,
       member_id: memberId,
       order_id:  orderId,
-      amount,                // KEYWORD_REWARDS[keyword]
+      amount,                   // 적립 금액
       type:     'increase',
       reason:   `${keyword} 프로모션 적립금 지급`
     };
@@ -1864,7 +1865,7 @@ app.post('/api/points', async (req, res) => {
       payload
     );
 
-    // 5) 적립 성공 시 참여 기록 저장
+    // 5) 적립 성공 시 기록 저장
     await eventPartnersCollection.insertOne({
       memberId,
       keyword,
@@ -1872,13 +1873,13 @@ app.post('/api/points', async (req, res) => {
       participatedAt: new Date()
     });
 
-    // 6) 응답
+    // 6) 성공 응답
     return res.json({ success: true, data });
 
   } catch (err) {
     console.error('포인트 지급 오류:', err);
 
-    // 동시성 등으로 인해 unique index 위반시에도 중복 처리
+    // MongoDB unique index 위반(중복) 처리
     if (err.code === 11000) {
       return res
         .status(400)
@@ -1886,9 +1887,10 @@ app.post('/api/points', async (req, res) => {
     }
 
     const status = err.response?.status || 500;
+    const errorBody = err.response?.data || err.message;
     return res
       .status(status)
-      .json({ success: false, error: err.response?.data || err.message });
+      .json({ success: false, error: errorBody });
   }
 });
 
