@@ -1789,10 +1789,6 @@ app.get('/api/event/click/stats', async (req, res) => {
   }
 });
 
-
-// (토큰 관리 함수 getTokensFromDB, saveTokensToDB, refreshAccessToken)
-// … (생략: 기존 코드 그대로)
-
 // ============================
 // 키워드별 적립금 매핑
 // ============================
@@ -1802,9 +1798,15 @@ const KEYWORD_REWARDS = {
 
 // ============================
 // POST /api/points
+//  - memberId, keyword 받아서
+//    1) 중복 체크
+//    2) 카페24 포인트 지급
+//    3) 참여 기록 저장
 // ============================
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
+
+  // 검증
   if (!memberId || typeof memberId !== 'string') {
     return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
   }
@@ -1814,7 +1816,7 @@ app.post('/api/points', async (req, res) => {
   }
 
   try {
-    // 1) 이미 참여했는지
+    // 1) 이미 참여했는지 확인
     const already = await participationCol.findOne({ memberId, keyword });
     if (already) {
       return res
@@ -1846,6 +1848,7 @@ app.post('/api/points', async (req, res) => {
       rewardedAt: new Date()
     });
 
+    // 성공 응답
     return res.json({ success: true, data });
   } catch (err) {
     console.error('포인트 지급 또는 DB 오류:', err);
@@ -1856,11 +1859,16 @@ app.post('/api/points', async (req, res) => {
   }
 });
 
+
+const participationCol = db.collection('eventParticipation');
+
 // ============================
 // GET /api/points/status
+//  - memberId, keyword 로 이미 지급했는지 확인
 // ============================
 app.get('/api/points/status', async (req, res) => {
   const { memberId, keyword } = req.query;
+
   if (!memberId || !keyword) {
     return res
       .status(400)
@@ -1880,6 +1888,7 @@ app.get('/api/points/status', async (req, res) => {
       .json({ success: false, error: err.message });
   }
 });
+
 
 // ============================
 // (필요시) 앱 종료 시 MongoDB 연결 닫기
