@@ -1812,43 +1812,56 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
 const KEYWORD_REWARDS = { '우파루파': 1 };
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
-  const amount = KEYWORD_REWARDS[keyword];
-  if (!memberId || typeof memberId !== 'string') {
-    return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
-  }
-  if (!amount) {
-    return res.status(400).json({ success: false, error: '키워드를 다시 한번 확인해주세요.' });
-  }
+  // …(유효성 검사, 중복 체크)
 
-  // 0) 유효한 주문번호 조회
+  // 0) 오늘과 7일 전 날짜 계산
+  const today = new Date();
+  const endDate = today.toISOString().slice(0, 10);          // YYYY-MM-DD
+  const start = new Date(today);
+  start.setDate(start.getDate() - 7);
+  const startDate = start.toISOString().slice(0, 10);
+
+  // 1) 유효한 주문번호 조회 (최근 7일간, 주문일 기준)
   let orderId;
   try {
     const ordersRes = await apiRequest(
       'GET',
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
       null,
-      { params: { shop_no: 1, limit: 1 } }
+      {
+        params: {
+          shop_no:    1,
+          start_date: startDate,
+          end_date:   endDate,
+          date_type:  'order_date',
+          limit:      1
+        }
+      }
     );
     orderId = ordersRes.orders?.[0]?.order_id;
     if (!orderId) throw new Error('조회된 주문이 없습니다.');
   } catch (e) {
-    return res.status(500).json({ success: false, error: '유효한 주문 조회 실패: ' + e.message });
+    return res
+      .status(500)
+      .json({ success: false, error: `유효한 주문 조회 실패: ${e.message}` });
   }
 
   try {
-    // 1) 중복 참여 확인
+    // 2) 중복 참여 확인
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
-      return res.status(400).json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+      return res
+        .status(400)
+        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
 
-    // 2) 포인트 적립 호출
+    // 3) 포인트 적립 호출
     const payload = {
       shop_no: 1,
       request: {
         member_id: memberId,
         order_id:  orderId,
-        amount:    amount,
+        amount:    KEYWORD_REWARDS[keyword],
         type:      'increase',
         reason:    `${keyword} 프로모션 적립금 지급`
       }
@@ -1859,7 +1872,7 @@ app.post('/api/points', async (req, res) => {
       payload
     );
 
-    // 3) 성공 시 DB 저장
+    // 4) 성공 시 DB 저장
     await eventPartnersCollection.insertOne({
       memberId,
       keyword,
@@ -1871,7 +1884,9 @@ app.post('/api/points', async (req, res) => {
   } catch (err) {
     console.error('포인트 지급 오류:', err);
     if (err.code === 11000) {
-      return res.status(400).json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+      return res
+        .status(400)
+        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
     const status = err.response?.status || 500;
     const errorBody = err.response?.data || err.message;
