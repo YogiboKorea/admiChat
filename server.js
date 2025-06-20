@@ -1790,31 +1790,44 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+// 1) 몽고DB 연결 후 participationCol 준비
+const mongoClient = new MongoClient(MONGODB_URI);
+let participationCol;
+(async () => {
+  await mongoClient.connect();
+  const db = mongoClient.db(DB_NAME);
+  participationCol = db.collection('eventParticipation');
+  console.log('✅ participationCol 준비 완료');
+})();
 
-
-
-
-
-
-
-// ============================
-// 키워드별 적립금 매핑
-// ============================
+// 2) 키워드-적립금 매핑
 const KEYWORD_REWARDS = {
-  '우파루파': 1  // '우파루파' 입력 시 1원 적립
+  '요기보다': 1
 };
 
-// ============================
-// POST /api/points
-//  - memberId, keyword 받아서
-//    1) 중복 체크
-//    2) 카페24 포인트 지급
-//    3) 참여 기록 저장
-// ============================
+// 3) 참여 여부 확인
+app.get('/api/points/status', async (req, res) => {
+  const { memberId, keyword } = req.query;
+  if (!memberId || !keyword) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
+  }
+  try {
+    const already = await participationCol.findOne({ memberId, keyword });
+    return res.json({
+      success:      true,
+      participated: Boolean(already)
+    });
+  } catch (err) {
+    console.error('참여 여부 조회 오류:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4) 포인트 지급 + 기록 저장
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
-
-  // 검증
   if (!memberId || typeof memberId !== 'string') {
     return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
   }
@@ -1822,17 +1835,13 @@ app.post('/api/points', async (req, res) => {
   if (!amount) {
     return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
-
   try {
-    // 1) 이미 참여했는지 확인
     const already = await participationCol.findOne({ memberId, keyword });
     if (already) {
       return res
         .status(200)
         .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
-
-    // 2) 카페24 API로 적립금 지급
     const payload = {
       shop_no: 1,
       request: {
@@ -1848,15 +1857,11 @@ app.post('/api/points', async (req, res) => {
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
       payload
     );
-
-    // 3) 참여 기록 저장
     await participationCol.insertOne({
       memberId,
       keyword,
       rewardedAt: new Date()
     });
-
-    // 성공 응답
     return res.json({ success: true, data });
   } catch (err) {
     console.error('포인트 지급 또는 DB 오류:', err);
@@ -1866,61 +1871,6 @@ app.post('/api/points', async (req, res) => {
       .json({ success: false, error: err.response?.data || err.message });
   }
 });
-
-
-const mongoClient = new MongoClient(MONGODB_URI);
-let participationCol;
-
-// 서버 시작 전에 MongoDB 연결을 완료합니다.
-(async () => {
-  try {
-    await mongoClient.connect();
-    const db = mongoClient.db(DB_NAME);
-    participationCol = db.collection("eventParticipation");
-    console.log("✅ MongoDB connected. participationCol ready.");
-  } catch (e) {
-    console.error("❌ MongoDB 연결 실패:", e);
-    process.exit(1);
-  }
-})();
-
-// ============================
-// GET /api/points/status
-//  - memberId, keyword 로 이미 지급했는지 확인
-// ============================
-app.get('/api/points/status', async (req, res) => {
-  const { memberId, keyword } = req.query;
-
-  if (!memberId || !keyword) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
-  }
-
-  try {
-    const already = await participationCol.findOne({ memberId, keyword });
-    return res.json({
-      success:      true,
-      participated: Boolean(already)
-    });
-  } catch (err) {
-    console.error('참여 여부 조회 오류:', err);
-    return res
-      .status(500)
-      .json({ success: false, error: err.message });
-  }
-});
-
-
-// ============================
-// (필요시) 앱 종료 시 MongoDB 연결 닫기
-// ============================
-process.on('SIGINT', async () => {
-  await mongoClient.close();
-  console.log("🔒 MongoDB connection closed");
-  process.exit(0);
-});
-
 
 
 // ========== [17] 서버 시작 ==========
