@@ -1790,6 +1790,50 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+
+// ========== 포인트 적립·차감 API 추가 ==========
+app.post('/api/points', async (req, res) => {
+  const { memberId, amount, type, orderId = '', reason = '' } = req.body;
+  // 유효성 검사
+  if (!memberId || typeof memberId !== 'string') {
+    return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
+  }
+  if (typeof amount !== 'number' || amount < 0) {
+    return res.status(400).json({ success: false, error: 'amount는 0 이상의 숫자이어야 합니다.' });
+  }
+  if (!['increase', 'decrease'].includes(type)) {
+    return res.status(400).json({ success: false, error: "type은 'increase' 또는 'decrease'이어야 합니다." });
+  }
+
+  const payload = {
+    shop_no:   1,
+    member_id: memberId,
+    order_id:  orderId,
+    amount,
+    type,
+    reason,
+  };
+
+  try {
+    const data = await apiRequest(
+      'POST',
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
+      payload
+    );
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('적립금 증감 오류:', err.response ? err.response.data : err.message);
+    const status = err.response?.status || 500;
+    return res.status(status).json({
+      success: false,
+      error: err.response ? err.response.data : err.message
+    });
+  }
+});
+
+
+
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
