@@ -1824,7 +1824,7 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
 
 // ── [포인트 적립용 엔드포인트 수정] ──
 const KEYWORD_REWARDS = {
-  '요기보다': 1
+  '우파루파': 1
 };
 
 app.post('/api/points', async (req, res) => {
