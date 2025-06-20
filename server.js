@@ -1836,7 +1836,7 @@ app.post('/api/points', async (req, res) => {
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
-    return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
+    return res.status(400).json({ success: false, error: '키워드를 다시 한 번 확인해주세요.' });
   }
 
   try {
