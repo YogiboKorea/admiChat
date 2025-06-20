@@ -1893,6 +1893,13 @@ app.post('/api/points', async (req, res) => {
 });
 
 
+app.get('/api/points/check', async (req, res) => {
+  const { memberId, keyword } = req.query;
+  const found = await eventPartnersCollection.findOne({ memberId, keyword });
+  res.json({ participated: !!found });
+});
+
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
