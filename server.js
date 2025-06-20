@@ -1790,7 +1790,6 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
-
 let db, eventPartnersCollection;
 
 MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
@@ -1821,7 +1820,6 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
     console.error('❌ MongoDB 연결 실패:', err);
   });
 
-
 // ── [포인트 적립용 엔드포인트 수정] ──
 const KEYWORD_REWARDS = {
   '우파루파': 2000
@@ -1832,18 +1830,26 @@ app.post('/api/points', async (req, res) => {
 
   // 1) 파라미터 유효성 검사
   if (!memberId || typeof memberId !== 'string') {
-    return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
+    return res
+      .status(400)
+      .json({ success: false, message: '잘못된 요청입니다. 다시 시도해주세요.' });
   }
+
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
-    return res.status(400).send('앗, 아쉽게 틀렸네요! 다시 한번 도전해 보세요 :)');
+    // 틀린 키워드
+    return res
+      .status(400)
+      .json({ success: false, message: '아쉽지만 정답이 아닙니다. 다시 도전해보세요!' });
   }
 
   try {
-    // 2) 중복 참여 확인 (MongoDB 조회)
+    // 2) 중복 참여 확인
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
-      return res.status(400).send('이미 참여 완료한 이벤트입니다.');
+      return res
+        .status(400)
+        .json({ success: false, message: '이미 참여 완료한 이벤트입니다.' });
     }
 
     // 3) Cafe24 API로 포인트 적립
@@ -1870,29 +1876,46 @@ app.post('/api/points', async (req, res) => {
       participatedAt: new Date()
     });
 
-    // 5) 응답
+    // 5) 성공 응답
     return res.json({ success: true, data });
 
   } catch (err) {
     console.error('포인트 지급 오류:', err);
 
-    // 동시성 등으로 인해 unique index 위반시에도 중복 처리
+    // unique index 충돌 (동시성 중복 처리)
     if (err.code === 11000) {
-      return res.status(400).send('이미 참여 완료한 이벤트입니다.');
+      return res
+        .status(400)
+        .json({ success: false, message: '이미 참여 완료한 이벤트입니다.' });
     }
 
-    const status = err.response?.status || 500;
+    // 기타 서버 오류
     return res
-      .status(status)
-      .json({ success: false, error: err.response?.data || err.message });
+      .status(500)
+      .json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
   }
 });
 
-
+// ── [중복 참여 확인용 엔드포인트] ──
 app.get('/api/points/check', async (req, res) => {
   const { memberId, keyword } = req.query;
-  const found = await eventPartnersCollection.findOne({ memberId, keyword });
-  res.json({ participated: !!found });
+  if (!memberId || !keyword) {
+    return res
+      .status(400)
+      .json({ success: false, message: '잘못된 요청입니다.' });
+  }
+  try {
+    const found = await eventPartnersCollection.findOne({ memberId, keyword });
+    return res.json({
+      success: true,
+      participated: !!found
+    });
+  } catch (err) {
+    console.error('중복 체크 오류:', err);
+    return res
+      .status(500)
+      .json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
 });
 
 
