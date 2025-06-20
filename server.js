@@ -1788,89 +1788,56 @@ app.get('/api/event/click/stats', async (req, res) => {
     await client.close();
   }
 });
+// ── [포인트 적립용 엔드포인트 추가] ──
 
-
-// 1) 몽고DB 연결 후 participationCol 준비
-const mongoClient = new MongoClient(MONGODB_URI);
-let participationCol;
-(async () => {
-  await mongoClient.connect();
-  const db = mongoClient.db(DB_NAME);
-  participationCol = db.collection('eventParticipation');
-  console.log('✅ participationCol 준비 완료');
-})();
-
-// 2) 키워드-적립금 매핑
+// 1) 키워드별 백엔드 결정 적립금 매핑
 const KEYWORD_REWARDS = {
-  '요기보다': 1
+  '요기보다': 1   // '요기보다' 입력 시 1원 적립
 };
 
-// 3) 참여 여부 확인
-app.get('/api/points/status', async (req, res) => {
-  const { memberId, keyword } = req.query;
-  if (!memberId || !keyword) {
-    return res
-      .status(400)
-      .json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
-  }
-  try {
-    const already = await participationCol.findOne({ memberId, keyword });
-    return res.json({
-      success:      true,
-      participated: Boolean(already)
-    });
-  } catch (err) {
-    console.error('참여 여부 조회 오류:', err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 4) 포인트 지급 + 기록 저장
+// 2) POST /api/points 라우터
+//    요청 바디: { memberId: string, keyword: string }
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
+
+  // 1) 파라미터 유효성 검사
   if (!memberId || typeof memberId !== 'string') {
-    return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
+    return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
     return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
-  try {
-    const already = await participationCol.findOne({ memberId, keyword });
-    if (already) {
-      return res
-        .status(200)
-        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+
+  // 2) Cafe24 API 호출 페이로드 구성
+  const payload = {
+    shop_no:   1,
+    request: {
+      member_id: memberId,
+      order_id:  '',         // 필요 시 주문번호 지정
+      amount,                // 매핑된 금액 (여기선 1)
+      type:      'increase', // 늘리기
+      reason:    `${keyword} 프로모션 적립금 지급`
     }
-    const payload = {
-      shop_no: 1,
-      request: {
-        member_id: memberId,
-        order_id:  '',
-        amount,
-        type:      'increase',
-        reason:    `${keyword} 프로모션 적립금 지급`
-      }
-    };
+  };
+
+  try {
+    // apiRequest 함수, CAFE24_MALLID, CAFE24_API_VERSION 은 이미 선언되어 있어야 합니다.
     const data = await apiRequest(
       'POST',
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
       payload
     );
-    await participationCol.insertOne({
-      memberId,
-      keyword,
-      rewardedAt: new Date()
-    });
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('포인트 지급 또는 DB 오류:', err);
+    console.error('포인트 지급 오류:', err.response?.data || err.message);
     const status = err.response?.status || 500;
     return res
       .status(status)
       .json({ success: false, error: err.response?.data || err.message });
   }
 });
+
 
 
 // ========== [17] 서버 시작 ==========
