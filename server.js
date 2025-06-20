@@ -1790,25 +1790,24 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
-//포인트 지급관련 데이트
+
+// ========== [1] 모듈 스코프에서 MongoDB 연결 ========== 
 const { MongoClient } = require('mongodb');
 const participationColName = 'eventParticipation';
 
-// 기존 MongoClient 연결 로직 위에서 재사용하거나, 간단히 여기서 새로 연결
-async function getParticipationCollection() {
-  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-  await client.connect();
-  return client.db(DB_NAME).collection(participationColName);
-}
-// 1) 키워드별 백엔드 결정 적립금 매핑
+const mongoClient = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+await mongoClient.connect();                    // 앱 시작 시 1회만 연결
+const db               = mongoClient.db(DB_NAME);
+const participationCol = db.collection(participationColName);
+
+// ========== [2] 키워드별 적립금 매핑 ========== 
 const KEYWORD_REWARDS = {
-  '우파루파': 1   // '요기보다' 입력 시 1원 적립
+  '우파루파': 1   // '우파루파' 입력 시 1원 적립
 };
-// 2) POST /api/points 라우터
-// 기존 KEYWORD_REWARDS 정의 아래에 붙여주세요
+
+// ========== [3] POST /api/points ==========
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
-
   if (!memberId || typeof memberId !== 'string') {
     return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
   }
@@ -1817,12 +1816,9 @@ app.post('/api/points', async (req, res) => {
     return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
 
-  let col;
   try {
-    col = await getParticipationCollection();
-
     // 1) 이미 참여했는지 확인
-    const already = await col.findOne({ memberId, keyword });
+    const already = await participationCol.findOne({ memberId, keyword });
     if (already) {
       return res
         .status(200)
@@ -1835,7 +1831,7 @@ app.post('/api/points', async (req, res) => {
       request: {
         member_id: memberId,
         order_id:  '',
-        amount,              
+        amount,
         type:      'increase',
         reason:    `${keyword} 프로모션 적립금 지급`
       }
@@ -1847,7 +1843,7 @@ app.post('/api/points', async (req, res) => {
     );
 
     // 3) 참여 기록 저장
-    await col.insertOne({
+    await participationCol.insertOne({
       memberId,
       keyword,
       rewardedAt: new Date()
@@ -1860,36 +1856,40 @@ app.post('/api/points', async (req, res) => {
     return res
       .status(status)
       .json({ success: false, error: err.response?.data || err.message });
-  } finally {
-    // MongoClient 커넥션 닫기
-    if (col?.s && col.s.db) {
-      col.s.db.serverConfig.close();
-    }
   }
 });
 
-// GET /api/points/status?memberId=xxx&keyword=yyy
+// ========== [4] GET /api/points/status ==========
 app.get('/api/points/status', async (req, res) => {
   const { memberId, keyword } = req.query;
   if (!memberId || !keyword) {
-    return res.status(400).json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
+    return res
+      .status(400)
+      .json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
   }
 
-  let col;
   try {
-    col = await getParticipationCollection();
-    const already = await col.findOne({ memberId, keyword });
+    const already = await participationCol.findOne({ memberId, keyword });
     return res.json({
-      success: true,
-      participated: !!already   // true 면 이미 참여함
+      success:      true,
+      participated: Boolean(already)
     });
   } catch (err) {
     console.error('참여 여부 조회 오류:', err);
-    return res.status(500).json({ success: false, error: err.message });
-  } finally {
-    if (col?.s && col.s.db) col.s.db.serverConfig.close();
+    return res
+      .status(500)
+      .json({ success: false, error: err.message });
   }
 });
+
+// ========== (앱 종료 시) MongoDB 연결 닫기 ==========
+process.on('SIGINT', async () => {
+  await mongoClient.close();
+  process.exit(0);
+});
+
+
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
