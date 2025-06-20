@@ -1836,7 +1836,7 @@ app.post('/api/points', async (req, res) => {
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
-    return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
+    return res.status(400).json({ success: false, error: `유효하지 않은 키워드입니다.` });
   }
 
   try {
@@ -1853,7 +1853,7 @@ app.post('/api/points', async (req, res) => {
       shop_no: 1,
       request: {
         member_id: memberId,
-        order_id:  '',
+        order_id:  null,
         amount,
         type:    'increase',
         reason:  `${keyword} 프로모션 적립금 지급`
