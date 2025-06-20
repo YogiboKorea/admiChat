@@ -1810,32 +1810,39 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
 
 // ── [포인트 적립용 엔드포인트] ──
 const KEYWORD_REWARDS = { '우파루파': 1 };
-
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
-
-  // 1) 파라미터 유효성 검사
+  const amount = KEYWORD_REWARDS[keyword];
   if (!memberId || typeof memberId !== 'string') {
     return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
   }
-  const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
     return res.status(400).json({ success: false, error: '키워드를 다시 한번 확인해주세요.' });
   }
 
+  // 0) 유효한 주문번호 조회
+  let orderId;
   try {
-    // 2) 중복 참여 확인
+    const ordersRes = await apiRequest(
+      'GET',
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+      null,
+      { params: { shop_no: 1, limit: 1 } }
+    );
+    orderId = ordersRes.orders?.[0]?.order_id;
+    if (!orderId) throw new Error('조회된 주문이 없습니다.');
+  } catch (e) {
+    return res.status(500).json({ success: false, error: '유효한 주문 조회 실패: ' + e.message });
+  }
+
+  try {
+    // 1) 중복 참여 확인
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
-      return res
-        .status(400)
-        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+      return res.status(400).json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
 
-    // 3) 테스트용 고정 order_id 할당
-    const orderId = '20250320-0000014';
-
-    // 4) Cafe24 Admin API 호출
+    // 2) 포인트 적립 호출
     const payload = {
       shop_no: 1,
       request: {
@@ -1852,7 +1859,7 @@ app.post('/api/points', async (req, res) => {
       payload
     );
 
-    // 5) 성공 시 참여 기록 저장
+    // 3) 성공 시 DB 저장
     await eventPartnersCollection.insertOne({
       memberId,
       keyword,
@@ -1860,9 +1867,7 @@ app.post('/api/points', async (req, res) => {
       participatedAt: new Date()
     });
 
-    // 6) 성공 응답
     return res.json({ success: true, data });
-
   } catch (err) {
     console.error('포인트 지급 오류:', err);
     if (err.code === 11000) {
@@ -1873,16 +1878,6 @@ app.post('/api/points', async (req, res) => {
     return res.status(status).json({ success: false, error: errorBody });
   }
 });
-
-
-// ── 중복 참여 확인용 엔드포인트 ──
-app.get('/api/points/check', async (req, res) => {
-  const { memberId, keyword } = req.query;
-  const found = await eventPartnersCollection.findOne({ memberId, keyword });
-  res.json({ participated: !!found });
-});
-
-
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
