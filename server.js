@@ -1789,6 +1789,14 @@ app.get('/api/event/click/stats', async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
 // ============================
 // 키워드별 적립금 매핑
 // ============================
@@ -1860,7 +1868,21 @@ app.post('/api/points', async (req, res) => {
 });
 
 
-const participationCol = db.collection('eventParticipation');
+const mongoClient = new MongoClient(MONGODB_URI);
+let participationCol;
+
+// 서버 시작 전에 MongoDB 연결을 완료합니다.
+(async () => {
+  try {
+    await mongoClient.connect();
+    const db = mongoClient.db(DB_NAME);
+    participationCol = db.collection("eventParticipation");
+    console.log("✅ MongoDB connected. participationCol ready.");
+  } catch (e) {
+    console.error("❌ MongoDB 연결 실패:", e);
+    process.exit(1);
+  }
+})();
 
 // ============================
 // GET /api/points/status
