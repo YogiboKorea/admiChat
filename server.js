@@ -1820,7 +1820,6 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   .catch(err => {
     console.error('❌ MongoDB 연결 실패:', err);
   });
-
 // ── [포인트 적립용 엔드포인트 수정] ──
 const KEYWORD_REWARDS = {
   '우파루파': 1
@@ -1850,16 +1849,14 @@ app.post('/api/points', async (req, res) => {
     // 3) 프로모션 전용 고유 order_id 생성
     const orderId = `promo_${memberId}_${keyword}_${Date.now()}`;
 
-    // 4) Cafe24 API로 포인트 적립
+    // 4) Cafe24 Admin API로 포인트 적립 (flatten payload)
     const payload = {
-      shop_no: 1,
-      request: {
-        member_id: memberId,
-        order_id:  orderId,
-        amount,
-        type:    'increase',
-        reason:  `${keyword} 프로모션 적립금 지급`
-      }
+      shop_no:   1,
+      member_id: memberId,
+      order_id:  orderId,
+      amount,                // KEYWORD_REWARDS[keyword]
+      type:     'increase',
+      reason:   `${keyword} 프로모션 적립금 지급`
     };
     const data = await apiRequest(
       'POST',
@@ -1893,6 +1890,12 @@ app.post('/api/points', async (req, res) => {
       .status(status)
       .json({ success: false, error: err.response?.data || err.message });
   }
+});
+
+app.get('/api/points/check', async (req, res) => {
+  const { memberId, keyword } = req.query;
+  const found = await eventPartnersCollection.findOne({ memberId, keyword });
+  res.json({ participated: !!found });
 });
 
 
