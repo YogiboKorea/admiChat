@@ -1792,7 +1792,7 @@ app.get('/api/event/click/stats', async (req, res) => {
 
 // 1) 키워드별 백엔드 결정 적립금 매핑
 const KEYWORD_REWARDS = {
-  '요기보다': 1   // '요기보다' 입력 시 1원 적립
+  '우파루파': 1   // '요기보다' 입력 시 1원 적립
 };
 
 // 2) POST /api/points 라우터
