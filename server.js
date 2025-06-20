@@ -1821,7 +1821,8 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
     console.error('❌ MongoDB 연결 실패:', err);
   });
 
-// ── 포인트 적립용 엔드포인트 ──
+
+// ── [포인트 적립용 엔드포인트 수정] ──
 const KEYWORD_REWARDS = {
   '우파루파': 1
 };
@@ -1835,11 +1836,11 @@ app.post('/api/points', async (req, res) => {
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
-    return res.status(400).json({ success: false, error: '키워드를 다시 한 번 확인해주세요.' });
+    return res.status(400).json({ success: false, error: '키워드를 다시 한번 확인해주세요' });
   }
 
   try {
-    // 2) 중복 참여 확인
+    // 2) 중복 참여 확인 (MongoDB 조회)
     const already = await eventPartnersCollection.findOne({ memberId, keyword });
     if (already) {
       return res
@@ -1847,17 +1848,16 @@ app.post('/api/points', async (req, res) => {
         .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
 
-    // 3) 프로모션 전용 고유 order_id 생성
-    const orderId = `promo_${memberId}_${keyword}_${Date.now()}`;
-
-    // 4) Cafe24 Admin API 호출 (flattened payload)
+    // 3) Cafe24 API로 포인트 적립
     const payload = {
-      shop_no:   1,
-      member_id: memberId,
-      order_id:  orderId,
-      amount,                   // 적립 금액
-      type:     'increase',
-      reason:   `${keyword} 프로모션 적립금 지급`
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id:  '',
+        amount,
+        type:    'increase',
+        reason:  `${keyword} 프로모션 적립금 지급`
+      }
     };
     const data = await apiRequest(
       'POST',
@@ -1865,21 +1865,20 @@ app.post('/api/points', async (req, res) => {
       payload
     );
 
-    // 5) 적립 성공 시 기록 저장
+    // 4) 적립 성공 시 참여 기록 저장
     await eventPartnersCollection.insertOne({
       memberId,
       keyword,
-      orderId,
       participatedAt: new Date()
     });
 
-    // 6) 성공 응답
+    // 5) 응답
     return res.json({ success: true, data });
 
   } catch (err) {
     console.error('포인트 지급 오류:', err);
 
-    // MongoDB unique index 위반(중복) 처리
+    // 동시성 등으로 인해 unique index 위반시에도 중복 처리
     if (err.code === 11000) {
       return res
         .status(400)
@@ -1887,25 +1886,19 @@ app.post('/api/points', async (req, res) => {
     }
 
     const status = err.response?.status || 500;
-    const errorBody = err.response?.data || err.message;
     return res
       .status(status)
-      .json({ success: false, error: errorBody });
+      .json({ success: false, error: err.response?.data || err.message });
   }
 });
 
-app.get('/api/points/check', async (req, res) => {
-  const { memberId, keyword } = req.query;
-  const found = await eventPartnersCollection.findOne({ memberId, keyword });
-  res.json({ participated: !!found });
-});
-
 
 app.get('/api/points/check', async (req, res) => {
   const { memberId, keyword } = req.query;
   const found = await eventPartnersCollection.findOne({ memberId, keyword });
   res.json({ participated: !!found });
 });
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
