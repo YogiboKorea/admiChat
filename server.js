@@ -1904,9 +1904,9 @@ app.get('/api/points/check', async (req, res) => {
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
 (async function initialize() {
-await getTokensFromDB();
-const PORT = process.env.PORT || 6000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+  await getTokensFromDB();
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 })();
