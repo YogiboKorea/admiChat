@@ -1788,15 +1788,45 @@ app.get('/api/event/click/stats', async (req, res) => {
     await client.close();
   }
 });
-// ── [포인트 적립용 엔드포인트 추가] ──
 
-// 1) 키워드별 백엔드 결정 적립금 매핑
+
+
+let db, eventPartnersCollection;
+
+MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
+  .then(client => {
+    console.log('✅ MongoDB 연결 성공');
+    db = client.db(DB_NAME);
+
+    // 이벤트 참여 기록용 컬렉션
+    eventPartnersCollection = db.collection('eventPartners');
+
+    // memberId+keyword 조합에 대한 unique 인덱스 생성 (최초 1회)
+    eventPartnersCollection.createIndex(
+      { memberId: 1, keyword: 1 },
+      { unique: true }
+    ).then(() => {
+      console.log('✅ eventPartners unique index 생성 완료');
+    }).catch(err => {
+      console.error('❌ eventPartners 인덱스 생성 오류:', err);
+    });
+
+    // 서버 시작
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ MongoDB 연결 실패:', err);
+  });
+
+
+// ── [포인트 적립용 엔드포인트 수정] ──
 const KEYWORD_REWARDS = {
-  '요기보다': 1   // '요기보다' 입력 시 1원 적립
+  '요기보다': 1
 };
 
-// 2) POST /api/points 라우터
-//    요청 바디: { memberId: string, keyword: string }
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
 
@@ -1809,35 +1839,58 @@ app.post('/api/points', async (req, res) => {
     return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
 
-  // 2) Cafe24 API 호출 페이로드 구성
-  const payload = {
-    shop_no:   1,
-    request: {
-      member_id: memberId,
-      order_id:  '',         // 필요 시 주문번호 지정
-      amount,                // 매핑된 금액 (여기선 1)
-      type:      'increase', // 늘리기
-      reason:    `${keyword} 프로모션 적립금 지급`
-    }
-  };
-
   try {
-    // apiRequest 함수, CAFE24_MALLID, CAFE24_API_VERSION 은 이미 선언되어 있어야 합니다.
+    // 2) 중복 참여 확인 (MongoDB 조회)
+    const already = await eventPartnersCollection.findOne({ memberId, keyword });
+    if (already) {
+      return res
+        .status(400)
+        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+    }
+
+    // 3) Cafe24 API로 포인트 적립
+    const payload = {
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id:  '',
+        amount,
+        type:    'increase',
+        reason:  `${keyword} 프로모션 적립금 지급`
+      }
+    };
     const data = await apiRequest(
       'POST',
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
       payload
     );
+
+    // 4) 적립 성공 시 참여 기록 저장
+    await eventPartnersCollection.insertOne({
+      memberId,
+      keyword,
+      participatedAt: new Date()
+    });
+
+    // 5) 응답
     return res.json({ success: true, data });
+
   } catch (err) {
-    console.error('포인트 지급 오류:', err.response?.data || err.message);
+    console.error('포인트 지급 오류:', err);
+
+    // 동시성 등으로 인해 unique index 위반시에도 중복 처리
+    if (err.code === 11000) {
+      return res
+        .status(400)
+        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+    }
+
     const status = err.response?.status || 500;
     return res
       .status(status)
       .json({ success: false, error: err.response?.data || err.message });
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
