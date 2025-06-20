@@ -1868,6 +1868,29 @@ app.post('/api/points', async (req, res) => {
   }
 });
 
+// GET /api/points/status?memberId=xxx&keyword=yyy
+app.get('/api/points/status', async (req, res) => {
+  const { memberId, keyword } = req.query;
+  if (!memberId || !keyword) {
+    return res.status(400).json({ success: false, error: 'memberId, keyword 둘 다 필요합니다.' });
+  }
+
+  let col;
+  try {
+    col = await getParticipationCollection();
+    const already = await col.findOne({ memberId, keyword });
+    return res.json({
+      success: true,
+      participated: !!already   // true 면 이미 참여함
+    });
+  } catch (err) {
+    console.error('참여 여부 조회 오류:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (col?.s && col.s.db) col.s.db.serverConfig.close();
+  }
+});
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
