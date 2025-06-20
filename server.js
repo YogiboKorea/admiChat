@@ -1790,26 +1790,23 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+// (토큰 관리 함수 getTokensFromDB, saveTokensToDB, refreshAccessToken)
+// … (생략: 기존 코드 그대로)
 
-// ========== [1] 모듈 스코프에서 MongoDB 연결 ========== 
-const { MongoClient } = require('mongodb');
-const participationColName = 'eventParticipation';
-
-const mongoClient = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-await mongoClient.connect();                    // 앱 시작 시 1회만 연결
-const db               = mongoClient.db(DB_NAME);
-const participationCol = db.collection(participationColName);
-
-// ========== [2] 키워드별 적립금 매핑 ========== 
+// ============================
+// 키워드별 적립금 매핑
+// ============================
 const KEYWORD_REWARDS = {
-  '우파루파': 1   // '우파루파' 입력 시 1원 적립
+  '우파루파': 1  // '우파루파' 입력 시 1원 적립
 };
 
-// ========== [3] POST /api/points ==========
+// ============================
+// POST /api/points
+// ============================
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
   if (!memberId || typeof memberId !== 'string') {
-    return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
+    return res.status(400).json({ success: false, error: 'memberId는 문자열이어야 합니다.' });
   }
   const amount = KEYWORD_REWARDS[keyword];
   if (!amount) {
@@ -1817,7 +1814,7 @@ app.post('/api/points', async (req, res) => {
   }
 
   try {
-    // 1) 이미 참여했는지 확인
+    // 1) 이미 참여했는지
     const already = await participationCol.findOne({ memberId, keyword });
     if (already) {
       return res
@@ -1825,7 +1822,7 @@ app.post('/api/points', async (req, res) => {
         .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
     }
 
-    // 2) 적립금 지급
+    // 2) 카페24 API로 적립금 지급
     const payload = {
       shop_no: 1,
       request: {
@@ -1859,7 +1856,9 @@ app.post('/api/points', async (req, res) => {
   }
 });
 
-// ========== [4] GET /api/points/status ==========
+// ============================
+// GET /api/points/status
+// ============================
 app.get('/api/points/status', async (req, res) => {
   const { memberId, keyword } = req.query;
   if (!memberId || !keyword) {
@@ -1882,12 +1881,14 @@ app.get('/api/points/status', async (req, res) => {
   }
 });
 
-// ========== (앱 종료 시) MongoDB 연결 닫기 ==========
+// ============================
+// (필요시) 앱 종료 시 MongoDB 연결 닫기
+// ============================
 process.on('SIGINT', async () => {
   await mongoClient.close();
+  console.log("🔒 MongoDB connection closed");
   process.exit(0);
 });
-
 
 
 
