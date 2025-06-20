@@ -1790,17 +1790,25 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+//포인트 지급관련 데이트
+const { MongoClient } = require('mongodb');
+const participationColName = 'eventParticipation';
+
+// 기존 MongoClient 연결 로직 위에서 재사용하거나, 간단히 여기서 새로 연결
+async function getParticipationCollection() {
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+  await client.connect();
+  return client.db(DB_NAME).collection(participationColName);
+}
 // 1) 키워드별 백엔드 결정 적립금 매핑
 const KEYWORD_REWARDS = {
   '우파루파': 1   // '요기보다' 입력 시 1원 적립
 };
-
 // 2) POST /api/points 라우터
-//    요청 바디: { memberId: string, keyword: string }
+// 기존 KEYWORD_REWARDS 정의 아래에 붙여주세요
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
 
-  // 1) 파라미터 유효성 검사
   if (!memberId || typeof memberId !== 'string') {
     return res.status(400).json({ success: false, error: 'memberId는 문자열입니다.' });
   }
@@ -1809,35 +1817,56 @@ app.post('/api/points', async (req, res) => {
     return res.status(400).json({ success: false, error: '유효하지 않은 키워드입니다.' });
   }
 
-  // 2) Cafe24 API 호출 페이로드 구성
-  const payload = {
-    shop_no:   1,
-    request: {
-      member_id: memberId,
-      order_id:  '',         // 필요 시 주문번호 지정
-      amount,                // 매핑된 금액 (여기선 1)
-      type:      'increase', // 늘리기
-      reason:    `${keyword} 프로모션 적립금 지급`
-    }
-  };
-
+  let col;
   try {
-    // apiRequest 함수, CAFE24_MALLID, CAFE24_API_VERSION 은 이미 선언되어 있어야 합니다.
+    col = await getParticipationCollection();
+
+    // 1) 이미 참여했는지 확인
+    const already = await col.findOne({ memberId, keyword });
+    if (already) {
+      return res
+        .status(200)
+        .json({ success: false, error: '이미 참여 완료한 이벤트입니다.' });
+    }
+
+    // 2) 적립금 지급
+    const payload = {
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id:  '',
+        amount,              
+        type:      'increase',
+        reason:    `${keyword} 프로모션 적립금 지급`
+      }
+    };
     const data = await apiRequest(
       'POST',
       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
       payload
     );
+
+    // 3) 참여 기록 저장
+    await col.insertOne({
+      memberId,
+      keyword,
+      rewardedAt: new Date()
+    });
+
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('포인트 지급 오류:', err.response?.data || err.message);
+    console.error('포인트 지급 또는 DB 오류:', err);
     const status = err.response?.status || 500;
     return res
       .status(status)
       .json({ success: false, error: err.response?.data || err.message });
+  } finally {
+    // MongoClient 커넥션 닫기
+    if (col?.s && col.s.db) {
+      col.s.db.serverConfig.close();
+    }
   }
 });
-
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
