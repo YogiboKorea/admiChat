@@ -1652,7 +1652,7 @@ MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
   console.log("Connected to MongoDB");
 
   // MongoDB 연결 후에 서버 시작 (포트 3000 또는 환경변수 PORT 사용)
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
