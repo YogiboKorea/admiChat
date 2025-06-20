@@ -1790,6 +1790,9 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+const KEYWORD_REWARDS = {
+  '요기보다': 1  // 키워드 '요기보다' 입력 시 1원 적립
+};
 //포인트 지급관련 데이터
 app.post('/api/points', async (req, res) => {
   const { memberId, keyword } = req.body;
