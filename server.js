@@ -1917,22 +1917,20 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
+  // host 에 mall_id 가 들어가 있으니, params 에 mall_id 는 빼고 shop_no 만 넘깁니다.
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${memberId}/privacy`;
-  // mall_id는 URL에 이미 들어가기 때문에 params에만 붙여줍니다.
-  const params = {
-    mall_id: CAFE24_MALLID,
-    shop_no: 1
-  };
-  // body는 중첩 없이 바로 필드 전달
+  const params = { shop_no: 1 }; 
+
+  // body 에는 중첩 없이 바로 필드 전달
   const payload = {
-    shop_no:    1,
-    sms_agree:   'T',
-    news_mail:   'T'
+    shop_no:  1,
+    sms_agree: 'T',
+    news_mail: 'T'
   };
+
   return apiRequest('PUT', url, payload, params);
 }
 
@@ -1957,7 +1955,7 @@ async function giveRewardPoints(memberId, amount, reason) {
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
+    return res.status(400).json({ error: 'memberId와 store가 모두 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -1965,23 +1963,26 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
+    // 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
     // 1) 수신동의 업데이트
+    console.log('▶️ 마케팅 수신동의 업데이트 →', memberId);
     await updateMarketingConsent(memberId);
 
-    // 2) 적립금 지급
+    // 2) 적립금 5원 지급
+    console.log('▶️ 적립금 지급 →', memberId);
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 기록 저장 (Asia/Seoul 기준)
+    // 3) 기록 저장 (Asia/Seoul 기준 시간)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt });
 
-    res.json({ success: true, message: '참여 및 적립금 지급 완료!' });
+    res.json({ success: true, message: '참여 및 적립금 지급이 완료되었습니다!' });
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
@@ -1989,6 +1990,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
