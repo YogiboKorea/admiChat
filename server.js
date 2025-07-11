@@ -1930,78 +1930,31 @@ async function updateSmsConsent(memberId) {
   return apiRequest('PUT', url, payload);
 }
 
-
 // ------------------------------
-// 1) 마케팅 동의 조회·생성·수정 함수
+// 2) 마케팅 수신(SMS) 동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  const baseUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin`;
-  const shopNo  = 1;
-
-  let existingConsentSeq = null;
-
-  // 1-1) 기존 동의 내역 조회
-  try {
-    const listRes = await apiRequest(
-      'GET',
-      `${baseUrl}/privacy-consents`,
-      {}, 
-      { shop_no: shopNo, member_id: memberId }
-    );
-    // API마다 필드명이 달라질 수 있으니 안전하게 추출
-    const arr = listRes.privacy_consents 
-             || listRes.privacyconsents 
-             || listRes.data 
-             || [];
-    const found = arr.find(c => c.consent_type === 'marketing');
-    if (found && found.privacy_consent_seq) {
-      existingConsentSeq = found.privacy_consent_seq;
-    }
-  } catch (err) {
-    console.warn('privacy-consents GET 에러, 신규 생성으로 진행합니다.', err.response?.data || err.message);
-  }
-
-  // 발급 시간: KST 기준 ISO
-  const issuedAt = new Date(
-    new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
-  ).toISOString();
-
-  if (existingConsentSeq) {
-    // 1-2) 이미 있으면 PUT 으로 갱신
-    return apiRequest(
-      'PUT',
-      `${baseUrl}/privacy-consents/${existingConsentSeq}`,
-      { request: { shop_no: shopNo, agree: 'T', issued_at: issuedAt } }
-    );
-  } else {
-    // 1-3) 없으면 POST 로 신규 생성
-    return apiRequest(
-      'POST',
-      `${baseUrl}/privacy-consents`,
-      {
-        request: {
-          shop_no:      shopNo,
-          member_id:    memberId,
-          consent_type: 'marketing',
-          agree:        'T',
-          issued_at:    issuedAt
-        }
-      }
-    );
-  }
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  const payload = {
+    shop_no: 1,
+    sms: 'T'          // SMS 수신동의만 T로 변경
+  };
+  // PUT 은 params 없이, body(payload)만 전달
+  return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
-// 2) 적립금 지급 함수 (기존)
+// 3) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
-  return apiRequest('POST', url, {
+  const payload = {
     shop_no: 1,
     request: { member_id: memberId, amount, type: 'increase', reason }
-  });
+  };
+  return apiRequest('POST', url, payload);
 }
 
 // ------------------------------
-// 3) 이벤트 참여 엔드포인트
+// 4) 이벤트 참여 엔드포인트 (매장정보 포함)
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -2018,13 +1971,13 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 동의 업데이트
+    // 1) SMS 마케팅 수신동의만 T로 업데이트
     await updateMarketingConsent(memberId);
 
     // 2) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장 (Asia/Seoul 기준)
+    // 3) 참여 기록 저장 (Asia/Seoul 기준 시간)
     const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
