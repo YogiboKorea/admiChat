@@ -1932,6 +1932,7 @@ async function fetchPrivacyNo(memberId) {
   return list[0].customer_privacy_no;
 }
 
+
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수 (v2 Admin API 공식)
 async function updateMarketingConsent(memberId) {
@@ -1941,19 +1942,25 @@ async function updateMarketingConsent(memberId) {
     shop_no: 1
   };
   const payload = {
-    sms_agree: 'T',
-    news_mail: 'T'
+    sms_agree:  'T',
+    news_mail:  'T'
   };
-  // GET/POST 와 달리 PUT 에도 params 를 넘길 수 있도록 apiRequest 호출 시 네 번째 인자로 전달
+  // PUT 메서드는 params→URL, payload→body 로 분리해서 넘겨야 합니다.
   return apiRequest('PUT', url, payload, params);
 }
+
 // ------------------------------
-// 3) 적립금 지급 함수 (변경없음)
+// 3) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
     shop_no: 1,
-    request: { member_id: memberId, amount, type: 'increase', reason }
+    request: {
+      member_id: memberId,
+      amount,
+      type:   'increase',
+      reason
+    }
   };
   return apiRequest('POST', url, payload);
 }
@@ -1963,7 +1970,9 @@ async function giveRewardPoints(memberId, amount, reason) {
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res.status(400).json({ error: 'memberId와 store가 모두 필요합니다.' });
+    return res
+      .status(400)
+      .json({ error: 'memberId와 store가 모두 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -1971,27 +1980,38 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 중복 체크
+    // 1) 중복 참여 체크
     if (await coll.findOne({ memberId })) {
-      return res.status(409).json({ message: '이미 참여하셨습니다.' });
+      return res
+        .status(409)
+        .json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 수신동의 업데이트
+    // 2) 마케팅 수신동의 업데이트
     await updateMarketingConsent(memberId);
 
-    // 2) 적립금 5원 지급
+    // 3) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 기록 저장 (Asia/Seoul 기준)
-    const seoulTime = new Date(
+    // 4) MongoDB에 참여 기록 저장 (Asia/Seoul 기준)
+    const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
-    await coll.insertOne({ memberId, store, participatedAt: seoulTime });
+    await coll.insertOne({ memberId, store, participatedAt });
 
-    res.json({ success: true, message: '참여 및 적립금 지급이 완료되었습니다!' });
+    res.json({
+      success: true,
+      message: '참여 및 적립금 지급이 완료되었습니다!'
+    });
+
   } catch (err) {
-    console.error('이벤트 처리 오류:', err.response?.data || err.message);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+    console.error(
+      '이벤트 처리 오류:',
+      err.response?.data || err.message
+    );
+    res
+      .status(500)
+      .json({ error: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
   }
