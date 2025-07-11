@@ -1917,52 +1917,26 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
-// ==============================
-// (1) 개인정보 수집·이용 동의(선택) 업데이트
-// POST /api/v2/admin/privacyconsents
-async function updatePrivacyConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-  const payload = {
-    shop_no: 1,
-    request: {
-      member_id:  memberId,
-      consent_type: 'marketing',            // "마케팅 목적" 동의
-      agree:        'T',                    // 동의
-      issued_at:    new Date().toISOString()
-    }
-  };
-
-  try {
-    return await apiRequest('POST', url, payload);
-  } catch (err) {
-    // 엔드포인트가 없다고 나오면 무시하고 다음 단계로
-    if (err.response?.data?.error?.message.includes('No API found')) {
-      console.warn('privacyconsents 엔드포인트 미지원, 패스');
-      return;
-    }
-    throw err;
-  }
-}
-
-// ==============================
-// (2) SMS 수신동의 업데이트
-// PUT /api/v2/admin/customersprivacy/{member_id}
+// ------------------------------
+// 1) 마케팅 수신동의 + 마케팅 목적 동의(선택) 업데이트
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    request: {
-      shop_no:   1,
-      member_id: memberId,
-      sms:       'T'    // SMS 수신동의만 T로!
-      // news_mail: 'T'  // 뉴스메일은 건드리지 않습니다
-    }
+    shop_no: 1,
+    marketing: {
+      sms_agree:   'T',   // SMS 수신동의
+      email_agree: 'T'    // 이메일(뉴스메일) 수신동의 – 필요 없으면 제거 가능
+    },
+    // 선택 항목: privacy_consent(마케팅 목적 동의)도 같은 API에서 같이 올려줍니다.
+    // 실제 파라미터 이름은 'marketing_consent' 으로 내부 매핑됩니다.
+    marketing_consent: 'T'
   };
+
   return apiRequest('PUT', url, payload);
 }
 
-// ==============================
-// (3) 적립금 지급 함수
+// ------------------------------
+// 2) 적립금 지급 함수 (변경없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1970,15 +1944,15 @@ async function giveRewardPoints(memberId, amount, reason) {
     request: {
       member_id: memberId,
       amount,
-      type:   'increase',
+      type: 'increase',
       reason
     }
   };
   return apiRequest('POST', url, payload);
 }
 
-// ==============================
-// (4) 이벤트 참여 엔드포인트
+// ------------------------------
+// 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1995,22 +1969,20 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)
-    await updatePrivacyConsent(memberId);
-
-    // 2) SMS 수신동의 업데이트
+    // 1) 마케팅 수신 + 마케팅 목적 동의 한 번에 업데이트
     await updateMarketingConsent(memberId);
 
-    // 3) 적립금 5원 지급
+    // 2) 적립금 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) 참여 기록 저장 (서울시간)
+    // 3) 참여 기록 저장 (Asia/Seoul 기준)
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt: seoulNow });
 
     res.json({ success: true, message: '참여 및 보상 지급 완료!' });
+
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
