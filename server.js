@@ -1917,18 +1917,17 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // PUT https://{mall}.cafe24api.com/api/v2/admin/customersprivacy/{member_id}?shop_no=1
-  const url    = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
-  const params = { shop_no: 1 };
+  // shop_no 쿼리스트링을 URL에 직접 붙입니다.
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}?shop_no=1`;
+  // 바디에는 수정할 필드만 최상위로 보냅니다.
   const payload = {
     sms:       'T',   // SMS 수신 동의
     news_mail: 'T'    // 뉴스메일 수신 동의
   };
-  return apiRequest('PUT', url, payload, params);
+  return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
@@ -1948,7 +1947,7 @@ async function giveRewardPoints(memberId, amount, reason) {
 }
 
 // ------------------------------
-// 3) 이벤트 참여 엔드포인트
+// 3) 이벤트 참여 엔드포인트 (전체)
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1965,7 +1964,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 수신동의 업데이트
+    // 1) 마케팅 수신동의 업데이트
     console.log('▶️ 마케팅 수신동의 업데이트 →', memberId);
     await updateMarketingConsent(memberId);
 
@@ -1988,6 +1987,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 
 // ========== [17] 서버 시작 ==========
