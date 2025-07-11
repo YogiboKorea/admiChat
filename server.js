@@ -1944,19 +1944,14 @@ async function updatePrivacyConsent(memberId) {
     throw err;
   }
 }
-
 // ==============================
-// (2) SMS 수신동의 업데이트
+// (2) SMS 수신동의만 T 로 업데이트
 // PUT /api/v2/admin/customersprivacy/{member_id}
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    request: {
-      shop_no:   1,
-      member_id: memberId,
-      sms:       'T'    // SMS 수신동의만 T로!
-      // news_mail: 'T'  // 뉴스메일은 건드리지 않습니다
-    }
+    shop_no: 1,
+    sms:     'T'    // SMS 마케팅 수신동의만 T 로
   };
   return apiRequest('PUT', url, payload);
 }
@@ -1990,21 +1985,18 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 중복 참여 방지
+    // 중복 참여 방지 (DB에 이벤트 참여 기록이 있으면 보상 미지급)
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)
-    await updatePrivacyConsent(memberId);
-
-    // 2) SMS 수신동의 업데이트
+    // 1) SMS 수신동의 업데이트 (T)
     await updateMarketingConsent(memberId);
 
-    // 3) 적립금 5원 지급
+    // 2) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) 참여 기록 저장 (서울시간)
+    // 3) 참여 기록 저장 (Asia/Seoul 기준 시간)
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
@@ -2018,6 +2010,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 
 
