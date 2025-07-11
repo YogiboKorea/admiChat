@@ -1931,22 +1931,23 @@ async function fetchPrivacyNo(memberId) {
   // API 문서 기준 PK 필드명은 customer_privacy_no 입니다.
   return list[0].customer_privacy_no;
 }
-
-// ------------------------------
-// 2) 마케팅 수신동의 업데이트 함수 (v2 Admin API 공식)
+// ==============================
+// 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${memberId}/privacy`;
+  // customersprivacy 리소스를 사용해야 No API found 에러가 없습니다
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  const params = { shop_no: 1 };      // 쿼리에만 shop_no
   const payload = {
-    shop_no:    1,
-    sms_agree:  'T',
-    news_mail:  'T'
+    marketing: {
+      sms_agree:   'T',
+      email_agree: 'T'
+    }
   };
-  // PUT 은 body 에만 payload 를 담습니다.
-  return apiRequest('PUT', url, payload);
+  return apiRequest('PUT', url, payload, params);
 }
 
-// ------------------------------
-// 3) 적립금 지급 함수 (변경 없음)
+// ==============================
+// 2) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1961,13 +1962,12 @@ async function giveRewardPoints(memberId, amount, reason) {
   return apiRequest('POST', url, payload);
 }
 
-// ------------------------------
-// 4) 이벤트 참여 엔드포인트
+// ==============================
+// 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res
-      .status(400)
+    return res.status(400)
       .json({ error: 'memberId와 store가 모두 필요합니다.' });
   }
 
@@ -1976,20 +1976,19 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 1) 중복 참여 체크
+    // 중복 체크
     if (await coll.findOne({ memberId })) {
-      return res
-        .status(409)
+      return res.status(409)
         .json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 2) 마케팅 수신동의 업데이트
+    // 1) 마케팅 수신동의 업데이트
     await updateMarketingConsent(memberId);
 
-    // 3) 적립금 5원 지급
+    // 2) 적립금 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) 참여 기록 저장 (Asia/Seoul 기준)
+    // 3) 참여 기록 저장 (Asia/Seoul 기준)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
@@ -2001,12 +2000,8 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     });
 
   } catch (err) {
-    console.error(
-      '이벤트 처리 오류:',
-      err.response?.data || err.message
-    );
-    res
-      .status(500)
+    console.error('이벤트 처리 오류:', err.response?.data || err.message);
+    res.status(500)
       .json({ error: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
