@@ -1919,36 +1919,39 @@ app.get('/api/points/check', async (req, res) => {
 });
 
 
-// 📌 2) 수신동의 + 개인정보동의 업데이트
+// ------------------------------
+// 1) 마케팅 수신동의 + 개인정보동의 업데이트 함수
 async function updateMarketingConsentAll(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
     request: {
-      shop_no:           1,
-      sms:               'T',   // SMS 수신동의
-      news_mail:         'F',   // 뉴스메일 수신동의 (필요없으면 'F')
-      marketing_consent: 'T',   // 마케팅 목적 개인정보 수집·이용 동의(선택)
+      shop_no:            1,
+      sms_agree:          'T',   // SMS 수신동의
+      news_mail:          'F',   // 뉴스메일 수신동의 (필요없으면 'F')
+      marketing_consent:  'T'    // 마케팅 목적 개인정보 수집·이용 동의(선택)
     }
   };
   return apiRequest('PUT', url, payload);
 }
 
-// 📌 3) 적립금 지급 (5원)
-async function giveRewardPoints(memberId) {
+// ------------------------------
+// 2) 적립금 지급 함수 (변경없음)
+async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
     shop_no: 1,
     request: {
       member_id: memberId,
-      amount:    5,
-      type:      'increase',
-      reason:    '마케팅 수신동의 이벤트 참여 보상'
+      amount,
+      type:   'increase',
+      reason
     }
   };
   return apiRequest('POST', url, payload);
 }
 
-// 📌 4) 엔드포인트
+// ------------------------------
+// 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1968,14 +1971,18 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     // 1) 수신동의 + 개인정보동의 업데이트
     await updateMarketingConsentAll(memberId);
 
-    // 2) 적립금 지급
-    await giveRewardPoints(memberId);
+    // 2) 적립금 지급 (5원)
+    await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장 (Asia/Seoul 기준)
+    // 3) 참여 기록 저장 (한국 시간)
     const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
-    await coll.insertOne({ memberId, store, participatedAt: seoulTime });
+    await coll.insertOne({
+      memberId,
+      store,
+      participatedAt: seoulTime
+    });
 
     res.json({ success: true, message: '참여 및 보상 지급 완료!' });
   } catch (err) {
@@ -1985,6 +1992,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
