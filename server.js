@@ -1917,21 +1917,18 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  // PUT https://{mall}.cafe24api.com/api/v2/admin/customersprivacy/{member_id}?shop_no=1
+  const url    = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  const params = { shop_no: 1 };
   const payload = {
-    request: {
-      shop_no: 1,
-      marketing: {
-        sms_agree:   'T',
-        email_agree: 'T'
-      }
-    }
+    sms:       'T',   // SMS 수신 동의
+    news_mail: 'T'    // 뉴스메일 수신 동의
   };
-  // params 없이, payload.request 안에 shop_no + marketing 필드를 넣습니다.
-  return apiRequest('PUT', url, payload);
+  return apiRequest('PUT', url, payload, params);
 }
 
 // ------------------------------
@@ -1976,13 +1973,14 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     console.log('▶️ 적립금 지급 →', memberId);
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 기록 저장 (Asia/Seoul 기준 시간)
+    // 3) 기록 저장 (Asia/Seoul 기준 시각)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt });
 
     res.json({ success: true, message: '참여 및 적립금 지급이 완료되었습니다!' });
+
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
