@@ -1567,7 +1567,7 @@ clientInstance.connect()
         // 중복 참여 확인
         const existingEntry = await entriesCollection.findOne({ memberId: member_id });
         if (existingEntry) {
-          return res.status(409).json({ message: '이미 참여하셨습니다.' });
+          return res.status(409).json({ message: '' });
         }
         
         // 한국 시간 기준 날짜 생성
@@ -1710,7 +1710,7 @@ try {
   // 이미 참여한 회원인지 체크
   const existing = await participationCollection.findOne({ memberId: memberId });
   if (existing) {
-    return res.status(400).json({ error: "이미 참여하셨습니다." });
+    return res.status(400).json({ error: "" });
   }
   // 참여 기록 저장 (제한 없음)
   await participationCollection.insertOne({ memberId: memberId, participatedAt: new Date() });
@@ -2024,6 +2024,106 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
   } catch (err) {
     console.error('자사몰 이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  } finally {
+    await client.close();
+  }
+});
+
+
+
+
+// ==============================
+// (6) 매장용 참여 내역 엑셀 다운로드
+app.get('/api/event/marketing-consent-export', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const coll = client.db(DB_NAME).collection('marketingConsentEvent');
+    const docs = await coll.find({})
+      .project({ _id: 0, participatedAt: 1, memberId: 1, store: 1 })
+      .toArray();
+
+    // 워크북 & 시트 생성
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('매장 참여 내역');
+
+    // 헤더
+    ws.columns = [
+      { header: '참여 날짜', key: 'participatedAt', width: 25 },
+      { header: '회원 아이디', key: 'memberId',      width: 20 },
+      { header: '참여 매장',  key: 'store',          width: 20 },
+    ];
+
+    // 데이터 삽입
+    docs.forEach(d => {
+      ws.addRow({
+        participatedAt: d.participatedAt.toLocaleString('ko-KR'),
+        memberId:       d.memberId,
+        store:          d.store
+      });
+    });
+
+    // 응답 헤더 설정
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="매장_참여_내역.xlsx"'
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    // 스트리밍으로 전송
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  } finally {
+    await client.close();
+  }
+});
+
+// ==============================
+// (7) 자사몰용 참여 내역 엑셀 다운로드
+app.get('/api/event/marketing-consent-company-export', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const coll = client.db(DB_NAME).collection('marketingConsentCompanyEvent');
+    const docs = await coll.find({})
+      .project({ _id: 0, rewardedAt: 1, memberId: 1 })
+      .toArray();
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('자사몰 참여 내역');
+
+    ws.columns = [
+      { header: '참여 날짜', key: 'rewardedAt', width: 25 },
+      { header: '회원 아이디', key: 'memberId',    width: 20 },
+    ];
+
+    docs.forEach(d => {
+      ws.addRow({
+        rewardedAt: d.rewardedAt.toLocaleString('ko-KR'),
+        memberId:   d.memberId
+      });
+    });
+
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="자사몰_참여_내역.xlsx"'
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
   } finally {
     await client.close();
   }
