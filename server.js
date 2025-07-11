@@ -1919,45 +1919,60 @@ app.get('/api/points/check', async (req, res) => {
 });
 
 
-// 마케팅 수신동의 이벤트 참여 엔드포인트 (매장정보 포함)
+// ------------------------------
+// 2) 마케팅 수신동의 업데이트 함수
+async function updateMarketingConsent(memberId) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  const payload = {
+    shop_no: 1,
+    marketing: {
+      sms_agree:   'T',
+      email_agree: 'T'
+    }
+  };
+  return apiRequest('PUT', url, payload);
+}
+
+// ------------------------------
+// 3) 적립금 지급 함수
+async function giveRewardPoints(memberId, amount, reason) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
+  const payload = {
+    shop_no: 1,
+    request: { member_id: memberId, amount, type: 'increase', reason }
+  };
+  return apiRequest('POST', url, payload);
+}
+
+// ------------------------------
+// 4) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
-
   if (!memberId || !store) {
-    return res.status(400).json({ error: '회원 아이디와 매장 정보가 필요합니다.' });
+    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
-
   try {
     await client.connect();
-    const db = client.db(DB_NAME);
-    const collection = db.collection('marketingConsentEvent');
-
-    // 중복 참여 확인
-    const existing = await collection.findOne({ memberId });
-    if (existing) {
-      return res.status(409).json({ message: '이미 참여 완료된 이벤트입니다.' });
+    const db         = client.db(DB_NAME);
+    const coll       = db.collection('marketingConsentEvent');
+    const already    = await coll.findOne({ memberId });
+    if (already) {
+      return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 마케팅 수신동의 업데이트 호출
+    // 1) 수신동의 업데이트
     await updateMarketingConsent(memberId);
-
-    // 적립금 지급
+    // 2) 적립금 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
+    // 3) 참여 기록 저장
+    await coll.insertOne({ memberId, store, participatedAt: new Date() });
 
-    // MongoDB 참여 기록 저장
-    await collection.insertOne({
-      memberId,
-      store,
-      participatedAt: new Date()
-    });
-
-    res.json({ success: true, message: '마케팅 수신동의 및 적립금 지급 완료!' });
-
-  } catch (error) {
-    console.error("마케팅 수신동의 이벤트 처리 오류:", error);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+    res.json({ success: true, message: '참여 및 적립금 지급 완료!' });
+  } catch (err) {
+    console.error('이벤트 처리 오류:', err);
+    res.status(500).json({ error: '서버 오류 발생' });
   } finally {
     await client.close();
   }
