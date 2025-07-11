@@ -1920,7 +1920,7 @@ app.get('/api/points/check', async (req, res) => {
 
 
 
-
+// =========매장용=====================
 
 // ==============================
 // (1) 개인정보 수집·이용 동의(선택) 업데이트
@@ -1949,8 +1949,6 @@ async function updatePrivacyConsent(memberId) {
   }
 }
 
-
-// =========매장용=====================
 // (2) SMS 수신동의 업데이트
 // PUT /api/v2/admin/customersprivacy/{member_id}
 async function updateMarketingConsent(memberId) {
@@ -1998,6 +1996,83 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
+
+
+
+
+
+
+
+// =========자사몰용=====================
+// ==============================
+// (3) 적립금 지급 함수 (자사몰용)
+// POST /api/v2/admin/points
+async function giveRewardPoints(memberId, amount, reason) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
+  const payload = {
+    shop_no: 1,
+    request: {
+      member_id: memberId,
+      amount,
+      type:   'increase',
+      reason
+    }
+  };
+  return apiRequest('POST', url, payload);
+}
+
+
+
+// ==============================
+// (5) 자사몰 이벤트 참여 엔드포인트 (store 불필요)
+app.post('/api/event/marketing-consent-company', async (req, res) => {
+  const { memberId } = req.body;
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const coll = client.db(DB_NAME).collection('marketingConsentCompanyEvent');
+
+    // 중복 참여 방지
+    if (await coll.findOne({ memberId })) {
+      return res.status(409).json({ message: '이미 참여하셨습니다.' });
+    }
+
+    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)
+    await updatePrivacyConsent(memberId);
+
+    // 2) SMS 수신동의 업데이트
+    await updateMarketingConsent(memberId);
+
+    // 3) 적립금 5원 즉시 지급
+    await giveRewardPoints(memberId, 5, '자사몰 마케팅 수신동의 이벤트 보상');
+
+    // 4) 참여+지급 기록 저장 (서울시간)
+    const seoulNow = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
+    );
+    await coll.insertOne({ memberId, rewardedAt: seoulNow });
+
+    res.json({ success: true, message: '적립금 지급 완료!' });
+  } catch (err) {
+    console.error('자사몰 이벤트 처리 오류:', err.response?.data || err.message);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  } finally {
+    await client.close();
+  }
+});
+
+
+
+
+
+
+
+
 
 
 
