@@ -2029,9 +2029,6 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
   }
 });
 
-
-
-
 // ==============================
 // (6) 매장용 참여 내역 엑셀 다운로드
 app.get('/api/event/marketing-consent-export', async (req, res) => {
@@ -2043,18 +2040,15 @@ app.get('/api/event/marketing-consent-export', async (req, res) => {
       .project({ _id: 0, participatedAt: 1, memberId: 1, store: 1 })
       .toArray();
 
-    // 워크북 & 시트 생성
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('매장 참여 내역');
 
-    // 헤더
     ws.columns = [
       { header: '참여 날짜', key: 'participatedAt', width: 25 },
       { header: '회원 아이디', key: 'memberId',      width: 20 },
       { header: '참여 매장',  key: 'store',          width: 20 },
     ];
 
-    // 데이터 삽입
     docs.forEach(d => {
       ws.addRow({
         participatedAt: d.participatedAt.toLocaleString('ko-KR'),
@@ -2063,17 +2057,16 @@ app.get('/api/event/marketing-consent-export', async (req, res) => {
       });
     });
 
-    // 응답 헤더 설정
+    const storeFilename = '매장_참여_내역.xlsx';
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="매장_참여_내역.xlsx"'
+      `attachment; filename="store_export.xlsx"; filename*=UTF-8''${encodeURIComponent(storeFilename)}`
     );
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
 
-    // 스트리밍으로 전송
     await wb.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -2110,9 +2103,10 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
       });
     });
 
+    const companyFilename = '자사몰_참여_내역.xlsx';
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="자사몰_참여_내역.xlsx"'
+      `attachment; filename="company_export.xlsx"; filename*=UTF-8''${encodeURIComponent(companyFilename)}`
     );
     res.setHeader(
       'Content-Type',
