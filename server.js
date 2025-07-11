@@ -1567,7 +1567,7 @@ clientInstance.connect()
         // 중복 참여 확인
         const existingEntry = await entriesCollection.findOne({ memberId: member_id });
         if (existingEntry) {
-          return res.status(409).json({ message: '이미 참여하셨습니다.' });
+          return res.status(409).json({ message: '' });
         }
         
         // 한국 시간 기준 날짜 생성
@@ -1918,6 +1918,10 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
+
+
+
+
 // ==============================
 // (1) 개인정보 수집·이용 동의(선택) 업데이트
 // POST /api/v2/admin/privacyconsents
@@ -1945,7 +1949,8 @@ async function updatePrivacyConsent(memberId) {
   }
 }
 
-// ==============================
+
+// =========매장용=====================
 // (2) SMS 수신동의 업데이트
 // PUT /api/v2/admin/customersprivacy/{member_id}
 async function updateMarketingConsent(memberId) {
@@ -1955,26 +1960,9 @@ async function updateMarketingConsent(memberId) {
       shop_no:   1,
       member_id: memberId,
       sms:       'T'    // SMS 수신동의만 T로!
-      // news_mail: 'T'  // 뉴스메일은 건드리지 않습니다
     }
   };
   return apiRequest('PUT', url, payload);
-}
-
-// ==============================
-// (3) 적립금 지급 함수
-async function giveRewardPoints(memberId, amount, reason) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
-  const payload = {
-    shop_no: 1,
-    request: {
-      member_id: memberId,
-      amount,
-      type:   'increase',
-      reason
-    }
-  };
-  return apiRequest('POST', url, payload);
 }
 
 // ==============================
@@ -1995,22 +1983,14 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)
-    await updatePrivacyConsent(memberId);
-
     // 2) SMS 수신동의 업데이트
     await updateMarketingConsent(memberId);
-
-    // 3) 적립금 5원 지급
-    await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
-
-    // 4) 참여 기록 저장 (서울시간)
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt: seoulNow });
 
-    res.json({ success: true, message: '참여 및 보상 지급 완료!' });
+    res.json({ success: true, message: '참여 완료!' });
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
@@ -2018,6 +1998,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 
 
