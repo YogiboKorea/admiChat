@@ -1917,17 +1917,15 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  // shop_no 쿼리스트링을 URL에 직접 붙입니다.
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}?shop_no=1`;
+  // 바디에는 수정할 필드만 최상위로 보냅니다.
   const payload = {
-    request: {
-      shop_no:   1,
-      sms:       'T',  // SMS 수신동의
-      news_mail: 'T'   // 뉴스메일 수신동의
-    }
+    sms:       'T',   // SMS 수신 동의
+    news_mail: 'T'    // 뉴스메일 수신 동의
   };
   return apiRequest('PUT', url, payload);
 }
@@ -1941,7 +1939,7 @@ async function giveRewardPoints(memberId, amount, reason) {
     request: {
       member_id: memberId,
       amount,
-      type:      'increase',
+      type:   'increase',
       reason
     }
   };
@@ -1949,7 +1947,7 @@ async function giveRewardPoints(memberId, amount, reason) {
 }
 
 // ------------------------------
-// 3) 이벤트 참여 엔드포인트
+// 3) 이벤트 참여 엔드포인트 (전체)
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1961,20 +1959,20 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 1) 중복 체크
+    // 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 2) 수신동의 업데이트
+    // 1) 마케팅 수신동의 업데이트
     console.log('▶️ 마케팅 수신동의 업데이트 →', memberId);
     await updateMarketingConsent(memberId);
 
-    // 3) 적립금 5원 지급
+    // 2) 적립금 5원 지급
     console.log('▶️ 적립금 지급 →', memberId);
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) 참여 기록 저장 (Asia/Seoul 시간)
+    // 3) 기록 저장 (Asia/Seoul 기준 시각)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
