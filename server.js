@@ -1917,24 +1917,25 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    shop_no: 1,
-    marketing: {
-      sms_agree:   'T',
-      email_agree: 'T'
+    request: {
+      shop_no: 1,
+      marketing: {
+        sms_agree:   'T',
+        email_agree: 'T'
+      }
     }
   };
-  // params는 비워두거나 아예 생략합니다.
+  // params 없이, payload.request 안에 shop_no + marketing 필드를 넣습니다.
   return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
-// 2) 적립금 지급 함수 (변경없음)
+// 2) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1989,7 +1990,6 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
