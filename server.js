@@ -1917,37 +1917,28 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+
+
+// ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // 1-a) privacy 레코드 조회
-  const listUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
-  const listParams = { shop_no: 1, member_id: memberId };
-  const listRes   = await apiRequest('GET', listUrl, {}, listParams);
-  const recs      = listRes.customersprivacy || [];
-  if (!recs.length) {
-    throw new Error(`customersprivacy 레코드를 찾을 수 없습니다 (member_id=${memberId})`);
-  }
-  // 여기서 privacy_seq 필드 이름은 실제 응답 스키마에 맞춰 수정하세요!
-  const seq = recs[0].privacy_seq || recs[0].seq || recs[0].customersprivacy_seq;
-  if (!seq) {
-    throw new Error('응답에 privacy_seq 필드가 없습니다.');
-  }
-
-  // 1-b) PUT 으로 동의 업데이트
-  const putUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${seq}`;
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
     request: {
-      shop_no: 1,
+      shop_no:    1,
+      member_id:  memberId,
       marketing: {
         sms_agree:   'T',
         email_agree: 'T'
       }
     }
   };
-  return apiRequest('PUT', putUrl, payload);
+  // params 는 PUT 에서 사용하지 않습니다
+  return apiRequest('PUT', url, payload);
 }
 
-// 2) 적립금 지급 함수 (변경 없음)
+// ------------------------------
+// 2) 적립금 지급 함수 (변경없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1962,6 +1953,7 @@ async function giveRewardPoints(memberId, amount, reason) {
   return apiRequest('POST', url, payload);
 }
 
+// ------------------------------
 // 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
@@ -1982,10 +1974,10 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     // 1) 마케팅 수신동의 업데이트
     await updateMarketingConsent(memberId);
 
-    // 2) 적립금 지급
+    // 2) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장 (Asia/Seoul 시간)
+    // 3) 참여 기록 저장 (Asia/Seoul 시간 기준)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
