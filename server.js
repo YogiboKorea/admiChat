@@ -1918,16 +1918,17 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
-
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    shop_no: 1,
-    marketing: {
-      sms_agree:   'T',
-      email_agree: 'T'
+    request: {
+      shop_no: 1,
+      marketing: {
+        sms_agree:   'T',
+        email_agree: 'T'
+      }
     }
   };
   return apiRequest('PUT', url, payload);
@@ -1955,9 +1956,9 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const db         = client.db(DB_NAME);
-    const coll       = db.collection('marketingConsentEvent');
-    const already    = await coll.findOne({ memberId });
+    const db    = client.db(DB_NAME);
+    const coll  = db.collection('marketingConsentEvent');
+    const already = await coll.findOne({ memberId });
     if (already) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
@@ -1977,7 +1978,6 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
