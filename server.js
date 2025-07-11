@@ -1918,17 +1918,16 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
-
-
 // ------------------------------
-// 1) SMS·뉴스메일 수신동의 업데이트
+// 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // shop_no=1 은 반드시 쿼리스트링으로!
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}?shop_no=1`;
-  // 본문에는 수정할 필드만 root 레벨에
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    sms:       'T',  // SMS 수신동의
-    news_mail: 'T'   // 뉴스메일(이메일) 수신동의
+    request: {
+      shop_no:   1,     // ← 여기
+      sms:       'T',   // SMS 수신동의
+      news_mail: 'T'    // 이메일(뉴스메일) 수신동의
+    }
   };
   return apiRequest('PUT', url, payload);
 }
@@ -1954,7 +1953,7 @@ async function giveRewardPoints(memberId, amount, reason) {
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
+    return res.status(400).json({ error: 'memberId와 store가 모두 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -1962,18 +1961,18 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 중복 체크
+    // 1) 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) SMS·뉴스메일 수신동의 업데이트
+    // 2) 마케팅 동의 업데이트
     await updateMarketingConsent(memberId);
 
-    // 2) 적립금 5원 지급
+    // 3) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장 (Asia/Seoul 시간)
+    // 4) 참여 기록 저장 (Asia/Seoul 기준)
     const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
