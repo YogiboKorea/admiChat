@@ -1933,21 +1933,19 @@ async function fetchPrivacyNo(memberId) {
 }
 
 // ------------------------------
-// 2) 마케팅 수신동의 업데이트 함수
+// 2) 마케팅 수신동의 업데이트 함수 (v2 Admin API 공식)
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
+  // customers/{member_id}/privacy 로 호출
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${memberId}/privacy`;
   const payload = {
-    request: {
-      shop_no:    1,
-      member_id:  memberId,    // ★ 여기에 member_id 넣기
-      marketing: {
-        sms_agree:   'T',
-        email_agree: 'T'
-      }
-    }
+    shop_no: 1,
+    // sms는 sms_agree, 이메일(뉴스메일)은 news_mail 필드명입니다
+    sms_agree:   'T',
+    news_mail:   'T'
   };
   return apiRequest('PUT', url, payload);
 }
+
 // ------------------------------
 // 3) 적립금 지급 함수 (변경없음)
 async function giveRewardPoints(memberId, amount, reason) {
