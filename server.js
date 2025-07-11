@@ -1918,10 +1918,26 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
+
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  // 1) privacy 레코드 조회
+  const listUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
+  const listRes = await apiRequest(
+    'GET',
+    listUrl,
+    {}, 
+    { shop_no: 1, member_id: memberId }
+  );
+  const privacyList = listRes.customersprivacy;
+  if (!Array.isArray(privacyList) || privacyList.length === 0) {
+    throw new Error(`Privacy record not found for member ${memberId}`);
+  }
+  const privacyNo = privacyList[0].customersprivacy_no;
+
+  // 2) privacyNo로 동의 상태 업데이트
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${privacyNo}`;
   const payload = {
     request: {
       shop_no: 1,
@@ -1935,7 +1951,7 @@ async function updateMarketingConsent(memberId) {
 }
 
 // ------------------------------
-// 3) 적립금 지급 함수
+// 3) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1946,7 +1962,7 @@ async function giveRewardPoints(memberId, amount, reason) {
 }
 
 // ------------------------------
-// 4) 이벤트 참여 엔드포인트
+// 4) 이벤트 참여 엔드포인트 (변경 없음)
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1978,6 +1994,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
+
 
 
 // ========== [17] 서버 시작 ==========
