@@ -1920,27 +1920,22 @@ app.get('/api/points/check', async (req, res) => {
 
 
 
-// =========매장용=====================
-
 // ==============================
 // (1) 개인정보 수집·이용 동의(선택) 업데이트
-// POST /api/v2/admin/privacyconsents
 async function updatePrivacyConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
   const payload = {
     shop_no: 1,
     request: {
-      member_id:  memberId,
-      consent_type: 'marketing',            // "마케팅 목적" 동의
-      agree:        'T',                    // 동의
-      issued_at:    new Date().toISOString()
+      member_id:   memberId,
+      consent_type:'marketing',
+      agree:       'T',
+      issued_at:   new Date().toISOString()
     }
   };
-
   try {
     return await apiRequest('POST', url, payload);
   } catch (err) {
-    // 엔드포인트가 없다고 나오면 무시하고 다음 단계로
     if (err.response?.data?.error?.message.includes('No API found')) {
       console.warn('privacyconsents 엔드포인트 미지원, 패스');
       return;
@@ -1949,22 +1944,38 @@ async function updatePrivacyConsent(memberId) {
   }
 }
 
+// ==============================
 // (2) SMS 수신동의 업데이트
-// PUT /api/v2/admin/customersprivacy/{member_id}
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
     request: {
       shop_no:   1,
       member_id: memberId,
-      sms:       'T'    // SMS 수신동의만 T로!
+      sms:       'T'
     }
   };
   return apiRequest('PUT', url, payload);
 }
 
 // ==============================
-// (4) 이벤트 참여 엔드포인트
+// (3) 적립금 지급 함수 (자사몰용)
+async function giveRewardPoints(memberId, amount, reason) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
+  const payload = {
+    shop_no: 1,
+    request: {
+      member_id: memberId,
+      amount,
+      type:   'increase',
+      reason
+    }
+  };
+  return apiRequest('POST', url, payload);
+}
+
+// ==============================
+// (4) 매장용 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1981,8 +1992,10 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 2) SMS 수신동의 업데이트
+    // SMS 수신동의 업데이트
     await updateMarketingConsent(memberId);
+
+    // 참여 기록 저장
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
@@ -1997,35 +2010,8 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-// =========자사몰용=====================
 // ==============================
-// (3) 적립금 지급 함수 (자사몰용)
-// POST /api/v2/admin/points
-async function giveRewardPoints(memberId, amount, reason) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
-  const payload = {
-    shop_no: 1,
-    request: {
-      member_id: memberId,
-      amount,
-      type:   'increase',
-      reason
-    }
-  };
-  return apiRequest('POST', url, payload);
-}
-
-
-
-// ==============================
-// (5) 자사몰 이벤트 참여 엔드포인트 (store 불필요)
+// (5) 자사몰용 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent-company', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) {
@@ -2042,16 +2028,14 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)
+    // 1) 개인정보 동의
     await updatePrivacyConsent(memberId);
-
-    // 2) SMS 수신동의 업데이트
+    // 2) SMS 수신동의
     await updateMarketingConsent(memberId);
-
-    // 3) 적립금 5원 즉시 지급
+    // 3) 적립금 지급
     await giveRewardPoints(memberId, 5, '자사몰 마케팅 수신동의 이벤트 보상');
 
-    // 4) 참여+지급 기록 저장 (서울시간)
+    // 4) 지급 기록 저장
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
@@ -2065,12 +2049,6 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
     await client.close();
   }
 });
-
-
-
-
-
-
 
 
 
