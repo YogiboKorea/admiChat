@@ -1919,6 +1919,55 @@ app.get('/api/points/check', async (req, res) => {
 });
 
 
+// 마케팅 수신동의 이벤트 참여 엔드포인트 (매장정보 포함)
+app.post('/api/event/marketing-consent', async (req, res) => {
+  const { memberId, store } = req.body;
+
+  if (!memberId || !store) {
+    return res.status(400).json({ error: '회원 아이디와 매장 정보가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('marketingConsentEvent');
+
+    // ✅ 1. 중복 참여 체크 먼저 수행
+    const existing = await collection.findOne({ memberId });
+    if (existing) {
+      await client.close();
+      return res.status(409).json({ message: '이미 참여 완료된 이벤트입니다.' });
+    }
+
+    // ✅ 2. 마케팅 수신동의 업데이트
+    await updateMarketingConsent(memberId);
+
+    // ✅ 3. 적립금 지급 (5원)
+    await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
+
+    // ✅ 4. MongoDB에 참여 기록 저장 (매장정보 포함!)
+    await collection.insertOne({
+      memberId,
+      store, // 여기에 store 추가
+      participatedAt: new Date()
+    });
+
+    await client.close();
+
+    res.json({ success: true, message: '마케팅 수신동의 및 적립금 지급 완료!' });
+
+  } catch (error) {
+    console.error("마케팅 수신동의 이벤트 처리 오류:", error);
+    await client.close();
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+
+
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
