@@ -1917,7 +1917,6 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
@@ -1929,19 +1928,23 @@ async function updateMarketingConsent(memberId) {
     {}, 
     { shop_no: 1, member_id: memberId }
   );
-  // 응답 객체 안에 배열 키가 customersprivacy 일 수도 있으니 둘 다 체크
-  const privacyList =
-    Array.isArray(listRes.customersprivacy)
-      ? listRes.customersprivacy
-      : Array.isArray(listRes.data)
-        ? listRes.data
-        : [];
-  if (privacyList.length === 0) {
-    throw new Error(`Privacy record not found for member ${memberId}`);
-  }
-  const privacyNo = privacyList[0].customersprivacy_no;
+  console.log('▶️ customersprivacy GET response:', JSON.stringify(listRes));
 
-  // 2) 조회한 privacyNo로 동의 상태 업데이트
+  // 응답 구조에 맞춰 배열 추출
+  const privacyList =
+    Array.isArray(listRes.customersprivacy) ? listRes.customersprivacy
+    : Array.isArray(listRes.data)            ? listRes.data
+    : [];
+
+  if (privacyList.length === 0) {
+    // 없으면 바로 에러 던지고 종료
+    throw new Error(`Privacy record not found for member "${memberId}"`);
+  }
+
+  const privacyNo = privacyList[0].customersprivacy_no;
+  console.log(`▶️ using customersprivacy_no: ${privacyNo}`);
+
+  // 2) 해당 레코드로 동의 상태 업데이트
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${privacyNo}`;
   const payload = {
     request: {
@@ -1993,13 +1996,16 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
     res.json({ success: true, message: '참여 및 적립금 지급 완료!' });
   } catch (err) {
-    console.error('이벤트 처리 오류:', err);
+    console.error('이벤트 처리 오류:', err.message);
+    // privacy 레코드가 없을 때는 404, 그 외는 500
+    if (err.message && err.message.startsWith('Privacy record not found')) {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(500).json({ error: '서버 오류 발생' });
   } finally {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
