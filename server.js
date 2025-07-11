@@ -1917,36 +1917,36 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
-// ------------------------------
-// 1) customer_privacy_no 조회 함수
-async function fetchPrivacyNo(memberId) {
-  const url    = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
-  const params = { shop_no: 1, member_id: memberId };
-  const res    = await apiRequest('GET', url, {}, params);
-  const list   = res.customersprivacy || [];
-  if (!list.length) {
-    throw new Error(`member_id ${memberId} 의 개인정보가 없습니다.`);
-  }
-  // API 문서 기준 PK 필드명은 customer_privacy_no 입니다.
-  return list[0].customer_privacy_no;
-}
-// ==============================
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // customersprivacy 리소스를 사용해야 No API found 에러가 없습니다
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
-  const params = { shop_no: 1 };      // 쿼리에만 shop_no
+  // 1-a) privacy 레코드 조회
+  const listUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
+  const listParams = { shop_no: 1, member_id: memberId };
+  const listRes   = await apiRequest('GET', listUrl, {}, listParams);
+  const recs      = listRes.customersprivacy || [];
+  if (!recs.length) {
+    throw new Error(`customersprivacy 레코드를 찾을 수 없습니다 (member_id=${memberId})`);
+  }
+  // 여기서 privacy_seq 필드 이름은 실제 응답 스키마에 맞춰 수정하세요!
+  const seq = recs[0].privacy_seq || recs[0].seq || recs[0].customersprivacy_seq;
+  if (!seq) {
+    throw new Error('응답에 privacy_seq 필드가 없습니다.');
+  }
+
+  // 1-b) PUT 으로 동의 업데이트
+  const putUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${seq}`;
   const payload = {
-    marketing: {
-      sms_agree:   'T',
-      email_agree: 'T'
+    request: {
+      shop_no: 1,
+      marketing: {
+        sms_agree:   'T',
+        email_agree: 'T'
+      }
     }
   };
-  return apiRequest('PUT', url, payload, params);
+  return apiRequest('PUT', putUrl, payload);
 }
 
-// ==============================
 // 2) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
@@ -1962,13 +1962,11 @@ async function giveRewardPoints(memberId, amount, reason) {
   return apiRequest('POST', url, payload);
 }
 
-// ==============================
 // 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res.status(400)
-      .json({ error: 'memberId와 store가 모두 필요합니다.' });
+    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -1978,8 +1976,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
     // 중복 체크
     if (await coll.findOne({ memberId })) {
-      return res.status(409)
-        .json({ message: '이미 참여하셨습니다.' });
+      return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
     // 1) 마케팅 수신동의 업데이트
@@ -1988,26 +1985,21 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     // 2) 적립금 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장 (Asia/Seoul 기준)
+    // 3) 참여 기록 저장 (Asia/Seoul 시간)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt });
 
-    res.json({
-      success: true,
-      message: '참여 및 적립금 지급이 완료되었습니다!'
-    });
+    res.json({ success: true, message: '참여 및 적립금 지급 완료!' });
 
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
-    res.status(500)
-      .json({ error: '서버 오류가 발생했습니다.' });
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
