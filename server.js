@@ -1932,21 +1932,17 @@ async function fetchPrivacyNo(memberId) {
   return list[0].customer_privacy_no;
 }
 
-
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수 (v2 Admin API 공식)
 async function updateMarketingConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${memberId}/privacy`;
-  const params = {
-    mall_id: CAFE24_MALLID,
-    shop_no: 1
-  };
   const payload = {
+    shop_no:    1,
     sms_agree:  'T',
     news_mail:  'T'
   };
-  // PUT 메서드는 params→URL, payload→body 로 분리해서 넘겨야 합니다.
-  return apiRequest('PUT', url, payload, params);
+  // PUT 은 body 에만 payload 를 담습니다.
+  return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
@@ -1993,7 +1989,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     // 3) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) MongoDB에 참여 기록 저장 (Asia/Seoul 기준)
+    // 4) 참여 기록 저장 (Asia/Seoul 기준)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
