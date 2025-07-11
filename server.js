@@ -1917,29 +1917,72 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+// ------------------------------
+// 1) 마케팅 목적 개인정보 수집·이용 동의 업데이트 함수
+async function updateMarketingPurposeConsent(memberId) {
+  const baseUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacy-consents`;
+
+  // 1-a) 기존 동의 내역 조회
+  const listRes = await apiRequest(
+    'GET',
+    baseUrl,
+    {},                              // body
+    { shop_no: 1, member_id: memberId }
+  );
+  // 실제 응답 필드 이름은 privacy_consents 입니다.
+  const consents = listRes.privacy_consents || [];
+
+  // 1-b) “marketing” 타입이 이미 있으면 seq 뽑아서 PUT
+  const existing = consents.find(c => c.consent_type === 'marketing');
+  const now = new Date().toISOString();
+  if (existing) {
+    return apiRequest(
+      'PUT',
+      `${baseUrl}/${existing.seq}`,
+      { request: {
+          shop_no:    1,
+          agree:      'T',
+          issued_at:  now
+      }}
+    );
+  }
+
+  // 1-c) 없으면 POST 해서 생성
+  return apiRequest(
+    'POST',
+    baseUrl,
+    { request: {
+        shop_no:      1,
+        member_id:    memberId,
+        consent_type: 'marketing',
+        agree:        'T',
+        issued_at:    now
+    }}
+  );
+}
 
 // ------------------------------
-// 2) 마케팅 목적 개인정보 수집·이용 동의(선택) 업데이트 함수
-async function updateMarketingConsent(memberId) {
+// 2) (기존) SMS 수신동의 업데이트 함수
+async function updateSmsConsent(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
-  const payload = {
-    request: {
-      shop_no: 1,
-      marketing_consent: 'T'    // 여기만 보내면 됩니다
-    }
-  };
-  return apiRequest('PUT', url, payload);
+  return apiRequest(
+    'PUT',
+    url,
+    { request: { shop_no: 1, sms: 'T' } }
+  );
 }
 
 // ------------------------------
 // 3) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
-  const payload = {
-    shop_no: 1,
-    request: { member_id: memberId, amount, type: 'increase', reason }
-  };
-  return apiRequest('POST', url, payload);
+  return apiRequest(
+    'POST',
+    url,
+    { shop_no: 1,
+      request: { member_id: memberId, amount, type: 'increase', reason }
+    }
+  );
 }
 
 // ------------------------------
@@ -1955,18 +1998,21 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 중복 체크
+    // 4-a) 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 마케팅 목적 개인정보 수집·이용 동의(선택)만 업데이트
-    await updateMarketingConsent(memberId);
+    // 4-b) SMS 수신동의도 함께 업데이트 하려면 필요
+    await updateSmsConsent(memberId);
 
-    // 2) 적립금 5원 지급
+    // 4-c) 마케팅 목적 개인정보 수집·이용 동의 업데이트
+    await updateMarketingPurposeConsent(memberId);
+
+    // 4-d) 적립금 5원 지급
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 기록 저장 (Asia/Seoul 기준)
+    // 4-e) 참여 기록 저장 (Asia/Seoul 기준)
     const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
