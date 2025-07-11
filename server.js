@@ -1917,83 +1917,42 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-// ------------------------------
-// 1) SMS 수신동의 업데이트 (customersprivacy PUT)
-async function updateSmsConsent(memberId) {
+
+
+// 📌 2) 수신동의 + 개인정보동의 업데이트
+async function updateMarketingConsentAll(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
     request: {
-      shop_no: 1,
-      sms: 'T'
+      shop_no:           1,
+      sms:               'T',   // SMS 수신동의
+      news_mail:         'F',   // 뉴스메일 수신동의 (필요없으면 'F')
+      marketing_consent: 'T',   // 마케팅 목적 개인정보 수집·이용 동의(선택)
     }
   };
   return apiRequest('PUT', url, payload);
 }
 
-// ------------------------------
-// 2) 마케팅 목적 개인정보 수집·이용 동의 업데이트 (privacy-consents)
-async function updateMarketingConsent(memberId) {
-  const baseUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacy-consents`;
-
-  // 2-1) 기존 동의 내역 조회
-  const listRes = await apiRequest(
-    'GET',
-    baseUrl,
-    {},                                // body
-    { shop_no: 1, member_id: memberId }
-  );
-  const consents = listRes.privacyConsents || listRes.privacyconsents || [];
-
-  // 발급 시간
-  const issuedAt = new Date().toISOString();
-
-  // 2-2) 이미 'marketing' 타입 동의가 있으면 PUT, 없으면 POST
-  const existing = consents.find(c => c.consent_type === 'marketing');
-  if (existing) {
-    return apiRequest(
-      'PUT',
-      `${baseUrl}/${existing.seq}`,
-      {
-        request: {
-          shop_no:   1,
-          agree:     'T',
-          issued_at: issuedAt
-        }
-      }
-    );
-  } else {
-    return apiRequest(
-      'POST',
-      baseUrl,
-      {
-        request: {
-          shop_no:      1,
-          member_id:    memberId,
-          consent_type: 'marketing',
-          agree:        'T',
-          issued_at:    issuedAt
-        }
-      }
-    );
-  }
-}
-
-// ------------------------------
-// 3) 적립금 지급 함수 (unchanged)
-async function giveRewardPoints(memberId, amount, reason) {
+// 📌 3) 적립금 지급 (5원)
+async function giveRewardPoints(memberId) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
-  return apiRequest('POST', url, {
+  const payload = {
     shop_no: 1,
-    request: { member_id: memberId, amount, type: 'increase', reason }
-  });
+    request: {
+      member_id: memberId,
+      amount:    5,
+      type:      'increase',
+      reason:    '마케팅 수신동의 이벤트 참여 보상'
+    }
+  };
+  return apiRequest('POST', url, payload);
 }
 
-// ------------------------------
-// 4) 이벤트 참여 엔드포인트
+// 📌 4) 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
-    return res.status(400).json({ error: 'memberId와 store가 모두 필요합니다.' });
+    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -2001,27 +1960,24 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // (A) 중복 체크
+    // 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // (B) SMS 수신동의
-    await updateSmsConsent(memberId);
+    // 1) 수신동의 + 개인정보동의 업데이트
+    await updateMarketingConsentAll(memberId);
 
-    // (C) 마케팅 목적 개인정보동의
-    await updateMarketingConsent(memberId);
+    // 2) 적립금 지급
+    await giveRewardPoints(memberId);
 
-    // (D) 적립금 지급
-    await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
-
-    // (E) 참여 기록 저장 (Asia/Seoul 시간)
-    const participatedAt = new Date(
+    // 3) 참여 기록 저장 (Asia/Seoul 기준)
+    const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
-    await coll.insertOne({ memberId, store, participatedAt });
+    await coll.insertOne({ memberId, store, participatedAt: seoulTime });
 
-    res.json({ success: true, message: '참여 및 적립금 지급이 완료되었습니다!' });
+    res.json({ success: true, message: '참여 및 보상 지급 완료!' });
   } catch (err) {
     console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
