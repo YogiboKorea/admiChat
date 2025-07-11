@@ -1930,9 +1930,6 @@ async function updateSmsConsent(memberId) {
   return apiRequest('PUT', url, payload);
 }
 
-const CAFE24_MALLID = process.env.CAFE24_MALLID;
-const MONGODB_URI    = process.env.MONGODB_URI;
-const DB_NAME        = process.env.DB_NAME;
 
 /** 공용 API 호출 래퍼 (기존 apiRequest) */
 async function apiRequest(method, url, data = {}, params = {}) {
