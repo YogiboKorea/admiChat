@@ -1919,6 +1919,11 @@ app.get('/api/points/check', async (req, res) => {
 });
 
 
+
+
+
+
+
 // 마케팅 수신동의 이벤트 참여 엔드포인트 (매장정보 포함)
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
@@ -1934,10 +1939,9 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     const db = client.db(DB_NAME);
     const collection = db.collection('marketingConsentEvent');
 
-    // ✅ 1. 중복 참여 체크 먼저 수행
+    // ✅ 1. 중복 참여 체크 (memberId로 체크)
     const existing = await collection.findOne({ memberId });
     if (existing) {
-      await client.close();
       return res.status(409).json({ message: '이미 참여 완료된 이벤트입니다.' });
     }
 
@@ -1947,24 +1951,24 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     // ✅ 3. 적립금 지급 (5원)
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // ✅ 4. MongoDB에 참여 기록 저장 (매장정보 포함!)
-    await collection.insertOne({
+    // ✅ 4. MongoDB에 참여 기록 저장 (매장정보 포함)
+    const newEvent = {
       memberId,
-      store, // 여기에 store 추가
+      store,
       participatedAt: new Date()
-    });
+    };
 
-    await client.close();
+    await collection.insertOne(newEvent);
 
     res.json({ success: true, message: '마케팅 수신동의 및 적립금 지급 완료!' });
 
   } catch (error) {
     console.error("마케팅 수신동의 이벤트 처리 오류:", error);
-    await client.close();
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  } finally {
+    await client.close();
   }
 });
-
 
 
 
