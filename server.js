@@ -1918,7 +1918,6 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
-
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
@@ -1930,13 +1929,19 @@ async function updateMarketingConsent(memberId) {
     {}, 
     { shop_no: 1, member_id: memberId }
   );
-  const privacyList = listRes.customersprivacy;
-  if (!Array.isArray(privacyList) || privacyList.length === 0) {
+  // 응답 객체 안에 배열 키가 customersprivacy 일 수도 있으니 둘 다 체크
+  const privacyList =
+    Array.isArray(listRes.customersprivacy)
+      ? listRes.customersprivacy
+      : Array.isArray(listRes.data)
+        ? listRes.data
+        : [];
+  if (privacyList.length === 0) {
     throw new Error(`Privacy record not found for member ${memberId}`);
   }
   const privacyNo = privacyList[0].customersprivacy_no;
 
-  // 2) privacyNo로 동의 상태 업데이트
+  // 2) 조회한 privacyNo로 동의 상태 업데이트
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${privacyNo}`;
   const payload = {
     request: {
@@ -1972,8 +1977,8 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const db    = client.db(DB_NAME);
-    const coll  = db.collection('marketingConsentEvent');
+    const db      = client.db(DB_NAME);
+    const coll    = db.collection('marketingConsentEvent');
     const already = await coll.findOne({ memberId });
     if (already) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
