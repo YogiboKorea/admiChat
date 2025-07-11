@@ -1935,14 +1935,11 @@ async function fetchPrivacyNo(memberId) {
 // ------------------------------
 // 2) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // 1) 먼저 privacy_no 를 가져오고
-  const privacyNo = await fetchPrivacyNo(memberId);
-
-  // 2) 그 번호를 경로에 넣어서 PUT
-  const url     = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${privacyNo}`;
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
   const payload = {
     request: {
-      shop_no: 1,
+      shop_no:    1,
+      member_id:  memberId,    // ★ 여기에 member_id 넣기
       marketing: {
         sms_agree:   'T',
         email_agree: 'T'
@@ -1951,7 +1948,6 @@ async function updateMarketingConsent(memberId) {
   };
   return apiRequest('PUT', url, payload);
 }
-
 // ------------------------------
 // 3) 적립금 지급 함수 (변경없음)
 async function giveRewardPoints(memberId, amount, reason) {
