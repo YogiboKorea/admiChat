@@ -1918,22 +1918,22 @@ app.get('/api/points/check', async (req, res) => {
   }
 });
 
-
 // ------------------------------
 // 1) 마케팅 수신동의 업데이트 함수
 async function updateMarketingConsent(memberId) {
-  // memberId만 URL에 넣고, shop_no는 바디에서 전달
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
   const payload = {
-    shop_no:    1,
-    sms:        'T',   // SMS 수신동의
-    news_mail:  'T'    // 뉴스메일 수신동의
+    request: {
+      shop_no:   1,
+      sms:       'T',  // SMS 수신동의
+      news_mail: 'T'   // 뉴스메일 수신동의
+    }
   };
   return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
-// 2) 적립금 지급 함수 (변경없음)
+// 2) 적립금 지급 함수 (변경 없음)
 async function giveRewardPoints(memberId, amount, reason) {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
@@ -1966,7 +1966,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 2) 마케팅 수신동의 업데이트
+    // 2) 수신동의 업데이트
     console.log('▶️ 마케팅 수신동의 업데이트 →', memberId);
     await updateMarketingConsent(memberId);
 
@@ -1974,7 +1974,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     console.log('▶️ 적립금 지급 →', memberId);
     await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 4) 기록 저장 (Asia/Seoul 기준 시각)
+    // 4) 참여 기록 저장 (Asia/Seoul 시간)
     const participatedAt = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
