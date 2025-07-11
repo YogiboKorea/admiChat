@@ -1917,38 +1917,40 @@ app.get('/api/points/check', async (req, res) => {
       .json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+
+
+
 // ------------------------------
 // 1) SMS·뉴스메일 수신동의 업데이트
 async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  // shop_no=1 은 반드시 쿼리스트링으로!
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}?shop_no=1`;
+  // 본문에는 수정할 필드만 root 레벨에
   const payload = {
-    request: {
-      shop_no:   1,
-      sms:       'T',   // SMS 수신동의
-      news_mail: 'T'    // 뉴스메일 수신동의
-    }
+    sms:       'T',  // SMS 수신동의
+    news_mail: 'T'   // 뉴스메일(이메일) 수신동의
   };
   return apiRequest('PUT', url, payload);
 }
 
 // ------------------------------
-// 2) 마케팅 목적 개인정보 수집·이용 동의 이력 추가
-async function addPrivacyConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+// 2) 적립금 지급 함수 (변경 없음)
+async function giveRewardPoints(memberId, amount, reason) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`;
   const payload = {
+    shop_no: 1,
     request: {
-      shop_no:      1,
-      member_id:    memberId,
-      consent_type: 'marketing',      // 동의 종류 코드 (관리자 가이드 확인)
-      agree:        'T',              // 동의 여부
-      issued_at:    new Date().toISOString()
+      member_id: memberId,
+      amount,
+      type:   'increase',
+      reason
     }
   };
   return apiRequest('POST', url, payload);
 }
 
 // ------------------------------
-// 3) 이벤트 참여 엔드포인트 (마케팅 동의만)
+// 3) 이벤트 참여 엔드포인트
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
   if (!memberId || !store) {
@@ -1960,32 +1962,31 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentEvent');
 
-    // 중복 참여 체크
+    // 중복 체크
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 수신동의 업데이트
+    // 1) SMS·뉴스메일 수신동의 업데이트
     await updateMarketingConsent(memberId);
 
-    // 2) 개인정보 수집·이용 동의 이력 추가
-    await addPrivacyConsent(memberId);
+    // 2) 적립금 5원 지급
+    await giveRewardPoints(memberId, 5, '마케팅 수신동의 이벤트 참여 보상');
 
-    // 3) 참여 기록 저장
+    // 3) 참여 기록 저장 (Asia/Seoul 시간)
     const seoulTime = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
     await coll.insertOne({ memberId, store, participatedAt: seoulTime });
 
-    res.json({ success: true, message: '마케팅 수신동의가 완료되었습니다!' });
+    res.json({ success: true, message: '마케팅 수신동의 및 적립금 지급 완료!' });
   } catch (err) {
-    console.error('마케팅 동의 처리 오류:', err.response?.data || err.message);
+    console.error('이벤트 처리 오류:', err.response?.data || err.message);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
