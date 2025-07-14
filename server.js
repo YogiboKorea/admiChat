@@ -1968,7 +1968,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
     // 중복 참여 방지
     if (await coll.findOne({ memberId })) {
-      return res.status(409).json({ message: '이미 참여하셨습니다.' });
+      return res.status(409).json({ message: '' });
     }
 
     // SMS 수신동의 업데이트
