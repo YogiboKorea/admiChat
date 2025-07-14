@@ -2014,7 +2014,7 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
     // 2) SMS 수신동의
     await updateMarketingConsent(memberId);
     // 3) 적립금 지급
-    await giveRewardPoints(memberId, 5, '자사몰 마케팅 수신동의 이벤트 보상');
+    await giveRewardPoints(memberId, 5000, '자사몰 마케팅 수신동의 이벤트 보상');
 
     // 4) 지급 기록 저장
     const seoulNow = new Date(
