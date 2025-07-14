@@ -1790,6 +1790,8 @@ app.get('/api/event/click/stats', async (req, res) => {
 });
 
 
+
+
 let db, eventPartnersCollection;
 
 MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
@@ -1849,7 +1851,7 @@ app.post('/api/points', async (req, res) => {
     if (already) {
       return res
         .status(400)
-        .json({ success: false, message: '이미 참여 완료한 이벤트입니다.' });
+        .json({ success: false, message: '이미 참여 완료하신 고객입니다.' });
     }
 
     // 3) Cafe24 API로 포인트 적립
@@ -1968,7 +1970,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
     // 중복 참여 방지
     if (await coll.findOne({ memberId })) {
-      return res.status(409).json(console.log('참여완료한 고객'));
+      return res.status(409).json({ success: false, message: '이미 참여 완료하신 고객입니다.' });
     }
 
     // SMS 수신동의 업데이트
