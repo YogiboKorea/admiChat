@@ -2131,6 +2131,123 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 
 
 
+let userCouponsCollection;
+
+async function initCouponDb() {
+  if (!userCouponsCollection) {
+    mongoClient = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await mongoClient.connect();
+    db = mongoClient.db(DB_NAME);
+    userCouponsCollection = db.collection('userCoupons');
+    // memberId + couponId 조합 유니크 인덱스
+    await userCouponsCollection.createIndex(
+      { memberId: 1, couponId: 1 },
+      { unique: true }
+    );
+    console.log('✅ userCoupons collection ready with unique index');
+  }
+}
+
+// 서울 기준 날짜 문자열 "YYYY-MM-DD" 반환
+function getSeoulYMD(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return fmt.format(date); // 예: "2025-08-01"
+}
+
+// 오늘 기준 오픈 가능한 쿠폰 ID 계산 (1부터 시작, 최대 15)
+function computeAvailableCouponId() {
+  const todayStr = getSeoulYMD(); // ex "2025-08-01"
+  const eventStartStr = '2025-08-01'; // 이벤트 시작일 (KST 기준)
+  const [yT, mT, dT] = todayStr.split('-').map(Number);
+  const [yS, mS, dS] = eventStartStr.split('-').map(Number);
+  // UTC로 맞춰서 날짜 객체 생성 (날짜 차이는 동일하게 계산됨)
+  const todayDate = new Date(Date.UTC(yT, mT - 1, dT));
+  const startDate = new Date(Date.UTC(yS, mS - 1, dS));
+  const diffMs = todayDate - startDate;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const couponId = diffDays + 1;
+  if (couponId < 1) return 0;
+  if (couponId > 15) return 15;
+  return couponId;
+}
+
+// ====== 조회: 이미 클레임한 쿠폰 목록 ======
+app.get('/api/coupon/claimed', async (req, res) => {
+  const memberId = req.query.memberId;
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId 쿼리 파라미터가 필요합니다.' });
+  }
+  try {
+    await initCouponDb();
+    const docs = await userCouponsCollection
+      .find({ memberId: String(memberId) })
+      .project({ _id: 0, couponId: 1 })
+      .toArray();
+    const claimed = docs.map(d => String(d.couponId));
+    return res.json({ claimed });
+  } catch (err) {
+    console.error('[쿠폰 이벤트] claimed 조회 오류:', err);
+    return res.status(500).json({ error: 'DB 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// ====== 클레임 엔드포인트 ======
+app.post('/api/coupon/claim', async (req, res) => {
+  const { memberId, couponId } = req.body;
+  if (!memberId || couponId === undefined || couponId === null) {
+    return res.status(400).json({ error: 'memberId와 couponId가 필요합니다.' });
+  }
+
+  // couponId 유효성 검사 (1~15)
+  const cid = parseInt(couponId, 10);
+  if (isNaN(cid) || cid < 1 || cid > 15) {
+    return res.status(400).json({ error: '유효하지 않은 couponId입니다.' });
+  }
+
+  // 오픈 여부 체크 (서버 기준: KST 날짜 기준)
+  const availableCouponId = computeAvailableCouponId();
+  if (cid > availableCouponId) {
+    return res.status(400).json({
+      error: `쿠폰 ${cid}은 아직 오픈되지 않았습니다. (현재 오픈가능 쿠폰: ${availableCouponId})`,
+    });
+  }
+
+  try {
+    await initCouponDb();
+    const result = await userCouponsCollection.updateOne(
+      { memberId: String(memberId), couponId: String(cid) },
+      {
+        $setOnInsert: {
+          memberId: String(memberId),
+          couponId: String(cid),
+          claimedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+
+    if (result.upsertedId) {
+      // 새로 클레임된 경우
+      return res.json({ success: true, message: '쿠폰 클레임 완료되었습니다.' });
+    } else {
+      // 이미 존재해서 upsert 없이 끝난 경우
+      return res.status(409).json({ error: '이미 받은 쿠폰입니다.' });
+    }
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: '이미 받은 쿠폰입니다.' });
+    }
+    console.error('[쿠폰 이벤트] 클레임 처리 오류:', err);
+    return res.status(500).json({ error: '서버 내부 오류' });
+  }
+});
+
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
