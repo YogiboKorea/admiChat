@@ -2126,16 +2126,43 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 });
 
 
-//쿠폰 1일 1회 연결 관련 데이터 
-const userCouponsCollection = db.collection('userCoupons');
-userCouponsCollection.createIndex(
-  { memberId: 1, couponId: 1 },
-  { unique: true }
-).then(() => {
-  console.log('✅ userCoupons unique index 생성 완료');
-}).catch(err => {
-  console.error('❌ userCoupons 인덱스 생성 오류:', err);
+//MD 추가 이벤트
+app.post('/api/coupon/claim', async (req, res) => {
+  if (!userCouponsCollection) {
+    return res.status(500).json({ error: 'DB 연결이 준비되지 않았습니다.' });
+  }
+  const { memberId, couponId } = req.body;
+  if (!memberId || !couponId) {
+    return res.status(400).json({ error: 'memberId와 couponId가 필요합니다.' });
+  }
+
+  try {
+    const filter = { memberId: String(memberId), couponId: String(couponId) };
+    const update = {
+      $setOnInsert: {
+        memberId: String(memberId),
+        couponId: String(couponId),
+        claimedAt: new Date()
+      }
+    };
+    const options = { upsert: true };
+    const result = await userCouponsCollection.updateOne(filter, update, options);
+
+    // upsertedCount 또는 upsertedId로 새로 들어갔는지 확인
+    if (result.upsertedCount === 1 || result.upsertedId) {
+      return res.json({ success: true, message: '쿠폰 클레임 완료되었습니다.' });
+    } else {
+      return res.status(409).json({ error: '이미 받은 쿠폰입니다.' });
+    }
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: '이미 받은 쿠폰입니다.' });
+    }
+    console.error('쿠폰 클레임 오류:', err);
+    return res.status(500).json({ error: '서버 오류' });
+  }
 });
+
 
 
 
