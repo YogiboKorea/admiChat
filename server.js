@@ -2126,6 +2126,19 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 });
 
 
+//쿠폰 1일 1회 연결 관련 데이터 
+const userCouponsCollection = db.collection('userCoupons');
+userCouponsCollection.createIndex(
+  { memberId: 1, couponId: 1 },
+  { unique: true }
+).then(() => {
+  console.log('✅ userCoupons unique index 생성 완료');
+}).catch(err => {
+  console.error('❌ userCoupons 인덱스 생성 오류:', err);
+});
+
+
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
