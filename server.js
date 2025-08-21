@@ -2133,7 +2133,7 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 // ==============================
 // 자사몰(매장정보 없음) 참여 내역 엑셀 다운로드
 // ==============================
-app.get('/api/event/marketing-consent-company-export', async (req, res) => {
+app.get('/api/event/hyundai-company', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
