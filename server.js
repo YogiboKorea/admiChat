@@ -2137,7 +2137,7 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const coll = client.db(DB_NAME).collection('marketingHyundai');
+    const coll = client.db(DB_NAME).collection('marketingHyudai');
 
     // rewardedAt, memberId만 조회
     const docs = await coll.find({})
