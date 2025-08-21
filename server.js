@@ -2216,6 +2216,51 @@ app.post('/api/event/marketing-hyundai', async (req, res) => {
 });
 
 
+// ==============================
+// 더현대 참여 내역 엑셀 다운로드
+// ==============================
+app.get('/api/event/marketing-consent-hyundai', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+  try {
+    await client.connect();
+    const coll = client.db(DB_NAME).collection('mktTheHyundai');
+
+    const docs = await coll.find({})
+      .project({ _id: 0, participatedAt: 1, memberId: 1 }) // 필요한 필드만
+      .sort({ participatedAt: -1 })
+      .toArray();
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('더현대_참여내역');
+
+    ws.columns = [
+      { header: '참여 날짜', key: 'participatedAt', width: 25 },
+      { header: '회원 아이디', key: 'memberId', width: 20 },
+    ];
+
+    docs.forEach(d => {
+      ws.addRow({
+        participatedAt: d.participatedAt ? new Date(d.participatedAt).toLocaleString('ko-KR') : '',
+        memberId: d.memberId || ''
+      });
+    });
+
+    const filename = '더현대_참여내역.xlsx';
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="hyundai_participants.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('더현대 엑셀 생성 오류:', err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  } finally {
+    await client.close();
+  }
+});
 
 
 
