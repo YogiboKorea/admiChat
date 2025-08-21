@@ -2079,6 +2079,7 @@ app.get('/api/event/marketing-consent-export', async (req, res) => {
   }
 });
 
+
 // ==============================
 // (7) 자사몰용 참여 내역 엑셀 다운로드
 app.get('/api/event/marketing-consent-company-export', async (req, res) => {
@@ -2128,8 +2129,61 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 
 
 
+//현대 이벤트 페이지 제작
+// ==============================
+// 자사몰(매장정보 없음) 참여 내역 엑셀 다운로드
+// ==============================
+app.get('/api/event/marketing-consent-company-export', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const coll = client.db(DB_NAME).collection('marketingHyundai');
+
+    // rewardedAt, memberId만 조회
+    const docs = await coll.find({})
+      .project({ _id: 0, rewardedAt: 1, memberId: 1 })
+      .toArray();
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('자사몰 참여 내역');
+
+    ws.columns = [
+      { header: '참여 날짜', key: 'rewardedAt', width: 25 },
+      { header: '회원 아이디', key: 'memberId',    width: 20 },
+    ];
+
+    docs.forEach(d => {
+      ws.addRow({
+        rewardedAt: d.rewardedAt ? new Date(d.rewardedAt).toLocaleString('ko-KR') : '',
+        memberId:   d.memberId || ''
+      });
+    });
+
+    const filename = '더현대_이벤트참여자_내역.xlsx';
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="company_export.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('자사몰 엑셀 생성 오류:', err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  } finally {
+    await client.close();
+  }
+});
 
 
+
+
+
+//쿠폰 데이터 저장
 
 let userCouponsCollection;
 
