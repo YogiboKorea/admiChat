@@ -2129,55 +2129,93 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 
 
 
-//현대 이벤트 페이지 제작
 // ==============================
-// 자사몰(매장정보 없음) 참여 내역 엑셀 다운로드
+// 더현대 참여 이벤트 (consent 동시 업데이트 보장형)
 // ==============================
-app.get('/api/event/hyundai-company', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
+app.post('/api/event/marketing-hyundai', async (req, res) => {
+  const { memberId, store } = req.body;
+  if (!memberId || typeof memberId !== 'string') {
+    return res.status(400).json({ success: false, message: 'memberId가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
   try {
     await client.connect();
-    const coll = client.db(DB_NAME).collection('marketingHyudai');
+    const coll = client.db(DB_NAME).collection('mktTheHyundai');
 
-    // rewardedAt, memberId만 조회
-    const docs = await coll.find({})
-      .project({ _id: 0, rewardedAt: 1, memberId: 1 })
-      .toArray();
+    // 0) 이미 참여했는지 간단 체크 (빠른 응답을 위해)
+    // -> 레이스 컨디션 완벽 회피는 insertOne + unique index에 맡김
+    if (await coll.findOne({ memberId })) {
+      return res.status(409).json({ success: false, message: '이미 참여하셨습니다.' });
+    }
 
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('자사몰 참여 내역');
+    // 1) 개인정보 수집·이용(선택) 업데이트
+    try {
+      await updatePrivacyConsent(memberId);
+      // updatePrivacyConsent는 'No API found'일 경우 내부에서 패스하도록 구현되어 있음
+    } catch (err) {
+      // privacy API에서 기술적 에러(예: 500 등)가 나면 중단
+      console.error('updatePrivacyConsent 실패:', err);
+      return res.status(500).json({ success: false, message: '개인정보 동의 업데이트 중 오류가 발생했습니다.' });
+    }
 
-    ws.columns = [
-      { header: '참여 날짜', key: 'rewardedAt', width: 25 },
-      { header: '회원 아이디', key: 'memberId',    width: 20 },
-    ];
+    // 2) SMS 수신동의 업데이트 (재시도 로직 포함)
+    const maxAttempts = 3;
+    let updatedMarketing = false;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await updateMarketingConsent(memberId);
+        updatedMarketing = true;
+        break;
+      } catch (err) {
+        console.warn(`updateMarketingConsent 실패 (attempt ${attempt}):`, err && err.message ? err.message : err);
+        // 만약 응답에 "No API found" 같은 비지원 표시가 있으면 중단(대체 정책 필요)
+        if (err.response?.data?.error?.message?.includes('No API found')) {
+          console.warn('updateMarketingConsent 엔드포인트 미지원으로 간주 — 패스');
+          updatedMarketing = false; // 혹은 true로 간주할지 비즈니스 결정 필요
+          break;
+        }
+        // 재시도: 짧은 backoff
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 300 * attempt));
+          continue;
+        } else {
+          // 마지막 시도 실패하면 오류 반환
+          console.error('updateMarketingConsent 최종 실패:', err);
+          return res.status(500).json({ success: false, message: 'SMS 수신동의 업데이트 중 오류가 발생했습니다.' });
+        }
+      }
+    }
 
-    docs.forEach(d => {
-      ws.addRow({
-        rewardedAt: d.rewardedAt ? new Date(d.rewardedAt).toLocaleString('ko-KR') : '',
-        memberId:   d.memberId || ''
-      });
-    });
+    // NOTE: 위에서 updatedMarketing이 false인 경우는 "No API found" 등으로 처리했을 때입니다.
+    // 비즈니스 요구상 반드시 성공해야 한다면 위에서 failure시 500을 리턴하도록 바꿔야 합니다.
 
-    const filename = '더현대_이벤트참여자_내역.xlsx';
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="company_export.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`
-    );
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
+    // 3) 참여 기록 저장 (insertOne -> unique index가 있어 중복 방지)
+    const seoulNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    try {
+      await coll.insertOne({ memberId: String(memberId), store: store || null, participatedAt: seoulNow });
+    } catch (err) {
+      // unique index 충돌
+      if (err.code === 11000) {
+        return res.status(409).json({ success: false, message: '이미 참여하셨습니다.' });
+      }
+      console.error('참여 기록 저장 오류:', err);
+      return res.status(500).json({ success: false, message: '참여 처리 중 서버 오류가 발생했습니다.' });
+    }
 
-    await wb.xlsx.write(res);
-    res.end();
+    // 4) (선택) 포인트 지급 등 추가 작업: 필요하면 여기서 giveRewardPoints 호출 (비동기 후처리 권장)
+    // await giveRewardPoints(memberId, amount, '더현대 이벤트 보상');
+
+    return res.json({ success: true, message: '참여 완료!' });
   } catch (err) {
-    console.error('자사몰 엑셀 생성 오류:', err);
-    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+    console.error('더현대 이벤트 처리 오류:', err);
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
   }
 });
+
+
 
 
 
