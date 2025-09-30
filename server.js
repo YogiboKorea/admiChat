@@ -2267,6 +2267,9 @@ app.get('/api/event/marketing-consent-hyundai', async (req, res) => {
 // ==============================
 // (9) 추석 적립금 지급 이벤트
 // POST /api/event/yogi-event-entry
+// ==============================
+// (9) 나만의 맞춤 제안 이벤트 (참여자 정보 수집용)
+// POST /api/event/yogi-event-entry
 app.post('/api/event/yogi-event-entry', async (req, res) => {
   // 1. 프론트에서 회원 ID와 선택 옵션을 받습니다.
   const { memberId, selectedOption } = req.body;
@@ -2274,7 +2277,7 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
       return res.status(400).json({ success: false, message: '필수 정보가 누락되었습니다.' });
   }
 
-  const client = new MongoClient(process.env.MONGODB_URI); // DB 연결 정보는 환경변수 사용 권장
+  const client = new MongoClient(process.env.MONGODB_URI);
   try {
       await client.connect();
       const collection = client.db("yogibo").collection('yogiEventParticipants');
@@ -2285,12 +2288,7 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
           return res.status(409).json({ success: false, message: '이미 참여한 이벤트입니다.' });
       }
 
-      // 3. (중복 아닐 시) 적립금 지급 함수를 호출합니다.
-      const REWARD_AMOUNT = 2000; // 지급할 적립금액
-      const REASON = '나만의 맞춤 제안 선택 하기 이벤트';
-      await giveRewardPoints(memberId, REWARD_AMOUNT, REASON);
-
-      // 4. DB에 참여 기록을 저장합니다.
+      // 3. DB에 참여 기록을 저장합니다. (적립금 지급 로직 제거)
       const participationRecord = {
           memberId: String(memberId),
           selectedOption: selectedOption,
@@ -2298,7 +2296,8 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
       };
       await collection.insertOne(participationRecord);
 
-      return res.status(200).json({ success: true, message: `${REWARD_AMOUNT}원 적립금이 지급되었습니다.` });
+      // 4. 성공 메시지를 응답합니다.
+      return res.status(200).json({ success: true, message: '이벤트 참여가 완료되었습니다.' });
 
   } catch (error) {
       // DB의 unique index 등으로 인해 중복 insert 시도 시 에러 처리
@@ -2311,6 +2310,8 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
       await client.close();
   }
 });
+
+
 //참여자 리스트 다운로드 코드
 app.get('/api/event/yogi-event-export', async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI);
