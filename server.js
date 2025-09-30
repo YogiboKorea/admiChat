@@ -2264,6 +2264,99 @@ app.get('/api/event/marketing-consent-hyundai', async (req, res) => {
 
 
 
+// ==============================
+// (9) 추석 적립금 지급 이벤트
+// POST /api/event/yogi-event-entry
+app.post('/api/event/yogi-event-entry', async (req, res) => {
+  // 1. 프론트에서 회원 ID와 선택 옵션을 받습니다.
+  const { memberId, selectedOption } = req.body;
+  if (!memberId || !selectedOption) {
+      return res.status(400).json({ success: false, message: '필수 정보가 누락되었습니다.' });
+  }
+
+  const client = new MongoClient(process.env.MONGODB_URI); // DB 연결 정보는 환경변수 사용 권장
+  try {
+      await client.connect();
+      const collection = client.db("YOUR_DB_NAME").collection('yogiEventParticipants');
+
+      // 2. 중복 참여자인지 확인합니다.
+      const existingParticipant = await collection.findOne({ memberId: memberId });
+      if (existingParticipant) {
+          return res.status(409).json({ success: false, message: '이미 참여한 이벤트입니다.' });
+      }
+
+      // 3. (중복 아닐 시) 적립금 지급 함수를 호출합니다.
+      const REWARD_AMOUNT = 1; // 지급할 적립금액
+      const REASON = '요기보 옵션 선택 이벤트 참여';
+      await giveRewardPoints(memberId, REWARD_AMOUNT, REASON);
+
+      // 4. DB에 참여 기록을 저장합니다.
+      const participationRecord = {
+          memberId: String(memberId),
+          selectedOption: selectedOption,
+          participatedAt: new Date()
+      };
+      await collection.insertOne(participationRecord);
+
+      return res.status(200).json({ success: true, message: `${REWARD_AMOUNT}원 적립금이 지급되었습니다.` });
+
+  } catch (error) {
+      // DB의 unique index 등으로 인해 중복 insert 시도 시 에러 처리
+      if (error.code === 11000) {
+          return res.status(409).json({ success: false, message: '이미 참여한 이벤트입니다.' });
+      }
+      console.error('이벤트 참여 처리 중 오류:', error);
+      return res.status(500).json({ success: false, message: error.message || '서버 처리 중 오류가 발생했습니다.' });
+  } finally {
+      await client.close();
+  }
+});
+//참여자 리스트 다운로드 코드
+app.get('/api/event/yogi-event-export', async (req, res) => {
+  const client = new MongoClient(process.env.MONGODB_URI);
+  try {
+      await client.connect();
+      const collection = client.db("YOUR_DB_NAME").collection('yogiEventParticipants');
+
+      // 1. DB에서 모든 참여자 데이터를 참여 날짜 내림차순으로 가져옵니다.
+      const participants = await collection.find({}).sort({ participatedAt: -1 }).toArray();
+
+      // 2. ExcelJS를 사용해 엑셀 파일을 생성합니다.
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('이벤트 참여자 명단');
+
+      worksheet.columns = [
+          { header: '참여 날짜', key: 'participatedAt', width: 25 },
+          { header: '회원 아이디', key: 'memberId', width: 30 },
+          { header: '선택 옵션', key: 'selectedOption', width: 15 },
+      ];
+
+      // 3. 데이터를 엑셀 시트에 추가합니다.
+      participants.forEach(p => {
+          worksheet.addRow({
+              participatedAt: new Date(p.participatedAt).toLocaleString('ko-KR'),
+              memberId: p.memberId,
+              selectedOption: p.selectedOption
+          });
+      });
+
+      // 4. HTTP 응답 헤더를 설정하여 파일을 다운로드하도록 합니다.
+      const filename = '요기보_이벤트_참여내역.xlsx';
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+
+  } catch (error) {
+      console.error('엑셀 다운로드 생성 중 오류:', error);
+      res.status(500).send('엑셀 파일 생성 중 오류가 발생했습니다.');
+  } finally {
+      await client.close();
+  }
+});
+
+
 
 
 //쿠폰 데이터 저장
