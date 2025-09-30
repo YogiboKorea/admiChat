@@ -2287,7 +2287,7 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
 
       // 3. (중복 아닐 시) 적립금 지급 함수를 호출합니다.
       const REWARD_AMOUNT = 1; // 지급할 적립금액
-      const REASON = '요기보 옵션 선택 이벤트 참여';
+      const REASON = '나만의 맞춤 제안 선택 하기 이벤트';
       await giveRewardPoints(memberId, REWARD_AMOUNT, REASON);
 
       // 4. DB에 참여 기록을 저장합니다.
