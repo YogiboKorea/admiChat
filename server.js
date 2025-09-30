@@ -2316,7 +2316,7 @@ app.get('/api/event/yogi-event-export', async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI);
   try {
       await client.connect();
-      const collection = client.db("YOUR_DB_NAME").collection('yogiEventParticipants');
+      const collection = client.db("yogibo").collection('yogiEventParticipants');
 
       // 1. DB에서 모든 참여자 데이터를 참여 날짜 내림차순으로 가져옵니다.
       const participants = await collection.find({}).sort({ participatedAt: -1 }).toArray();
