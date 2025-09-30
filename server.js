@@ -2328,7 +2328,6 @@ app.get('/api/event/yogi-event-export', async (req, res) => {
       worksheet.columns = [
           { header: '참여 날짜', key: 'participatedAt', width: 25 },
           { header: '회원 아이디', key: 'memberId', width: 30 },
-          { header: '선택 옵션', key: 'selectedOption', width: 15 },
       ];
 
       // 3. 데이터를 엑셀 시트에 추가합니다.
