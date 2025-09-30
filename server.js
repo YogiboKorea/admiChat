@@ -2277,7 +2277,7 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI); // DB 연결 정보는 환경변수 사용 권장
   try {
       await client.connect();
-      const collection = client.db("YOUR_DB_NAME").collection('yogiEventParticipants');
+      const collection = client.db("yogibo").collection('yogiEventParticipants');
 
       // 2. 중복 참여자인지 확인합니다.
       const existingParticipant = await collection.findOne({ memberId: memberId });
