@@ -2262,16 +2262,52 @@ app.get('/api/event/marketing-consent-hyundai', async (req, res) => {
   }
 });
 
-
-
 // ==============================
 // (9) 추석 적립금 지급 이벤트
-// POST /api/event/yogi-event-entry
 // ==============================
+
+// [추가] 참여 여부 확인 API
+// GET /api/event/yogi-event-entry?memberId=회원ID
+app.get('/api/event/yogi-event-entry', async (req, res) => {
+  // 1. 쿼리에서 회원 ID를 받습니다.
+  const { memberId } = req.query;
+  if (!memberId) {
+      return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
+  }
+
+  const client = new MongoClient(process.env.MONGODB_URI);
+  try {
+      await client.connect();
+      const collection = client.db("yogibo").collection('yogiEventParticipants');
+
+      // 2. DB에서 해당 회원 ID를 찾습니다.
+      const participant = await collection.findOne({ memberId: String(memberId) });
+
+      // 3. 참여 기록에 따라 다른 응답을 보냅니다.
+      if (participant) {
+          // 참여 기록이 있으면, 참여했다는 사실과 선택했던 옵션을 응답합니다.
+          return res.status(200).json({
+              hasParticipated: true,
+              selectedOption: participant.selectedOption
+          });
+      } else {
+          // 참여 기록이 없으면, 참여하지 않았다고 응답합니다.
+          return res.status(200).json({
+              hasParticipated: false
+          });
+      }
+  } catch (error) {
+      console.error('참여 여부 확인 중 오류:', error);
+      return res.status(500).json({ success: false, message: '서버 처리 중 오류가 발생했습니다.' });
+  } finally {
+      await client.close();
+  }
+});
+
+
 // (9) 나만의 맞춤 제안 이벤트 (참여자 정보 수집용)
 // POST /api/event/yogi-event-entry
 app.post('/api/event/yogi-event-entry', async (req, res) => {
-  // 1. 프론트에서 회원 ID와 선택 옵션을 받습니다.
   const { memberId, selectedOption } = req.body;
   if (!memberId || !selectedOption) {
       return res.status(400).json({ success: false, message: '필수 정보가 누락되었습니다.' });
@@ -2282,13 +2318,18 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
       await client.connect();
       const collection = client.db("yogibo").collection('yogiEventParticipants');
 
-      // 2. 중복 참여자인지 확인합니다.
       const existingParticipant = await collection.findOne({ memberId: memberId });
+      
+      // ▼▼▼ [수정] 중복 참여자일 경우, 기존 선택 옵션을 함께 반환합니다. ▼▼▼
       if (existingParticipant) {
-          return res.status(409).json({ success: false, message: '이미 참여한 이벤트입니다.' });
+          return res.status(409).json({
+              success: false,
+              message: '이미 참여한 이벤트입니다.',
+              selectedOption: existingParticipant.selectedOption // 기존 선택 옵션 추가!
+          });
       }
+      // ▲▲▲ [수정] ▲▲▲
 
-      // 3. DB에 참여 기록을 저장합니다. (적립금 지급 로직 제거)
       const participationRecord = {
           memberId: String(memberId),
           selectedOption: selectedOption,
@@ -2296,13 +2337,18 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
       };
       await collection.insertOne(participationRecord);
 
-      // 4. 성공 메시지를 응답합니다.
       return res.status(200).json({ success: true, message: '이벤트 참여가 완료되었습니다.' });
 
   } catch (error) {
-      // DB의 unique index 등으로 인해 중복 insert 시도 시 에러 처리
       if (error.code === 11000) {
-          return res.status(409).json({ success: false, message: '이미 참여한 이벤트입니다.' });
+          // ▼▼▼ [수정] DB 에러 발생 시에도 기존 정보를 조회해서 반환 시도 ▼▼▼
+          const existingParticipant = await client.db("yogibo").collection('yogiEventParticipants').findOne({ memberId: memberId });
+          return res.status(409).json({
+              success: false,
+              message: '이미 참여한 이벤트입니다.',
+              selectedOption: existingParticipant ? existingParticipant.selectedOption : null
+          });
+          // ▲▲▲ [수정] ▲▲▲
       }
       console.error('이벤트 참여 처리 중 오류:', error);
       return res.status(500).json({ success: false, message: error.message || '서버 처리 중 오류가 발생했습니다.' });
@@ -2312,26 +2358,24 @@ app.post('/api/event/yogi-event-entry', async (req, res) => {
 });
 
 
-//참여자 리스트 다운로드 코드
+// 참여자 리스트 다운로드 코드 (수정 없음)
 app.get('/api/event/yogi-event-export', async (req, res) => {
   const client = new MongoClient(process.env.MONGODB_URI);
   try {
       await client.connect();
       const collection = client.db("yogibo").collection('yogiEventParticipants');
 
-      // 1. DB에서 모든 참여자 데이터를 참여 날짜 내림차순으로 가져옵니다.
       const participants = await collection.find({}).sort({ participatedAt: -1 }).toArray();
 
-      // 2. ExcelJS를 사용해 엑셀 파일을 생성합니다.
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('이벤트 참여자 명단');
 
       worksheet.columns = [
           { header: '참여 날짜', key: 'participatedAt', width: 25 },
           { header: '회원 아이디', key: 'memberId', width: 30 },
+          { header: '선택 옵션', key: 'selectedOption', width: 15 } // 엑셀에 선택 옵션도 추가하면 좋을 것 같아 추가했습니다.
       ];
 
-      // 3. 데이터를 엑셀 시트에 추가합니다.
       participants.forEach(p => {
           worksheet.addRow({
               participatedAt: new Date(p.participatedAt).toLocaleString('ko-KR'),
@@ -2340,7 +2384,6 @@ app.get('/api/event/yogi-event-export', async (req, res) => {
           });
       });
 
-      // 4. HTTP 응답 헤더를 설정하여 파일을 다운로드하도록 합니다.
       const filename = '요기보_이벤트_참여내역.xlsx';
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
@@ -2355,8 +2398,6 @@ app.get('/api/event/yogi-event-export', async (req, res) => {
       await client.close();
   }
 });
-
-
 
 
 //쿠폰 데이터 저장
