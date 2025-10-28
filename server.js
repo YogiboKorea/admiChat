@@ -369,7 +369,7 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 100,
+    limit: 1000,
     sort: 'order_amount',
     order: 'desc'
   };
