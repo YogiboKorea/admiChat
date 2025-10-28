@@ -369,7 +369,7 @@ async function getSalesTimesRanking(providedDates) {
     shop_no: 1,
     start_date,
     end_date,
-    limit: 1000,
+    limit: 100,
     sort: 'order_amount',
     order: 'desc'
   };
@@ -2526,7 +2526,7 @@ async function getTotalSales(providedDates) {
 
   let totalSalesAmount = 0;
   let page = 1;
-  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100`;
+  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=1000`;
   
   let nextPageUrl = initialUrl;
 
