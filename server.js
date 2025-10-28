@@ -2517,7 +2517,6 @@ app.post('/api/coupon/claim', async (req, res) => {
     return res.status(500).json({ error: '서버 내부 오류' });
   }
 });
-
 // ========== [수정] 기간별 총 매출액 조회 함수 ==========
 async function getTotalSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
@@ -2525,33 +2524,30 @@ async function getTotalSales(providedDates) {
 
   let totalSalesAmount = 0;
   let page = 1;
-  // 💡 FIX: 'payment_status=Y'를 'payment_status=paid'로 수정했습니다.
-  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100&payment_status=paid`;
+  // 💡 FIX: 잘못된 파라미터인 'payment_status'를 URL에서 완전히 제거했습니다.
+  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100`;
   
   let nextPageUrl = initialUrl;
 
   try {
       while (nextPageUrl) {
-          console.log(`(페이지 ${page}) 결제 완료된 주문 데이터를 요청합니다...`);
-          // 기존의 apiRequest 함수를 사용하면 토큰 갱신도 자동으로 처리됩니다.
+          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다...`);
           const responseData = await apiRequest('GET', nextPageUrl);
 
           const orders = responseData.orders;
           if (orders && orders.length > 0) {
               console.log(`${orders.length}개의 주문 확인. 합산 시작...`);
               for (const order of orders) {
-                  // 취소되지 않은 주문인지 확인하여 정확도를 높입니다.
-                  if (order.canceled === 'F') {
+                  // 💡 FIX: '결제완료(paid: "T")'와 '취소안됨(canceled: "F")' 조건을 모두 만족하는 주문만 합산합니다.
+                  if (order.paid === 'T' && order.canceled === 'F') {
                       totalSalesAmount += parseFloat(order.payment_amount || 0);
                   }
               }
           }
          
-          // Cafe24 API는 links 필드에 다음 페이지 정보를 담아줍니다.
           const nextLink = responseData.links?.find(link => link.rel === 'next');
           
           if (nextLink) {
-              // apiRequest는 전체 URL을 필요로 하므로 nextLink.href를 그대로 사용합니다.
               nextPageUrl = nextLink.href;
           } else {
               nextPageUrl = null;
@@ -2563,9 +2559,8 @@ async function getTotalSales(providedDates) {
       return totalSalesAmount;
 
   } catch (error) {
-      // apiRequest 함수 내에서 401 및 기타 에러가 처리됩니다.
       console.error("[총 매출액 조회] 처리 중 오류 발생");
-      throw error; // 에러를 상위로 전파
+      throw error;
   }
 }
 // ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
