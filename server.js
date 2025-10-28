@@ -2540,7 +2540,7 @@ async function calculateSalesForPeriod(startDate, endDate) {
         while (nextPageUrl) {
             const response = await axios.get(nextPageUrl, {
                 headers: {
-                    'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                    'Authorization': `Bearer ${REFRESH_TOKEN}`,
                     'Content-Type': 'application/json',
                     'X-Cafe24-Api-Version': CAFE24_API_VERSION
                 },
