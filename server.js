@@ -2525,8 +2525,10 @@ async function getTotalSales(providedDates) {
 
   let totalSalesAmount = 0;
   let page = 1;
-  // 💡 FIX: payment_status=Y 파라미터를 추가하여 '결제 완료'된 주문만 요청합니다.
-  let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100&payment_status=Y`;
+  // 💡 FIX: 'payment_status=Y'를 'payment_status=paid'로 수정했습니다.
+  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100&payment_status=paid`;
+  
+  let nextPageUrl = initialUrl;
 
   try {
       while (nextPageUrl) {
@@ -2538,19 +2540,18 @@ async function getTotalSales(providedDates) {
           if (orders && orders.length > 0) {
               console.log(`${orders.length}개의 주문 확인. 합산 시작...`);
               for (const order of orders) {
-                  // 💡 FIX: '취소되지 않은' 주문인지 한번 더 확인하여 정확도를 높입니다.
-                  // (payment_status=Y 필터로 대부분 걸러지지만, 이중 체크로 안정성 확보)
+                  // 취소되지 않은 주문인지 확인하여 정확도를 높입니다.
                   if (order.canceled === 'F') {
                       totalSalesAmount += parseFloat(order.payment_amount || 0);
                   }
               }
           }
          
-          const linkHeader = responseData.links; // axios와 달리 response.data.links 로 접근해야 할 수 있습니다. 구조 확인 필요.
           // Cafe24 API는 links 필드에 다음 페이지 정보를 담아줍니다.
-          const nextLink = linkHeader?.find(link => link.rel === 'next');
+          const nextLink = responseData.links?.find(link => link.rel === 'next');
           
           if (nextLink) {
+              // apiRequest는 전체 URL을 필요로 하므로 nextLink.href를 그대로 사용합니다.
               nextPageUrl = nextLink.href;
           } else {
               nextPageUrl = null;
@@ -2562,37 +2563,11 @@ async function getTotalSales(providedDates) {
       return totalSalesAmount;
 
   } catch (error) {
-      // apiRequest 함수 내에서 401 에러는 자동으로 처리됩니다.
-      console.error("[총 매출액 조회] API 호출 중 오류 발생:", error.response?.data || error.message);
-      throw error;
+      // apiRequest 함수 내에서 401 및 기타 에러가 처리됩니다.
+      console.error("[총 매출액 조회] 처리 중 오류 발생");
+      throw error; // 에러를 상위로 전파
   }
 }
-
-
-// ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
-app.get("/api/total-sales", async (req, res) => {
-  const providedDates = {
-      start_date: req.query.start_date,
-      end_date: req.query.end_date
-  };
-
-  try {
-      // ★ 중요: await getTokensFromDB() 호출로 항상 최신 토큰을 먼저 로드합니다.
-      await getTokensFromDB(); 
-      const totalSales = await getTotalSales(providedDates);
-      
-      // 날짜가 제공되지 않은 경우, getLastTwoWeeksDates()를 호출하여 기본 날짜를 가져옵니다.
-      const dates = getLastTwoWeeksDates(providedDates);
-
-      res.json({
-          startDate: dates.start_date,
-          endDate: dates.end_date,
-          totalSales: totalSales
-      });
-  } catch (error) {
-      res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
-  }
-});
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
