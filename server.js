@@ -2517,39 +2517,45 @@ app.post('/api/coupon/claim', async (req, res) => {
     return res.status(500).json({ error: '서버 내부 오류' });
   }
 });
-// ========== [수정] 기간별 총 매출액 조회 함수 ==========
+
+
+// ========== [수정] 기간별 총 매출액 조회 함수 (페이지네이션 로직 강화) ==========
 async function getTotalSales(providedDates) {
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
 
   let totalSalesAmount = 0;
   let page = 1;
-  // 💡 FIX: 잘못된 파라미터인 'payment_status'를 URL에서 완전히 제거했습니다.
   let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100`;
   
   let nextPageUrl = initialUrl;
 
   try {
       while (nextPageUrl) {
-          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다...`);
+          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다. URL: ${nextPageUrl}`);
+          
+          // 💡 FIX: apiRequest 함수를 사용하여 토큰 갱신 및 요청 처리
           const responseData = await apiRequest('GET', nextPageUrl);
 
           const orders = responseData.orders;
           if (orders && orders.length > 0) {
               console.log(`${orders.length}개의 주문 확인. 합산 시작...`);
               for (const order of orders) {
-                  // 💡 FIX: '결제완료(paid: "T")'와 '취소안됨(canceled: "F")' 조건을 모두 만족하는 주문만 합산합니다.
+                  // 결제 완료(paid: "T") 및 취소되지 않은(canceled: "F") 주문만 합산
                   if (order.paid === 'T' && order.canceled === 'F') {
                       totalSalesAmount += parseFloat(order.payment_amount || 0);
                   }
               }
           }
          
+          // 💡 FIX: 다음 페이지 URL 처리 로직
           const nextLink = responseData.links?.find(link => link.rel === 'next');
           
           if (nextLink) {
+              // 다음 페이지 URL을 업데이트
               nextPageUrl = nextLink.href;
           } else {
+              // 다음 페이지가 없으면 루프 종료
               nextPageUrl = null;
           }
           page++;
@@ -2559,10 +2565,13 @@ async function getTotalSales(providedDates) {
       return totalSalesAmount;
 
   } catch (error) {
+      // apiRequest 내부에서 토큰 갱신이 실패하거나 다른 오류가 발생한 경우
       console.error("[총 매출액 조회] 처리 중 오류 발생");
       throw error;
   }
 }
+
+
 // ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
 app.get("/api/total-sales", async (req, res) => {
   const providedDates = {
