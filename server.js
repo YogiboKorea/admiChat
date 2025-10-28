@@ -2604,6 +2604,9 @@ app.get('/api/sales', (req, res) => {
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
+  setInterval(() => {
+    calculateSalesForPeriod(TARGET_START_DATE, TARGET_END_DATE);
+}, 3 * 60 * 1000);
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
