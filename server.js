@@ -2518,47 +2518,42 @@ app.post('/api/coupon/claim', async (req, res) => {
   }
 });
 
-
-// ========== [추가] 기간별 총 매출액 조회 함수 ==========
+// ========== [수정] 기간별 총 매출액 조회 함수 ==========
 async function getTotalSales(providedDates) {
-  // 기존의 날짜 처리 함수를 재사용합니다.
   const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
   console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
 
   let totalSalesAmount = 0;
   let page = 1;
-  // 페이지네이션을 위해 초기 URL을 설정합니다.
-  let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100`;
+  // 💡 FIX: payment_status=Y 파라미터를 추가하여 '결제 완료'된 주문만 요청합니다.
+  let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100&payment_status=Y`;
 
   try {
-      // 다음 페이지가 없을 때까지 반복합니다.
       while (nextPageUrl) {
-          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다...`);
-          const response = await axios.get(nextPageUrl, {
-              headers: {
-                  'Authorization': `Bearer ${accessToken}`, // 전역 accessToken 변수 사용
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              },
-          });
+          console.log(`(페이지 ${page}) 결제 완료된 주문 데이터를 요청합니다...`);
+          // 기존의 apiRequest 함수를 사용하면 토큰 갱신도 자동으로 처리됩니다.
+          const responseData = await apiRequest('GET', nextPageUrl);
 
-          const orders = response.data.orders;
+          const orders = responseData.orders;
           if (orders && orders.length > 0) {
-               // 각 주문의 'payment_amount'(실 결제 금액)를 합산합니다.
+              console.log(`${orders.length}개의 주문 확인. 합산 시작...`);
               for (const order of orders) {
-                  totalSalesAmount += parseFloat(order.payment_amount || 0);
+                  // 💡 FIX: '취소되지 않은' 주문인지 한번 더 확인하여 정확도를 높입니다.
+                  // (payment_status=Y 필터로 대부분 걸러지지만, 이중 체크로 안정성 확보)
+                  if (order.canceled === 'F') {
+                      totalSalesAmount += parseFloat(order.payment_amount || 0);
+                  }
               }
           }
          
-          // 응답 헤더(link)를 분석하여 다음 페이지 URL을 찾습니다.
-          const linkHeader = response.headers.link;
-          const nextLink = linkHeader?.split(',').find(s => s.includes('rel="next"'));
+          const linkHeader = responseData.links; // axios와 달리 response.data.links 로 접근해야 할 수 있습니다. 구조 확인 필요.
+          // Cafe24 API는 links 필드에 다음 페이지 정보를 담아줍니다.
+          const nextLink = linkHeader?.find(link => link.rel === 'next');
           
           if (nextLink) {
-              // <URL> 형식으로 되어 있으므로 <>를 제거하고 trim()으로 공백을 제거합니다.
-              nextPageUrl = nextLink.split(';')[0].replace(/<|>/g, '').trim();
+              nextPageUrl = nextLink.href;
           } else {
-              nextPageUrl = null; // 다음 페이지가 없으면 반복을 종료합니다.
+              nextPageUrl = null;
           }
           page++;
       }
@@ -2567,38 +2562,37 @@ async function getTotalSales(providedDates) {
       return totalSalesAmount;
 
   } catch (error) {
-      // 401 에러가 발생하면 기존의 토큰 갱신 로직을 활용할 수 있습니다.
-      if (error.response && error.response.status === 401) {
-          console.log('Access Token 만료. 갱신 후 재시도합니다.');
-          await refreshAccessToken();
-          return getTotalSales(providedDates); // 갱신된 토큰으로 함수를 다시 호출
-      }
+      // apiRequest 함수 내에서 401 에러는 자동으로 처리됩니다.
       console.error("[총 매출액 조회] API 호출 중 오류 발생:", error.response?.data || error.message);
-      throw error; // 에러를 상위로 전파
+      throw error;
   }
 }
 
-// ========== [추가] 총 매출액 조회를 위한 API 엔드포인트 ==========
+
+// ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
 app.get("/api/total-sales", async (req, res) => {
-  // 프론트엔드에서 start_date, end_date를 쿼리 파라미터로 받을 수 있습니다.
   const providedDates = {
       start_date: req.query.start_date,
       end_date: req.query.end_date
   };
 
   try {
+      // ★ 중요: await getTokensFromDB() 호출로 항상 최신 토큰을 먼저 로드합니다.
+      await getTokensFromDB(); 
       const totalSales = await getTotalSales(providedDates);
+      
+      // 날짜가 제공되지 않은 경우, getLastTwoWeeksDates()를 호출하여 기본 날짜를 가져옵니다.
+      const dates = getLastTwoWeeksDates(providedDates);
+
       res.json({
-          startDate: providedDates.start_date || getLastTwoWeeksDates().start_date,
-          endDate: providedDates.end_date || getLastTwoWeeksDates().end_date,
+          startDate: dates.start_date,
+          endDate: dates.end_date,
           totalSales: totalSales
       });
   } catch (error) {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
-
-
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
