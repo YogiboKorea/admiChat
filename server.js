@@ -2568,6 +2568,31 @@ async function getTotalSales(providedDates) {
       throw error; // 에러를 상위로 전파
   }
 }
+// ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
+app.get("/api/total-sales", async (req, res) => {
+  const providedDates = {
+      start_date: req.query.start_date,
+      end_date: req.query.end_date
+  };
+
+  try {
+      // ★ 중요: await getTokensFromDB() 호출로 항상 최신 토큰을 먼저 로드합니다.
+      await getTokensFromDB(); 
+      const totalSales = await getTotalSales(providedDates);
+      
+      // 날짜가 제공되지 않은 경우, getLastTwoWeeksDates()를 호출하여 기본 날짜를 가져옵니다.
+      const dates = getLastTwoWeeksDates(providedDates);
+
+      res.json({
+          startDate: dates.start_date,
+          endDate: dates.end_date,
+          totalSales: totalSales
+      });
+  } catch (error) {
+      res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
+  }
+});
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
