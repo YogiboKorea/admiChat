@@ -2521,12 +2521,11 @@ app.post('/api/coupon/claim', async (req, res) => {
 
 // ========== [수정] 기간별 총 매출액 조회 함수 (페이지네이션 로직 강화) ==========
 async function getTotalSales(providedDates) {
-  console.log(`[총 매출액 조회] 기간: ${start_date2} ~ ${end_date2}`);
+  const { start_date2, end_date2 } = getLastTwoWeeksDates(providedDates);
+  console.log(`[총 매출액 조회] 기간: ${start_date2} ~ ${end_date}`);
 
   let totalSalesAmount = 0;
   let page = 1;
-  let start_date2='2025-10-25';
-  let end_date2 = '2025-10-26'
   let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date2}&end_date=${end_date2}&limit=1000`;
   
   let nextPageUrl = initialUrl;
