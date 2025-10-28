@@ -2518,6 +2518,69 @@ app.post('/api/coupon/claim', async (req, res) => {
   }
 });
 
+//추가하기 데이터
+
+
+// --- 전역 변수 ---
+let lastCalculatedSales = 0; // 최신 매출액을 저장할 변수
+let isCalculating = false; // 중복 계산 방지 플래그
+
+// --- 조회 기간 설정 ---
+const TARGET_START_DATE = '2025-10-25';
+const TARGET_END_DATE = '2025-10-28';
+
+// --- API 로직 (기존 함수와 동일) ---
+async function calculateSalesForPeriod(startDate, endDate) {
+    if (isCalculating) {
+        console.log("이미 계산이 진행 중입니다. 이번 주기는 건너뜁니다.");
+        return;
+    }
+    isCalculating = true;
+    console.log(`[${startDate} ~ ${endDate}] 기간의 매출액 계산을 시작합니다...`);
+
+    let totalSales = 0;
+    let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=100`;
+
+    try {
+        while (nextPageUrl) {
+            const response = await axios.get(nextPageUrl, {
+                headers: {
+                    'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json',
+                    'X-Cafe24-Api-Version': CAFE24_API_VERSION
+                },
+            });
+            const orders = response.data.orders;
+            for (const order of orders) {
+                totalSales += parseFloat(order.actual_order_amount);
+            }
+            const linkHeader = response.headers.link;
+            const nextLink = linkHeader?.split(',').find(s => s.includes('rel="next"'));
+            nextPageUrl = nextLink ? nextLink.split(';')[0].replace(/<|>/g, '').trim() : null;
+        }
+
+        if (totalSales > lastCalculatedSales) {
+            console.log(`✅ 매출액 변경 감지! ${lastCalculatedSales.toLocaleString()}원 -> ${totalSales.toLocaleString()}원`);
+        } else {
+            console.log(`변동 없음. 현재 총 매출액: ${totalSales.toLocaleString()}원`);
+        }
+        lastCalculatedSales = totalSales; // 계산된 최종 금액을 전역 변수에 저장
+    } catch (error) {
+        console.error('API 호출 중 오류 발생:', error.response?.data || error.message);
+    } finally {
+        isCalculating = false;
+    }
+}
+// 🚀 API 엔드포인트 생성
+// 이 주소로 GET 요청이 오면, 저장된 매출액을 응답합니다.
+app.get('/api/sales', (req, res) => {
+  res.json({
+      startDate: TARGET_START_DATE,
+      endDate: TARGET_END_DATE,
+      totalSales: lastCalculatedSales
+  });
+});
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
