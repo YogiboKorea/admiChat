@@ -2518,69 +2518,84 @@ app.post('/api/coupon/claim', async (req, res) => {
   }
 });
 
-//추가하기 데이터
-// --- 전역 변수 ---
-let lastCalculatedSales = 0;
-let isCalculating = false;
 
-// --- 조회 기간 설정 ---
-const TARGET_START_DATE = '2025-10-25';
-const TARGET_END_DATE = '2025-10-28';
+// ========== [추가] 기간별 총 매출액 조회 함수 ==========
+async function getTotalSales(providedDates) {
+  // 기존의 날짜 처리 함수를 재사용합니다.
+  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+  console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
 
-// --- API 로직 ---
-async function calculateSalesForPeriod(startDate, endDate) {
-    if (isCalculating) return;
-    isCalculating = true;
-    console.log(`[${startDate} ~ ${endDate}] 기간의 매출액 계산을 시작합니다...`);
+  let totalSalesAmount = 0;
+  let page = 1;
+  // 페이지네이션을 위해 초기 URL을 설정합니다.
+  let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=100`;
 
-    let totalSales = 0;
-    let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=100`;
+  try {
+      // 다음 페이지가 없을 때까지 반복합니다.
+      while (nextPageUrl) {
+          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다...`);
+          const response = await axios.get(nextPageUrl, {
+              headers: {
+                  'Authorization': `Bearer ${accessToken}`, // 전역 accessToken 변수 사용
+                  'Content-Type': 'application/json',
+                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
+              },
+          });
 
-    try {
-        while (nextPageUrl) {
-            const response = await axios.get(nextPageUrl, {
-                headers: {
-                    'Authorization': `Bearer ${REFRESH_TOKEN}`,
-                    'Content-Type': 'application/json',
-                    'X-Cafe24-Api-Version': CAFE24_API_VERSION
-                },
-            });
+          const orders = response.data.orders;
+          if (orders && orders.length > 0) {
+               // 각 주문의 'payment_amount'(실 결제 금액)를 합산합니다.
+              for (const order of orders) {
+                  totalSalesAmount += parseFloat(order.payment_amount || 0);
+              }
+          }
+         
+          // 응답 헤더(link)를 분석하여 다음 페이지 URL을 찾습니다.
+          const linkHeader = response.headers.link;
+          const nextLink = linkHeader?.split(',').find(s => s.includes('rel="next"'));
+          
+          if (nextLink) {
+              // <URL> 형식으로 되어 있으므로 <>를 제거하고 trim()으로 공백을 제거합니다.
+              nextPageUrl = nextLink.split(';')[0].replace(/<|>/g, '').trim();
+          } else {
+              nextPageUrl = null; // 다음 페이지가 없으면 반복을 종료합니다.
+          }
+          page++;
+      }
 
-            const orders = response.data.orders;
-            console.log(`${orders.length}개의 주문 데이터를 받았습니다.`);
+      console.log(`[총 매출액 조회] 최종 계산된 금액: ${totalSalesAmount.toLocaleString()} 원`);
+      return totalSalesAmount;
 
-            for (const order of orders) {
-                // 🎯 FIX: 'actual_order_amount' 객체 대신 'payment_amount' 문자열 값을 사용합니다.
-                const amount = order.payment_amount; 
-                totalSales += parseFloat(amount || 0); // null이나 undefined일 경우 0으로 처리
-            }
-            
-            const linkHeader = response.headers.link;
-            const nextLink = linkHeader?.split(',').find(s => s.includes('rel="next"'));
-            nextPageUrl = nextLink ? nextLink.split(';')[0].replace(/<|>/g, '').trim() : null;
-        }
-
-        if (totalSales > lastCalculatedSales) {
-            console.log(`✅ 매출액 변경 감지! ${lastCalculatedSales.toLocaleString()}원 -> ${totalSales.toLocaleString()}원`);
-        } else {
-            console.log(`변동 없음. 현재 총 매출액: ${totalSales.toLocaleString()}원`);
-        }
-        lastCalculatedSales = totalSales;
-        
-    } catch (error) {
-        console.error('API 호출 중 오류 발생:', error.response?.data || error.message);
-    } finally {
-        isCalculating = false;
-    }
+  } catch (error) {
+      // 401 에러가 발생하면 기존의 토큰 갱신 로직을 활용할 수 있습니다.
+      if (error.response && error.response.status === 401) {
+          console.log('Access Token 만료. 갱신 후 재시도합니다.');
+          await refreshAccessToken();
+          return getTotalSales(providedDates); // 갱신된 토큰으로 함수를 다시 호출
+      }
+      console.error("[총 매출액 조회] API 호출 중 오류 발생:", error.response?.data || error.message);
+      throw error; // 에러를 상위로 전파
+  }
 }
-// 🚀 API 엔드포인트 생성
-// 이 주소로 GET 요청이 오면, 저장된 매출액을 응답합니다.
-app.get('/api/sales', (req, res) => {
-  res.json({
-      startDate: TARGET_START_DATE,
-      endDate: TARGET_END_DATE,
-      totalSales: lastCalculatedSales
-  });
+
+// ========== [추가] 총 매출액 조회를 위한 API 엔드포인트 ==========
+app.get("/api/total-sales", async (req, res) => {
+  // 프론트엔드에서 start_date, end_date를 쿼리 파라미터로 받을 수 있습니다.
+  const providedDates = {
+      start_date: req.query.start_date,
+      end_date: req.query.end_date
+  };
+
+  try {
+      const totalSales = await getTotalSales(providedDates);
+      res.json({
+          startDate: providedDates.start_date || getLastTwoWeeksDates().start_date,
+          endDate: providedDates.end_date || getLastTwoWeeksDates().end_date,
+          totalSales: totalSales
+      });
+  } catch (error) {
+      res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
+  }
 });
 
 
@@ -2590,9 +2605,6 @@ app.get('/api/sales', (req, res) => {
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
-  setInterval(() => {
-    calculateSalesForPeriod(TARGET_START_DATE, TARGET_END_DATE);
-}, 3 * 60 * 1000);
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
