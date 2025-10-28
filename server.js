@@ -2519,7 +2519,6 @@ app.post('/api/coupon/claim', async (req, res) => {
 });
 
 //추가하기 데이터
-
 // --- 전역 변수 ---
 let lastCalculatedSales = 0;
 let isCalculating = false;
@@ -2528,21 +2527,17 @@ let isCalculating = false;
 const TARGET_START_DATE = '2025-10-25';
 const TARGET_END_DATE = '2025-10-28';
 
-// --- API 로직 (디버깅 로그 추가) ---
+// --- API 로직 ---
 async function calculateSalesForPeriod(startDate, endDate) {
     if (isCalculating) return;
     isCalculating = true;
-    
-    const initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=100`;
-    console.log(`[🔍 STEP 1] API 호출을 시작합니다. URL: ${initialUrl}`);
+    console.log(`[${startDate} ~ ${endDate}] 기간의 매출액 계산을 시작합니다...`);
 
     let totalSales = 0;
-    let pageCount = 1;
-    let nextPageUrl = initialUrl;
+    let nextPageUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=100`;
 
     try {
         while (nextPageUrl) {
-            console.log(`[🔍 STEP 2] ${pageCount}번째 페이지 데이터를 요청합니다.`);
             const response = await axios.get(nextPageUrl, {
                 headers: {
                     'Authorization': `Bearer ${ACCESS_TOKEN}`,
@@ -2552,37 +2547,28 @@ async function calculateSalesForPeriod(startDate, endDate) {
             });
 
             const orders = response.data.orders;
-            console.log(`[👍 STEP 3] ${orders.length}개의 주문 데이터를 받았습니다.`);
-
-            // 받은 데이터 중 첫 번째 주문을 샘플로 출력해봅니다.
-            if (orders.length > 0) {
-                console.log('[📋 샘플 주문 데이터]:', JSON.stringify(orders[0], null, 2));
-            }
+            console.log(`${orders.length}개의 주문 데이터를 받았습니다.`);
 
             for (const order of orders) {
-                const amount = order.actual_order_amount;
+                // 🎯 FIX: 'actual_order_amount' 객체 대신 'payment_amount' 문자열 값을 사용합니다.
+                const amount = order.payment_amount; 
                 totalSales += parseFloat(amount || 0); // null이나 undefined일 경우 0으로 처리
             }
             
             const linkHeader = response.headers.link;
             const nextLink = linkHeader?.split(',').find(s => s.includes('rel="next"'));
             nextPageUrl = nextLink ? nextLink.split(';')[0].replace(/<|>/g, '').trim() : null;
-            pageCount++;
         }
 
-        console.log(`[✅ STEP 4] 최종 계산된 금액: ${totalSales.toLocaleString()}원`);
-        lastCalculatedSales = totalSales;
-
-    } catch (error) {
-        console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-        console.error('🚨 [치명적 오류] API 호출에 실패했습니다! 🚨');
-        if (error.response) {
-            console.error(' > HTTP 상태 코드:', error.response.status);
-            console.error(' > 에러 응답 데이터:', JSON.stringify(error.response.data, null, 2));
+        if (totalSales > lastCalculatedSales) {
+            console.log(`✅ 매출액 변경 감지! ${lastCalculatedSales.toLocaleString()}원 -> ${totalSales.toLocaleString()}원`);
         } else {
-            console.error(' > 에러 메시지:', error.message);
+            console.log(`변동 없음. 현재 총 매출액: ${totalSales.toLocaleString()}원`);
         }
-        console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        lastCalculatedSales = totalSales;
+        
+    } catch (error) {
+        console.error('API 호출 중 오류 발생:', error.response?.data || error.message);
     } finally {
         isCalculating = false;
     }
