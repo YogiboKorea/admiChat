@@ -2521,11 +2521,12 @@ app.post('/api/coupon/claim', async (req, res) => {
 
 
 
-
 // ========== [최종 수정] 기간별 총 매출액 조회 함수 ==========
 async function getTotalSales(providedDates) {
-  // 1. getLastTwoWeeksDates 함수를 호출하여 사용할 날짜를 결정합니다.
-  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+  // 1. providedDates에서 직접 날짜 문자열을 가져와 사용
+  //    (외부에서 start_dateText, end_dateText 형태로 전달된다고 가정)
+  const start_date = providedDates.start_dateText || '2025-10-28'; // 날짜 미지정 시 기본값
+  const end_date = providedDates.end_dateText || '2025-10-29';   // 날짜 미지정 시 기본값
   
   console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
 
@@ -2577,28 +2578,32 @@ async function getTotalSales(providedDates) {
 
 // ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
 app.get("/api/total-sales", async (req, res) => {
+  // 💡 FIX: 쿼리 파라미터에서 start_dateText와 end_dateText를 받음
   const providedDates = {
-      start_date: req.query.start_date,
-      end_date: req.query.end_date
+      start_dateText: req.query.start_dateText,
+      end_dateText: req.query.end_dateText
   };
 
   try {
-      // ★ 중요: await getTokensFromDB() 호출로 항상 최신 토큰을 먼저 로드합니다.
       await getTokensFromDB(); 
       const totalSales = await getTotalSales(providedDates);
       
-      // 날짜가 제공되지 않은 경우, getLastTwoWeeksDates()를 호출하여 기본 날짜를 가져옵니다.
-      const dates = getLastTwoWeeksDates(providedDates);
+      // 응답을 위해 getTotalSales가 사용한 최종 날짜를 다시 구성합니다.
+      const responseDates = {
+          start_date: providedDates.start_dateText || '2025-01-01', // getTotalSales와 동일한 기본값 사용
+          end_date: providedDates.end_dateText || '2025-12-31'
+      };
 
       res.json({
-          startDate: dates.start_date,
-          endDate: dates.end_date,
+          startDate: responseDates.start_date,
+          endDate: responseDates.end_date,
           totalSales: totalSales
       });
   } catch (error) {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
