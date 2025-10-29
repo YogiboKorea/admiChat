@@ -2520,86 +2520,240 @@ app.post('/api/coupon/claim', async (req, res) => {
 
 
 
+// ========== [추가] 오프라인 매출 관련 설정 ==========
+const offlineSalesCollectionName = "dailyOfflineSales"; // MongoDB 컬렉션 이름
 
-// ========== [최종 수정] 기간별 총 매출액 조회 함수 ==========
-async function getTotalSales(providedDates) {
-  // 1. providedDates에서 직접 날짜 문자열을 가져와 사용
-  //    (외부에서 start_dateText, end_dateText 형태로 전달된다고 가정)
-  const start_date = providedDates.start_dateText || '2025-10-28'; // 날짜 미지정 시 기본값
-  const end_date = providedDates.end_dateText || '2025-10-29';   // 날짜 미지정 시 기본값
-  
-  console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
+// 서버 메모리에 오늘 오프라인 매출 상태 저장 (DB 부하 감소 목적)
+let todayOfflineState = {
+    date: null,
+    target: 0,
+    accumulated: 0,
+    startTime: null,
+    endTime: null,
+    isComplete: true
+};
+/**
+ * [백엔드 로직] 15초마다 실행되어 accumulatedOfflineSales를 점진적으로 업데이트
+ */
+async function updateAccumulatedOfflineSales() {
+  // 업데이트할 필요 없으면 종료 (완료되었거나, 시작/종료 시간 없음)
+  if (todayOfflineState.isComplete || !todayOfflineState.startTime || !todayOfflineState.endTime) {
+      return; 
+  }
 
-  let totalSalesAmount = 0;
-  let page = 1;
+  const now = new Date(); // 현재 시간
 
-  // 2. 결정된 start_date와 end_date를 URL에 사용
-  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=1000`;
-  
-  let nextPageUrl = initialUrl;
-
-  try {
-      while (nextPageUrl) {
-          console.log(`(페이지 ${page}) 주문 데이터를 요청합니다. URL: ${nextPageUrl}`);
-          
-          const responseData = await apiRequest('GET', nextPageUrl);
-
-          const orders = responseData.orders;
-          if (orders && orders.length > 0) {
-              console.log(`${orders.length}개의 주문 확인. 합산 시작...`);
-              for (const order of orders) {
-                  // 결제 완료(paid: "T") 및 취소되지 않은(canceled: "F") 주문만 합산
-                  if (order.paid === 'T' && order.canceled === 'F') {
-                      totalSalesAmount += parseFloat(order.payment_amount || 0);
-                  }
-              }
-          }
-          
-          // 다음 페이지 URL 처리 로직
-          const nextLink = responseData.links?.find(link => link.rel === 'next');
-          
-          if (nextLink) {
-              nextPageUrl = nextLink.href;
-          } else {
-              nextPageUrl = null;
-          }
-          page++;
+  // 목표 시간 도달 시 최종 처리
+  if (now >= todayOfflineState.endTime) {
+      // 아직 최종 값으로 업데이트되지 않았다면 업데이트
+      if (todayOfflineState.accumulated !== todayOfflineState.target) {
+          todayOfflineState.accumulated = todayOfflineState.target;
+          console.log(`[오프라인 매출] ${todayOfflineState.date} 목표 시간 도달. 최종 값 업데이트: ${todayOfflineState.target.toLocaleString()}원`);
+      }
+      // 아직 완료 처리되지 않았다면 완료 처리
+      if (!todayOfflineState.isComplete) {
+           todayOfflineState.isComplete = true;
+           console.log(`[오프라인 매출] ${todayOfflineState.date} 점진적 업데이트 완료.`);
       }
 
-      console.log(`[총 매출액 조회] 최종 계산된 금액: ${totalSalesAmount.toLocaleString()} 원`);
-      return totalSalesAmount;
+      // DB에도 최종 상태 저장 (완료 시 한 번만)
+      try {
+          const client = new MongoClient(MONGODB_URI);
+          await client.connect();
+          const db = client.db(DB_NAME);
+          const collection = db.collection(offlineSalesCollectionName);
+          // isComplete 플래그와 최종 누적 금액, 업데이트 시간 저장
+          await collection.updateOne(
+              { date: todayOfflineState.date },
+              { $set: { accumulatedOfflineSales: todayOfflineState.target, isComplete: true, updatedAt: new Date() } }
+          );
+          await client.close();
+      } catch(err) { 
+          console.error("DB 최종 오프라인 매출 저장 오류:", err); 
+      }
 
-  } catch (error) {
-      console.error("[총 매출액 조회] 처리 중 오류 발생");
-      throw error;
+  } 
+  // 시작 시간 이후 & 목표 시간 이전일 때 진행
+  else if (now >= todayOfflineState.startTime) { 
+      // 경과 시간에 비례하여 현재 누적되어야 할 금액 계산
+      const totalDuration = todayOfflineState.endTime.getTime() - todayOfflineState.startTime.getTime();
+      const elapsedDuration = now.getTime() - todayOfflineState.startTime.getTime();
+      // 진행률 계산 (0 ~ 1)
+      const progress = Math.min(elapsedDuration / totalDuration, 1); 
+      // 현재 시점의 누적 금액 계산
+      const newAccumulated = Math.floor(progress * todayOfflineState.target); 
+
+      // 계산된 누적 금액이 현재 메모리의 누적 금액보다 클 때만 업데이트 (감소 방지)
+      if (newAccumulated > todayOfflineState.accumulated) {
+          todayOfflineState.accumulated = newAccumulated;
+          // 15초마다 로그 찍는 것은 부하를 유발할 수 있어 주석 처리
+          // console.log(`[오프라인 매출] ${todayOfflineState.date} 진행 중: ${newAccumulated.toLocaleString()}원 / ${todayOfflineState.target.toLocaleString()}원`);
+
+          // 💡 FIX: 중간 상태 DB 업데이트 로직 제거 완료
+      }
   }
 }
 
+/**
+* [백엔드 로직] 서버 시작 시 오늘 날짜의 오프라인 매출 상태 로드
+*/
+async function loadTodayOfflineState() {
+  // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
+  const todayYMD = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })).toISOString().slice(0, 10);
 
-// ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 ==========
+  try {
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db(DB_NAME);
+      const collection = db.collection(offlineSalesCollectionName);
+      // 오늘 날짜로 저장된 문서 조회
+      const doc = await collection.findOne({ date: todayYMD });
+      await client.close();
+
+      // 문서가 있으면 해당 데이터로 메모리 상태 업데이트
+      if (doc) {
+          todayOfflineState = {
+              date: doc.date,
+              target: doc.targetOfflineSales || 0,
+              accumulated: doc.accumulatedOfflineSales || 0,
+              startTime: doc.startTime ? new Date(doc.startTime) : null,
+              endTime: doc.endTime ? new Date(doc.endTime) : null,
+              isComplete: doc.isComplete === true
+          };
+          // 로그에는 필요한 정보만 간략하게 출력
+          console.log(`[오프라인 매출] ${todayYMD} 데이터 로드 완료:`, {
+              target: todayOfflineState.target,
+              accumulated: todayOfflineState.accumulated,
+              isComplete: todayOfflineState.isComplete
+           });
+      } else {
+           // 문서가 없으면 오늘 데이터 없음을 알리고 초기 상태로 설정
+           console.log(`[오프라인 매출] ${todayYMD} 데이터 없음.`);
+           todayOfflineState = { date: todayYMD, target: 0, accumulated: 0, startTime: null, endTime: null, isComplete: true };
+      }
+  } catch (err) {
+      // DB 조회 중 오류 발생 시 에러 로그 출력 및 초기 상태로 설정
+      console.error("오늘 오프라인 매출 상태 로드 오류:", err);
+      todayOfflineState = { date: todayYMD, target: 0, accumulated: 0, startTime: null, endTime: null, isComplete: true };
+  }
+}
+
+// 서버 시작 시 오늘 상태 로드
+loadTodayOfflineState();
+// 15초마다 오프라인 매출 점진적 업데이트 함수 실행
+setInterval(updateAccumulatedOfflineSales, 15 * 1000);
+
+
+// ========== [신규] 오프라인 매출 입력을 위한 API 엔드포인트 ==========
+app.post("/api/offline-sales", async (req, res) => {
+  // 요청 본문에서 날짜(date)와 금액(amount) 추출
+  const { date, amount } = req.body; 
+
+  // 날짜 형식(YYYY-MM-DD) 및 금액 유효성 검사
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || typeof amount !== 'number' || amount < 0) {
+      return res.status(400).json({ error: "날짜(YYYY-MM-DD)와 0 이상의 매출 금액을 입력해주세요." });
+  }
+
+  // 오늘 날짜 확인 (한국 시간 기준)
+  const todayYMD = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })).toISOString().slice(0, 10);
+  // 입력된 날짜가 오늘이 아니면 경고 로그 출력 (처리는 계속)
+  if (date !== todayYMD) {
+       console.warn(`[오프라인 매출] 오늘(${todayYMD})이 아닌 날짜(${date}) 데이터가 입력되었습니다. 처리는 계속합니다.`);
+  }
+
+  try {
+      const startTime = new Date(); // KST 기준 현재 시간 (점진적 반영 시작 시간)
+      
+      // 종료 시간: 다음 날 오전 9시 (KST 기준)
+      const endTime = new Date(startTime);
+      endTime.setDate(startTime.getDate() + 1); // 날짜를 다음 날로 변경
+      const endTimeYMD = endTime.toISOString().slice(0, 10); // 다음 날 날짜 (YYYY-MM-DD)
+      // KST 오전 9시로 정확히 설정 (+09:00 오프셋 명시)
+      const endTimeKST = new Date(`${endTimeYMD}T09:00:00+09:00`); 
+
+      // DB에 저장할 데이터 객체 생성
+      const salesData = {
+          date: date,                        // 입력받은 날짜
+          targetOfflineSales: amount,        // 입력받은 목표 금액
+          accumulatedOfflineSales: 0,        // 누적 금액은 0으로 초기화
+          startTime: startTime,              // 반영 시작 시간 (현재)
+          endTime: endTimeKST,               // 반영 종료 시간 (다음날 9시 KST)
+          isComplete: false,                 // 점진적 반영 시작 플래그
+          updatedAt: new Date()              // 문서 업데이트 시간 기록
+      };
+
+      // MongoDB 연결 및 데이터 업데이트/삽입 (upsert)
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db(DB_NAME);
+      const collection = db.collection(offlineSalesCollectionName);
+      
+      await collection.updateOne(
+          { date: date }, // 해당 날짜를 기준으로
+          { $set: salesData }, // salesData 객체 내용으로 덮어쓰기
+          { upsert: true } // 문서가 없으면 새로 생성
+      );
+      await client.close();
+
+      // 서버 메모리 상태(todayOfflineState)도 즉시 업데이트
+      todayOfflineState = {
+          date: salesData.date,
+          target: salesData.targetOfflineSales,
+          accumulated: salesData.accumulatedOfflineSales,
+          startTime: salesData.startTime,
+          endTime: salesData.endTime,
+          isComplete: salesData.isComplete
+      };
+
+      // 성공 로그 출력 및 응답 전송
+      console.log(`[오프라인 매출] ${date} 목표 ${amount.toLocaleString()}원 설정 완료. 반영 시작 시간: ${startTime.toLocaleString('ko-KR')}, 종료 시간: ${endTimeKST.toLocaleString('ko-KR')}`);
+      res.json({ message: `${date} 오프라인 매출 ${amount.toLocaleString()}원 목표 설정 완료. 점진적 반영 시작.` });
+
+  } catch (error) {
+      // 오류 발생 시 에러 로그 출력 및 500 응답 전송
+      console.error("오프라인 매출 저장 오류:", error);
+      res.status(500).json({ error: "오프라인 매출 처리 중 서버 오류 발생" });
+  }
+});
+
+
+// ========== [수정] 총 매출액 조회를 위한 API 엔드포인트 (오프라인 합산) ==========
 app.get("/api/total-sales", async (req, res) => {
-  // 💡 FIX: 쿼리 파라미터에서 start_dateText와 end_dateText를 받음
+  // 프론트엔드에서 전달받을 수 있는 날짜 쿼리 파라미터
   const providedDates = {
       start_dateText: req.query.start_dateText,
       end_dateText: req.query.end_dateText
   };
 
   try {
+      // API 요청 전 최신 Access Token 로드
       await getTokensFromDB(); 
-      const totalSales = await getTotalSales(providedDates);
       
-      // 응답을 위해 getTotalSales가 사용한 최종 날짜를 다시 구성합니다.
-      const responseDates = {
-          start_date: providedDates.start_dateText || '2025-01-01', // getTotalSales와 동일한 기본값 사용
-          end_date: providedDates.end_dateText || '2025-12-31'
-      };
+      // 1. 온라인 매출 조회 (지정된 기간 또는 기본 기간)
+      const onlineSales = await getTotalSales(providedDates);
+      
+      // 2. 현재 시점까지 반영된 오프라인 매출 가져오기 (메모리 값 사용)
+      const currentOfflinePortion = todayOfflineState.accumulated;
+      
+      // 3. 온라인 매출 + 오프라인 매출 합산
+      const combinedTotalSales = onlineSales + currentOfflinePortion;
 
+      // 응답에 포함될 최종 조회 기간 확인
+      // providedDates에 값이 있으면 사용, 없으면 getTotalSales 내부 로직과 동일하게 기본값 설정
+      const finalStartDate = providedDates.start_dateText || '2025-01-01'; 
+      const finalEndDate = providedDates.end_dateText || '2025-12-31';
+
+      // 합산 결과 로그 출력
+      console.log(`[API 응답] 온라인(${onlineSales.toLocaleString()}) + 오프라인(${currentOfflinePortion.toLocaleString()}) = ${combinedTotalSales.toLocaleString()}`);
+
+      // 프론트엔드에 최종 합산 결과 응답
       res.json({
-          startDate: responseDates.start_date,
-          endDate: responseDates.end_date,
-          totalSales: totalSales
+          startDate: finalStartDate,
+          endDate: finalEndDate,
+          totalSales: combinedTotalSales // 합산된 금액 반환
       });
   } catch (error) {
+      // 오류 발생 시 500 응답
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
