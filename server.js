@@ -2519,14 +2519,21 @@ app.post('/api/coupon/claim', async (req, res) => {
 });
 
 
-// ========== [수정] 기간별 총 매출액 조회 함수 (페이지네이션 로직 강화) ==========
+
+
+
+// ========== [최종 수정] 기간별 총 매출액 조회 함수 ==========
 async function getTotalSales(providedDates) {
-  const { start_date2, end_date2 } = getLastTwoWeeksDates(providedDates);
-  console.log(`[총 매출액 조회] 기간: ${start_date2} ~ ${end_date}`);
+  // 1. getLastTwoWeeksDates 함수를 호출하여 사용할 날짜를 결정합니다.
+  const { start_date, end_date } = getLastTwoWeeksDates(providedDates);
+  
+  console.log(`[총 매출액 조회] 기간: ${start_date} ~ ${end_date}`);
 
   let totalSalesAmount = 0;
   let page = 1;
-  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date2}&end_date=${end_date2}&limit=1000`;
+
+  // 2. 결정된 start_date와 end_date를 URL에 사용
+  let initialUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?start_date=${start_date}&end_date=${end_date}&limit=1000`;
   
   let nextPageUrl = initialUrl;
 
@@ -2534,7 +2541,6 @@ async function getTotalSales(providedDates) {
       while (nextPageUrl) {
           console.log(`(페이지 ${page}) 주문 데이터를 요청합니다. URL: ${nextPageUrl}`);
           
-          // 💡 FIX: apiRequest 함수를 사용하여 토큰 갱신 및 요청 처리
           const responseData = await apiRequest('GET', nextPageUrl);
 
           const orders = responseData.orders;
@@ -2547,15 +2553,13 @@ async function getTotalSales(providedDates) {
                   }
               }
           }
-         
-          // 💡 FIX: 다음 페이지 URL 처리 로직
+          
+          // 다음 페이지 URL 처리 로직
           const nextLink = responseData.links?.find(link => link.rel === 'next');
           
           if (nextLink) {
-              // 다음 페이지 URL을 업데이트
               nextPageUrl = nextLink.href;
           } else {
-              // 다음 페이지가 없으면 루프 종료
               nextPageUrl = null;
           }
           page++;
@@ -2565,7 +2569,6 @@ async function getTotalSales(providedDates) {
       return totalSalesAmount;
 
   } catch (error) {
-      // apiRequest 내부에서 토큰 갱신이 실패하거나 다른 오류가 발생한 경우
       console.error("[총 매출액 조회] 처리 중 오류 발생");
       throw error;
   }
