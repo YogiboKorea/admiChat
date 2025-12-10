@@ -2760,13 +2760,10 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 
-
 /**
  * [API 1] 방문 경로 저장 (Tracking) + UTM 데이터 분리 저장
- * URL: POST /api/trace/log
  */
 app.post('/api/trace/log', async (req, res) => {
-  // utmData: 프론트에서 보낸 상세 마케팅 정보
   const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
   if (!eventTag || !visitorId || !currentUrl) {
@@ -2774,15 +2771,15 @@ app.post('/api/trace/log', async (req, res) => {
   }
 
   try {
-    const collection = db.collection(COLLECTION_NAME);
+    // 수정됨: 변수 대신 직접 이름 사용
+    const collection = db.collection('visit_logs'); 
 
     await collection.insertOne({
-      eventTag,       // 예: "메타 광고[크리스마스]"
+      eventTag,
       visitorId,
       currentUrl,
       prevUrl: prevUrl || 'direct',
       
-      // ★ 여기가 추가되었습니다 (UTM 분리 저장)
       utmSource: utmData?.source || '',
       utmMedium: utmData?.medium || '',
       utmCampaign: utmData?.campaign || '',
@@ -2802,31 +2799,30 @@ app.post('/api/trace/log', async (req, res) => {
 
 /**
  * [API 2] 관리자 대시보드용: 태그별 요약 통계
- * URL: GET /api/trace/summary
  */
 app.get('/api/trace/summary', async (req, res) => {
   try {
-    const collection = db.collection(COLLECTION_NAME);
+    // 수정됨: 변수 대신 직접 이름 사용
+    const collection = db.collection('visit_logs');
     
-    // DB에서 통계를 계산해서 가져옴 (속도 빠름)
     const stats = await collection.aggregate([
       {
         $group: {
-          _id: "$eventTag",              // 태그별로 그룹핑
-          totalHits: { $sum: 1 },        // 총 클릭수
-          uniqueVisitors: { $addToSet: "$visitorId" }, // 방문자 ID 모으기 (중복제거용)
-          lastActive: { $max: "$createdAt" } // 가장 최근 시간
+          _id: "$eventTag",
+          totalHits: { $sum: 1 },
+          uniqueVisitors: { $addToSet: "$visitorId" },
+          lastActive: { $max: "$createdAt" }
         }
       },
       {
         $project: {
           _id: 1,
           totalHits: 1,
-          uniqueVisitors: { $size: "$uniqueVisitors" }, // 배열 크기 = 사람 수
+          uniqueVisitors: { $size: "$uniqueVisitors" },
           lastActive: 1
         }
       },
-      { $sort: { totalHits: -1 } } // 클릭 많은 순 정렬
+      { $sort: { totalHits: -1 } }
     ]).toArray();
 
     res.json({ success: true, data: stats });
@@ -2839,21 +2835,20 @@ app.get('/api/trace/summary', async (req, res) => {
 
 /**
  * [API 3] 관리자 대시보드용: 최근 방문자 목록 조회
- * URL: GET /api/trace/visitors
  */
 app.get('/api/trace/visitors', async (req, res) => {
   try {
-    const collection = db.collection(COLLECTION_NAME);
+    // 수정됨: 변수 대신 직접 이름 사용
+    const collection = db.collection('visit_logs');
     
-    // 최근 활동한 사람 20명 뽑기
     const visitors = await collection.aggregate([
-      { $sort: { createdAt: -1 } }, // 최신순 정렬
+      { $sort: { createdAt: -1 } },
       {
         $group: {
           _id: "$visitorId",
-          eventTag: { $first: "$eventTag" }, // 가장 최근에 접속한 태그
+          eventTag: { $first: "$eventTag" },
           lastAction: { $first: "$createdAt" },
-          count: { $sum: 1 } // 총 페이지 조회수
+          count: { $sum: 1 }
         }
       },
       { $sort: { lastAction: -1 } },
@@ -2870,15 +2865,14 @@ app.get('/api/trace/visitors', async (req, res) => {
 
 /**
  * [API 4] 특정 유저의 상세 이동 경로 (Journey)
- * URL: GET /api/trace/journey/:visitorId
  */
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
 
   try {
-    const collection = db.collection(COLLECTION_NAME);
+    // 수정됨: 변수 대신 직접 이름 사용
+    const collection = db.collection('visit_logs');
 
-    // 해당 유저의 모든 기록을 시간순 조회
     const journey = await collection
       .find({ visitorId })
       .sort({ createdAt: 1 }) 
@@ -2890,7 +2884,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 
 
 
