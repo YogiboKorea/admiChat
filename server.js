@@ -2761,36 +2761,35 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 
-
-
-
-
-
 /**
- * API 1. 방문 경로 저장 (Tracking)
+ * [API 1] 방문 경로 저장 (Tracking) + UTM 데이터 분리 저장
  * URL: POST /api/trace/log
- * 설명: 사용자의 모든 이동을 기록 (INSERT)
  */
 app.post('/api/trace/log', async (req, res) => {
-  // visitorId: 프론트엔드에서 생성한 유저 식별자 (쿠키/세션ID 등)
-  // currentUrl: 현재 페이지
-  // prevUrl: 직전 페이지 (document.referrer 등)
-  const { eventTag, visitorId, currentUrl, prevUrl } = req.body;
+  // utmData: 프론트에서 보낸 상세 마케팅 정보
+  const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
   if (!eventTag || !visitorId || !currentUrl) {
-    return res.status(400).json({ msg: '필수 정보 누락 (eventTag, visitorId, currentUrl)' });
+    return res.status(400).json({ msg: '필수 정보 누락' });
   }
 
   try {
     const collection = db.collection(COLLECTION_NAME);
 
-    // 덮어쓰기($inc)가 아니라, 매번 새로 추가(insertOne)합니다.
     await collection.insertOne({
-      eventTag,
+      eventTag,       // 예: "메타 광고[크리스마스]"
       visitorId,
       currentUrl,
-      prevUrl: prevUrl || 'direct', // 없으면 직접 접속
-      createdAt: new Date() // 방문 시간 기록
+      prevUrl: prevUrl || 'direct',
+      
+      // ★ 여기가 추가되었습니다 (UTM 분리 저장)
+      utmSource: utmData?.source || '',
+      utmMedium: utmData?.medium || '',
+      utmCampaign: utmData?.campaign || '',
+      utmTerm: utmData?.term || '',
+      utmContent: utmData?.content || '',
+
+      createdAt: new Date()
     });
 
     res.json({ success: true });
@@ -2800,10 +2799,78 @@ app.post('/api/trace/log', async (req, res) => {
   }
 });
 
+
 /**
- * API 2. 특정 유저의 이동 경로 조회 (User Journey)
+ * [API 2] 관리자 대시보드용: 태그별 요약 통계
+ * URL: GET /api/trace/summary
+ */
+app.get('/api/trace/summary', async (req, res) => {
+  try {
+    const collection = db.collection(COLLECTION_NAME);
+    
+    // DB에서 통계를 계산해서 가져옴 (속도 빠름)
+    const stats = await collection.aggregate([
+      {
+        $group: {
+          _id: "$eventTag",              // 태그별로 그룹핑
+          totalHits: { $sum: 1 },        // 총 클릭수
+          uniqueVisitors: { $addToSet: "$visitorId" }, // 방문자 ID 모으기 (중복제거용)
+          lastActive: { $max: "$createdAt" } // 가장 최근 시간
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          totalHits: 1,
+          uniqueVisitors: { $size: "$uniqueVisitors" }, // 배열 크기 = 사람 수
+          lastActive: 1
+        }
+      },
+      { $sort: { totalHits: -1 } } // 클릭 많은 순 정렬
+    ]).toArray();
+
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
+/**
+ * [API 3] 관리자 대시보드용: 최근 방문자 목록 조회
+ * URL: GET /api/trace/visitors
+ */
+app.get('/api/trace/visitors', async (req, res) => {
+  try {
+    const collection = db.collection(COLLECTION_NAME);
+    
+    // 최근 활동한 사람 20명 뽑기
+    const visitors = await collection.aggregate([
+      { $sort: { createdAt: -1 } }, // 최신순 정렬
+      {
+        $group: {
+          _id: "$visitorId",
+          eventTag: { $first: "$eventTag" }, // 가장 최근에 접속한 태그
+          lastAction: { $first: "$createdAt" },
+          count: { $sum: 1 } // 총 페이지 조회수
+        }
+      },
+      { $sort: { lastAction: -1 } },
+      { $limit: 20 }
+    ]).toArray();
+
+    res.json({ success: true, visitors });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
+/**
+ * [API 4] 특정 유저의 상세 이동 경로 (Journey)
  * URL: GET /api/trace/journey/:visitorId
- * 설명: 특정 유저가 어떤 순서로 페이지를 이동했는지 시간순 나열
  */
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
@@ -2811,43 +2878,19 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   try {
     const collection = db.collection(COLLECTION_NAME);
 
-    // 1. 해당 유저의 기록을 찾음
-    // 2. 시간 순서대로 정렬 (오래된 것 -> 최신)
+    // 해당 유저의 모든 기록을 시간순 조회
     const journey = await collection
       .find({ visitorId })
       .sort({ createdAt: 1 }) 
       .toArray();
 
-    res.json({ success: true, count: journey.length, journey });
+    res.json({ success: true, journey });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
 
-/**
- * API 3. 전체 통계 (기존 기능도 필요하다면)
- * URL: GET /api/trace/stats/:eventTag
- * 설명: 단순 카운트가 아니라 로그를 집계(Aggregate)해서 보여줌
- */
-app.get('/api/trace/stats/:eventTag', async (req, res) => {
-  const { eventTag } = req.params;
-  try {
-    const collection = db.collection(COLLECTION_NAME);
-    
-    // 페이지별 방문 횟수 집계
-    const stats = await collection.aggregate([
-      { $match: { eventTag } },
-      { $group: { _id: "$currentUrl", count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]).toArray();
-
-    res.json({ success: true, stats });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Server Error' });
-  }
-});
 
 
 
