@@ -2761,38 +2761,74 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 /**
- * [API 1] 방문 경로 저장 (Tracking) + UTM 데이터 분리 저장
+ * [API 1] 방문 경로 저장 (INSERT)
+ * 수정사항: 생성된 문서의 _id를 프론트로 반환 (체류시간 업데이트용)
  */
 app.post('/api/trace/log', async (req, res) => {
-  const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
+  // isMember 필드 추가
+  const { eventTag, visitorId, isMember, currentUrl, prevUrl, utmData } = req.body;
 
   if (!eventTag || !visitorId || !currentUrl) {
     return res.status(400).json({ msg: '필수 정보 누락' });
   }
 
   try {
-    // 수정됨: 변수 대신 직접 이름 사용
     const collection = db.collection('visit_logs'); 
 
-    await collection.insertOne({
+    const result = await collection.insertOne({
       eventTag,
       visitorId,
+      isMember: isMember || false, // 회원 여부 (기본값 false)
       currentUrl,
       prevUrl: prevUrl || 'direct',
       
+      // UTM 정보
       utmSource: utmData?.source || '',
       utmMedium: utmData?.medium || '',
       utmCampaign: utmData?.campaign || '',
       utmTerm: utmData?.term || '',
       utmContent: utmData?.content || '',
 
-      createdAt: new Date()
+      createdAt: new Date(),
+      duration: 0 // 초기값 0초
     });
 
-    res.json({ success: true });
+    // ★ 중요: 프론트엔드가 나중에 업데이트할 수 있게 _id를 알려줌
+    res.json({ success: true, logId: result.insertedId }); 
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
+/**
+ * [API 1-1] 체류 시간 업데이트 (UPDATE) - ★ 새로 추가됨
+ * URL: POST /api/trace/log/exit
+ * 설명: 사용자가 페이지를 나갈 때 호출되어 duration을 업데이트함
+ */
+app.post('/api/trace/log/exit', async (req, res) => {
+  // sendBeacon은 텍스트로 올 수도 있어서 파싱 시도 (혹은 express.json()이 처리)
+  let { logId, duration } = req.body;
+
+  // logId가 없거나 duration이 undefined면 무시
+  if (!logId || duration === undefined) {
+    return res.status(400).send('Missing Data');
+  }
+
+  try {
+    const collection = db.collection('visit_logs');
+    
+    // 해당 로그(_id)를 찾아 duration 필드 업데이트
+    await collection.updateOne(
+      { _id: new ObjectId(logId) }, 
+      { $set: { duration: parseInt(duration) } }
+    );
+    
+    res.send('OK'); // Beacon 요청은 응답 내용을 크게 신경 쓰지 않음
+  } catch (error) {
+    console.error('Exit Update Error:', error);
+    res.status(500).send('Error');
   }
 });
 
@@ -2802,7 +2838,6 @@ app.post('/api/trace/log', async (req, res) => {
  */
 app.get('/api/trace/summary', async (req, res) => {
   try {
-    // 수정됨: 변수 대신 직접 이름 사용
     const collection = db.collection('visit_logs');
     
     const stats = await collection.aggregate([
@@ -2838,7 +2873,6 @@ app.get('/api/trace/summary', async (req, res) => {
  */
 app.get('/api/trace/visitors', async (req, res) => {
   try {
-    // 수정됨: 변수 대신 직접 이름 사용
     const collection = db.collection('visit_logs');
     
     const visitors = await collection.aggregate([
@@ -2847,6 +2881,7 @@ app.get('/api/trace/visitors', async (req, res) => {
         $group: {
           _id: "$visitorId",
           eventTag: { $first: "$eventTag" },
+          isMember: { $first: "$isMember" }, // 회원 여부도 가져오기
           lastAction: { $first: "$createdAt" },
           count: { $sum: 1 }
         }
@@ -2870,7 +2905,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
 
   try {
-    // 수정됨: 변수 대신 직접 이름 사용
     const collection = db.collection('visit_logs');
 
     const journey = await collection
@@ -2886,21 +2920,20 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
 });
 
 
+/**
+ * [API 5] 퍼널(깔때기) 이탈률 분석
+ */
 app.get('/api/trace/funnel', async (req, res) => {
   try {
     const collection = db.collection('visit_logs');
 
     // URL 패턴 정의 (쇼핑몰 주소 규칙에 맞게 수정 가능)
-    // 예: /product/detail.html 포함되면 '상세페이지'로 간주
     const pipeline = [
       {
         $group: {
-          _id: "$eventTag", // 1. 캠페인 태그별로 그룹화
+          _id: "$eventTag", 
 
-          // 2. 단계별 유니크 방문자 수집 (중복 제거)
-          // (조건: URL에 특정 단어가 포함되면 visitorId를 담는다)
-          
-          // [Step 1] 전체 방문 (모든 로그)
+          // [Step 1] 전체 방문
           step1_visitors: { $addToSet: "$visitorId" },
           
           // [Step 2] 상품 상세 (detail.html)
@@ -2932,7 +2965,6 @@ app.get('/api/trace/funnel', async (req, res) => {
           }
         }
       },
-      // 3. 배열 크기(사람 수) 계산
       {
         $project: {
           eventTag: "$_id",
@@ -2943,7 +2975,7 @@ app.get('/api/trace/funnel', async (req, res) => {
           count_purchase: { $size: "$step5_visitors" }
         }
       },
-      { $sort: { count_total: -1 } } // 방문자 많은 순 정렬
+      { $sort: { count_total: -1 } }
     ];
 
     const funnelData = await collection.aggregate(pipeline).toArray();
