@@ -2762,34 +2762,30 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 
-
-
-
-
 // ==========================================================
-// [API 1] 로그 수집 (회원/비회원 구분 로직 강화)
+// [API 1] 로그 수집 (로직 수정: ID 형태만 보고 서버가 강제 판단)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
-      const { eventTag, visitorId, isMember, currentUrl, prevUrl, utmData } = req.body;
+      const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // [핵심] 회원 ID가 있으면 그걸 쓰고, 없으면 비회원 ID 사용
-      // 프론트에서 isMember를 보내주지만, 서버에서 한 번 더 정리
-      const finalIsMember = isMember === true || (visitorId && !visitorId.startsWith('guest_'));
-      
-      // 봇 필터링 (간단 버전)
+      // [핵심 수정] 프론트엔드에서 보내주는 isMember 값은 무시합니다.
+      // ID가 없거나 'guest_'로 시작하면 무조건 비회원(false), 그 외에는 회원(true)으로 강제합니다.
+      const isRealMember = visitorId && !visitorId.startsWith('guest_');
+
+      // 봇 필터링
       if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) {
           return res.json({ success: true, msg: 'Bot Filtered' });
       }
 
       const log = {
-          visitorId: visitorId,        // 회원ID 또는 guest_랜덤ID
-          isMember: finalIsMember,     // ★ 회원 여부 (true/false)
+          visitorId: visitorId,
+          isMember: !!isRealMember,  // ★ 여기서 강제로 true/false 확정
           eventTag: eventTag,
           currentUrl: currentUrl,
           prevUrl: prevUrl,
           utmData: utmData || {},
-          duration: 0,                 // 초기값 0
+          duration: 0,
           createdAt: new Date()
       };
 
@@ -2803,69 +2799,30 @@ app.post('/api/trace/log', async (req, res) => {
 });
 
 // ==========================================================
-// [API 2] 방문자 목록 조회 (회원/비회원 표시 정보 포함)
+// [API 1-1] 체류 시간 업데이트 (Beacon)
 // ==========================================================
-app.get('/api/trace/visitors', async (req, res) => {
-  try {
-      const visitors = await db.collection('visit_logs').aggregate([
-          { $sort: { createdAt: -1 } },
-          {
-              $group: {
-                  _id: "$visitorId",
-                  isMember: { $first: "$isMember" }, // ★ 그룹핑할 때 회원 여부 가져오기
-                  eventTag: { $first: "$eventTag" },
-                  lastAction: { $first: "$createdAt" },
-                  count: { $sum: 1 }
-              }
-          },
-          { $sort: { lastAction: -1 } },
-          { $limit: 50 }
-      ]).toArray();
-
-      res.json({ success: true, visitors });
-  } catch (e) {
-      res.status(500).json({ success: false });
-  }
-});
-/**
- * [API 1-1] 체류 시간 업데이트 (UPDATE) - ★ 새로 추가됨
- * URL: POST /api/trace/log/exit
- * 설명: 사용자가 페이지를 나갈 때 호출되어 duration을 업데이트함
- */
 app.post('/api/trace/log/exit', async (req, res) => {
-  // sendBeacon은 텍스트로 올 수도 있어서 파싱 시도 (혹은 express.json()이 처리)
   let { logId, duration } = req.body;
-
-  // logId가 없거나 duration이 undefined면 무시
-  if (!logId || duration === undefined) {
-    return res.status(400).send('Missing Data');
-  }
+  if (!logId || duration === undefined) return res.status(400).send('Missing Data');
 
   try {
-    const collection = db.collection('visit_logs');
-    
-    // 해당 로그(_id)를 찾아 duration 필드 업데이트
-    await collection.updateOne(
+    await db.collection('visit_logs').updateOne(
       { _id: new ObjectId(logId) }, 
       { $set: { duration: parseInt(duration) } }
     );
-    
-    res.send('OK'); // Beacon 요청은 응답 내용을 크게 신경 쓰지 않음
+    res.send('OK');
   } catch (error) {
-    console.error('Exit Update Error:', error);
+    console.error(error);
     res.status(500).send('Error');
   }
 });
 
-
-/**
- * [API 2] 관리자 대시보드용: 태그별 요약 통계
- */
+// ==========================================================
+// [API 2] 관리자 대시보드용: 태그별 요약 통계
+// ==========================================================
 app.get('/api/trace/summary', async (req, res) => {
   try {
-    const collection = db.collection('visit_logs');
-    
-    const stats = await collection.aggregate([
+    const stats = await db.collection('visit_logs').aggregate([
       {
         $group: {
           _id: "$eventTag",
@@ -2887,102 +2844,79 @@ app.get('/api/trace/summary', async (req, res) => {
 
     res.json({ success: true, data: stats });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
 
-
-/**
- * [API 3] 관리자 대시보드용: 최근 방문자 목록 조회
- */
+// ==========================================================
+// [API 3] 방문자 목록 조회 (회원 여부 확실히 가져오기)
+// ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
-    const collection = db.collection('visit_logs');
-    
-    const visitors = await collection.aggregate([
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: "$visitorId",
-          eventTag: { $first: "$eventTag" },
-          isMember: { $first: "$isMember" }, // 회원 여부도 가져오기
-          lastAction: { $first: "$createdAt" },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { lastAction: -1 } },
-      { $limit: 20 }
-    ]).toArray();
+      const visitors = await db.collection('visit_logs').aggregate([
+          { $sort: { createdAt: -1 } }, // 1. 최신순 정렬
+          {
+              $group: {
+                  _id: "$visitorId",
+                  // [핵심] 해당 방문자의 로그 중 가장 최신 로그의 isMember 값을 가져옴
+                  isMember: { $first: "$isMember" }, 
+                  eventTag: { $first: "$eventTag" },
+                  lastAction: { $first: "$createdAt" },
+                  count: { $sum: 1 }
+              }
+          },
+          { $sort: { lastAction: -1 } }, // 2. 다시 최신 활동순 정렬
+          { $limit: 50 }
+      ]).toArray();
 
-    res.json({ success: true, visitors });
+      res.json({ success: true, visitors });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server Error' });
+      console.error(err);
+      res.status(500).json({ msg: 'Server Error' });
   }
 });
 
-
-/**
- * [API 4] 특정 유저의 상세 이동 경로 (Journey)
- */
+// ==========================================================
+// [API 4] 특정 유저의 상세 이동 경로 (Journey)
+// ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
-
   try {
-    const collection = db.collection('visit_logs');
-
-    const journey = await collection
+    const journey = await db.collection('visit_logs')
       .find({ visitorId })
       .sort({ createdAt: 1 }) 
       .toArray();
-
     res.json({ success: true, journey });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
 
-
-/**
- * [API 5] 퍼널(깔때기) 이탈률 분석
- */
+// ==========================================================
+// [API 5] 퍼널 이탈률 분석 (회원/비회원 구분 없이 전체 집계)
+// ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
   try {
-    const collection = db.collection('visit_logs');
-
-    // URL 패턴 정의 (쇼핑몰 주소 규칙에 맞게 수정 가능)
     const pipeline = [
       {
         $group: {
           _id: "$eventTag", 
-
-          // [Step 1] 전체 방문
           step1_visitors: { $addToSet: "$visitorId" },
-          
-          // [Step 2] 상품 상세 (detail.html)
           step2_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "detail.html" } }, "$visitorId", "$$REMOVE"] 
             } 
           },
-          
-          // [Step 3] 장바구니 (basket.html)
           step3_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$visitorId", "$$REMOVE"] 
             } 
           },
-
-          // [Step 4] 주문서 작성 (orderform.html)
           step4_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$visitorId", "$$REMOVE"] 
             } 
           },
-
-          // [Step 5] 결제 완료 (order_result.html)
           step5_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$visitorId", "$$REMOVE"] 
@@ -2992,7 +2926,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       },
       {
         $project: {
-          eventTag: "$_id",
+          campaignName: "$_id", // 프론트엔드 호환용 이름 매핑
           count_total: { $size: "$step1_visitors" },
           count_detail: { $size: "$step2_visitors" },
           count_cart: { $size: "$step3_visitors" },
@@ -3003,7 +2937,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       { $sort: { count_total: -1 } }
     ];
 
-    const funnelData = await collection.aggregate(pipeline).toArray();
+    const funnelData = await db.collection('visit_logs').aggregate(pipeline).toArray();
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
@@ -3011,7 +2945,6 @@ app.get('/api/trace/funnel', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 
 
 // ========== [17] 서버 시작 ==========
