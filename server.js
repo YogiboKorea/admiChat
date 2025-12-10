@@ -2760,48 +2760,73 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 
-/**
- * [API 1] 방문 경로 저장 (INSERT)
- * 수정사항: 생성된 문서의 _id를 프론트로 반환 (체류시간 업데이트용)
- */
+
+
+
+
+
+
+// ==========================================================
+// [API 1] 로그 수집 (회원/비회원 구분 로직 강화)
+// ==========================================================
 app.post('/api/trace/log', async (req, res) => {
-  // isMember 필드 추가
-  const { eventTag, visitorId, isMember, currentUrl, prevUrl, utmData } = req.body;
-
-  if (!eventTag || !visitorId || !currentUrl) {
-    return res.status(400).json({ msg: '필수 정보 누락' });
-  }
-
   try {
-    const collection = db.collection('visit_logs'); 
+      const { eventTag, visitorId, isMember, currentUrl, prevUrl, utmData } = req.body;
 
-    const result = await collection.insertOne({
-      eventTag,
-      visitorId,
-      isMember: isMember || false, // 회원 여부 (기본값 false)
-      currentUrl,
-      prevUrl: prevUrl || 'direct',
+      // [핵심] 회원 ID가 있으면 그걸 쓰고, 없으면 비회원 ID 사용
+      // 프론트에서 isMember를 보내주지만, 서버에서 한 번 더 정리
+      const finalIsMember = isMember === true || (visitorId && !visitorId.startsWith('guest_'));
       
-      // UTM 정보
-      utmSource: utmData?.source || '',
-      utmMedium: utmData?.medium || '',
-      utmCampaign: utmData?.campaign || '',
-      utmTerm: utmData?.term || '',
-      utmContent: utmData?.content || '',
+      // 봇 필터링 (간단 버전)
+      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) {
+          return res.json({ success: true, msg: 'Bot Filtered' });
+      }
 
-      createdAt: new Date(),
-      duration: 0 // 초기값 0초
-    });
+      const log = {
+          visitorId: visitorId,        // 회원ID 또는 guest_랜덤ID
+          isMember: finalIsMember,     // ★ 회원 여부 (true/false)
+          eventTag: eventTag,
+          currentUrl: currentUrl,
+          prevUrl: prevUrl,
+          utmData: utmData || {},
+          duration: 0,                 // 초기값 0
+          createdAt: new Date()
+      };
 
-    // ★ 중요: 프론트엔드가 나중에 업데이트할 수 있게 _id를 알려줌
-    res.json({ success: true, logId: result.insertedId }); 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Server Error' });
+      const result = await db.collection('visit_logs').insertOne(log);
+      res.json({ success: true, logId: result.insertedId });
+
+  } catch (e) {
+      console.error(e);
+      res.status(500).json({ success: false });
   }
 });
 
+// ==========================================================
+// [API 2] 방문자 목록 조회 (회원/비회원 표시 정보 포함)
+// ==========================================================
+app.get('/api/trace/visitors', async (req, res) => {
+  try {
+      const visitors = await db.collection('visit_logs').aggregate([
+          { $sort: { createdAt: -1 } },
+          {
+              $group: {
+                  _id: "$visitorId",
+                  isMember: { $first: "$isMember" }, // ★ 그룹핑할 때 회원 여부 가져오기
+                  eventTag: { $first: "$eventTag" },
+                  lastAction: { $first: "$createdAt" },
+                  count: { $sum: 1 }
+              }
+          },
+          { $sort: { lastAction: -1 } },
+          { $limit: 50 }
+      ]).toArray();
 
+      res.json({ success: true, visitors });
+  } catch (e) {
+      res.status(500).json({ success: false });
+  }
+});
 /**
  * [API 1-1] 체류 시간 업데이트 (UPDATE) - ★ 새로 추가됨
  * URL: POST /api/trace/log/exit
