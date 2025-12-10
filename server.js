@@ -2886,7 +2886,74 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
 });
 
 
+app.get('/api/trace/funnel', async (req, res) => {
+  try {
+    const collection = db.collection('visit_logs');
 
+    // URL 패턴 정의 (쇼핑몰 주소 규칙에 맞게 수정 가능)
+    // 예: /product/detail.html 포함되면 '상세페이지'로 간주
+    const pipeline = [
+      {
+        $group: {
+          _id: "$eventTag", // 1. 캠페인 태그별로 그룹화
+
+          // 2. 단계별 유니크 방문자 수집 (중복 제거)
+          // (조건: URL에 특정 단어가 포함되면 visitorId를 담는다)
+          
+          // [Step 1] 전체 방문 (모든 로그)
+          step1_visitors: { $addToSet: "$visitorId" },
+          
+          // [Step 2] 상품 상세 (detail.html)
+          step2_visitors: { 
+            $addToSet: { 
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "detail.html" } }, "$visitorId", "$$REMOVE"] 
+            } 
+          },
+          
+          // [Step 3] 장바구니 (basket.html)
+          step3_visitors: { 
+            $addToSet: { 
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$visitorId", "$$REMOVE"] 
+            } 
+          },
+
+          // [Step 4] 주문서 작성 (orderform.html)
+          step4_visitors: { 
+            $addToSet: { 
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$visitorId", "$$REMOVE"] 
+            } 
+          },
+
+          // [Step 5] 결제 완료 (order_result.html)
+          step5_visitors: { 
+            $addToSet: { 
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$visitorId", "$$REMOVE"] 
+            } 
+          }
+        }
+      },
+      // 3. 배열 크기(사람 수) 계산
+      {
+        $project: {
+          eventTag: "$_id",
+          count_total: { $size: "$step1_visitors" },
+          count_detail: { $size: "$step2_visitors" },
+          count_cart: { $size: "$step3_visitors" },
+          count_order: { $size: "$step4_visitors" },
+          count_purchase: { $size: "$step5_visitors" }
+        }
+      },
+      { $sort: { count_total: -1 } } // 방문자 많은 순 정렬
+    ];
+
+    const funnelData = await collection.aggregate(pipeline).toArray();
+    res.json({ success: true, data: funnelData });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
 
 
 
