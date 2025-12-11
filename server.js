@@ -2891,13 +2891,35 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 5] 퍼널 이탈률 분석 (회원/비회원 구분 없이 전체 집계)
+// [API 5] 퍼널 이탈률 분석 (날짜 필터링 기능 추가)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
   try {
+    // 1. 프론트에서 보낸 날짜 받기
+    const { startDate, endDate } = req.query;
+    
+    // 2. 검색 조건 만들기 ($match)
+    let matchStage = {};
+
+    if (startDate || endDate) {
+        matchStage.createdAt = {};
+        if (startDate) {
+            // 시작일 00:00:00
+            matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z"); 
+        }
+        if (endDate) {
+            // 종료일 23:59:59 (해당 날짜 포함)
+            matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+        }
+    }
+
+    const collection = db.collection('visit_logs');
+
     const pipeline = [
+      // ★ [추가됨] 날짜 필터링을 제일 먼저 수행 (속도 향상)
+      { $match: matchStage },
+
       {
         $group: {
           _id: "$eventTag", 
@@ -2926,7 +2948,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       },
       {
         $project: {
-          campaignName: "$_id", // 프론트엔드 호환용 이름 매핑
+          campaignName: "$_id",
           count_total: { $size: "$step1_visitors" },
           count_detail: { $size: "$step2_visitors" },
           count_cart: { $size: "$step3_visitors" },
@@ -2937,7 +2959,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       { $sort: { count_total: -1 } }
     ];
 
-    const funnelData = await db.collection('visit_logs').aggregate(pipeline).toArray();
+    const funnelData = await collection.aggregate(pipeline).toArray();
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
