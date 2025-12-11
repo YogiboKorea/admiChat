@@ -3156,6 +3156,106 @@ app.get('/api/trace/channels', async (req, res) => {
   }
 });
 
+//크리스마스 이벤트 section별 클릭 데이터 분석자료
+
+// ==========================================================
+// [API 7] 섹션 클릭 로그 저장 (컬렉션: event12ClickData)
+// ★ IP 필터링 추가됨
+// ==========================================================
+app.post('/api/trace/click', async (req, res) => {
+  try {
+      // 1. 사용자 IP 가져오기 (API 1과 동일 로직)
+      let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      if (userIp.includes(',')) {
+          userIp = userIp.split(',')[0].trim();
+      }
+
+      // ==========================================================
+      // [IP 차단] 통계에서 제외할 IP 목록
+      // ==========================================================
+      const BLOCKED_IPS = [
+          '127.0.0.1',       
+          '::1',
+          '111.232.33.44',   // ★ 본인/회사 IP 입력
+      ];
+
+      // 차단된 IP면 DB 저장 건너뛰기
+      if (BLOCKED_IPS.includes(userIp)) {
+          // console.log(`[Click Log] Blocked IP ignored: ${userIp}`); 
+          return res.json({ success: true, msg: 'IP Filtered' });
+      }
+
+      const { sectionId, sectionName } = req.body;
+
+      // 필수 데이터 없으면 에러
+      if (!sectionId || !sectionName) {
+          return res.status(400).json({ success: false, msg: 'Missing Data' });
+      }
+
+      // 2. DB 저장 (event12ClickData 컬렉션)
+      const clickLog = {
+          sectionId,
+          sectionName,
+          ip: userIp,
+          createdAt: new Date()
+      };
+
+      await db.collection('event12ClickData').insertOne(clickLog);
+      
+      res.json({ success: true });
+
+  } catch (e) {
+      console.error(e);
+      res.status(500).json({ success: false });
+  }
+});
+
+// ==========================================================
+// [API 8] 섹션 클릭 통계 조회 (관리자용)
+// ==========================================================
+app.get('/api/trace/clicks/stats', async (req, res) => {
+  try {
+      const { startDate, endDate } = req.query;
+      
+      // 1. 날짜 필터링 (선택 사항)
+      let matchStage = {};
+      if (startDate || endDate) {
+          matchStage.createdAt = {};
+          if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+          if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+      }
+
+      // 2. 집계 쿼리 (Aggregation)
+      const stats = await db.collection('event12ClickData').aggregate([
+          { $match: matchStage },
+          {
+              $group: {
+                  _id: "$sectionId",                // 섹션 ID끼리 묶음
+                  name: { $first: "$sectionName" }, // 이름 가져오기
+                  count: { $sum: 1 }                // 개수 합산
+              }
+          },
+          { $sort: { count: -1 } } // 클릭 많은 순 정렬
+      ]).toArray();
+
+      // 3. 프론트엔드용 데이터 포맷 변환
+      const formattedData = stats.map(item => ({
+          id: item._id,
+          name: item.name,
+          count: item.count
+      }));
+
+      res.json({ success: true, data: formattedData });
+
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
+
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
