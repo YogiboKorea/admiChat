@@ -3209,36 +3209,36 @@ app.post('/api/trace/click', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
-
 // ==========================================================
-// [API 8] 섹션 클릭 통계 조회 (관리자용)
+// [API 8] 섹션 클릭 통계 조회 (날짜 필터링 적용)
 // ==========================================================
 app.get('/api/trace/clicks/stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query;
       
-      // 1. 날짜 필터링 (선택 사항)
+      // ★ [핵심] 날짜 필터링 조건 생성
       let matchStage = {};
       if (startDate || endDate) {
           matchStage.createdAt = {};
+          // 시작일 00:00:00 부터
           if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+          // 종료일 23:59:59 까지
           if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
       }
 
-      // 2. 집계 쿼리 (Aggregation)
+      // DB 집계 (기간 조건 -> 그룹핑 -> 카운트)
       const stats = await db.collection('event12ClickData').aggregate([
-          { $match: matchStage },
+          { $match: matchStage },     // 1. 날짜로 먼저 거르기
           {
               $group: {
-                  _id: "$sectionId",                // 섹션 ID끼리 묶음
-                  name: { $first: "$sectionName" }, // 이름 가져오기
-                  count: { $sum: 1 }                // 개수 합산
+                  _id: "$sectionId",                
+                  name: { $first: "$sectionName" }, 
+                  count: { $sum: 1 }                
               }
           },
-          { $sort: { count: -1 } } // 클릭 많은 순 정렬
+          { $sort: { count: -1 } }    // 2. 많은 순 정렬
       ]).toArray();
 
-      // 3. 프론트엔드용 데이터 포맷 변환
       const formattedData = stats.map(item => ({
           id: item._id,
           name: item.name,
@@ -3252,8 +3252,6 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
-
 
 
 
