@@ -2773,6 +2773,11 @@ app.post('/api/trace/log', async (req, res) => {
       // ID가 없거나 'guest_'로 시작하면 무조건 비회원(false), 그 외에는 회원(true)으로 강제합니다.
       const isRealMember = visitorId && !visitorId.startsWith('guest_');
 
+      // ★ [추가된 코드] URL에 'skin-skin'이 있으면 저장 안 하고 무시
+      if (currentUrl && currentUrl.includes('skin-skin')) {
+        return res.json({ success: true, msg: 'Skin Preview Ignored' });
+      }
+
       // 봇 필터링
       if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) {
           return res.json({ success: true, msg: 'Bot Filtered' });
