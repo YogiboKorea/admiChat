@@ -2875,19 +2875,43 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 4] 특정 유저의 상세 이동 경로 (Journey)
+// [API 4] 특정 유저의 상세 이동 경로 (Journey) - 중복 제거 필터링 적용
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
+
   try {
-    const journey = await db.collection('visit_logs')
+    // 1. 일단 해당 유저의 모든 로그를 시간순으로 가져옵니다.
+    const rawJourney = await db.collection('visit_logs')
       .find({ visitorId })
       .sort({ createdAt: 1 }) 
       .toArray();
-    res.json({ success: true, journey });
+
+    // 2. [핵심] 연속된 중복 페이지 제거 로직 (Filter)
+    const refinedJourney = [];
+    let lastUrl = null;
+
+    for (const log of rawJourney) {
+        // 비교를 위해 URL에서 뒷부분(쿼리스트링 등) 처리가 필요하면 여기서 조정
+        // 예: const cleanUrl = log.currentUrl.split('?')[0]; 
+        
+        // 지금 보고 있는 로그의 URL이 방금 담은 URL과 다를 때만 추가
+        // (즉, 페이지가 바뀌었을 때만 리스트에 넣음)
+        if (log.currentUrl !== lastUrl) {
+            refinedJourney.push(log);
+            lastUrl = log.currentUrl;
+        } else {
+            // (옵션) 중복인 경우, 체류시간을 합치거나 마지막 시간으로 갱신하는 로직을 넣을 수도 있음
+            // 지금은 단순하게 "이동 경로"만 깔끔하게 보기 위해 생략
+        }
+    }
+
+    // 3. 필터링된 깔끔한 데이터만 프론트로 전송
+    res.json({ success: true, journey: refinedJourney });
+
   } catch (error) {
+    console.error(error);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
