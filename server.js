@@ -2915,44 +2915,35 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
+
 // ==========================================================
-// [API 5] 퍼널 이탈률 분석 (날짜 필터링 기능 추가)
+// [API 5] 퍼널 이탈률 분석 (URL 인식 로직 개선)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
   try {
-    // 1. 프론트에서 보낸 날짜 받기
     const { startDate, endDate } = req.query;
-    
-    // 2. 검색 조건 만들기 ($match)
     let matchStage = {};
 
     if (startDate || endDate) {
         matchStage.createdAt = {};
-        if (startDate) {
-            // 시작일 00:00:00
-            matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z"); 
-        }
-        if (endDate) {
-            // 종료일 23:59:59 (해당 날짜 포함)
-            matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
-        }
+        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
-    const collection = db.collection('visit_logs');
-
     const pipeline = [
-      // ★ [추가됨] 날짜 필터링을 제일 먼저 수행 (속도 향상)
       { $match: matchStage },
-
       {
         $group: {
           _id: "$eventTag", 
           step1_visitors: { $addToSet: "$visitorId" },
+          
+          // [수정] 'product' 또는 'detail.html'이 있으면 상세페이지로 인정
           step2_visitors: { 
             $addToSet: { 
-              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "detail.html" } }, "$visitorId", "$$REMOVE"] 
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$visitorId", "$$REMOVE"] 
             } 
           },
+          
           step3_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$visitorId", "$$REMOVE"] 
@@ -2983,15 +2974,13 @@ app.get('/api/trace/funnel', async (req, res) => {
       { $sort: { count_total: -1 } }
     ];
 
-    const funnelData = await collection.aggregate(pipeline).toArray();
+    const funnelData = await db.collection('visit_logs').aggregate(pipeline).toArray();
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
-    console.error(err);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
