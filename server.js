@@ -2758,40 +2758,33 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
-
-
-
 // ==========================================================
-// [API 1] 로그 수집 (IP 필터링 추가)
+// [API 1] 로그 수집 (IP 필터링 및 데이터 저장)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
-      // 1. 사용자 IP 가져오기 (Nginx나 프록시 환경 고려)
-      // x-forwarded-for 헤더가 있으면 쉼표(,)로 구분된 첫 번째 IP가 실제 사용자 IP입니다.
+      // 1. 사용자 IP 가져오기
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) {
           userIp = userIp.split(',')[0].trim();
       }
 
       // ==========================================================
-      // ★ [추가] 차단할 IP 목록 설정 (여기에 본인 IP를 적으세요)
-      // 예: ['127.0.0.1', '192.168.0.1', '211.xxx.xxx.xxx']
+      // ★ [차단 설정] 본인 IP를 정확히 입력해주세요.
       // ==========================================================
       const BLOCKED_IPS = [
-          '111.222.33.424',   // ★ 여기에 차단하고 싶은 사무실/집 IP 추가
+          '111.333.33.44',   
       ];
 
-      // ★ IP가 차단 목록에 있으면 저장 안 하고 종료
+      // 차단된 IP면 저장 안 함
       if (BLOCKED_IPS.includes(userIp)) {
-          console.log(`Blocked access from IP: ${userIp}`); // 확인용 로그
-          return res.json({ success: true, msg: 'IP Filtered (Admin or Blocked)' });
+          console.log(`Blocked access from IP: ${userIp}`);
+          return res.json({ success: true, msg: 'IP Filtered' });
       }
-      // ==========================================================
-
 
       const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // ... 기존 로직 그대로 유지 ...
+      // 비회원/회원 구분
       const isRealMember = visitorId && !visitorId.startsWith('guest_');
 
       // 스킨 미리보기 무시
@@ -2811,7 +2804,7 @@ app.post('/api/trace/log', async (req, res) => {
           currentUrl: currentUrl,
           prevUrl: prevUrl,
           utmData: utmData || {},
-          userIp: userIp, // (선택사항) 필요하다면 DB에 IP도 같이 저장할 수 있습니다.
+          userIp: userIp,
           duration: 0,
           createdAt: new Date()
       };
@@ -2825,10 +2818,8 @@ app.post('/api/trace/log', async (req, res) => {
   }
 });
 
-
-
 // ==========================================================
-// [API 1-1] 체류 시간 업데이트 (Beacon)
+// [API 1-1] 체류 시간 업데이트
 // ==========================================================
 app.post('/api/trace/log/exit', async (req, res) => {
   let { logId, duration } = req.body;
@@ -2847,7 +2838,7 @@ app.post('/api/trace/log/exit', async (req, res) => {
 });
 
 // ==========================================================
-// [API 2] 관리자 대시보드용: 태그별 요약 통계
+// [API 2] 관리자 대시보드용: 단순 태그별 요약
 // ==========================================================
 app.get('/api/trace/summary', async (req, res) => {
   try {
@@ -2877,10 +2868,8 @@ app.get('/api/trace/summary', async (req, res) => {
   }
 });
 
-
-
 // ==========================================================
-// [API 3] 방문자 목록 조회 (이벤트 페이지 방문자만 필터링)
+// [API 3] 방문자 목록 조회 (이벤트 페이지 방문자 필터링)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
@@ -2894,11 +2883,10 @@ app.get('/api/trace/visitors', async (req, res) => {
                   lastAction: { $first: "$createdAt" },
                   count: { $sum: 1 },
                   
-                  // ★ [핵심] 이 사람이 이벤트 페이지를 방문했는지 체크 (1이면 방문함, 0이면 안함)
+                  // 이벤트 페이지(12_event.html) 방문 여부 체크
                   hasVisitedEvent: { 
                       $max: { 
                           $cond: [
-                              // URL에 '12_event.html'이 포함되어 있으면 1, 아니면 0
                               { $regexMatch: { input: "$currentUrl", regex: "12_event.html" } }, 
                               1, 
                               0
@@ -2907,11 +2895,11 @@ app.get('/api/trace/visitors', async (req, res) => {
                   }
               }
           },
-          // ★ [필터링] 이벤트 페이지를 방문한 적이 있는 사람(1)만 남김
+          // 이벤트 페이지 방문자만 노출
           { $match: { hasVisitedEvent: 1 } },
           
           { $sort: { lastAction: -1 } },
-          { $limit: 150 } 
+          { $limit: 150 } // 최대 150명까지 표시
       ]).toArray();
 
       res.json({ success: true, visitors });
@@ -2921,40 +2909,29 @@ app.get('/api/trace/visitors', async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [API 4] 특정 유저의 상세 이동 경로 (Journey) - 중복 제거 필터링 적용
+// [API 4] 특정 유저의 상세 이동 경로 (Journey) - 중복 제거
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
 
   try {
-    // 1. 일단 해당 유저의 모든 로그를 시간순으로 가져옵니다.
     const rawJourney = await db.collection('visit_logs')
       .find({ visitorId })
       .sort({ createdAt: 1 }) 
       .toArray();
 
-    // 2. [핵심] 연속된 중복 페이지 제거 로직 (Filter)
     const refinedJourney = [];
     let lastUrl = null;
 
     for (const log of rawJourney) {
-        // 비교를 위해 URL에서 뒷부분(쿼리스트링 등) 처리가 필요하면 여기서 조정
-        // 예: const cleanUrl = log.currentUrl.split('?')[0]; 
-        
-        // 지금 보고 있는 로그의 URL이 방금 담은 URL과 다를 때만 추가
-        // (즉, 페이지가 바뀌었을 때만 리스트에 넣음)
+        // 연속된 동일 URL은 제외하고 저장
         if (log.currentUrl !== lastUrl) {
             refinedJourney.push(log);
             lastUrl = log.currentUrl;
-        } else {
-            // (옵션) 중복인 경우, 체류시간을 합치거나 마지막 시간으로 갱신하는 로직을 넣을 수도 있음
-            // 지금은 단순하게 "이동 경로"만 깔끔하게 보기 위해 생략
         }
     }
 
-    // 3. 필터링된 깔끔한 데이터만 프론트로 전송
     res.json({ success: true, journey: refinedJourney });
 
   } catch (error) {
@@ -2964,7 +2941,7 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
 });
 
 // ==========================================================
-// [API 5] 퍼널 이탈률 분석 (URL 인식 로직 개선)
+// [API 5] 퍼널 이탈률 분석 (단계별 분석 + 채널명 매핑)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
   try {
@@ -2980,17 +2957,50 @@ app.get('/api/trace/funnel', async (req, res) => {
     const pipeline = [
       { $match: matchStage },
       {
+        $project: {
+          visitorId: 1,
+          currentUrl: 1,
+          // ★ [매핑 로직] UTM -> 한글 이름 변환
+          channelName: {
+            $switch: {
+              branches: [
+                // 1. 네이버
+                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브랜드광고[선물 추천]" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
+
+                // 2. 메타
+                { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
+                { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
+                { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
+                { case: { $eq: ["$utmData.term", "limited"] },       then: "메타 광고[LIMITED GIFT]" },
+                { case: { $eq: ["$utmData.term", "over30"] },        then: "메타 광고[인형증정]" },
+                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
+
+                // 3. 카카오
+                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
+              ],
+              default: "직접/기타 방문"
+            }
+          }
+        }
+      },
+      {
         $group: {
-          _id: "$eventTag", 
-          step1_visitors: { $addToSet: "$visitorId" },
-          
-          // [수정] 'product' 또는 'detail.html'이 있으면 상세페이지로 인정
+          _id: "$channelName", 
+          step1_visitors: { $addToSet: "$visitorId" }, // 전체 방문
           step2_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$visitorId", "$$REMOVE"] 
             } 
           },
-          
           step3_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$visitorId", "$$REMOVE"] 
@@ -3010,7 +3020,8 @@ app.get('/api/trace/funnel', async (req, res) => {
       },
       {
         $project: {
-          campaignName: "$_id",
+          _id: 0,
+          channelName: "$_id",
           count_total: { $size: "$step1_visitors" },
           count_detail: { $size: "$step2_visitors" },
           count_cart: { $size: "$step3_visitors" },
@@ -3025,19 +3036,18 @@ app.get('/api/trace/funnel', async (req, res) => {
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: 'Server Error' });
   }
 });
 
-
 // ==========================================================
-// [API 6] 상세 유입 성과 분석 (지정된 한글 이름으로 매핑)
+// [API 6] 채널별 통합 분석 (방문자수, 구매전환 중심)
 // ==========================================================
 app.get('/api/trace/channels', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    // 1. 날짜 필터링
     let matchStage = {};
     if (startDate || endDate) {
         matchStage.createdAt = {};
@@ -3051,22 +3061,11 @@ app.get('/api/trace/channels', async (req, res) => {
         $project: {
           visitorId: 1,
           currentUrl: 1,
-          // ★ [핵심] UTM 값에 따라 한글 이름 강제 할당
+          // ★ [매핑 로직] API 5와 동일하게 유지
           displayName: {
             $switch: {
               branches: [
-                // -----------------------------------------------------------
-                // 1. 카카오톡 플러스친구 (utm_campaign 기준)
-                // -----------------------------------------------------------
-                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" },
-
-                // -----------------------------------------------------------
-                // 2. 네이버 브랜드검색 (utm_campaign 기준)
-                // -----------------------------------------------------------
+                // 1. 네이버
                 { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
@@ -3074,30 +3073,32 @@ app.get('/api/trace/channels', async (req, res) => {
                 { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
 
-                // -----------------------------------------------------------
-                // 3. 메타 (인스타/페북) 
-                // 메타는 campaign이 'meta_feed'로 다 똑같아서 'utm_term'으로 구분해야 합니다.
-                // -----------------------------------------------------------
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "christmas"] } ] }, then: "메타[크리스마스 쿠폰팩]" },
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "100won"] } ] },    then: "메타[도전 100원]" },
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "forgift"] } ] },   then: "메타[선물 추천]" },
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "limited"] } ] },   then: "메타[LIMITED GIFT]" },
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "over30"] } ] },    then: "메타[인형증정]" },
-                { case: { $and: [ { $eq: ["$utmData.campaign", "meta_feed"] }, { $eq: ["$utmData.term", "lucky12_event"] } ] }, then: "메타[럭키드로우]" }
+                // 2. 메타
+                { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
+                { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
+                { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
+                { case: { $eq: ["$utmData.term", "limited"] },       then: "메타 광고[LIMITED GIFT]" },
+                { case: { $eq: ["$utmData.term", "over30"] },        then: "메타 광고[인형증정]" },
+                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
+
+                // 3. 카카오
+                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
+                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
               ],
-              default: "기타/직접방문" // 위에 해당 없는 경우
+              default: "직접/기타 방문"
             }
           }
         }
       },
-      // 2. 이름별로 그룹화
       {
         $group: {
-          _id: "$displayName", // 위에서 만든 한글 이름으로 묶음
+          _id: "$displayName", 
           totalVisits: { $sum: 1 },
           uniqueVisitors: { $addToSet: "$visitorId" },
           
-          // (선택) 구매 건수 (order_result 페이지 도달)
           purchaseCount: { 
             $sum: { 
               $cond: [ { $regexMatch: { input: "$currentUrl", regex: "order_result" } }, 1, 0 ] 
@@ -3105,17 +3106,15 @@ app.get('/api/trace/channels', async (req, res) => {
           }
         }
       },
-      // 3. 결과 정리
       {
         $project: {
           _id: 0,
-          channelName: "$_id", // 예: '카톡플친[메인]'
+          channelName: "$_id", // 프론트엔드 통일성을 위해 channelName으로 출력
           totalVisits: 1,
           uniqueVisitorCount: { $size: "$uniqueVisitors" },
           purchaseCount: 1
         }
       },
-      // 4. 방문 많은 순 정렬
       { $sort: { totalVisits: -1 } }
     ]).toArray();
 
