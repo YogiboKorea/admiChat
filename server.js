@@ -2758,8 +2758,11 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
+
+
+
 // ==========================================================
-// [API 1] 로그 수집 (IP 필터링 및 데이터 저장)
+// [API 1] 로그 수집 (IP 필터링 + 10분 내 중복/재방문 방지)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2770,19 +2773,46 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // ★ [차단 설정] 본인 IP를 정확히 입력해주세요.
+      // [IP 차단] 본인 IP 관리
       // ==========================================================
       const BLOCKED_IPS = [
-          '111.333.33.44',   
+          '127.0.0.1',       
+          '::1',
+          '111.232.33.44',   // ★ 본인 IP 입력
       ];
 
-      // 차단된 IP면 저장 안 함
       if (BLOCKED_IPS.includes(userIp)) {
-          console.log(`Blocked access from IP: ${userIp}`);
+          // console.log(`Blocked access from IP: ${userIp}`); 
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
       const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
+
+      // ==========================================================
+      // ★ [추가됨] 10분 이내 재방문(동일 페이지) 체크 로직
+      // ==========================================================
+      if (visitorId && currentUrl) {
+          // 1. 이 사람이 가장 최근에 남긴 로그 1개를 가져옴
+          const lastLog = await db.collection('visit_logs').findOne(
+              { visitorId: visitorId },
+              { sort: { createdAt: -1 } } // 최신순 정렬
+          );
+
+          if (lastLog) {
+              const now = new Date();
+              const lastTime = new Date(lastLog.createdAt);
+              const timeDiff = now - lastTime; // 밀리초(ms) 단위 차이
+              const TEN_MINUTES = 10 * 60 * 1000; // 10분 = 600,000ms
+
+              // 조건: 10분 안 지났음 AND 같은 페이지(URL) 재접속임
+              if (timeDiff < TEN_MINUTES && lastLog.currentUrl === currentUrl) {
+                  // DB에 저장 안 하고 성공 메시지만 보내고 끝냄 (카운트 X)
+                  return res.json({ success: true, msg: 'Duplicate visit ignored (within 10 mins)' });
+              }
+          }
+      }
+      // ==========================================================
+
 
       // 비회원/회원 구분
       const isRealMember = visitorId && !visitorId.startsWith('guest_');
