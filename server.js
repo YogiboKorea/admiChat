@@ -3289,6 +3289,26 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
 });
 
 
+// by-click 라우트 내부
+app.get('/by-click', async (req, res) => {
+  const { sectionId, startDate, endDate } = req.query;
+
+  console.log('=== 요청 파라미터 ===');
+  console.log({ sectionId, startDate, endDate });
+
+  // 실제 DB 조회 직전 쿼리 조건을 로그로 확인
+  const query = {
+      sectionId: sectionId, // 여기가 DB랑 똑같은지 확인!
+      // 날짜 조건...
+  };
+  console.log('=== MongoDB 쿼리 조건 ===', JSON.stringify(query, null, 2));
+
+  const result = await db.collection('visitors').find(query).toArray();
+  console.log('=== 검색된 개수 ===', result.length);
+  
+  res.json({ success: true, visitors: result });
+});
+
 
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
