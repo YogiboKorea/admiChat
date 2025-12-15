@@ -3258,16 +3258,15 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
   }
 });
 
-// [API] 특정 버튼(섹션)을 클릭한 방문자들만 추려서 조회 (수정됨)
+// [API] 특정 버튼(섹션)을 클릭한 방문자들만 추려서 조회 (정밀도 개선판)
 app.get('/api/trace/visitors/by-click', async (req, res) => {
   try {
       const { sectionId, startDate, endDate } = req.query;
       
-      // 1. 날짜 범위 설정
       const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
       const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
 
-      // 2. [수정] 올바른 컬렉션(event12ClickData)에서 클릭 로그 조회
+      // 1. 해당 섹션의 클릭 로그 조회
       const clickLogs = await db.collection('event12ClickData').find({
           sectionId: sectionId,
           createdAt: { $gte: start, $lte: end }
@@ -3277,29 +3276,60 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
           return res.json({ success: true, visitors: [], msg: '클릭 기록 없음' });
       }
 
-      // 3. [수정] 클릭한 로그에서 'IP' 추출 (visitorId가 없으므로 IP로 연결)
-      const targetIps = [...new Set(clickLogs.map(log => log.ip))];
+      // 2. [핵심] VisitorID가 있는 로그와 없는 로그(IP기반) 분리
+      const exactVisitorIds = [];
+      const targetIps = [];
 
-      // 4. [수정] 해당 IP를 사용했던 방문자 정보를 visit_logs에서 조회
-      // (IP 기반이므로 100% 정확하진 않지만 현재 유일한 방법)
+      clickLogs.forEach(log => {
+          if (log.visitorId && log.visitorId !== 'guest') {
+              // 정확한 ID가 기록된 경우 (신규 로직 적용 후 데이터)
+              exactVisitorIds.push(log.visitorId);
+          } else {
+              // ID가 없어서 IP로 찾아야 하는 경우 (과거 데이터)
+              if(log.ip) targetIps.push(log.ip);
+          }
+      });
+
+      // 3. 쿼리 조건 생성 ($or 연산자 사용)
+      const queryFilters = [];
+
+      // 조건 A: 정확한 ID가 있는 사람
+      if (exactVisitorIds.length > 0) {
+          queryFilters.push({ visitorId: { $in: exactVisitorIds } });
+      }
+
+      // 조건 B: IP로 추적해야 하는 사람 (오차 줄이기 위해 시간 조건 추가하고 싶지만, 일단 IP 매칭)
+      if (targetIps.length > 0) {
+          queryFilters.push({ 
+              userIp: { $in: targetIps },
+              createdAt: { $gte: start, $lte: end } 
+          });
+      }
+
+      if (queryFilters.length === 0) {
+           return res.json({ success: true, visitors: [] });
+      }
+
+      // 4. 최종 방문자 검색
       const visitors = await db.collection('visit_logs').aggregate([
           { 
               $match: { 
-                  userIp: { $in: targetIps },
-                  createdAt: { $gte: start, $lte: end } // 같은 기간 내 방문자
+                  $or: queryFilters 
               } 
           },
           { $sort: { createdAt: -1 } },
           {
               $group: {
-                  _id: "$visitorId", // 방문자 ID 기준으로 그룹핑 (중복 제거)
+                  _id: "$visitorId",
                   lastAction: { $first: "$createdAt" },
                   isMember: { $first: "$isMember" },
                   currentUrl: { $first: "$currentUrl" },
                   userIp: { $first: "$userIp" }
               }
           },
-          { $limit: 100 } // 너무 많을 수 있으니 제한
+          // ★ 여기서 클릭수보다 너무 많이 나오지 않게 리밋을 걸 수도 있지만, 
+          // 정확한 분석을 위해 다 보여주는 게 맞습니다.
+          { $limit: 100 } 
       ]).toArray();
 
       res.json({ success: true, visitors });
@@ -3309,7 +3339,6 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
   const { sectionId, startDate, endDate } = req.query;
