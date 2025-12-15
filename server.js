@@ -2759,6 +2759,11 @@ app.get("/api/total-sales", async (req, res) => {
 });
 
 
+// ==========================================================
+// ㅡㅣㅇ 시작부분
+// ==========================================================
+
+
 
 
 // ==========================================================
@@ -3252,33 +3257,50 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-// [API] 특정 버튼(섹션)을 클릭한 방문자들만 추려서 조회
+
+// [API] 특정 버튼(섹션)을 클릭한 방문자들만 추려서 조회 (수정됨)
 app.get('/api/trace/visitors/by-click', async (req, res) => {
   try {
       const { sectionId, startDate, endDate } = req.query;
       
       // 1. 날짜 범위 설정
-      const start = new Date(startDate + 'T00:00:00.000Z');
-      const end = new Date(endDate + 'T23:59:59.999Z');
+      const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
+      const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
 
-      // 2. 해당 기간에 해당 버튼(sectionId)을 클릭한 로그 찾기
-      // (db는 몽고디비 연결 객체입니다)
-      const clickLogs = await db.collection('click_logs').find({
+      // 2. [수정] 올바른 컬렉션(event12ClickData)에서 클릭 로그 조회
+      const clickLogs = await db.collection('event12ClickData').find({
           sectionId: sectionId,
           createdAt: { $gte: start, $lte: end }
       }).toArray();
 
       if (clickLogs.length === 0) {
-          return res.json({ success: true, visitors: [] });
+          return res.json({ success: true, visitors: [], msg: '클릭 기록 없음' });
       }
 
-      // 3. 클릭한 사람들의 ID만 중복 없이 추출 (Set 사용)
-      const visitorIds = [...new Set(clickLogs.map(log => log.visitorId))];
+      // 3. [수정] 클릭한 로그에서 'IP' 추출 (visitorId가 없으므로 IP로 연결)
+      const targetIps = [...new Set(clickLogs.map(log => log.ip))];
 
-      // 4. 추출한 ID에 해당하는 방문자 상세 정보 조회
-      const visitors = await db.collection('visitors').find({
-          _id: { $in: visitorIds }
-      }).sort({ lastAction: -1 }).toArray(); // 최근 활동 순 정렬
+      // 4. [수정] 해당 IP를 사용했던 방문자 정보를 visit_logs에서 조회
+      // (IP 기반이므로 100% 정확하진 않지만 현재 유일한 방법)
+      const visitors = await db.collection('visit_logs').aggregate([
+          { 
+              $match: { 
+                  userIp: { $in: targetIps },
+                  createdAt: { $gte: start, $lte: end } // 같은 기간 내 방문자
+              } 
+          },
+          { $sort: { createdAt: -1 } },
+          {
+              $group: {
+                  _id: "$visitorId", // 방문자 ID 기준으로 그룹핑 (중복 제거)
+                  lastAction: { $first: "$createdAt" },
+                  isMember: { $first: "$isMember" },
+                  currentUrl: { $first: "$currentUrl" },
+                  userIp: { $first: "$userIp" }
+              }
+          },
+          { $limit: 100 } // 너무 많을 수 있으니 제한
+      ]).toArray();
 
       res.json({ success: true, visitors });
 
@@ -3287,7 +3309,6 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-
 
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
