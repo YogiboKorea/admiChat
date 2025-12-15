@@ -3253,6 +3253,46 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
   }
 });
 
+// [API] 특정 섹션/탭 클릭한 방문자 목록 조회
+app.get('/api/trace/visitors/by-click', async (req, res) => {
+  try {
+      const { sectionId, startDate, endDate } = req.query;
+      
+      // 1. 날짜 범위 설정
+      const start = new Date(startDate + 'T00:00:00.000Z');
+      const end = new Date(endDate + 'T23:59:59.999Z');
+
+      // 2. 해당 섹션을 클릭한 기록 찾기 (Click Log 컬렉션)
+      // (db 변수는 몽고디비 연결 객체라고 가정)
+      const clickLogs = await db.collection('click_logs').find({
+          sectionId: sectionId,
+          createdAt: { $gte: start, $lte: end }
+      }).toArray();
+
+      if (clickLogs.length === 0) {
+          return res.json({ success: true, visitors: [] });
+      }
+
+      // 3. 클릭한 사람들의 ID만 중복 없이 추출
+      const visitorIds = [...new Set(clickLogs.map(log => log.visitorId))];
+
+      // 4. 해당 ID를 가진 방문자들의 최신 정보 조회 (Visitor 컬렉션)
+      const visitors = await db.collection('visitors').find({
+          _id: { $in: visitorIds }
+      }).toArray();
+
+      // 5. 정렬 (최근 활동 순)
+      visitors.sort((a, b) => new Date(b.lastAction) - new Date(a.lastAction));
+
+      res.json({ success: true, visitors });
+
+  } catch (error) {
+      console.error('클릭 방문자 조회 실패:', error);
+      res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+
 
 
 // ========== [17] 서버 시작 ==========
