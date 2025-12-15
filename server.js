@@ -3252,8 +3252,7 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
-// [API] 특정 섹션/탭 클릭한 방문자 목록 조회
+// [API] 특정 버튼(섹션)을 클릭한 방문자들만 추려서 조회
 app.get('/api/trace/visitors/by-click', async (req, res) => {
   try {
       const { sectionId, startDate, endDate } = req.query;
@@ -3262,8 +3261,8 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       const start = new Date(startDate + 'T00:00:00.000Z');
       const end = new Date(endDate + 'T23:59:59.999Z');
 
-      // 2. 해당 섹션을 클릭한 기록 찾기 (Click Log 컬렉션)
-      // (db 변수는 몽고디비 연결 객체라고 가정)
+      // 2. 해당 기간에 해당 버튼(sectionId)을 클릭한 로그 찾기
+      // (db는 몽고디비 연결 객체입니다)
       const clickLogs = await db.collection('click_logs').find({
           sectionId: sectionId,
           createdAt: { $gte: start, $lte: end }
@@ -3273,16 +3272,13 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
           return res.json({ success: true, visitors: [] });
       }
 
-      // 3. 클릭한 사람들의 ID만 중복 없이 추출
+      // 3. 클릭한 사람들의 ID만 중복 없이 추출 (Set 사용)
       const visitorIds = [...new Set(clickLogs.map(log => log.visitorId))];
 
-      // 4. 해당 ID를 가진 방문자들의 최신 정보 조회 (Visitor 컬렉션)
+      // 4. 추출한 ID에 해당하는 방문자 상세 정보 조회
       const visitors = await db.collection('visitors').find({
           _id: { $in: visitorIds }
-      }).toArray();
-
-      // 5. 정렬 (최근 활동 순)
-      visitors.sort((a, b) => new Date(b.lastAction) - new Date(a.lastAction));
+      }).sort({ lastAction: -1 }).toArray(); // 최근 활동 순 정렬
 
       res.json({ success: true, visitors });
 
@@ -3291,7 +3287,6 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-
 
 
 
