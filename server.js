@@ -3162,79 +3162,6 @@ app.get('/api/trace/channels', async (req, res) => {
 });
 
 
-
-// ==========================================================
-// [API] Cafe24 카테고리 정보 조회 (동적 매핑용)
-// ==========================================================
-app.get('/api/meta/categories', async (req, res) => {
-  try {
-      const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-      
-      // 카테고리가 많을 수 있으니 limit를 넉넉하게 잡습니다.
-      const params = {
-          limit: 100, 
-          fields: 'category_no,category_name' // 필요한 정보만 가져옴
-      };
-
-      const response = await axios.get(url, {
-          headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'X-Cafe24-Api-Version': CAFE24_API_VERSION
-          },
-          params: params
-      });
-
-      const categories = response.data.categories;
-      const categoryMap = {};
-
-      // 프론트엔드에서 바로 쓸 수 있게 { "858": "소파" } 형태로 변환
-      if (categories && Array.isArray(categories)) {
-          categories.forEach(cat => {
-              categoryMap[cat.category_no] = cat.category_name;
-          });
-      }
-
-      res.json({ success: true, data: categoryMap });
-
-  } catch (error) {
-      // 토큰 만료(401) 시 갱신 후 재시도 로직
-      if (error.response && error.response.status === 401) {
-          try {
-              console.log('카테고리 조회 중 토큰 만료. 갱신 시도...');
-              await refreshAccessToken();
-              
-              // 재요청
-              const retryUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-              const retryRes = await axios.get(retryUrl, {
-                  headers: {
-                      'Authorization': `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                      'X-Cafe24-Api-Version': CAFE24_API_VERSION
-                  },
-                  params: { limit: 100, fields: 'category_no,category_name' }
-              });
-
-              const retryCats = retryRes.data.categories;
-              const retryMap = {};
-              if (retryCats) {
-                  retryCats.forEach(cat => { retryMap[cat.category_no] = cat.category_name; });
-              }
-              return res.json({ success: true, data: retryMap });
-
-          } catch (retryErr) {
-              console.error("카테고리 재조회 실패:", retryErr);
-              return res.status(500).json({ success: false, message: '카테고리 로딩 실패' });
-          }
-      }
-      
-      console.error("카테고리 조회 오류:", error);
-      res.status(500).json({ success: false, message: '서버 오류' });
-  }
-});
-
-
-
 // ==========================================================
 // [API] Cafe24 카테고리 전체 정보 조회 (무한 스크롤링 방식)
 // ==========================================================
@@ -3306,8 +3233,6 @@ app.get('/api/meta/categories', async (req, res) => {
       res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
-
 
 
 
