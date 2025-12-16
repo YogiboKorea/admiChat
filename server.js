@@ -3235,7 +3235,74 @@ app.get('/api/meta/categories', async (req, res) => {
 });
 
 
+// ==========================================================
+// [신규 API] Cafe24 전체 상품 정보 조회 (상품명 매핑용)
+// ==========================================================
+app.get('/api/meta/products', async (req, res) => {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`;
+  
+  try {
+      let allProducts = [];
+      let offset = 0;
+      let hasMore = true;
+      const LIMIT = 100; // 한 번에 가져올 최대 개수
 
+      console.log(`[Product] 상품 전체 데이터 수집 시작...`);
+
+      while (hasMore) {
+          const response = await axios.get(url, {
+              headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
+              },
+              params: { 
+                  shop_no: 1,
+                  limit: LIMIT,     
+                  offset: offset,
+                  // ★ 중요: 무거운 정보 빼고 번호랑 이름만 가져와서 속도 최적화
+                  fields: 'product_no,product_name' 
+              }
+          });
+
+          const products = response.data.products;
+          
+          if (products && products.length > 0) {
+              allProducts = allProducts.concat(products);
+              
+              if (products.length < LIMIT) {
+                  hasMore = false; 
+              } else {
+                  offset += LIMIT;
+              }
+          } else {
+              hasMore = false;
+          }
+      }
+
+      // 프론트엔드용 매핑 데이터 생성 { '1258': '요기보 맥스' }
+      const productMap = {};
+      allProducts.forEach(prod => {
+          productMap[prod.product_no] = prod.product_name;
+      });
+
+      console.log(`[Product] 총 ${allProducts.length}개의 상품 정보 로드 완료`);
+      res.json({ success: true, data: productMap });
+
+  } catch (error) {
+      // 토큰 만료 처리
+      if (error.response && error.response.status === 401) {
+          try {
+              await refreshAccessToken();
+              return res.redirect(req.originalUrl); 
+          } catch (e) {
+              return res.status(401).json({ error: "Token refresh failed" });
+          }
+      }
+      console.error("상품 전체 조회 실패:", error.message);
+      res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
 
 
 
