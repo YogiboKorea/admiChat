@@ -3231,62 +3231,83 @@ app.get('/api/meta/categories', async (req, res) => {
       console.error("카테고리 조회 오류:", error);
       res.status(500).json({ success: false, message: '서버 오류' });
   }
-});
-
-
-// ==========================================================
-// [신규 API] Cafe24 카테고리 전체 목록 조회 (매핑용)
+});// ==========================================================
+// [API] Cafe24 카테고리 정보 조회 (전체 조회 - 페이지네이션 적용)
 // ==========================================================
 app.get('/api/meta/categories', async (req, res) => {
-  try {
-      // Cafe24 Admin API: 카테고리 목록 조회
-      const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-      const params = { 
-          limit: 100, // 필요한 만큼 늘리세요 (최대 100)
-          fields: 'category_no,category_name' 
-      };
+    // API 문서에 명시된 기본 URL 구조
+    const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
+    
+    try {
+        let allCategories = [];
+        let offset = 0;
+        let hasMore = true;
+        const LIMIT = 100; // API 문서상 최대값
 
-      const response = await axios.get(url, {
-          headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'X-Cafe24-Api-Version': CAFE24_API_VERSION
-          },
-          params: params
-      });
+        console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
 
-      const categories = response.data.categories;
-      const categoryMap = {};
+        // ★ [핵심] 더 이상 가져올 데이터가 없을 때까지 반복 호출
+        while (hasMore) {
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Cafe24-Api-Version': CAFE24_API_VERSION
+                },
+                params: { 
+                    shop_no: 1,       // 기본 쇼핑몰 번호
+                    limit: LIMIT,     // 한 번에 가져올 최대 개수 (100)
+                    offset: offset,   // 조회 시작 위치 (0, 100, 200...)
+                    fields: 'category_no,category_name' // 필요한 필드만 지정
+                }
+            });
 
-      // 프론트엔드에서 바로 매핑하기 편하게 { "858": "소파" } 구조로 변환
-      if (categories && Array.isArray(categories)) {
-          categories.forEach(cat => {
-              categoryMap[cat.category_no] = cat.category_name;
-          });
-      }
+            const cats = response.data.categories;
+            
+            if (cats && cats.length > 0) {
+                allCategories = allCategories.concat(cats);
+                
+                // 가져온 데이터가 limit보다 적으면 마지막 페이지라는 뜻
+                if (cats.length < LIMIT) {
+                    hasMore = false; 
+                } else {
+                    offset += LIMIT; // 다음 페이지(100개 뒤)를 조회하기 위해 offset 증가
+                }
+            } else {
+                // 데이터가 비어있으면 종료
+                hasMore = false;
+            }
+        }
 
-      res.json({ success: true, data: categoryMap });
+        // 프론트엔드용 매핑 데이터 생성 { '1017': '상품명' }
+        const categoryMap = {};
+        allCategories.forEach(cat => {
+            categoryMap[cat.category_no] = cat.category_name;
+        });
 
-  } catch (error) {
-      // 토큰 만료 시 갱신 로직 (기존 함수 재활용)
-      if (error.response && error.response.status === 401) {
-          try {
-              await refreshAccessToken();
-              // 재귀 호출 대신 간단히 재요청 로직 구현 (또는 클라이언트가 retry 하게 해도 됨)
-              return res.status(401).json({ error: "Token expired, please retry" });
-          } catch (e) {
-              console.error("Token refresh failed:", e);
-          }
-      }
-      console.error("카테고리 조회 실패:", error.message);
-      res.status(500).json({ success: false, message: 'Server Error' });
-  }
+        console.log(`[Category] 총 ${allCategories.length}개의 카테고리 로드 완료`);
+        res.json({ success: true, data: categoryMap });
+
+    } catch (error) {
+        // 토큰 만료(401) 처리 로직
+        if (error.response && error.response.status === 401) {
+            console.log('Token expired during category fetch. Refreshing...');
+            try {
+                await refreshAccessToken();
+                // 토큰 갱신 후, 현재 요청을 다시 수행하도록 클라이언트에게 알리거나 재귀 호출
+                // 여기서는 재귀 호출 대신 에러를 보내 프론트가 다시 요청하게 하거나, 
+                // 해당 함수를 재귀적으로 한 번 더 호출하는 것이 좋으나, 
+                // 간단하게 리다이렉트 처리합니다.
+                return res.redirect(req.originalUrl); 
+            } catch (e) {
+                console.error("Token refresh failed:", e);
+                return res.status(401).json({ error: "Token refresh failed" });
+            }
+        }
+        console.error("카테고리 전체 조회 실패:", error.message);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
 });
-
-
-
-
-
 
 
 
