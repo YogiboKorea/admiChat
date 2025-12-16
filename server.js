@@ -3234,56 +3234,6 @@ app.get('/api/meta/categories', async (req, res) => {
 });
 
 
-
-// ==========================================================
-// [신규 API] Cafe24 카테고리 전체 목록 조회 (매핑용)
-// ==========================================================
-app.get('/api/meta/categories', async (req, res) => {
-    try {
-        // Cafe24 Admin API: 카테고리 목록 조회
-        const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-        const params = { 
-            limit: 100, // 필요한 만큼 늘리세요 (최대 100)
-            fields: 'category_no,category_name' 
-        };
-
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'X-Cafe24-Api-Version': CAFE24_API_VERSION
-            },
-            params: params
-        });
-
-        const categories = response.data.categories;
-        const categoryMap = {};
-
-        // 프론트엔드에서 바로 매핑하기 편하게 { "858": "소파" } 구조로 변환
-        if (categories && Array.isArray(categories)) {
-            categories.forEach(cat => {
-                categoryMap[cat.category_no] = cat.category_name;
-            });
-        }
-
-        res.json({ success: true, data: categoryMap });
-
-    } catch (error) {
-        // 토큰 만료 시 갱신 로직 (기존 함수 재활용)
-        if (error.response && error.response.status === 401) {
-            try {
-                await refreshAccessToken();
-                // 재귀 호출 대신 간단히 재요청 로직 구현 (또는 클라이언트가 retry 하게 해도 됨)
-                return res.status(401).json({ error: "Token expired, please retry" });
-            } catch (e) {
-                console.error("Token refresh failed:", e);
-            }
-        }
-        console.error("카테고리 조회 실패:", error.message);
-        res.status(500).json({ success: false, message: 'Server Error' });
-    }
-});
-
 // ==========================================================
 // [신규 API] Cafe24 카테고리 전체 목록 조회 (매핑용)
 // ==========================================================
