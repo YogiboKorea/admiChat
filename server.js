@@ -2974,7 +2974,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
 // [API 5] 퍼널 이탈률 분석 (단계별 분석 + 채널명 매핑)
 // ==========================================================
@@ -3007,7 +3006,10 @@ app.get('/api/trace/funnel', async (req, res) => {
                 { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
 
-                // 2. 메타
+                // 2. 메타 (Facebook/Instagram)
+                // ★ [신규 추가] 25일 프로모션 (secretprice)
+                { case: { $eq: ["$utmData.term", "secretprice"] },    then: "25일프로모션 UTM" }, 
+                
                 { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
                 { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
                 { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
