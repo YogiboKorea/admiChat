@@ -2784,7 +2784,7 @@ app.post('/api/trace/log', async (req, res) => {
           '61.99.75.10',   // 기존 차단 IP
       ];
 
-      const MY_SAFE_IP = '10.31.50.28'; // ★ 차단하지 않을 내 IP
+      const MY_SAFE_IP = '211.251.60.49'; // ★ 차단하지 않을 내 IP
       console.log(`[접속 시도] IP: ${userIp}, 내 IP 여부: ${userIp === MY_SAFE_IP}`);
       // [로직 수정] 내 IP가 '아니고' && 차단 목록에 '있으면' -> 차단함
       if (userIp !== MY_SAFE_IP && BLOCKED_IPS.includes(userIp)) {
