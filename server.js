@@ -3504,6 +3504,55 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
 });
 
 
+// ==========================================================
+// [API 9] 인기 페이지 및 방문자 그룹핑 조회 (핵심 기능)
+// ==========================================================
+app.get('/api/trace/stats/pages', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let matchStage = {};
+
+    // 날짜 필터링
+    if (startDate || endDate) {
+        matchStage.createdAt = {};
+        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+    }
+
+    // URL별 그룹핑 -> 방문자 ID 수집 (중복 제거)
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$currentUrl", // URL 기준으로 묶음
+          count: { $sum: 1 }, // 단순 조회수
+          visitors: { $addToSet: "$visitorId" } // 방문자 ID 리스트 (중복제거됨)
+        }
+      },
+      { 
+        $project: {
+            url: "$_id",
+            count: 1,
+            visitors: 1,
+            visitorCount: { $size: "$visitors" } // 고유 방문자 수
+        }
+      },
+      { $sort: { count: -1 } }, // 조회수 높은 순 정렬
+      { $limit: 100 } // 상위 100개만 (성능 위해)
+    ];
+
+    // 메모리 부족 방지 옵션 포함
+    const data = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
+    res.json({ success: true, data });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
+
+
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
   const { sectionId, startDate, endDate } = req.query;
