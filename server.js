@@ -2993,7 +2993,6 @@ app.get('/api/trace/funnel', async (req, res) => {
         $project: {
           visitorId: 1,
           currentUrl: 1,
-          // ★ [매핑 로직] UTM -> 한글 이름 변환
           channelName: {
             $switch: {
               branches: [
@@ -3005,10 +3004,8 @@ app.get('/api/trace/funnel', async (req, res) => {
                 { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
 
-                // 2. 메타 (Facebook/Instagram)
-                // ★ [신규 추가] 25일 프로모션 (secretprice)
+                // 2. 메타
                 { case: { $eq: ["$utmData.term", "secretprice"] },    then: "25일프로모션 UTM" }, 
-                
                 { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
                 { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
                 { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
@@ -3031,7 +3028,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       {
         $group: {
           _id: "$channelName", 
-          step1_visitors: { $addToSet: "$visitorId" }, // 전체 방문
+          step1_visitors: { $addToSet: "$visitorId" },
           step2_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$visitorId", "$$REMOVE"] 
@@ -3068,7 +3065,9 @@ app.get('/api/trace/funnel', async (req, res) => {
       { $sort: { count_total: -1 } }
     ];
 
-    const funnelData = await db.collection('visit_logs').aggregate(pipeline).toArray();
+    // ★★★ [수정됨] 여기에도 { allowDiskUse: true } 옵션 추가! ★★★
+    const funnelData = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
+    
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
@@ -3076,7 +3075,6 @@ app.get('/api/trace/funnel', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
 // [API 6] 채널별 통합 분석 (방문자수, 구매전환 중심)
 // ==========================================================
