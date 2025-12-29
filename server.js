@@ -2902,11 +2902,23 @@ app.get('/api/trace/summary', async (req, res) => {
 });
 
 // ==========================================================
-// [API 3] 방문자 목록 조회 (이벤트 페이지 방문자 필터링)
+// [API 3] 방문자 목록 조회 (날짜 필터링 추가 + 메모리 옵션)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
+      const { date } = req.query; // ★ 날짜 파라미터 받기 (YYYY-MM-DD)
+      let matchStage = {};
+
+      // 날짜가 있으면 해당 날짜 00시~23시 데이터만 필터링
+      if (date) {
+          matchStage.createdAt = {
+              $gte: new Date(date + "T00:00:00.000Z"),
+              $lte: new Date(date + "T23:59:59.999Z")
+          };
+      }
+
       const visitors = await db.collection('visit_logs').aggregate([
+          { $match: matchStage }, // ★ 필터링 단계 추가
           { $sort: { createdAt: -1 } }, 
           {
               $group: {
@@ -2915,30 +2927,25 @@ app.get('/api/trace/visitors', async (req, res) => {
                   eventTag: { $first: "$eventTag" },
                   lastAction: { $first: "$createdAt" },
                   count: { $sum: 1 },
+                  userIp: { $first: "$userIp" }, 
                   
-                  // 이벤트 페이지(12_event.html) 방문 여부 체크
                   hasVisitedEvent: { 
                       $max: { 
                           $cond: [
-                              { $regexMatch: { input: "$currentUrl", regex: "12_event.html" } }, 
-                              1, 
-                              0
+                              { $regexMatch: { input: "$currentUrl", regex: "12_event.html" } }, 1, 0
                           ] 
                       } 
                   }
               }
           },
-          // 이벤트 페이지 방문자만 노출
-          { $match: { hasVisitedEvent: 1 } },
-          
           { $sort: { lastAction: -1 } },
-          { $limit: 150 } // 최대 150명까지 표시
-      ]).toArray();
+          { $limit: 150 } 
+      ], { allowDiskUse: true }).toArray();
 
       res.json({ success: true, visitors });
-  } catch (err) {
+  } catch (err) { 
       console.error(err);
-      res.status(500).json({ msg: 'Server Error' });
+      res.status(500).json({ msg: 'Server Error' }); 
   }
 });
 
