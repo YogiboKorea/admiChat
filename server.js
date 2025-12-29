@@ -3569,7 +3569,6 @@ app.get('/api/trace/stats/pages', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
 // [API 10] 카테고리 -> 상품 이동 흐름 분석 (Flow Analysis)
 // ==========================================================
@@ -3577,13 +3576,12 @@ app.get('/api/trace/stats/flow', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    // 1. 조건: 현재 페이지는 '상품상세', 직전 페이지는 '목록(카테고리)'인 로그만 찾기
+    // 1. 조건: 현재는 '상품상세', 직전은 '목록(카테고리)'인 로그만 찾기
     let matchStage = {
         currentUrl: { $regex: 'product' }, // 현재: 상품
         prevUrl: { $regex: 'category' }    // 이전: 카테고리
     };
 
-    // 날짜 필터링
     if (startDate || endDate) {
         matchStage.createdAt = {};
         if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
@@ -3592,7 +3590,7 @@ app.get('/api/trace/stats/flow', async (req, res) => {
 
     const pipeline = [
       { $match: matchStage },
-      // 2. [카테고리 URL] + [상품 URL] 조합으로 그룹핑 (어떤 카테고리에서 어떤 상품으로 갔나?)
+      // 2. [카테고리 URL] + [상품 URL] 조합으로 1차 그룹핑
       {
         $group: {
           _id: { category: "$prevUrl", product: "$currentUrl" },
@@ -3602,11 +3600,11 @@ app.get('/api/trace/stats/flow', async (req, res) => {
       },
       // 3. 상품 조회수 높은 순 정렬
       { $sort: { count: -1 } },
-      // 4. 다시 [카테고리] 기준으로 묶어서, 그 안의 상위 상품 리스트(TOP Products) 만들기
+      // 4. 다시 [카테고리] 기준으로 묶어서, 상위 상품 리스트 만들기
       {
         $group: {
           _id: "$_id.category",
-          totalCount: { $sum: "$count" }, // 해당 카테고리를 통한 전체 상품 클릭 수
+          totalCount: { $sum: "$count" }, // 해당 카테고리 전체 클릭 수
           topProducts: { 
             $push: { 
                 productUrl: "$_id.product", 
@@ -3616,7 +3614,7 @@ app.get('/api/trace/stats/flow', async (req, res) => {
           }
         }
       },
-      { $sort: { totalCount: -1 } }, // 인기 카테고리(유입이 많은) 순 정렬
+      { $sort: { totalCount: -1 } }, // 인기 카테고리 순 정렬
       { $limit: 20 } 
     ];
 
@@ -3628,7 +3626,6 @@ app.get('/api/trace/stats/flow', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
   const { sectionId, startDate, endDate } = req.query;
