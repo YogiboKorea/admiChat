@@ -2901,12 +2901,12 @@ app.get('/api/trace/summary', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 3] 방문자 목록 조회 (모든 방문자 표시 - 필터링 해제)
+// [API 3] 방문자 목록 조회 (메모리 초과 방지 옵션 추가)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
+      // ★ aggregate([ 파이프라인 ], { 옵션 }) 형태입니다.
       const visitors = await db.collection('visit_logs').aggregate([
           { $sort: { createdAt: -1 } }, 
           {
@@ -2916,9 +2916,9 @@ app.get('/api/trace/visitors', async (req, res) => {
                   eventTag: { $first: "$eventTag" },
                   lastAction: { $first: "$createdAt" },
                   count: { $sum: 1 },
-                  userIp: { $first: "$userIp" }, // ★ IP 확인용 추가
+                  userIp: { $first: "$userIp" }, 
                   
-                  // 이벤트 페이지 방문 여부는 표시용으로만 남김
+                  // 이벤트 페이지 방문 여부
                   hasVisitedEvent: { 
                       $max: { 
                           $cond: [
@@ -2930,15 +2930,15 @@ app.get('/api/trace/visitors', async (req, res) => {
                   }
               }
           },
-          // ★ [삭제] { $match: { hasVisitedEvent: 1 } },  <-- 이 줄을 지우거나 주석 처리하세요!
+          // { $match: { hasVisitedEvent: 1 } }, // (필요 시 주석 해제)
           
           { $sort: { lastAction: -1 } },
           { $limit: 150 } 
-      ]).toArray();
+      ], { allowDiskUse: true }).toArray(); // ★★★ 여기에 옵션 추가!! ★★★
 
       res.json({ success: true, visitors });
   } catch (err) {
-      console.error(err);
+      console.error(err); // 이제 에러 로그가 자세히 찍힐 겁니다.
       res.status(500).json({ msg: 'Server Error' });
   }
 });
