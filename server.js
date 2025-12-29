@@ -2903,7 +2903,7 @@ app.get('/api/trace/summary', async (req, res) => {
 });
 
 // ==========================================================
-// [API 3] 방문자 목록 조회 (이벤트 페이지 방문자 필터링)
+// [API 3] 방문자 목록 조회 (모든 방문자 표시 - 필터링 해제)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
@@ -2916,8 +2916,9 @@ app.get('/api/trace/visitors', async (req, res) => {
                   eventTag: { $first: "$eventTag" },
                   lastAction: { $first: "$createdAt" },
                   count: { $sum: 1 },
+                  userIp: { $first: "$userIp" }, // ★ IP 확인용 추가
                   
-                  // 이벤트 페이지(12_event.html) 방문 여부 체크
+                  // 이벤트 페이지 방문 여부는 표시용으로만 남김
                   hasVisitedEvent: { 
                       $max: { 
                           $cond: [
@@ -2929,11 +2930,10 @@ app.get('/api/trace/visitors', async (req, res) => {
                   }
               }
           },
-          // 이벤트 페이지 방문자만 노출
-          { $match: { hasVisitedEvent: 1 } },
+          // ★ [삭제] { $match: { hasVisitedEvent: 1 } },  <-- 이 줄을 지우거나 주석 처리하세요!
           
           { $sort: { lastAction: -1 } },
-          { $limit: 150 } // 최대 150명까지 표시
+          { $limit: 150 } 
       ]).toArray();
 
       res.json({ success: true, visitors });
