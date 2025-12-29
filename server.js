@@ -3571,17 +3571,17 @@ app.get('/api/trace/stats/pages', async (req, res) => {
 });
 
 
-
 // ==========================================================
 // [API 10] 카테고리 -> 상품 이동 흐름 분석 (Flow Analysis)
 // ==========================================================
 app.get('/api/trace/stats/flow', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
+    
+    // 1. 조건: 현재는 '상품상세', 직전은 '목록(category)'인 로그만 찾기
     let matchStage = {
-        // 1. 현재 페이지는 '상품상세', 이전 페이지는 '목록(카테고리)'인 것만 필터링
-        currentUrl: { $regex: 'product' },
-        prevUrl: { $regex: 'category' }
+        currentUrl: { $regex: 'product' }, // 현재: 상품
+        prevUrl: { $regex: 'category' }    // 이전: 카테고리
     };
 
     if (startDate || endDate) {
@@ -3592,41 +3592,35 @@ app.get('/api/trace/stats/flow', async (req, res) => {
 
     const pipeline = [
       { $match: matchStage },
-      // 1. [카테고리 URL] + [상품 URL] 조합으로 그룹핑해서 카운트 세기
+      // 2. [카테고리 URL] + [상품 URL] 조합으로 1차 그룹핑
       {
         $group: {
           _id: { category: "$prevUrl", product: "$currentUrl" },
           count: { $sum: 1 },
-          visitors: { $addToSet: "$visitorId" }
+          visitors: { $addToSet: "$visitorId" } // 방문자 ID 수집
         }
       },
-      // 2. 카운트 높은 순 정렬
+      // 3. 상품 조회수 높은 순 정렬
       { $sort: { count: -1 } },
-      // 3. 다시 [카테고리 URL] 기준으로 묶으면서, 상위 상품들을 배열에 넣기
+      // 4. 다시 [카테고리] 기준으로 묶어서, 상위 상품 리스트 만들기
       {
         $group: {
           _id: "$_id.category",
-          totalCount: { $sum: "$count" }, // 해당 카테고리 총 클릭수
+          totalCount: { $sum: "$count" }, // 해당 카테고리 전체 클릭 수
           topProducts: { 
             $push: { 
                 productUrl: "$_id.product", 
-                count: "$count" 
+                count: "$count",
+                visitors: "$visitors" 
             } 
-          },
-          allVisitors: { $mergeObjects: { ids: "$visitors" } } // 방문자 합치기 (단순화)
+          }
         }
       },
       { $sort: { totalCount: -1 } }, // 인기 카테고리 순 정렬
-      { $limit: 20 } // 상위 20개 카테고리만
+      { $limit: 20 } 
     ];
 
     const data = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
-    
-    // 방문자 ID 배열 평탄화 작업 (MongoDB $mergeObjects 한계 보완)
-    // 실제로는 위 aggregate에서 visitors를 $push로 모은 뒤 서버에서 합치는게 빠름
-    // 여기서는 간단하게 위 로직 유지하되, 클라이언트가 방문자 목록은 따로 요청하거나
-    // 인기상품 정보만 주는것으로 최적화합니다.
-    
     res.json({ success: true, data });
 
   } catch (err) {
@@ -3634,6 +3628,8 @@ app.get('/api/trace/stats/flow', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
+
+
 
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
