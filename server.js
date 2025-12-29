@@ -2949,31 +2949,40 @@ app.get('/api/trace/visitors', async (req, res) => {
   }
 });
 // ==========================================================
-// [API 4] 상세 이동 경로 (날짜 필터링 적용 완료)
+// [API 4] 특정 유저 이동 경로 (날짜 필터링 로직 강화)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
-  const { startDate, endDate } = req.query; // ★ 날짜 받기
+  const { startDate, endDate } = req.query; // 프론트에서 보낸 날짜 받기
 
   try {
     let query = { visitorId };
 
-    // ★ 날짜 조건이 있으면 쿼리에 추가 (이게 있어야 섞이지 않음)
+    // ★ 날짜 조건이 "있을 때만" 필터링 (없으면 전체 조회됨)
     if (startDate) {
-        let start = new Date(startDate + "T00:00:00.000Z");
-        let end = endDate ? new Date(endDate + "T23:59:59.999Z") : new Date(startDate + "T23:59:59.999Z");
-        query.createdAt = { $gte: start, $lte: end };
+        // 날짜 포맷 안전 처리 (시간 부분 00:00:00 ~ 23:59:59 설정)
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        
+        const end = endDate ? new Date(endDate) : new Date(startDate);
+        end.setHours(23, 59, 59, 999);
+
+        query.createdAt = { 
+            $gte: start, 
+            $lte: end 
+        };
     }
 
+    // DB 조회
     const rawJourney = await db.collection('visit_logs')
       .find(query)
-      .sort({ createdAt: 1 }) 
+      .sort({ createdAt: 1 }) // 과거 -> 현재 순
       .toArray();
 
+    // 연속된 중복 페이지 제거 (새로고침 등)
     const refinedJourney = [];
     let lastUrl = null;
     
-    // 연속 중복 제거
     for (const log of rawJourney) {
         if (log.currentUrl !== lastUrl) {
             refinedJourney.push(log);
@@ -2988,6 +2997,7 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
+
 // ==========================================================
 // [API 5] 퍼널 이탈률 분석 (단계별 분석 + 채널명 매핑)
 // ==========================================================
