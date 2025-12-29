@@ -2949,29 +2949,22 @@ app.get('/api/trace/visitors', async (req, res) => {
   }
 });
 // ==========================================================
-// [API 4] 상세 이동 경로 (날짜 필터링 추가됨)
+// [API 4] 상세 이동 경로 (날짜 필터링 적용 완료)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
-  const { startDate, endDate } = req.query; // ★ 날짜 파라미터 받기
+  const { startDate, endDate } = req.query; // ★ 날짜 받기
 
   try {
     let query = { visitorId };
 
-    // 날짜 조건이 있으면 쿼리에 추가
-    if (startDate && endDate) {
-        query.createdAt = {
-            $gte: new Date(startDate + "T00:00:00.000Z"),
-            $lte: new Date(endDate + "T23:59:59.999Z")
-        };
-    } else if (startDate) { // 오늘 하루만 조회하는 경우 등
-        query.createdAt = {
-            $gte: new Date(startDate + "T00:00:00.000Z"),
-            $lte: new Date(startDate + "T23:59:59.999Z")
-        };
+    // ★ 날짜 조건이 있으면 쿼리에 추가 (이게 있어야 섞이지 않음)
+    if (startDate) {
+        let start = new Date(startDate + "T00:00:00.000Z");
+        let end = endDate ? new Date(endDate + "T23:59:59.999Z") : new Date(startDate + "T23:59:59.999Z");
+        query.createdAt = { $gte: start, $lte: end };
     }
 
-    // DB 조회 (옵션 추가)
     const rawJourney = await db.collection('visit_logs')
       .find(query)
       .sort({ createdAt: 1 }) 
@@ -2980,7 +2973,7 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     const refinedJourney = [];
     let lastUrl = null;
     
-    // 연속 중복 URL 제거 로직
+    // 연속 중복 제거
     for (const log of rawJourney) {
         if (log.currentUrl !== lastUrl) {
             refinedJourney.push(log);
