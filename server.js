@@ -2948,35 +2948,51 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
-
 // ==========================================================
-// [API 4] 특정 유저의 상세 이동 경로 (Journey) - 중복 제거
+// [API 4] 상세 이동 경로 (날짜 필터링 추가됨)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
+  const { startDate, endDate } = req.query; // ★ 날짜 파라미터 받기
 
   try {
+    let query = { visitorId };
+
+    // 날짜 조건이 있으면 쿼리에 추가
+    if (startDate && endDate) {
+        query.createdAt = {
+            $gte: new Date(startDate + "T00:00:00.000Z"),
+            $lte: new Date(endDate + "T23:59:59.999Z")
+        };
+    } else if (startDate) { // 오늘 하루만 조회하는 경우 등
+        query.createdAt = {
+            $gte: new Date(startDate + "T00:00:00.000Z"),
+            $lte: new Date(startDate + "T23:59:59.999Z")
+        };
+    }
+
+    // DB 조회 (옵션 추가)
     const rawJourney = await db.collection('visit_logs')
-      .find({ visitorId })
+      .find(query)
       .sort({ createdAt: 1 }) 
       .toArray();
 
     const refinedJourney = [];
     let lastUrl = null;
-
+    
+    // 연속 중복 URL 제거 로직
     for (const log of rawJourney) {
-        // 연속된 동일 URL은 제외하고 저장
         if (log.currentUrl !== lastUrl) {
             refinedJourney.push(log);
             lastUrl = log.currentUrl;
         }
     }
-
+    
     res.json({ success: true, journey: refinedJourney });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ msg: 'Server Error' });
+  } catch (error) { 
+      console.error(error);
+      res.status(500).json({ msg: 'Server Error' }); 
   }
 });
 // ==========================================================
