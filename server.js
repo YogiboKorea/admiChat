@@ -3570,16 +3570,24 @@ app.get('/api/trace/stats/pages', async (req, res) => {
   }
 });
 // ==========================================================
-// [API 10] 카테고리 -> 상품 이동 흐름 분석 (Flow Analysis)
+// [API 10] 카테고리 -> 상품 이동 흐름 분석 (목록간 이동 제외, 순수 상품만)
 // ==========================================================
 app.get('/api/trace/stats/flow', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    // 1. 조건: 현재는 '상품상세', 직전은 '목록(카테고리)'인 로그만 찾기
+    // ★ 핵심 수정: 현재 페이지(currentUrl)는 상품이어야 함
+    // Cafe24에서 list.html은 목록이므로, product가 들어있더라도 list.html은 제외해야 함!
     let matchStage = {
-        currentUrl: { $regex: 'product' }, // 현재: 상품
-        prevUrl: { $regex: 'category' }    // 이전: 카테고리
+        // 1. 이전 페이지: 'category' 또는 'list.html' 포함 (목록)
+        prevUrl: { $regex: 'category|list.html' },
+        
+        // 2. 현재 페이지: 'product' 또는 'detail.html' 포함 (상품)
+        // AND 조건: 'list.html'은 포함하면 안 됨 (이게 있으면 목록페이지임)
+        $and: [
+            { currentUrl: { $regex: 'product|detail.html' } },
+            { currentUrl: { $not: { $regex: 'list.html' } } } 
+        ]
     };
 
     if (startDate || endDate) {
@@ -3590,21 +3598,20 @@ app.get('/api/trace/stats/flow', async (req, res) => {
 
     const pipeline = [
       { $match: matchStage },
-      // 2. [카테고리 URL] + [상품 URL] 조합으로 1차 그룹핑
+      // 3. [카테고리 URL] + [상품 URL] 조합으로 그룹핑
       {
         $group: {
           _id: { category: "$prevUrl", product: "$currentUrl" },
           count: { $sum: 1 },
-          visitors: { $addToSet: "$visitorId" } // 방문자 ID 수집
+          visitors: { $addToSet: "$visitorId" }
         }
       },
-      // 3. 상품 조회수 높은 순 정렬
       { $sort: { count: -1 } },
-      // 4. 다시 [카테고리] 기준으로 묶어서, 상위 상품 리스트 만들기
+      // 4. 다시 [카테고리] 기준으로 묶기
       {
         $group: {
           _id: "$_id.category",
-          totalCount: { $sum: "$count" }, // 해당 카테고리 전체 클릭 수
+          totalCount: { $sum: "$count" },
           topProducts: { 
             $push: { 
                 productUrl: "$_id.product", 
@@ -3614,8 +3621,8 @@ app.get('/api/trace/stats/flow', async (req, res) => {
           }
         }
       },
-      { $sort: { totalCount: -1 } }, // 인기 카테고리 순 정렬
-      { $limit: 20 } 
+      { $sort: { totalCount: -1 } },
+      { $limit: 30 } 
     ];
 
     const data = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
@@ -3626,6 +3633,8 @@ app.get('/api/trace/stats/flow', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
+
+
 // by-click 라우트 내부
 app.get('/by-click', async (req, res) => {
   const { sectionId, startDate, endDate } = req.query;
