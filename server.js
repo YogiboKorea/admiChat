@@ -3013,28 +3013,48 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
-
 // ==========================================================
-// [API 5] 퍼널 이탈률 분석 (단계별 분석 + 채널명 매핑)
+// [API 5] 퍼널 분석 (1_promotion.html 방문자만 필터링)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let matchStage = {};
-
+    
+    // 1. 날짜 조건 설정
+    let dateFilter = {};
     if (startDate || endDate) {
-        matchStage.createdAt = {};
-        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+        dateFilter = {};
+        if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
+        if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
+    // ==========================================================
+    // ★ [핵심 추가] '1_promotion.html'을 방문한 적 있는 유저 ID 추출
+    // 이 과정이 없으면 메인페이지로 들어온 사람도 통계에 포함됩니다.
+    // ==========================================================
+    const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
+        createdAt: dateFilter, // 선택된 날짜 범위 내에서
+        currentUrl: { $regex: '1_promotion.html' } // 이벤트 페이지 방문 기록이 있는 사람
+    });
+
+    // 해당 기간에 이벤트 페이지 방문자가 없으면 빈 결과 반환
+    if (validVisitors.length === 0) {
+        return res.json({ success: true, data: [] });
+    }
+
+    // 2. 위에서 찾은 유저들(validVisitors)의 데이터만 가지고 퍼널 분석 수행
     const pipeline = [
-      { $match: matchStage },
+      { 
+        $match: {
+            createdAt: dateFilter,
+            visitorId: { $in: validVisitors } // ★ 필터링된 유저만 포함
+        }
+      },
       {
         $project: {
           visitorId: 1,
           currentUrl: 1,
-          // ★ [매핑 로직] UTM -> 한글 이름 변환
+          // UTM -> 한글 이름 변환 (기존 로직 유지)
           channelName: {
             $switch: {
               branches: [
@@ -3046,10 +3066,8 @@ app.get('/api/trace/funnel', async (req, res) => {
                 { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
                 { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
 
-                // 2. 메타 (Facebook/Instagram)
-                // ★ [신규 추가] 25일 프로모션 (secretprice)
+                // 2. 메타
                 { case: { $eq: ["$utmData.term", "secretprice"] },    then: "25일프로모션 UTM" }, 
-                
                 { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
                 { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
                 { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
@@ -3072,7 +3090,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       {
         $group: {
           _id: "$channelName", 
-          step1_visitors: { $addToSet: "$visitorId" }, // 전체 방문
+          step1_visitors: { $addToSet: "$visitorId" }, // 방문 수
           step2_visitors: { 
             $addToSet: { 
               $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$visitorId", "$$REMOVE"] 
