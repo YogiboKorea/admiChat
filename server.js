@@ -2757,9 +2757,8 @@ app.get("/api/total-sales", async (req, res) => {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
-
 // ==========================================================
-// [API 1] 로그 수집 (중복 병합 강화 + 세션/태그 관리)
+// [API 1] 로그 수집 (진입점 강제 차단 + 강력한 중복 병합)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2771,31 +2770,31 @@ app.post('/api/trace/log', async (req, res) => {
 
       let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // 회원 여부 (guest_ 로 시작하지 않고 null이 아니면 회원)
-      // ★ [수정] 대소문자 구분 없이 guest 체크 (Guest, GUEST 모두 비회원 처리)
+      // 회원 여부 (대소문자 무시하고 guest_ 체크)
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // [1] 비회원 -> 회원 전환 시 로그 병합 (중복 제거 핵심)
+      // [1] 비회원 -> 회원 전환 시 로그 병합 (조건 완화: URL 체크 제외)
       // ==========================================================
       if (isRealMember) {
-          // 5초 이내에, 같은 IP & 같은 URL로 생성된 'guest' 로그가 있는지 찾음
+          // "방금(10초 내) 우리 집에 온 손님(guest) 중 IP가 같은 사람 있어?"
           const recentGuestLog = await db.collection('visit_logs1Event').findOne({
               userIp: userIp,
-              currentUrl: currentUrl,
-              visitorId: { $regex: /^guest_/i }, // ★ [핵심] 대소문자 무시 (i)
-              createdAt: { $gte: new Date(Date.now() - 5000) } 
+              visitorId: { $regex: /^guest_/i }, // 대소문자 무시
+              createdAt: { $gte: new Date(Date.now() - 10000) } // 10초 이내 (넉넉하게)
           });
 
           if (recentGuestLog) {
-              // 찾았으면 기존 로그를 '회원' 정보로 덮어쓰기 (새로 생성 X)
+              // 찾았으면 그 로그 주인을 '회원'으로 바꿔치기
               await db.collection('visit_logs1Event').updateOne(
                   { _id: recentGuestLog._id },
                   { 
                       $set: { 
-                          visitorId: visitorId,   // 회원ID로 교체
+                          visitorId: visitorId,   
                           isMember: true,         
-                          eventTag: eventTag      
+                          eventTag: eventTag,
+                          // 만약 URL이 달라졌다면(리다이렉트 등) 최신 URL로 업데이트
+                          currentUrl: currentUrl 
                       } 
                   }
               );
@@ -2804,9 +2803,11 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [2] 1_promotion.html 시작점 체크 및 세션 관리
+      // [2] ★ 진입점(Entry Point) 및 세션 체크 (가장 중요한 수정)
       // ==========================================================
-      // 만약 visitorId가 있다면 재방문 여부 확인
+      let isNewSession = true; // 일단 새로운 방문이라고 가정
+
+      // 1. 과거 기록이 있는지 확인
       if (visitorId) {
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
@@ -2816,30 +2817,30 @@ app.post('/api/trace/log', async (req, res) => {
           if (lastLog) {
               const now = new Date();
               const timeDiff = now - new Date(lastLog.createdAt);
-              const DUPLICATE_LIMIT = 10 * 60 * 1000; // 10분
+              const DUPLICATE_LIMIT = 5 * 60 * 1000; // 5분
               const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // 10분 내 동일 페이지 재접속 무시
+              // 5분 내 동일 페이지 재접속 -> 중복으로 보고 무시
               if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
                   return res.json({ success: true, msg: 'Duplicate ignored' });
               }
               
-              // 30분 지나서 왔는데 (새 세션), 1_promotion 페이지가 아니다?
-              // -> 이 사람은 이벤트 참여자가 아니라 그냥 들어온 것이므로 태그 제거 or 저장 안 함
-              if (timeDiff > SESSION_TIMEOUT) {
-                  // URL에 1_promotion이 없으면
-                  if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-                      // 방법 A: 아예 저장하지 않기 (추천: 데이터 깨끗해짐)
-                      return res.json({ success: true, msg: 'Not entry point' });
-                      
-                      // 방법 B: '일반방문'으로 태그 바꿔서 저장하기
-                      // eventTag = '일반방문'; 
-                  }
+              // 30분이 안 지났으면 -> '이어지는 방문'임 (새 세션 아님)
+              if (timeDiff < SESSION_TIMEOUT) {
+                  isNewSession = false; 
               }
           }
       }
 
-      // 그 외 예외 필터링
+      // ★ [핵심] 새로운 세션(첫 방문 or 30분 후 재방문)인데, 
+      // 현재 주소에 '1_promotion.html'이 없다? -> 저장 안 하고 버림!
+      if (isNewSession) {
+          if (currentUrl && !currentUrl.includes('1_promotion.html')) {
+               return res.json({ success: true, msg: 'Not entry point (Blocked)' });
+          }
+      }
+
+      // 예외 필터링
       if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
       if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
 
