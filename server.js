@@ -3376,52 +3376,42 @@ app.get('/api/meta/products', async (req, res) => {
 
 
 
-
 // ==========================================================
-// [API 7] 섹션 클릭 로그 저장 (컬렉션: event12ClickData)
-// ★ IP 필터링 추가됨
+// [API 7] 섹션 클릭 로그 저장 (수정됨: visitorId 저장 추가)
 // ==========================================================
 app.post('/api/trace/click', async (req, res) => {
   try {
-      // 1. 사용자 IP 가져오기 (API 1과 동일 로직)
+      // 1. IP 가져오기
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) {
           userIp = userIp.split(',')[0].trim();
       }
 
-      // ==========================================================
-      // [IP 차단] 통계에서 제외할 IP 목록
-      // ==========================================================
-      const BLOCKED_IPS = [
-          '127.0.0.1',       
-          '::1',
-          //'61.99.75.10',   // ★ 본인/회사 IP 입력
-      ];
-
-      // 차단된 IP면 DB 저장 건너뛰기
+      // IP 차단 로직
+      const BLOCKED_IPS = ['127.0.0.1', '::1'];
       if (BLOCKED_IPS.includes(userIp)) {
-          // console.log(`[Click Log] Blocked IP ignored: ${userIp}`); 
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
-      const { sectionId, sectionName } = req.body;
+      // ★ [수정 1] req.body에서 visitorId를 받아와야 함!
+      const { sectionId, sectionName, visitorId } = req.body;
 
-      // 필수 데이터 없으면 에러
       if (!sectionId || !sectionName) {
           return res.status(400).json({ success: false, msg: 'Missing Data' });
       }
 
-      // 2. DB 저장 (event12ClickData 컬렉션)
+      // 2. DB 저장 객체 생성
       const clickLog = {
           sectionId,
           sectionName,
+          // ★ [수정 2] visitorId가 있으면 저장 (없으면 guest)
+          visitorId: visitorId || 'guest', 
           ip: userIp,
           createdAt: new Date()
       };
 
+      // ★ [수정 3] Collection 이름을 'event01ClickData'로 통일 (읽는 쪽과 맞춰야 함)
       await db.collection('event01ClickData').insertOne(clickLog);
-      //await db.collection('event12ClickData').insertOne(clickLog); 12월이벤트 DB 주소 
-
       
       res.json({ success: true });
 
@@ -3430,6 +3420,7 @@ app.post('/api/trace/click', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
+
 
 
 // ==========================================================
@@ -3475,6 +3466,8 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
+
+
 // [API] 특정 버튼 클릭 사용자 조회 (정확도 개선판)
 app.get('/api/trace/visitors/by-click', async (req, res) => {
   try {
@@ -3485,7 +3478,7 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
 
       // 1. 클릭 로그 조회 (event12ClickData)
-      const clickLogs = await db.collection('event12ClickData').find({
+      const clickLogs = await db.collection('event01ClickData').find({
           sectionId: sectionId,
           createdAt: { $gte: start, $lte: end }
       }).toArray();
