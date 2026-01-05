@@ -2771,38 +2771,34 @@ app.post('/api/trace/log', async (req, res) => {
 
       let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // 회원 여부 확인
+      // 회원 여부 판단 (guest_가 아니면 회원)
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
       // [1] ★ 강력 병합 (Merge) 로직 수정
-      // 회원이 로그를 남길 때, "같은 IP"로 남겨진 "최근 30분 내"의 "게스트 기록"을
-      // 전부 찾아서 이 회원 ID로 바꿔버립니다. (소급 적용)
+      // 로그인한 회원이면, "같은 IP"로 남겨진 "최근 30분 내"의 "게스트 기록"을
+      // 전부 찾아서 이 회원 ID로 바꿔버립니다. (과거 청산)
       // ==========================================================
       if (isRealMember) {
-          // 1. 내 IP로 기록된 최근 30분 내의 'guest_' 로그가 있는지 확인
-          const updateResult = await db.collection('visit_logs1Event').updateMany(
+          // updateMany를 사용하여 하나가 아니라 '모든' 최근 게스트 기록을 업데이트함
+          await db.collection('visit_logs1Event').updateMany(
               {
                   userIp: userIp,
-                  visitorId: { $regex: /^guest_/i }, // 게스트 아이디인 것들
-                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // ★ 30분 이내 (시간 넉넉하게)
+                  visitorId: { $regex: /^guest_/i }, // 게스트 아이디인 것들 찾기
+                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // ★ 30분 이내 기록만
               },
               { 
                   $set: { 
                       visitorId: visitorId,   // 게스트 ID -> 현재 회원 ID로 덮어쓰기
-                      isMember: true          // 회원 상태로 변경
+                      isMember: true          // 비회원 -> 회원 상태로 변경
                   } 
               }
           );
-
-          // 만약 병합된 기록이 있다면 로그에 남김 (디버깅용)
-          if (updateResult.modifiedCount > 0) {
-              console.log(`[Merge] 게스트 로그 ${updateResult.modifiedCount}개를 회원(${visitorId})으로 통합함.`);
-          }
+          // 주의: 여기서 return하지 않고 아래로 내려가서 '현재 페이지 로그'도 저장해야 합니다.
       }
 
       // ==========================================================
-      // [2] 진입점 및 중복 체크 (기존 유지하되, URL 체크 추가된 버전)
+      // [2] 진입점 및 중복 체크 (기존 유지 + URL 체크 추가)
       // ==========================================================
       let isNewSession = true; 
 
@@ -2818,7 +2814,8 @@ app.post('/api/trace/log', async (req, res) => {
               const DUPLICATE_LIMIT = 5 * 60 * 1000; // 5분
               const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // [중요] 5분 이내이면서 + "같은 페이지"일 때만 무시 (이동은 기록함)
+              // [중요] 5분 이내라도 "페이지가 다르면" 저장해야 이동경로가 나옴
+              // 즉, "시간도 짧고" AND "URL도 같을 때"만 무시
               if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
                   return res.json({ success: true, msg: 'Duplicate ignored' });
               }
@@ -2829,7 +2826,7 @@ app.post('/api/trace/log', async (req, res) => {
           }
       }
 
-      // 새 세션인데 프로모션 페이지가 아니면 저장 안 함 (진입점 제어)
+      // 새 세션(30분 후 재방문 등)인데 이벤트 페이지가 아니면 저장 안 함 (진입점 제어)
       if (isNewSession) {
           if (currentUrl && !currentUrl.includes('1_promotion.html')) {
                return res.json({ success: true, msg: 'Not entry point (Blocked)' });
@@ -2961,7 +2958,6 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
-
 // ==========================================================
 // [API 4] 특정 유저 이동 경로 (방문 + 클릭 통합)
 // ==========================================================
@@ -2972,7 +2968,7 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   try {
     let dateFilter = {};
 
-    // 날짜 필터링
+    // 날짜 필터링 조건 설정
     if (startDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
@@ -2989,15 +2985,16 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     const viewQuery = { visitorId };
     if (startDate) viewQuery.createdAt = dateFilter;
 
+    // 방문 기록 조회
     const views = await db.collection('visit_logs1Event')
       .find(viewQuery)
-      .project({ currentUrl: 1, createdAt: 1, _id: 0 }) // 필요한 필드만
+      .project({ currentUrl: 1, createdAt: 1, _id: 0 }) 
       .toArray();
 
-    // 데이터 형태 통일
+    // 데이터 포맷 통일
     const formattedViews = views.map(v => ({
-      type: 'VIEW',
-      title: v.currentUrl, // 프론트에서 보여줄 내용
+      type: 'VIEW',               // 유형: 페이지 방문
+      title: v.currentUrl,        // 표시할 제목 (URL)
       url: v.currentUrl,
       timestamp: v.createdAt
     }));
@@ -3008,25 +3005,27 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     const clickQuery = { visitorId };
     if (startDate) clickQuery.createdAt = dateFilter;
 
+    // 클릭 기록 조회 (컬렉션 이름 event01ClickData 확인 필수)
     const clicks = await db.collection('event01ClickData')
       .find(clickQuery)
       .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
       .toArray();
 
-    // 데이터 형태 통일
+    // 데이터 포맷 통일 (구분을 위해 [클릭] 말머리 추가)
     const formattedClicks = clicks.map(c => ({
-      type: 'CLICK',
+      type: 'CLICK',              // 유형: 클릭
       title: `[클릭] ${c.sectionName}`, // 예: "[클릭] 구매하기 버튼"
-      url: '', // 클릭은 URL이 없을 수 있음
+      url: '',                    // 클릭은 URL이 아님
       timestamp: c.createdAt,
       meta: c.sectionId
     }));
 
     // -------------------------------------------------
-    // 3. 두 배열 합치고 시간순 정렬 (과거 -> 현재)
+    // 3. 두 데이터를 합치고 시간순 정렬 (과거 -> 현재)
     // -------------------------------------------------
     const journey = [...formattedViews, ...formattedClicks];
     
+    // 타임스탬프 기준 오름차순 정렬
     journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     res.json({ success: true, journey });
@@ -3036,7 +3035,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
-
 // ==========================================================
 // [API 5] 퍼널 분석 (1_promotion.html 방문자만 필터링)
 // ==========================================================
