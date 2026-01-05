@@ -3658,237 +3658,160 @@ app.get('/by-click', async (req, res) => {
 });
 
 
+// ==========================================
+// [API 1] 응모하기 (옵션 검증 로직 추가)
+// URL: POST /api/raffle/entry
+// ==========================================
 
-
-const EVENT_COLLECTION_NAME = 'event_2026_01Promotion'; 
-
-// 이벤트 진행 기간 수정 (2026년 1월 기준)
+const EVENT_COLLECTION_NAME = 'event_2026_01Promotion';
 const EVENT_PERIOD_START = '2026-01-01'; 
 const EVENT_PERIOD_END = '2026-01-31'; 
-
-// 유효한 상품 옵션 목록 (검증 및 카운트용)
 const VALID_OPTIONS = ['유아독서대', '무드등', '홈 오피스'];
 
 
-// 1. 응모 API (옵션 검증 로직 추가)
 app.post('/api/raffle/entry', async (req, res) => {
-    try {
-        const { userId, optionName } = req.body;
-        
-        // 필수값 체크
-        if (!userId || userId === 'GUEST') {
-            return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
-        }
-        if (!optionName) {
-            return res.status(400).json({ success: false, message: '옵션(경품)을 선택해주세요.' });
-        }
-
-        // [추가] 유효하지 않은 옵션값이 들어오면 차단 (해킹/오류 방지)
-        if (!VALID_OPTIONS.includes(optionName)) {
-            return res.status(400).json({ success: false, message: '존재하지 않는 경품 옵션입니다.' });
-        }
-
-        const now = moment().tz('Asia/Seoul');
-        const todayStr = now.format('YYYY-MM-DD');
-
-        // 기간 체크
-        if (todayStr < EVENT_PERIOD_START || todayStr > EVENT_PERIOD_END) {
-             return res.status(403).json({ success: false, message: '이벤트 진행 기간이 아닙니다.' });
-        }
-
-        const collection = db.collection(EVENT_COLLECTION_NAME);
-
-        // 중복 참여 체크
-        const existingEntry = await collection.findOne({ userId: userId });
-
-        if (existingEntry) {
-            return res.status(200).json({ 
-                success: false, 
-                code: 'ALREADY_ENTERED', 
-                message: `이미 [${existingEntry.optionName}] 경품에 응모하셨습니다. (ID당 1회 제한)` 
-            });
-        }
-
-        // DB 저장
-        const newEntry = {
-            userId: userId,
-            optionName: optionName,
-            entryDate: todayStr,
-            createdAt: new Date(),
-        };
-
-        const result = await collection.insertOne(newEntry);
-
-        res.status(200).json({
-            success: true,
-            message: `[${optionName}] 응모가 완료되었습니다!`,
-            entryId: result.insertedId,
-        });
-
-    } catch (error) {
-        console.error('이벤트 응모 오류:', error);
-        res.status(500).json({ success: false, message: '서버 오류: 응모 처리 중 문제가 발생했습니다.' });
-    }
-});
-
-
-// 2. 응모 현황 조회 API (기존 로직 유지, 컬렉션명만 자동 적용됨)
-app.get('/api/raffle/status', async (req, res) => {
-    try {
-        const { userId } = req.query;
-
-        if (!userId || userId === 'GUEST') {
-            return res.status(401).json({ success: false, isEntered: false, message: '로그인이 필요합니다.' });
-        }
-
-        const collection = db.collection(EVENT_COLLECTION_NAME);
-        const existingEntry = await collection.findOne({ userId: userId });
-        
-        if (existingEntry) {
-            return res.json({ 
-                success: true, 
-                isEntered: true, 
-                optionName: existingEntry.optionName,
-                message: `이미 [${existingEntry.optionName}]으로 응모하셨습니다.`
-            });
-        } else {
-             return res.json({ success: true, isEntered: false, message: '응모 가능합니다.' });
-        }
-
-    } catch (error) {
-        console.error('응모 상태 조회 오류:', error);
-        res.status(500).json({ success: false, isEntered: false, message: '서버 오류' });
-    }
-});
-
-
-// 3. 옵션별 응모자 수 조회 API (옵션 목록 수정됨)
-app.get('/api/raffle/total-count', async (req, res) => {
-    try {
-        const collection = db.collection(EVENT_COLLECTION_NAME);
-
-        const pipeline = [
-            {
-                $group: {
-                    _id: "$optionName", 
-                    count: { $sum: 1 }   
-                }
-            },
-            {
-                $project: {
-                    _id: 0, 
-                    optionName: "$_id",
-                    count: 1
-                }
-            }
-        ];
-
-        const results = await collection.aggregate(pipeline).toArray();
-
-        const totalCounts = results.reduce((acc, item) => {
-            acc[item.optionName] = item.count;
-            return acc;
-        }, {});
-        
-        // [수정됨] 이번 이벤트의 새로운 경품 목록
-        // 데이터가 0건이어도 0으로 표시하기 위함
-        const currentOptions = [
-            "유아독서대",
-            "무드등",
-            "홈 오피스"
-        ];
-        
-        const finalCounts = {};
-        currentOptions.forEach(option => {
-            finalCounts[option] = totalCounts[option] || 0;
-        });
-
-        res.json({ success: true, counts: finalCounts });
-
-    } catch (error) {
-        console.error('옵션별 응모자 수 조회 오류:', error);
-        res.status(500).json({ success: false, counts: {}, message: '서버 오류' });
-    }
-});
-
-
-app.get('/api/01', async (req, res) => {
   try {
-      // 상단에서 정의한 2026년 1월 이벤트 컬렉션 변수 사용 
-      // (const EVENT_COLLECTION_NAME = 'event_2026_jan_entries';)
-      const collection = db.collection(EVENT_COLLECTION_NAME);
-
-      // 1. 모든 응모 기록을 최신순(내림차순)으로 조회
-      const entries = await collection.find({})
-          .sort({ createdAt: -1 })
-          .toArray();
-
-      // 데이터가 없는 경우 처리
-      if (!entries.length) {
-          return res.status(404).json({ success: false, message: '다운로드할 이벤트 응모 데이터가 없습니다.' });
+      const { userId, optionName } = req.body;
+      
+      // 1. 필수값 체크
+      if (!userId || userId === 'GUEST' || userId === 'null') {
+          return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
+      }
+      if (!optionName) {
+          return res.status(400).json({ success: false, message: '옵션(경품)을 선택해주세요.' });
       }
 
-      // 2. Excel Workbook 및 Worksheet 생성
-      // (ExcelJS 모듈이 require되어 있어야 합니다)
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('2026_Event_Entries');
+      // 2. 유효한 옵션인지 검증
+      if (!VALID_OPTIONS.includes(optionName)) {
+          return res.status(400).json({ success: false, message: '존재하지 않는 경품 옵션입니다.' });
+      }
 
-      // 3. 엑셀 헤더(컬럼) 정의
-      worksheet.columns = [
-          { header: 'No', key: 'index', width: 8 },
-          { header: '회원 ID', key: 'userId', width: 20 },
-          { header: '응모 날짜 (YYYY-MM-DD)', key: 'entryDate', width: 20 },
-          { header: '선택 옵션', key: 'optionName', width: 30 }, // 유아독서대, 무드등, 홈 오피스 등이 들어감
-          { header: '시스템 등록시간', key: 'createdAt', width: 25 },
-      ];
+      // 3. 기간 체크
+      const now = moment().tz('Asia/Seoul');
+      const todayStr = now.format('YYYY-MM-DD');
 
-      // 4. 데이터 행(Row) 추가
-      entries.forEach((entry, index) => {
-          worksheet.addRow({
-              index: index + 1,
-              userId: entry.userId || 'N/A',
-              entryDate: entry.entryDate || 'N/A',
-              optionName: entry.optionName || 'N/A',
-              // moment-timezone을 사용하여 한국 시간으로 변환
-              createdAt: entry.createdAt ? moment(entry.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : 'N/A',
+      if (todayStr < EVENT_PERIOD_START || todayStr > EVENT_PERIOD_END) {
+           return res.status(403).json({ success: false, message: '이벤트 진행 기간이 아닙니다.' });
+      }
+
+      const collection = db.collection(EVENT_COLLECTION_NAME);
+
+      // 4. 중복 참여 체크
+      const existingEntry = await collection.findOne({ userId: userId });
+
+      if (existingEntry) {
+          return res.json({ // 200 OK로 보내되 success: false 처리
+              success: false, 
+              code: 'ALREADY_ENTERED', 
+              message: `이미 [${existingEntry.optionName}] 경품에 응모하셨습니다.` 
           });
+      }
+
+      // 5. DB 저장
+      const newEntry = {
+          userId: userId,
+          optionName: optionName,
+          entryDate: todayStr,
+          createdAt: new Date(),
+      };
+
+      const result = await collection.insertOne(newEntry);
+
+      res.json({
+          success: true,
+          message: `[${optionName}] 응모가 완료되었습니다!`,
+          entryId: result.insertedId,
       });
 
-      // 5. 파일 생성 및 다운로드
-      // 파일명에 날짜를 포함하여 중복 방지 (예: Event_2026_20260105_103000.xlsx)
-      const filename = `Event_2026_${moment().tz('Asia/Seoul').format('YYYYMMDD_HHmmss')}.xlsx`;
-      
-      // 서버의 현재 디렉토리에 파일 경로 설정
-      const filePath = path.join(__dirname, filename);
-      
-      // 파일을 서버 로컬에 쓰고 (비동기 처리)
-      await workbook.xlsx.writeFile(filePath);
-
-      // 클라이언트에게 파일 다운로드 응답 전송
-      res.download(filePath, filename, (err) => {
-          if (err) {
-              console.error('엑셀 파일 다운로드 전송 오류:', err);
-              // 전송 중 에러가 나도 파일이 생성되었다면 삭제 시도
-              if (fs.existsSync(filePath)) {
-                  try { fs.unlinkSync(filePath); } catch(e) {}
-              }
-          } else {
-              // 다운로드 완료 후 서버에 남은 임시 파일 삭제
-              try {
-                  if (fs.existsSync(filePath)) {
-                      fs.unlinkSync(filePath); 
-                  }
-              } catch (e) {
-                  console.error('엑셀 임시 파일 삭제 오류:', e);
-              }
-          }
-      });
-
-  } catch (err) {
-      console.error('이벤트 응모 엑셀 생성 시스템 오류:', err);
-      res.status(500).json({ success: false, message: '엑셀 파일 생성 중 서버 오류가 발생했습니다.' });
+  } catch (error) {
+      console.error('이벤트 응모 오류:', error);
+      res.status(500).json({ success: false, message: '서버 오류 발생' });
   }
 });
+
+
+// ==========================================
+// [API 2] 응모 현황 조회 (중복 체크용)
+// URL: GET /api/raffle/status
+// ==========================================
+app.get('/api/raffle/status', async (req, res) => {
+  try {
+      const { userId } = req.query;
+
+      if (!userId || userId === 'GUEST' || userId === 'null') {
+          return res.json({ success: true, isEntered: false, message: '로그인 필요' });
+      }
+
+      const collection = db.collection(EVENT_COLLECTION_NAME);
+      const existingEntry = await collection.findOne({ userId: userId });
+      
+      if (existingEntry) {
+          return res.json({ 
+              success: true, 
+              isEntered: true, 
+              optionName: existingEntry.optionName,
+              message: `이미 참여하셨습니다.`
+          });
+      } else {
+           return res.json({ success: true, isEntered: false });
+      }
+
+  } catch (error) {
+      console.error('상태 조회 오류:', error);
+      res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+
+// ==========================================
+// [API 3] 엑셀 다운로드
+// URL: GET /api/raffle/excel (URL 변경 제안)
+// ==========================================
+app.get('/api/raffle/excel', async (req, res) => {
+try {
+    const collection = db.collection(EVENT_COLLECTION_NAME);
+    const entries = await collection.find({}).sort({ createdAt: -1 }).toArray();
+
+    if (!entries.length) {
+        return res.status(404).json({ success: false, message: '데이터가 없습니다.' });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('2026_Event_Entries');
+
+    worksheet.columns = [
+        { header: 'No', key: 'index', width: 8 },
+        { header: '회원 ID', key: 'userId', width: 20 },
+        { header: '응모 날짜', key: 'entryDate', width: 20 },
+        { header: '선택 옵션', key: 'optionName', width: 30 },
+        { header: '등록 시간', key: 'createdAt', width: 25 },
+    ];
+
+    entries.forEach((entry, index) => {
+        worksheet.addRow({
+            index: index + 1,
+            userId: entry.userId || 'N/A',
+            entryDate: entry.entryDate || 'N/A',
+            optionName: entry.optionName || 'N/A',
+            createdAt: entry.createdAt ? moment(entry.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : 'N/A',
+        });
+    });
+
+    const filename = `Event_2026_${moment().tz('Asia/Seoul').format('YYYYMMDD_HHmmss')}.xlsx`;
+    
+    // 버퍼로 바로 전송 (파일 생성 X)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+} catch (err) {
+    console.error('엑셀 오류:', err);
+    res.status(500).json({ success: false, message: '엑셀 생성 실패' });
+}
+});
+
 
 app.get('/api/config/kakao', (req, res) => {
   res.json({ 
