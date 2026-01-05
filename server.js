@@ -2760,10 +2760,8 @@ app.get("/api/total-sales", async (req, res) => {
 
 
 
-
-
 // ==========================================================
-// [API 1] 로그 수집 (IP 필터링 + 10분 내 중복/재방문 방지)
+// [API 1] 로그 수집 (세션 타임아웃 및 태그 초기화 로직 강화)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2781,37 +2779,51 @@ app.post('/api/trace/log', async (req, res) => {
       ];
 
       if (BLOCKED_IPS.includes(userIp)) {
-          // console.log(`Blocked access from IP: ${userIp}`); 
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
-      const { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
+      // req.body에서 데이터 가져오기 (let으로 선언하여 수정 가능하게 함)
+      let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
       // ==========================================================
-      // ★ [추가됨] 10분 이내 재방문(동일 페이지) 체크 로직
+      // ★ [핵심 로직] 재방문 체크 및 태그 유효성 검사
       // ==========================================================
-      if (visitorId && currentUrl) {
-          // 1. 이 사람이 가장 최근에 남긴 로그 1개를 가져옴
+      if (visitorId) {
+          // 1. 이 사람의 가장 최신 로그 1개를 가져옴
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
-              { sort: { createdAt: -1 } } // 최신순 정렬
+              { sort: { createdAt: -1 } } 
           );
 
           if (lastLog) {
               const now = new Date();
               const lastTime = new Date(lastLog.createdAt);
-              const timeDiff = now - lastTime; // 밀리초(ms) 단위 차이
-              const TEN_MINUTES = 10 * 60 * 1000; // 10분 = 600,000ms
+              const timeDiff = now - lastTime; // 밀리초(ms) 차이
+              
+              const DUPLICATE_LIMIT = 10 * 60 * 1000;  // 10분 (새로고침 방지)
+              const SESSION_TIMEOUT = 30 * 60 * 1000;  // 30분 (세션 만료 기준)
 
-              // 조건: 10분 안 지났음 AND 같은 페이지(URL) 재접속임
-              if (timeDiff < TEN_MINUTES && lastLog.currentUrl === currentUrl) {
-                  // DB에 저장 안 하고 성공 메시지만 보내고 끝냄 (카운트 X)
-                  return res.json({ success: true, msg: 'Duplicate visit ignored (within 10 mins)' });
+              // [Case A] 10분 이내 + 같은 페이지 = 중복 저장 안 함
+              if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
+                  return res.json({ success: true, msg: 'Duplicate visit ignored' });
+              }
+
+              // [Case B] ★ "3일 뒤 재방문" 문제 해결 로직 ★
+              // 마지막 방문 후 30분이 지났는데(세션 만료), 
+              // 현재 접속한 주소가 이벤트 랜딩페이지가 아니라면? -> 태그를 '일반유입'으로 변경
+              if (timeDiff > SESSION_TIMEOUT) {
+                  // 예: 1_promotion.html이 URL에 없으면 이벤트 유입이 아님
+                  if (currentUrl && !currentUrl.includes('1_promotion.html')) {
+                      // 프론트에서 eventTag를 물고 왔더라도, 여기서 강제로 덮어씌움
+                      eventTag = '일반방문(세션만료)'; 
+                      
+                      // 필요하다면 UTM 데이터도 초기화 (선택사항)
+                      // utmData = {}; 
+                  }
               }
           }
       }
       // ==========================================================
-
 
       // 비회원/회원 구분
       const isRealMember = visitorId && !visitorId.startsWith('guest_');
@@ -2829,7 +2841,7 @@ app.post('/api/trace/log', async (req, res) => {
       const log = {
           visitorId: visitorId,
           isMember: !!isRealMember,
-          eventTag: eventTag,
+          eventTag: eventTag, // 위에서 수정된 태그가 들어감
           currentUrl: currentUrl,
           prevUrl: prevUrl,
           utmData: utmData || {},
@@ -2846,7 +2858,6 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
-
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
 // ==========================================================
@@ -3386,6 +3397,8 @@ app.post('/api/trace/click', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
+
+
 // ==========================================================
 // [API 8] 섹션 클릭 통계 조회 (날짜 필터링 적용)
 // ==========================================================
@@ -3404,7 +3417,7 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
       }
 
       // DB 집계 (기간 조건 -> 그룹핑 -> 카운트)
-      const stats = await db.collection('event12ClickData').aggregate([
+      const stats = await db.collection('event01ClickData').aggregate([
           { $match: matchStage },     // 1. 날짜로 먼저 거르기
           {
               $group: {
@@ -3654,7 +3667,13 @@ app.get('/by-click', async (req, res) => {
 });
 
 
+
+
+
+
+
 // ==========================================
+//2026년 1월 응모이벤트
 // [API 1] 응모하기 (옵션 검증 로직 추가)
 // URL: POST /api/raffle/entryEvents
 // ==========================================
