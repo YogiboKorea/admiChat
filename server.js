@@ -3375,7 +3375,9 @@ app.post('/api/trace/click', async (req, res) => {
           createdAt: new Date()
       };
 
-      await db.collection('event12ClickData').insertOne(clickLog);
+      await db.collection('event01ClickData').insertOne(clickLog);
+      //await db.collection('event12ClickData').insertOne(clickLog); 12월이벤트 DB 주소 
+
       
       res.json({ success: true });
 
