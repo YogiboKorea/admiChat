@@ -2758,66 +2758,55 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [API 1] 로그 수집 (회원/비회원 중복 병합 + 세션 관리)
+// [API 1] 로그 수집 (중복 병합 강화 + 세션/태그 관리)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
-      // 1. 사용자 IP 가져오기
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      if (userIp.includes(',')) {
-          userIp = userIp.split(',')[0].trim();
-      }
+      if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      // [IP 차단]
       const BLOCKED_IPS = ['127.0.0.1'];
-      if (BLOCKED_IPS.includes(userIp)) {
-          return res.json({ success: true, msg: 'IP Filtered' });
-      }
+      if (BLOCKED_IPS.includes(userIp)) return res.json({ success: true, msg: 'IP Filtered' });
 
-      // 변수 선언 (let 사용)
       let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // 회원 여부 판별
-      const isRealMember = visitorId && !visitorId.startsWith('guest_') && visitorId !== 'null';
+      // 회원 여부 (guest_ 로 시작하지 않고 null이 아니면 회원)
+      // ★ [수정] 대소문자 구분 없이 guest 체크 (Guest, GUEST 모두 비회원 처리)
+      const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // ★ [신규 추가] 비회원 -> 회원 전환 시 로그 병합 로직
-      // 설명: 회원이 접속했을 때, 같은 IP로 5초 이내에 찍힌 '게스트' 로그가 있다면
-      //       새로 만들지 말고 기존 게스트 로그를 회원 로그로 업데이트함.
+      // [1] 비회원 -> 회원 전환 시 로그 병합 (중복 제거 핵심)
       // ==========================================================
       if (isRealMember) {
-          // 1. 같은 IP, 같은 URL로 5초 이내에 생성된 'guest_' 로그를 찾음
+          // 5초 이내에, 같은 IP & 같은 URL로 생성된 'guest' 로그가 있는지 찾음
           const recentGuestLog = await db.collection('visit_logs1Event').findOne({
               userIp: userIp,
               currentUrl: currentUrl,
-              visitorId: { $regex: /^guest_/ }, // visitorId가 guest_로 시작하는 것
-              createdAt: { $gte: new Date(Date.now() - 5000) } // 최근 5초 이내
+              visitorId: { $regex: /^guest_/i }, // ★ [핵심] 대소문자 무시 (i)
+              createdAt: { $gte: new Date(Date.now() - 5000) } 
           });
 
           if (recentGuestLog) {
-              // 2. 찾았다면 그 로그의 주인을 '게스트' -> '회원'으로 변경 (덮어쓰기)
+              // 찾았으면 기존 로그를 '회원' 정보로 덮어쓰기 (새로 생성 X)
               await db.collection('visit_logs1Event').updateOne(
                   { _id: recentGuestLog._id },
                   { 
                       $set: { 
-                          visitorId: visitorId,   // 진짜 회원 ID로 교체
-                          isMember: true,         // 회원 상태로 변경
-                          eventTag: eventTag      // 혹시 태그가 다르면 최신것으로 교체
+                          visitorId: visitorId,   // 회원ID로 교체
+                          isMember: true,         
+                          eventTag: eventTag      
                       } 
                   }
               );
-              // 3. 로그 생성을 하지 않고 종료 (중복 방지 성공)
-              return res.json({ success: true, msg: 'Merged guest log to member', logId: recentGuestLog._id });
+              return res.json({ success: true, msg: 'Merged guest log', logId: recentGuestLog._id });
           }
       }
-      // ==========================================================
-
 
       // ==========================================================
-      // [기존 로직] 재방문 체크 및 태그 초기화 (세션 만료 등)
+      // [2] 1_promotion.html 시작점 체크 및 세션 관리
       // ==========================================================
+      // 만약 visitorId가 있다면 재방문 여부 확인
       if (visitorId) {
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
@@ -2826,39 +2815,41 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (lastLog) {
               const now = new Date();
-              const lastTime = new Date(lastLog.createdAt);
-              const timeDiff = now - lastTime;
-              
-              const DUPLICATE_LIMIT = 10 * 60 * 1000;  // 10분
-              const SESSION_TIMEOUT = 30 * 60 * 1000;  // 30분
+              const timeDiff = now - new Date(lastLog.createdAt);
+              const DUPLICATE_LIMIT = 10 * 60 * 1000; // 10분
+              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // [Case A] 10분 이내 + 같은 페이지 = 중복 무시
+              // 10분 내 동일 페이지 재접속 무시
               if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
-                  return res.json({ success: true, msg: 'Duplicate visit ignored' });
+                  return res.json({ success: true, msg: 'Duplicate ignored' });
               }
-
-              // [Case B] 세션 만료(30분 경과) 후 재방문인데 이벤트 페이지가 아니라면? -> 태그 초기화
+              
+              // 30분 지나서 왔는데 (새 세션), 1_promotion 페이지가 아니다?
+              // -> 이 사람은 이벤트 참여자가 아니라 그냥 들어온 것이므로 태그 제거 or 저장 안 함
               if (timeDiff > SESSION_TIMEOUT) {
+                  // URL에 1_promotion이 없으면
                   if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-                      eventTag = '일반방문(세션만료)'; 
+                      // 방법 A: 아예 저장하지 않기 (추천: 데이터 깨끗해짐)
+                      return res.json({ success: true, msg: 'Not entry point' });
+                      
+                      // 방법 B: '일반방문'으로 태그 바꿔서 저장하기
+                      // eventTag = '일반방문'; 
                   }
               }
           }
       }
 
-      // 스킨 미리보기 등 예외처리
-      if (currentUrl && currentUrl.includes('skin-skin')) {
-        return res.json({ success: true, msg: 'Skin Preview Ignored' });
-      }
-      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) {
-          return res.json({ success: true, msg: 'Bot Filtered' });
-      }
+      // 그 외 예외 필터링
+      if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
+      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
 
-      // 최종 로그 생성 (병합되지 않은 경우에만 실행됨)
+      // ==========================================================
+      // [3] 최종 로그 생성
+      // ==========================================================
       const log = {
           visitorId: visitorId,
           isMember: !!isRealMember,
-          eventTag: eventTag, 
+          eventTag: eventTag,
           currentUrl: currentUrl,
           prevUrl: prevUrl,
           utmData: utmData || {},
