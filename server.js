@@ -3658,7 +3658,7 @@ app.get('/by-click', async (req, res) => {
 
 // ==========================================
 // [API 1] 응모하기 (옵션 검증 로직 추가)
-// URL: POST /api/raffle/entry
+// URL: POST /api/raffle/entryEvents
 // ==========================================
 
 const EVENT_COLLECTION_NAME = 'event_2026_01Promotion';
@@ -3667,7 +3667,7 @@ const EVENT_PERIOD_END = '2026-01-31';
 const VALID_OPTIONS = ['유아독서대', '무드등', '홈 오피스'];
 
 
-app.post('/api/raffle/entry', async (req, res) => {
+app.post('/api/raffle/entryEvents', async (req, res) => {
   try {
       const { userId, optionName } = req.body;
       
