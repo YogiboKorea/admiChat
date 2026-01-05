@@ -3888,6 +3888,13 @@ app.get('/api/01', async (req, res) => {
   }
 });
 
+app.get('/api/config/kakao', (req, res) => {
+  res.json({ 
+      success: true, 
+      key: process.env.KAKAO_JS_KEY // .env에서 가져온 키
+  });
+});
+
 // ========== [17] 서버 시작 ==========
 // (추가 초기화 작업이 필요한 경우)
 // 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
