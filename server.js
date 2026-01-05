@@ -3351,7 +3351,7 @@ app.post('/api/trace/click', async (req, res) => {
       const BLOCKED_IPS = [
           '127.0.0.1',       
           '::1',
-          '61.99.75.10',   // ★ 본인/회사 IP 입력
+          //'61.99.75.10',   // ★ 본인/회사 IP 입력
       ];
 
       // 차단된 IP면 DB 저장 건너뛰기
