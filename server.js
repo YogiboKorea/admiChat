@@ -2823,9 +2823,10 @@ app.post('/api/trace/log', async (req, res) => {
               const DUPLICATE_LIMIT = 5 * 60 * 1000; // 5분
               const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // A. 5분 내 재접속 -> 중복 무시
-              if (timeDiff < DUPLICATE_LIMIT) {
-                  return res.json({ success: true, msg: 'Duplicate ignored' });
+              // [수정] ★ 단순히 시간만 보는 게 아니라, "URL도 똑같을 때만" 무시함
+              // 즉, 1초 만에 이동했더라도 "다른 페이지"면 저장함
+              if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
+                  return res.json({ success: true, msg: 'Duplicate ignored (Same URL)' });
               }
               
               // B. 30분 안 지났으면 -> 이어지는 방문 (새 세션 아님)
