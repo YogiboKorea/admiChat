@@ -2759,10 +2759,6 @@ app.get("/api/total-sales", async (req, res) => {
 });
 
 
-// ==========================================================
-// ㅡㅣㅇ 시작부분
-// ==========================================================
-
 
 
 
@@ -2796,7 +2792,7 @@ app.post('/api/trace/log', async (req, res) => {
       // ==========================================================
       if (visitorId && currentUrl) {
           // 1. 이 사람이 가장 최근에 남긴 로그 1개를 가져옴
-          const lastLog = await db.collection('visit_logs').findOne(
+          const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { sort: { createdAt: -1 } } // 최신순 정렬
           );
@@ -2842,7 +2838,7 @@ app.post('/api/trace/log', async (req, res) => {
           createdAt: new Date()
       };
 
-      const result = await db.collection('visit_logs').insertOne(log);
+      const result = await db.collection('visit_logs1Event').insertOne(log);
       res.json({ success: true, logId: result.insertedId });
 
   } catch (e) {
@@ -2859,7 +2855,7 @@ app.post('/api/trace/log/exit', async (req, res) => {
   if (!logId || duration === undefined) return res.status(400).send('Missing Data');
 
   try {
-    await db.collection('visit_logs').updateOne(
+    await db.collection('visit_logs1Event').updateOne(
       { _id: new ObjectId(logId) }, 
       { $set: { duration: parseInt(duration) } }
     );
@@ -2875,7 +2871,7 @@ app.post('/api/trace/log/exit', async (req, res) => {
 // ==========================================================
 app.get('/api/trace/summary', async (req, res) => {
   try {
-    const stats = await db.collection('visit_logs').aggregate([
+    const stats = await db.collection('visit_logs1Event').aggregate([
       {
         $group: {
           _id: "$eventTag",
@@ -2917,7 +2913,7 @@ app.get('/api/trace/visitors', async (req, res) => {
           };
       }
 
-      const visitors = await db.collection('visit_logs').aggregate([
+      const visitors = await db.collection('visit_logs1Event').aggregate([
           { $match: matchStage }, // ★ 필터링 단계 추가
           { $sort: { createdAt: -1 } }, 
           {
@@ -2974,7 +2970,7 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
     }
 
     // DB 조회
-    const rawJourney = await db.collection('visit_logs')
+    const rawJourney = await db.collection('visit_logs1Event')
       .find(query)
       .sort({ createdAt: 1 }) // 과거 -> 현재 순
       .toArray();
@@ -3093,7 +3089,7 @@ app.get('/api/trace/funnel', async (req, res) => {
       { $sort: { count_total: -1 } }
     ];
 
-    const funnelData = await db.collection('visit_logs').aggregate(pipeline).toArray();
+    const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
     res.json({ success: true, data: funnelData });
 
   } catch (err) {
@@ -3116,7 +3112,7 @@ app.get('/api/trace/channels', async (req, res) => {
         if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
-    const stats = await db.collection('visit_logs').aggregate([
+    const stats = await db.collection('visit_logs1Event').aggregate([
       { $match: matchStage },
       {
         $project: {
@@ -3335,7 +3331,7 @@ app.get('/api/meta/products', async (req, res) => {
 
 
 
-//크리스마스 이벤트 section별 클릭 데이터 분석자료
+
 
 // ==========================================================
 // [API 7] 섹션 클릭 로그 저장 (컬렉션: event12ClickData)
@@ -3483,7 +3479,7 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
       if (queryFilters.length === 0) return res.json({ success: true, visitors: [] });
 
       // 4. 방문자 정보 조회
-      const visitors = await db.collection('visit_logs').aggregate([
+      const visitors = await db.collection('visit_logs1Event').aggregate([
           { $match: { $or: queryFilters } },
           { $sort: { createdAt: -1 } },
           {
@@ -3561,7 +3557,7 @@ app.get('/api/trace/stats/pages', async (req, res) => {
     ];
 
     // 메모리 부족 방지 옵션 포함
-    const data = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
+    const data = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
     res.json({ success: true, data });
 
   } catch (err) {
@@ -3625,7 +3621,7 @@ app.get('/api/trace/stats/flow', async (req, res) => {
       { $limit: 30 } 
     ];
 
-    const data = await db.collection('visit_logs').aggregate(pipeline, { allowDiskUse: true }).toArray();
+    const data = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
     res.json({ success: true, data });
 
   } catch (err) {
