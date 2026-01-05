@@ -2871,8 +2871,117 @@ app.post('/api/trace/log', async (req, res) => {
   }
 });
 
+// ==========================================================
+// [API 1] 로그 수집 (최종 수정: 방문기록 + 클릭기록 병합 로직 적용)
+// ==========================================================
+app.post('/api/trace/log', async (req, res) => {
+  try {
+      // 1. IP 주소 추출
+      let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
+      // IP 차단 목록
+      const BLOCKED_IPS = ['127.0.0.1'];
+      if (BLOCKED_IPS.includes(userIp)) return res.json({ success: true, msg: 'IP Filtered' });
 
+      let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
+
+      // 회원 여부 확인 (guest_로 시작하지 않고 null이 아니면 회원)
+      const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
+
+      // ==========================================================
+      // [1] ★ 로그인 감지 시: 과거(1시간) 게스트 기록을 회원 ID로 통합 (Merge)
+      // ==========================================================
+      if (isRealMember) {
+          const mergeTimeLimit = new Date(Date.now() - 60 * 60 * 1000); // 최근 1시간 데이터 검색
+
+          // (A) '방문 기록(visit_logs1Event)' 업데이트
+          await db.collection('visit_logs1Event').updateMany(
+              {
+                  userIp: userIp,                      // 내 IP이고
+                  visitorId: { $regex: /^guest_/i },   // 게스트 ID로 저장된 것들
+                  createdAt: { $gte: mergeTimeLimit }  // 최근 1시간 이내
+              },
+              { 
+                  $set: { visitorId: visitorId, isMember: true } // 회원 ID로 변경
+              }
+          );
+
+          // (B) '클릭 기록(event01ClickData)' 업데이트 (★ 중요: 이게 있어야 클릭 분석에 뜸)
+          // 주의: 클릭 데이터 컬렉션 이름이 'event01ClickData'가 맞는지 꼭 확인하세요!
+          const clickUpdateResult = await db.collection('event01ClickData').updateMany(
+              {
+                  ip: userIp,                          // 클릭 로그는 필드명이 'ip'입니다
+                  visitorId: { $regex: /^guest_/i },   // 게스트 ID로 저장된 것들
+                  createdAt: { $gte: mergeTimeLimit }
+              },
+              { 
+                  $set: { visitorId: visitorId }       // 회원 ID로 변경
+              }
+          );
+          
+          if (clickUpdateResult.modifiedCount > 0) {
+              console.log(`[Merge] 클릭 데이터 ${clickUpdateResult.modifiedCount}건을 회원(${visitorId})으로 통합했습니다.`);
+          }
+      }
+
+      // ==========================================================
+      // [2] 진입점 및 중복 체크 (기존 로직 유지)
+      // ==========================================================
+      let isNewSession = true; 
+
+      if (visitorId) {
+          const lastLog = await db.collection('visit_logs1Event').findOne(
+              { visitorId: visitorId }, { sort: { createdAt: -1 } } 
+          );
+
+          if (lastLog) {
+              const now = new Date();
+              const timeDiff = now - new Date(lastLog.createdAt);
+              
+              // 5분 이내이면서 + "같은 페이지"일 때만 저장 안 함 (단순 새로고침 방지)
+              if (timeDiff < 5 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
+                  return res.json({ success: true, msg: 'Duplicate ignored' });
+              }
+              // 30분 이내면 같은 세션으로 간주
+              if (timeDiff < 30 * 60 * 1000) {
+                  isNewSession = false; 
+              }
+          }
+      }
+
+      // 새 세션(30분 후 재방문 등)인데 이벤트 페이지가 아니면 저장 안 함 (진입점 제어)
+      if (isNewSession && currentUrl && !currentUrl.includes('1_promotion.html')) {
+           return res.json({ success: true, msg: 'Not entry point' });
+      }
+
+      // 예외 필터링
+      if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
+      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
+
+      // ==========================================================
+      // [3] 현재 페이지 로그 저장
+      // ==========================================================
+      const log = {
+          visitorId: visitorId,
+          isMember: !!isRealMember,
+          eventTag: eventTag,
+          currentUrl: currentUrl,
+          prevUrl: prevUrl,
+          utmData: utmData || {},
+          userIp: userIp,
+          duration: 0,
+          createdAt: new Date()
+      };
+
+      const result = await db.collection('visit_logs1Event').insertOne(log);
+      res.json({ success: true, logId: result.insertedId });
+
+  } catch (e) {
+      console.error(e);
+      res.status(500).json({ success: false });
+  }
+});
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
 // ==========================================================
