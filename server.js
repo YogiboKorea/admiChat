@@ -2932,7 +2932,7 @@ app.get('/api/trace/visitors', async (req, res) => {
                   hasVisitedEvent: { 
                       $max: { 
                           $cond: [
-                              { $regexMatch: { input: "$currentUrl", regex: "12_event.html" } }, 1, 0
+                              { $regexMatch: { input: "$currentUrl", regex: "1_promotion.html" } }, 1, 0
                           ] 
                       } 
                   }
