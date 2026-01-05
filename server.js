@@ -3080,48 +3080,66 @@ app.get('/api/trace/visitors', async (req, res) => {
   }
 });
 // ==========================================================
-// [API 4] 특정 유저 이동 경로 (날짜 필터링 로직 강화)
+// [API 4] 특정 유저 이동 경로 (방문 + 클릭 통합 & 시간순 정렬)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
-  const { startDate, endDate } = req.query; // 프론트에서 보낸 날짜 받기
+  const { startDate, endDate } = req.query;
 
   try {
-    let query = { visitorId };
-
-    // ★ 날짜 조건이 "있을 때만" 필터링 (없으면 전체 조회됨)
+    let dateFilter = {};
+    // 날짜 필터링 로직
     if (startDate) {
-        // 날짜 포맷 안전 처리 (시간 부분 00:00:00 ~ 23:59:59 설정)
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        
-        const end = endDate ? new Date(endDate) : new Date(startDate);
-        end.setHours(23, 59, 59, 999);
-
-        query.createdAt = { 
-            $gte: start, 
-            $lte: end 
-        };
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : new Date(startDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter = { $gte: start, $lte: end };
     }
 
-    // DB 조회
-    const rawJourney = await db.collection('visit_logs1Event')
-      .find(query)
-      .sort({ createdAt: 1 }) // 과거 -> 현재 순
+    // 1. [방문 기록] 가져오기 (Type: VIEW)
+    const viewQuery = { visitorId };
+    if (startDate) viewQuery.createdAt = dateFilter;
+
+    const views = await db.collection('visit_logs1Event')
+      .find(viewQuery)
+      .project({ currentUrl: 1, createdAt: 1, _id: 0 }) 
       .toArray();
 
-    // 연속된 중복 페이지 제거 (새로고침 등)
-    const refinedJourney = [];
-    let lastUrl = null;
+    // 2. [클릭 기록] 가져오기 (Type: CLICK)
+    const clickQuery = { visitorId };
+    if (startDate) clickQuery.createdAt = dateFilter;
+
+    // ★ 중요: event01ClickData 컬렉션 이름 확인하세요!
+    const clicks = await db.collection('event01ClickData') 
+      .find(clickQuery)
+      .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
+      .toArray();
+
+    // 3. 데이터 포맷 통일하기
+    const formattedViews = views.map(v => ({
+      type: 'VIEW',               // 유형 구분용
+      title: v.currentUrl,        // 화면에 표시할 내용
+      url: v.currentUrl,          // 원본 URL
+      timestamp: v.createdAt
+    }));
+
+    const formattedClicks = clicks.map(c => ({
+      type: 'CLICK',              // 유형 구분용
+      title: `👉 [클릭] ${c.sectionName}`, // 화면에 표시할 내용 (강조)
+      url: '',                    // 클릭은 URL 없음
+      sectionId: c.sectionId,
+      timestamp: c.createdAt
+    }));
+
+    // 4. 두 배열 합치고 시간순 정렬 (최신순 vs 과거순 선택)
+    const journey = [...formattedViews, ...formattedClicks];
     
-    for (const log of rawJourney) {
-        if (log.currentUrl !== lastUrl) {
-            refinedJourney.push(log);
-            lastUrl = log.currentUrl;
-        }
-    }
-    
-    res.json({ success: true, journey: refinedJourney });
+    // 과거 -> 현재 순서로 정렬 (타임라인 흐름 보기 좋게)
+    // (역순을 원하시면 b - a 로 바꾸세요)
+    journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.json({ success: true, journey });
 
   } catch (error) { 
       console.error(error);
