@@ -2757,8 +2757,10 @@ app.get("/api/total-sales", async (req, res) => {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
+
+
 // ==========================================================
-// [API 1] 로그 수집 (진입점 강제 차단 + 강력한 중복 병합)
+// [API 1] 로그 수집 (최종 수정: 중복 병합 조건 완화 + 진입점 차단)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2770,45 +2772,46 @@ app.post('/api/trace/log', async (req, res) => {
 
       let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
 
-      // 회원 여부 (대소문자 무시하고 guest_ 체크)
+      // 회원 여부 (guest_로 시작하지 않으면 회원)
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // [1] 비회원 -> 회원 전환 시 로그 병합 (조건 완화: URL 체크 제외)
+      // [1] ★ 중복 병합 (Merge) - 조건을 더 느슨하게 수정
       // ==========================================================
       if (isRealMember) {
-          // "방금(10초 내) 우리 집에 온 손님(guest) 중 IP가 같은 사람 있어?"
+          // "방금(30초 내) 내 IP로 찍힌 게스트 로그가 하나라도 있는가?" (URL 비교 삭제)
           const recentGuestLog = await db.collection('visit_logs1Event').findOne({
               userIp: userIp,
-              visitorId: { $regex: /^guest_/i }, // 대소문자 무시
-              createdAt: { $gte: new Date(Date.now() - 10000) } // 10초 이내 (넉넉하게)
-          });
+              visitorId: { $regex: /^guest_/i }, // 대소문자 무시하고 guest 찾기
+              createdAt: { $gte: new Date(Date.now() - 30000) } // 30초 이내
+          }, { sort: { createdAt: -1 } }); // 가장 최근 것
 
           if (recentGuestLog) {
-              // 찾았으면 그 로그 주인을 '회원'으로 바꿔치기
+              // 찾았으면 -> 그 게스트 로그를 '회원' 로그로 변신시킴 (덮어쓰기)
               await db.collection('visit_logs1Event').updateOne(
                   { _id: recentGuestLog._id },
                   { 
                       $set: { 
-                          visitorId: visitorId,   
-                          isMember: true,         
-                          eventTag: eventTag,
-                          // 만약 URL이 달라졌다면(리다이렉트 등) 최신 URL로 업데이트
+                          visitorId: visitorId,   // 진짜 회원 ID로 교체
+                          isMember: true,         // 회원 상태로 변경
+                          eventTag: eventTag,     // 태그 업데이트
+                          // URL은 회원 로그인 후 리다이렉트 등으로 바뀔 수 있으니 최신거로 업데이트
                           currentUrl: currentUrl 
                       } 
                   }
               );
+              // ★ 여기서 return 해서 "새 로그 생성"을 막음
               return res.json({ success: true, msg: 'Merged guest log', logId: recentGuestLog._id });
           }
       }
 
       // ==========================================================
-      // [2] ★ 진입점(Entry Point) 및 세션 체크 (가장 중요한 수정)
+      // [2] 진입점(Entry Point) 및 세션 체크 (기존 로직 유지)
       // ==========================================================
-      let isNewSession = true; // 일단 새로운 방문이라고 가정
+      let isNewSession = true; 
 
-      // 1. 과거 기록이 있는지 확인
       if (visitorId) {
+          // 이 사람의 마지막 로그 확인
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { sort: { createdAt: -1 } } 
@@ -2820,20 +2823,19 @@ app.post('/api/trace/log', async (req, res) => {
               const DUPLICATE_LIMIT = 5 * 60 * 1000; // 5분
               const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // 5분 내 동일 페이지 재접속 -> 중복으로 보고 무시
-              if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
+              // A. 5분 내 재접속 -> 중복 무시
+              if (timeDiff < DUPLICATE_LIMIT) {
                   return res.json({ success: true, msg: 'Duplicate ignored' });
               }
               
-              // 30분이 안 지났으면 -> '이어지는 방문'임 (새 세션 아님)
+              // B. 30분 안 지났으면 -> 이어지는 방문 (새 세션 아님)
               if (timeDiff < SESSION_TIMEOUT) {
                   isNewSession = false; 
               }
           }
       }
 
-      // ★ [핵심] 새로운 세션(첫 방문 or 30분 후 재방문)인데, 
-      // 현재 주소에 '1_promotion.html'이 없다? -> 저장 안 하고 버림!
+      // ★ 새로운 세션(첫방문 or 30분후 재방문)인데, 시작페이지가 1_promotion이 아니면 저장 안함
       if (isNewSession) {
           if (currentUrl && !currentUrl.includes('1_promotion.html')) {
                return res.json({ success: true, msg: 'Not entry point (Blocked)' });
@@ -2845,7 +2847,7 @@ app.post('/api/trace/log', async (req, res) => {
       if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
 
       // ==========================================================
-      // [3] 최종 로그 생성
+      // [3] 최종 로그 생성 (병합되지 않은 새로운 로그일 때만 실행됨)
       // ==========================================================
       const log = {
           visitorId: visitorId,
@@ -2867,6 +2869,9 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
+
+
+
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
 // ==========================================================
