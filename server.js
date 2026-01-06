@@ -2758,131 +2758,8 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [API 1] 로그 수집 (최종 수정: 중복 병합 조건 완화 + 진입점 차단)
-// ==========================================================
-app.post('/api/trace/log', async (req, res) => {
-  try {
-      let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
-
-      const BLOCKED_IPS = ['127.0.0.1'];
-      if (BLOCKED_IPS.includes(userIp)) return res.json({ success: true, msg: 'IP Filtered' });
-
-      let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
-
-      // 회원 여부 (guest_로 시작하지 않으면 회원)
-      const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
-
-       // ★ [추가] 같은 IP + 같은 URL + 10초 이내 = 무조건 중복
-       const veryRecentLog = await db.collection('visit_logs1Event').findOne({
-            userIp: userIp,
-            currentUrl: currentUrl,
-            createdAt: { $gte: new Date(Date.now() - 10000) } // 10초
-        });
-        if (veryRecentLog) {
-          return res.json({ success: true, msg: 'Duplicate (same IP+URL within 10s)' });
-      }
-
-      // ==========================================================
-      // [1] ★ 중복 병합 (Merge) - 조건을 더 느슨하게 수정
-      // ==========================================================
-      if (isRealMember) {
-          // "방금(30초 내) 내 IP로 찍힌 게스트 로그가 하나라도 있는가?" (URL 비교 삭제)
-          const recentGuestLog = await db.collection('visit_logs1Event').findOne({
-              userIp: userIp,
-              visitorId: { $regex: /^guest_/i }, // 대소문자 무시하고 guest 찾기
-              createdAt: { $gte: new Date(Date.now() - 30000) } // 30초 이내
-          }, { sort: { createdAt: -1 } }); // 가장 최근 것
-
-          if (recentGuestLog) {
-              // 찾았으면 -> 그 게스트 로그를 '회원' 로그로 변신시킴 (덮어쓰기)
-              await db.collection('visit_logs1Event').updateOne(
-                  { _id: recentGuestLog._id },
-                  { 
-                      $set: { 
-                          visitorId: visitorId,   // 진짜 회원 ID로 교체
-                          isMember: true,         // 회원 상태로 변경
-                          eventTag: eventTag,     // 태그 업데이트
-                          // URL은 회원 로그인 후 리다이렉트 등으로 바뀔 수 있으니 최신거로 업데이트
-                          currentUrl: currentUrl 
-                      } 
-                  }
-              );
-              // ★ 여기서 return 해서 "새 로그 생성"을 막음
-              return res.json({ success: true, msg: 'Merged guest log', logId: recentGuestLog._id });
-          }
-      }
-
-      // ==========================================================
-      // [2] 진입점(Entry Point) 및 세션 체크 (기존 로직 유지)
-      // ==========================================================
-      let isNewSession = true; 
-
-      if (visitorId) {
-          // 이 사람의 마지막 로그 확인
-          const lastLog = await db.collection('visit_logs1Event').findOne(
-              { visitorId: visitorId },
-              { sort: { createdAt: -1 } } 
-          );
-
-          if (lastLog) {
-              const now = new Date();
-              const timeDiff = now - new Date(lastLog.createdAt);
-              const DUPLICATE_LIMIT = 5 * 60 * 1000; // 5분
-              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
-
-              // [수정] ★ 단순히 시간만 보는 게 아니라, "URL도 똑같을 때만" 무시함
-              // 즉, 1초 만에 이동했더라도 "다른 페이지"면 저장함
-              if (timeDiff < DUPLICATE_LIMIT && lastLog.currentUrl === currentUrl) {
-                  return res.json({ success: true, msg: 'Duplicate ignored (Same URL)' });
-              }
-              
-              // B. 30분 안 지났으면 -> 이어지는 방문 (새 세션 아님)
-              if (timeDiff < SESSION_TIMEOUT) {
-                  isNewSession = false; 
-              }
-          }
-      }
-
-      // ★ 새로운 세션(첫방문 or 30분후 재방문)인데, 시작페이지가 1_promotion이 아니면 저장 안함
-      if (isNewSession) {
-          if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-               return res.json({ success: true, msg: 'Not entry point (Blocked)' });
-          }
-      }
-
-      // 예외 필터링
-      if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
-      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
-
-      // ==========================================================
-      // [3] 최종 로그 생성 (병합되지 않은 새로운 로그일 때만 실행됨)
-      // ==========================================================
-      const log = {
-          visitorId: visitorId,
-          isMember: !!isRealMember,
-          eventTag: eventTag,
-          currentUrl: currentUrl,
-          prevUrl: prevUrl,
-          utmData: utmData || {},
-          userIp: userIp,
-          duration: 0,
-          createdAt: new Date()
-      };
-
-      const result = await db.collection('visit_logs1Event').insertOne(log);
-      res.json({ success: true, logId: result.insertedId });
-
-  } catch (e) {
-      console.error(e);
-      res.status(500).json({ success: false });
-  }
-});
-
-// ==========================================================
-// [API 1] 로그 수집 (최종 수정: 방문기록 + 클릭기록 병합 로직 적용)
+// [API 1] 로그 수집 (최종 수정: IP 기반 게스트 통합)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2890,79 +2767,89 @@ app.post('/api/trace/log', async (req, res) => {
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      // IP 차단 목록
       const BLOCKED_IPS = ['127.0.0.1'];
       if (BLOCKED_IPS.includes(userIp)) return res.json({ success: true, msg: 'IP Filtered' });
 
-      let { eventTag, visitorId, currentUrl, prevUrl, utmData } = req.body;
+      let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
 
-      // 회원 여부 확인 (guest_로 시작하지 않고 null이 아니면 회원)
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // [1] ★ 로그인 감지 시: 과거(1시간) 게스트 기록을 회원 ID로 통합 (Merge)
+      // [1] 회원 로그인 시: 과거 게스트 기록 통합
       // ==========================================================
       if (isRealMember) {
-          const mergeTimeLimit = new Date(Date.now() - 60 * 60 * 1000); // 최근 1시간 데이터 검색
+          const mergeTimeLimit = new Date(Date.now() - 60 * 60 * 1000); // 1시간
 
-          // (A) '방문 기록(visit_logs1Event)' 업데이트
           await db.collection('visit_logs1Event').updateMany(
               {
-                  userIp: userIp,                      // 내 IP이고
-                  visitorId: { $regex: /^guest_/i },   // 게스트 ID로 저장된 것들
-                  createdAt: { $gte: mergeTimeLimit }  // 최근 1시간 이내
-              },
-              { 
-                  $set: { visitorId: visitorId, isMember: true } // 회원 ID로 변경
-              }
-          );
-
-          // (B) '클릭 기록(event01ClickData)' 업데이트 (★ 중요: 이게 있어야 클릭 분석에 뜸)
-          // 주의: 클릭 데이터 컬렉션 이름이 'event01ClickData'가 맞는지 꼭 확인하세요!
-          const clickUpdateResult = await db.collection('event01ClickData').updateMany(
-              {
-                  ip: userIp,                          // 클릭 로그는 필드명이 'ip'입니다
-                  visitorId: { $regex: /^guest_/i },   // 게스트 ID로 저장된 것들
+                  userIp: userIp,
+                  visitorId: { $regex: /^guest_/i },
                   createdAt: { $gte: mergeTimeLimit }
               },
-              { 
-                  $set: { visitorId: visitorId }       // 회원 ID로 변경
-              }
+              { $set: { visitorId: visitorId, isMember: true } }
           );
-          
-          if (clickUpdateResult.modifiedCount > 0) {
-              console.log(`[Merge] 클릭 데이터 ${clickUpdateResult.modifiedCount}건을 회원(${visitorId})으로 통합했습니다.`);
+
+          await db.collection('event01ClickData').updateMany(
+              {
+                  ip: userIp,
+                  visitorId: { $regex: /^guest_/i },
+                  createdAt: { $gte: mergeTimeLimit }
+              },
+              { $set: { visitorId: visitorId } }
+          );
+      }
+
+      // ==========================================================
+      // [2] ★ 게스트일 경우: 같은 IP의 기존 게스트 ID 찾기
+      // ==========================================================
+      if (!isRealMember) {
+          // 같은 IP로 최근 24시간 내 방문한 게스트 기록 찾기
+          const existingGuestLog = await db.collection('visit_logs1Event').findOne(
+              {
+                  userIp: userIp,
+                  visitorId: { $regex: /^guest_/i },
+                  createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24시간
+              },
+              { sort: { createdAt: -1 } } // 가장 최근 것
+          );
+
+          // 기존 게스트 ID가 있으면 그걸로 통일
+          if (existingGuestLog && existingGuestLog.visitorId) {
+              visitorId = existingGuestLog.visitorId;
+              console.log(`[Guest Merge] IP ${userIp} → 기존 ID ${visitorId} 사용`);
           }
       }
 
       // ==========================================================
-      // [2] 진입점 및 중복 체크 (기존 로직 유지)
+      // [3] 중복 및 세션 체크
       // ==========================================================
-      let isNewSession = true; 
+      let isNewSession = true;
 
       if (visitorId) {
           const lastLog = await db.collection('visit_logs1Event').findOne(
-              { visitorId: visitorId }, { sort: { createdAt: -1 } } 
+              { visitorId: visitorId },
+              { sort: { createdAt: -1 } }
           );
 
           if (lastLog) {
               const now = new Date();
               const timeDiff = now - new Date(lastLog.createdAt);
-              
-              // 5분 이내이면서 + "같은 페이지"일 때만 저장 안 함 (단순 새로고침 방지)
+
+              // 5분 이내 + 같은 URL = 중복
               if (timeDiff < 5 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
                   return res.json({ success: true, msg: 'Duplicate ignored' });
               }
-              // 30분 이내면 같은 세션으로 간주
+
+              // 30분 이내면 같은 세션
               if (timeDiff < 30 * 60 * 1000) {
-                  isNewSession = false; 
+                  isNewSession = false;
               }
           }
       }
 
-      // 새 세션(30분 후 재방문 등)인데 이벤트 페이지가 아니면 저장 안 함 (진입점 제어)
+      // 새 세션인데 이벤트 페이지가 아니면 저장 안함
       if (isNewSession && currentUrl && !currentUrl.includes('1_promotion.html')) {
-           return res.json({ success: true, msg: 'Not entry point' });
+          return res.json({ success: true, msg: 'Not entry point' });
       }
 
       // 예외 필터링
@@ -2970,7 +2857,7 @@ app.post('/api/trace/log', async (req, res) => {
       if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
 
       // ==========================================================
-      // [3] 현재 페이지 로그 저장
+      // [4] 로그 저장
       // ==========================================================
       const log = {
           visitorId: visitorId,
@@ -2980,6 +2867,7 @@ app.post('/api/trace/log', async (req, res) => {
           prevUrl: prevUrl,
           utmData: utmData || {},
           userIp: userIp,
+          deviceType: deviceType || 'unknown',
           duration: 0,
           createdAt: new Date()
       };
@@ -2992,6 +2880,8 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
+
+
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
 // ==========================================================
@@ -3041,16 +2931,14 @@ app.get('/api/trace/summary', async (req, res) => {
     res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 3] 방문자 목록 조회 (날짜 필터링 추가 + 메모리 옵션)
+// [API 3] 방문자 목록 조회 (IP 기반 통합)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
-      const { date } = req.query; // ★ 날짜 파라미터 받기 (YYYY-MM-DD)
+      const { date } = req.query;
       let matchStage = {};
 
-      // 날짜가 있으면 해당 날짜 00시~23시 데이터만 필터링
       if (date) {
           matchStage.createdAt = {
               $gte: new Date(date + "T00:00:00.000Z"),
@@ -3059,34 +2947,41 @@ app.get('/api/trace/visitors', async (req, res) => {
       }
 
       const visitors = await db.collection('visit_logs1Event').aggregate([
-          { $match: matchStage }, // ★ 필터링 단계 추가
-          { $sort: { createdAt: -1 } }, 
+          { $match: matchStage },
+          { $sort: { createdAt: -1 } },
           {
               $group: {
-                  _id: "$visitorId",
+                  // ★ 회원은 visitorId, 비회원은 IP로 그룹핑
+                  _id: {
+                      $cond: [
+                          { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
+                          "$userIp",      // 게스트면 IP로 묶기
+                          "$visitorId"    // 회원이면 ID로 묶기
+                      ]
+                  },
+                  visitorId: { $first: "$visitorId" },
                   isMember: { $first: "$isMember" },
                   eventTag: { $first: "$eventTag" },
                   lastAction: { $first: "$createdAt" },
                   count: { $sum: 1 },
-                  userIp: { $first: "$userIp" }, 
-                  
-                  hasVisitedEvent: { 
-                      $max: { 
+                  userIp: { $first: "$userIp" },
+                  hasVisitedEvent: {
+                      $max: {
                           $cond: [
                               { $regexMatch: { input: "$currentUrl", regex: "1_promotion.html" } }, 1, 0
-                          ] 
-                      } 
+                          ]
+                      }
                   }
               }
           },
           { $sort: { lastAction: -1 } },
-          { $limit: 150 } 
+          { $limit: 150 }
       ], { allowDiskUse: true }).toArray();
 
       res.json({ success: true, visitors });
-  } catch (err) { 
+  } catch (err) {
       console.error(err);
-      res.status(500).json({ msg: 'Server Error' }); 
+      res.status(500).json({ msg: 'Server Error' });
   }
 });
 
@@ -3230,129 +3125,126 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' }); 
   }
 });
-
 // ==========================================================
-// [API 5] 퍼널 분석 (1_promotion.html 방문자만 필터링)
+// [API 5] 퍼널 분석 (IP 기반 고유 방문자)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    
-    // 1. 날짜 조건 설정
-    let dateFilter = {};
-    if (startDate || endDate) {
-        dateFilter = {};
-        if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
-        if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
-    }
+    try {
+        const { startDate, endDate } = req.query;
 
-    // ==========================================================
-    // ★ [핵심 추가] '1_promotion.html'을 방문한 적 있는 유저 ID 추출
-    // 이 과정이 없으면 메인페이지로 들어온 사람도 통계에 포함됩니다.
-    // ==========================================================
-    const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
-        createdAt: dateFilter, // 선택된 날짜 범위 내에서
-        currentUrl: { $regex: '1_promotion.html' } // 이벤트 페이지 방문 기록이 있는 사람
-    });
+        let dateFilter = {};
+        if (startDate || endDate) {
+            dateFilter = {};
+            if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
+            if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
+        }
 
-    // 해당 기간에 이벤트 페이지 방문자가 없으면 빈 결과 반환
-    if (validVisitors.length === 0) {
-        return res.json({ success: true, data: [] });
-    }
-
-    // 2. 위에서 찾은 유저들(validVisitors)의 데이터만 가지고 퍼널 분석 수행
-    const pipeline = [
-      { 
-        $match: {
+        const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
             createdAt: dateFilter,
-            visitorId: { $in: validVisitors } // ★ 필터링된 유저만 포함
-        }
-      },
-      {
-        $project: {
-          visitorId: 1,
-          currentUrl: 1,
-          // UTM -> 한글 이름 변환 (기존 로직 유지)
-          channelName: {
-            $switch: {
-              branches: [
-                // 1. 네이버
-                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브랜드광고[선물 추천]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
+            currentUrl: { $regex: '1_promotion.html' }
+        });
 
-                // 2. 메타
-                { case: { $eq: ["$utmData.term", "secretprice"] },    then: "25일프로모션 UTM" }, 
-                { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
-                { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
-                { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
-                { case: { $eq: ["$utmData.term", "limited"] },       then: "메타 광고[LIMITED GIFT]" },
-                { case: { $eq: ["$utmData.term", "over30"] },        then: "메타 광고[인형증정]" },
-                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
-
-                // 3. 카카오
-                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
-              ],
-              default: "직접/기타 방문"
-            }
-          }
+        if (validVisitors.length === 0) {
+            return res.json({ success: true, data: [] });
         }
-      },
-      {
-        $group: {
-          _id: "$channelName", 
-          step1_visitors: { $addToSet: "$visitorId" }, // 방문 수
-          step2_visitors: { 
-            $addToSet: { 
-              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$visitorId", "$$REMOVE"] 
-            } 
-          },
-          step3_visitors: { 
-            $addToSet: { 
-              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$visitorId", "$$REMOVE"] 
-            } 
-          },
-          step4_visitors: { 
-            $addToSet: { 
-              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$visitorId", "$$REMOVE"] 
-            } 
-          },
-          step5_visitors: { 
-            $addToSet: { 
-              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$visitorId", "$$REMOVE"] 
-            } 
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          channelName: "$_id",
-          count_total: { $size: "$step1_visitors" },
-          count_detail: { $size: "$step2_visitors" },
-          count_cart: { $size: "$step3_visitors" },
-          count_order: { $size: "$step4_visitors" },
-          count_purchase: { $size: "$step5_visitors" }
-        }
-      },
-      { $sort: { count_total: -1 } }
-    ];
 
-    const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
-    res.json({ success: true, data: funnelData });
+        const pipeline = [
+            {
+                $match: {
+                    createdAt: dateFilter,
+                    visitorId: { $in: validVisitors }
+                }
+            },
+            {
+                $project: {
+                    visitorId: 1,
+                    userIp: 1,
+                    currentUrl: 1,
+                    // ★ 고유 식별자: 회원은 ID, 비회원은 IP
+                    uniqueId: {
+                        $cond: [
+                            { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
+                            "$userIp",
+                            "$visitorId"
+                        ]
+                    },
+                    channelName: {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
+                                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
+                                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
+                                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브랜드광고[선물 추천]" },
+                                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
+                                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
+                                { case: { $eq: ["$utmData.term", "secretprice"] }, then: "25일프로모션 UTM" },
+                                { case: { $eq: ["$utmData.term", "christmas"] }, then: "메타 광고[크리스마스 쿠폰팩]" },
+                                { case: { $eq: ["$utmData.term", "100won"] }, then: "메타 광고[도전 100원]" },
+                                { case: { $eq: ["$utmData.term", "forgift"] }, then: "메타 광고[선물 추천]" },
+                                { case: { $eq: ["$utmData.term", "limited"] }, then: "메타 광고[LIMITED GIFT]" },
+                                { case: { $eq: ["$utmData.term", "over30"] }, then: "메타 광고[인형증정]" },
+                                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
+                                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
+                                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
+                                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
+                                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
+                                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
+                            ],
+                            default: "직접/기타 방문"
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: "$channelName",
+                    // ★ uniqueId로 고유 방문자 집계
+                    step1_visitors: { $addToSet: "$uniqueId" },
+                    step2_visitors: {
+                        $addToSet: {
+                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$uniqueId", "$$REMOVE"]
+                        }
+                    },
+                    step3_visitors: {
+                        $addToSet: {
+                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$uniqueId", "$$REMOVE"]
+                        }
+                    },
+                    step4_visitors: {
+                        $addToSet: {
+                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$uniqueId", "$$REMOVE"]
+                        }
+                    },
+                    step5_visitors: {
+                        $addToSet: {
+                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$uniqueId", "$$REMOVE"]
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    channelName: "$_id",
+                    count_total: { $size: "$step1_visitors" },
+                    count_detail: { $size: "$step2_visitors" },
+                    count_cart: { $size: "$step3_visitors" },
+                    count_order: { $size: "$step4_visitors" },
+                    count_purchase: { $size: "$step5_visitors" }
+                }
+            },
+            { $sort: { count_total: -1 } }
+        ];
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server Error' });
-  }
+        const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
+        res.json({ success: true, data: funnelData });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ msg: 'Server Error' });
+    }
 });
+
 
 // ==========================================================
 // [API 6] 채널별 통합 분석 (방문자수, 구매전환 중심)
