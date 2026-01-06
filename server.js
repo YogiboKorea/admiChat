@@ -2757,9 +2757,8 @@ app.get("/api/total-sales", async (req, res) => {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
-
 // ==========================================================
-// [API 1] 로그 수집 (수정: 병합 조건 강화)
+// [API 1] 로그 수집 (개선: 디버깅 강화 + 조건 완화)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2767,18 +2766,26 @@ app.post('/api/trace/log', async (req, res) => {
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
       const BLOCKED_IPS = ['127.0.0.1'];
-      if (BLOCKED_IPS.includes(userIp)) return res.json({ success: true, msg: 'IP Filtered' });
+      if (BLOCKED_IPS.includes(userIp)) {
+          return res.json({ success: true, msg: 'IP Filtered' });
+      }
 
       let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
+
+      // ★ [디버깅] 모든 요청 로깅
+      console.log('[LOG] 요청:', { 
+          visitorId, 
+          currentUrl: currentUrl?.substring(0, 50), 
+          userIp 
+      });
 
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // [1] ★ 회원 로그인 시: 병합 조건 강화 (5분 이내만)
+      // [1] 회원 로그인 시: 5분 이내 게스트 병합
       // ==========================================================
       if (isRealMember) {
-          // ★ 5분 이내의 게스트 기록만 병합 (기존 1시간 → 5분으로 축소)
-          const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000); // 5분
+          const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000);
 
           const mergeResult = await db.collection('visit_logs1Event').updateMany(
               {
@@ -2790,10 +2797,9 @@ app.post('/api/trace/log', async (req, res) => {
           );
 
           if (mergeResult.modifiedCount > 0) {
-              console.log(`[Merge] ${mergeResult.modifiedCount}건의 게스트 기록을 ${visitorId}로 병합`);
+              console.log(`[MERGE] ${mergeResult.modifiedCount}건 병합 → ${visitorId}`);
           }
 
-          // 클릭 데이터도 동일하게 5분 이내만
           await db.collection('event01ClickData').updateMany(
               {
                   ip: userIp,
@@ -2805,28 +2811,29 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [2] ★ 게스트일 경우: 같은 IP의 기존 게스트 ID 찾기 (30분 이내)
+      // [2] 게스트일 경우: 30분 이내 같은 IP의 기존 게스트 ID 사용
       // ==========================================================
       if (!isRealMember) {
-          // ★ 30분 이내 같은 IP의 게스트만 통합 (기존 24시간 → 30분으로 축소)
           const existingGuestLog = await db.collection('visit_logs1Event').findOne(
               {
                   userIp: userIp,
                   visitorId: { $regex: /^guest_/i },
-                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // 30분
+                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
               },
               { sort: { createdAt: -1 } }
           );
 
           if (existingGuestLog && existingGuestLog.visitorId) {
               visitorId = existingGuestLog.visitorId;
+              console.log(`[GUEST] 기존 ID 재사용: ${visitorId}`);
           }
       }
 
       // ==========================================================
-      // [3] 중복 및 세션 체크
+      // [3] ★ 중복 및 세션 체크 (조건 완화)
       // ==========================================================
       let isNewSession = true;
+      let skipReason = null;
 
       if (visitorId) {
           const lastLog = await db.collection('visit_logs1Event').findOne(
@@ -2837,9 +2844,9 @@ app.post('/api/trace/log', async (req, res) => {
           if (lastLog) {
               const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
 
-              // 5분 이내 + 같은 URL = 중복
-              if (timeDiff < 5 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
-                  return res.json({ success: true, msg: 'Duplicate ignored' });
+              // ★ [수정] 2분 이내 + 완전히 같은 URL만 중복 처리 (기존 5분)
+              if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
+                  skipReason = 'Duplicate (same URL within 2min)';
               }
 
               // 30분 이내면 같은 세션
@@ -2849,16 +2856,39 @@ app.post('/api/trace/log', async (req, res) => {
           }
       }
 
-      // 새 세션인데 이벤트 페이지가 아니면 저장 안함
-      if (isNewSession && currentUrl && !currentUrl.includes('1_promotion.html')) {
-          return res.json({ success: true, msg: 'Not entry point' });
+      if (skipReason) {
+          console.log(`[SKIP] ${skipReason}`);
+          return res.json({ success: true, msg: skipReason });
+      }
+
+      // ==========================================================
+      // [4] ★ 진입점 체크 (조건 완화)
+      // ==========================================================
+      
+      // 이벤트 페이지 방문 이력 확인
+      const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
+          $or: [
+              { visitorId: visitorId },
+              { userIp: userIp }
+          ],
+          currentUrl: { $regex: '1_promotion.html' }
+      });
+
+      // ★ [수정] 새 세션이고, 이벤트 페이지도 아니고, 과거 방문 이력도 없으면 차단
+      if (isNewSession && !hasPromoVisit) {
+          if (currentUrl && !currentUrl.includes('1_promotion.html')) {
+              console.log(`[BLOCK] Not entry point & no promo history: ${currentUrl?.substring(0, 50)}`);
+              return res.json({ success: true, msg: 'Not entry point' });
+          }
       }
 
       // 예외 필터링
-      if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
+      if (currentUrl && currentUrl.includes('skin-skin')) {
+          return res.json({ success: true, msg: 'Skin Ignored' });
+      }
 
       // ==========================================================
-      // [4] 로그 저장
+      // [5] 로그 저장
       // ==========================================================
       const log = {
           visitorId: visitorId,
@@ -2874,11 +2904,13 @@ app.post('/api/trace/log', async (req, res) => {
       };
 
       const result = await db.collection('visit_logs1Event').insertOne(log);
+      console.log(`[SAVE] ${visitorId} → ${currentUrl?.substring(0, 30)}`);
+      
       res.json({ success: true, logId: result.insertedId });
 
   } catch (e) {
-      console.error(e);
-      res.status(500).json({ success: false });
+      console.error('[ERROR]', e);
+      res.status(500).json({ success: false, error: e.message });
   }
 });
 
