@@ -2933,7 +2933,7 @@ app.get('/api/trace/summary', async (req, res) => {
   }
 });
 // ==========================================================
-// [API 3] 방문자 목록 조회 (IP 기반 통합)
+// [API 3] 방문자 목록 조회 (수정: searchId 필드 추가)
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
   try {
@@ -2952,12 +2952,12 @@ app.get('/api/trace/visitors', async (req, res) => {
           { $sort: { createdAt: -1 } },
           {
               $group: {
-                  // ★ 회원은 visitorId, 비회원은 IP로 그룹핑
+                  // 회원은 visitorId, 비회원은 IP로 그룹핑
                   _id: {
                       $cond: [
                           { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
-                          "$userIp",      // 게스트면 IP로 묶기
-                          "$visitorId"    // 회원이면 ID로 묶기
+                          "$userIp",
+                          "$visitorId"
                       ]
                   },
                   visitorId: { $first: "$visitorId" },
@@ -2975,6 +2975,12 @@ app.get('/api/trace/visitors', async (req, res) => {
                   }
               }
           },
+          {
+              // ★ [추가] 프론트에서 사용할 검색용 ID 명시
+              $addFields: {
+                  searchId: "$_id"  // Journey API 호출 시 사용할 ID
+              }
+          },
           { $sort: { lastAction: -1 } },
           { $limit: 150 }
       ], { allowDiskUse: true }).toArray();
@@ -2985,6 +2991,7 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
+
 // ==========================================================
 // [API 4] 특정 유저 이동 경로 (수정: IP 또는 visitorId 모두 지원)
 // ==========================================================
