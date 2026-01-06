@@ -2758,6 +2758,7 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
+
 // ==========================================================
 // [API 1] 로그 수집 (최종 수정: IP 기반 게스트 통합)
 // ==========================================================
@@ -2984,147 +2985,164 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 4] 특정 유저 이동 경로 (IP 기반 통합 조회 기능 추가)
+// [API 4] 특정 유저 이동 경로 (수정: IP 또는 visitorId 모두 지원)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
   const { startDate, endDate } = req.query;
 
   try {
-    // 1. 날짜 필터링 준비
-    let dateFilter = {};
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = endDate ? new Date(endDate) : new Date(startDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter = { $gte: start, $lte: end };
-    }
+      // 1. 날짜 필터링 준비
+      let dateFilter = {};
+      if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          const end = endDate ? new Date(endDate) : new Date(startDate);
+          end.setHours(23, 59, 59, 999);
+          dateFilter = { $gte: start, $lte: end };
+      }
 
-    // 2. [핵심] 이 방문자(visitorId)가 사용한 'IP 주소'를 먼저 찾습니다.
-    // (가장 최근 로그 하나를 꺼내서 IP를 확인)
-    let targetIp = null;
-    
-    // 방문 기록에서 IP 조회
-    const userLog = await db.collection('visit_logs1Event').findOne(
-        { visitorId: visitorId }, 
-        { sort: { createdAt: -1 }, projection: { userIp: 1 } }
-    );
-    if (userLog) targetIp = userLog.userIp;
+      // ==========================================================
+      // [핵심 수정] visitorId가 IP 형식인지 확인
+      // IP 형식: 숫자.숫자.숫자.숫자 또는 IPv6
+      // ==========================================================
+      const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || 
+                        visitorId.includes(':') ||  // IPv6
+                        !visitorId.startsWith('guest_') && !visitorId.includes('@'); // 회원ID가 아닌 경우
 
-    // 만약 방문 기록에 없으면 클릭 기록에서라도 IP 조회
-    if (!targetIp) {
-        const clickLog = await db.collection('event01ClickData').findOne(
-            { visitorId: visitorId },
-            { sort: { createdAt: -1 }, projection: { ip: 1 } }
-        );
-        if (clickLog) targetIp = clickLog.ip;
-    }
+      let targetIp = null;
+      let targetVisitorId = null;
 
-    // 3. 검색 조건 생성 (ID가 같거나 OR (IP가 같고 & 날짜가 맞으면))
-    // 이렇게 하면 'guest'로 남은 기록도 IP가 같으면 내 걸로 가져옵니다.
-    let baseQuery = { visitorId }; // 기본: ID 일치
+      if (isIpFormat || /^[\d.:]+$/.test(visitorId)) {
+          // IP로 전달된 경우 → IP로 검색
+          targetIp = visitorId;
+          console.log(`[Journey] IP로 검색: ${targetIp}`);
+      } else {
+          // visitorId로 전달된 경우
+          targetVisitorId = visitorId;
+          
+          // 해당 visitorId의 IP도 찾기
+          const userLog = await db.collection('visit_logs1Event').findOne(
+              { visitorId: visitorId },
+              { sort: { createdAt: -1 }, projection: { userIp: 1 } }
+          );
+          if (userLog) targetIp = userLog.userIp;
 
-    if (targetIp) {
-        baseQuery = {
-            $or: [
-                { visitorId: visitorId }, // 내 아이디거나
-                { 
-                    // IP가 같으면서 + 비회원(guest)인 데이터도 포함
-                    $and: [
-                        { userIp: targetIp }, 
-                        { visitorId: { $regex: /^guest_/i } } 
-                    ]
-                }
-            ]
-        };
-    }
-    
-    // 날짜 조건 병합
-    if (startDate) {
-        // $or 쿼리가 있을 때는 각각의 조건에 날짜를 걸어줘야 하거나, $and로 감싸야 함
-        // 단순화를 위해 createdAt 조건을 최상위에 둡니다.
-        if (baseQuery.$or) {
-             baseQuery = { 
-                 $and: [ 
-                     baseQuery, 
-                     { createdAt: dateFilter } 
-                 ] 
-             };
-        } else {
-            baseQuery.createdAt = dateFilter;
-        }
-    }
+          // 방문 기록에 없으면 클릭 기록에서 IP 조회
+          if (!targetIp) {
+              const clickLog = await db.collection('event01ClickData').findOne(
+                  { visitorId: visitorId },
+                  { sort: { createdAt: -1 }, projection: { ip: 1 } }
+              );
+              if (clickLog) targetIp = clickLog.ip;
+          }
+      }
 
-    // -------------------------------------------------
-    // 4. 방문 기록 조회 (수정된 쿼리 적용)
-    // -------------------------------------------------
-    const views = await db.collection('visit_logs1Event')
-      .find(baseQuery) // ID 또는 IP로 검색
-      .sort({ createdAt: 1 })
-      .project({ currentUrl: 1, createdAt: 1, _id: 0 }) 
-      .toArray();
+      // ==========================================================
+      // [2] 검색 쿼리 생성
+      // ==========================================================
+      let baseQuery = {};
 
-    const formattedViews = views.map(v => ({
-      type: 'VIEW',
-      title: v.currentUrl,
-      url: v.currentUrl,
-      timestamp: v.createdAt
-    }));
+      if (targetIp && targetVisitorId) {
+          // 둘 다 있으면: ID 일치 OR IP 일치
+          baseQuery = {
+              $or: [
+                  { visitorId: targetVisitorId },
+                  { userIp: targetIp }
+              ]
+          };
+      } else if (targetIp) {
+          // IP만 있으면: IP로 검색
+          baseQuery = { userIp: targetIp };
+      } else if (targetVisitorId) {
+          // visitorId만 있으면: ID로 검색
+          baseQuery = { visitorId: targetVisitorId };
+      } else {
+          return res.json({ success: true, journey: [], msg: 'No identifier' });
+      }
 
-    // -------------------------------------------------
-    // 5. 클릭 기록 조회 (클릭 데이터는 필드명이 ip이므로 쿼리 약간 조정)
-    // -------------------------------------------------
-    let clickQuery = { visitorId };
-    
-    if (targetIp) {
-        clickQuery = {
-            $or: [
-                { visitorId: visitorId },
-                { 
-                    $and: [
-                        { ip: targetIp }, // 클릭테이블은 userIp 대신 ip를 씀
-                        { visitorId: { $regex: /^guest_/i } }
-                    ]
-                }
-            ]
-        };
-    }
-    
-    if (startDate) {
-        if (clickQuery.$or) {
-             clickQuery = { $and: [ clickQuery, { createdAt: dateFilter } ] };
-        } else {
-            clickQuery.createdAt = dateFilter;
-        }
-    }
+      // 날짜 조건 추가
+      if (startDate) {
+          baseQuery = {
+              $and: [
+                  baseQuery,
+                  { createdAt: dateFilter }
+              ]
+          };
+      }
 
-    const clicks = await db.collection('event01ClickData')
-      .find(clickQuery)
-      .sort({ createdAt: 1 })
-      .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
-      .toArray();
+      // ==========================================================
+      // [3] 방문 기록 조회
+      // ==========================================================
+      const views = await db.collection('visit_logs1Event')
+          .find(baseQuery)
+          .sort({ createdAt: 1 })
+          .project({ currentUrl: 1, createdAt: 1, visitorId: 1, _id: 0 })
+          .toArray();
 
-    const formattedClicks = clicks.map(c => ({
-      type: 'CLICK',
-      title: `👉 [클릭] ${c.sectionName}`,
-      url: '',
-      timestamp: c.createdAt
-    }));
+      const formattedViews = views.map(v => ({
+          type: 'VIEW',
+          title: v.currentUrl,
+          url: v.currentUrl,
+          timestamp: v.createdAt
+      }));
 
-    // 6. 합치기 및 정렬
-    const journey = [...formattedViews, ...formattedClicks];
-    journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      // ==========================================================
+      // [4] 클릭 기록 조회 (필드명 ip 사용)
+      // ==========================================================
+      let clickQuery = {};
 
-    res.json({ success: true, journey });
+      if (targetIp && targetVisitorId) {
+          clickQuery = {
+              $or: [
+                  { visitorId: targetVisitorId },
+                  { ip: targetIp }
+              ]
+          };
+      } else if (targetIp) {
+          clickQuery = { ip: targetIp };
+      } else if (targetVisitorId) {
+          clickQuery = { visitorId: targetVisitorId };
+      }
 
-  } catch (error) { 
-      console.error(error);
-      res.status(500).json({ msg: 'Server Error' }); 
+      if (startDate) {
+          clickQuery = {
+              $and: [
+                  clickQuery,
+                  { createdAt: dateFilter }
+              ]
+          };
+      }
+
+      const clicks = await db.collection('event01ClickData')
+          .find(clickQuery)
+          .sort({ createdAt: 1 })
+          .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
+          .toArray();
+
+      const formattedClicks = clicks.map(c => ({
+          type: 'CLICK',
+          title: `👉 [클릭] ${c.sectionName}`,
+          url: '',
+          timestamp: c.createdAt
+      }));
+
+      // 5. 합치기 및 정렬
+      const journey = [...formattedViews, ...formattedClicks];
+      journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      console.log(`[Journey] 결과: ${journey.length}건 (방문 ${formattedViews.length}, 클릭 ${formattedClicks.length})`);
+
+      res.json({ success: true, journey });
+
+  } catch (error) {
+      console.error('[Journey Error]', error);
+      res.status(500).json({ msg: 'Server Error' });
   }
 });
+
+
 // ==========================================================
 // [API 5] 퍼널 분석 (IP 기반 고유 방문자)
 // ==========================================================
