@@ -2758,13 +2758,11 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [API 1] 로그 수집 (최종 수정: IP 기반 게스트 통합)
+// [API 1] 로그 수집 (수정: 병합 조건 강화)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
-      // 1. IP 주소 추출
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
@@ -2776,12 +2774,13 @@ app.post('/api/trace/log', async (req, res) => {
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
       // ==========================================================
-      // [1] 회원 로그인 시: 과거 게스트 기록 통합
+      // [1] ★ 회원 로그인 시: 병합 조건 강화 (5분 이내만)
       // ==========================================================
       if (isRealMember) {
-          const mergeTimeLimit = new Date(Date.now() - 60 * 60 * 1000); // 1시간
+          // ★ 5분 이내의 게스트 기록만 병합 (기존 1시간 → 5분으로 축소)
+          const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000); // 5분
 
-          await db.collection('visit_logs1Event').updateMany(
+          const mergeResult = await db.collection('visit_logs1Event').updateMany(
               {
                   userIp: userIp,
                   visitorId: { $regex: /^guest_/i },
@@ -2790,6 +2789,11 @@ app.post('/api/trace/log', async (req, res) => {
               { $set: { visitorId: visitorId, isMember: true } }
           );
 
+          if (mergeResult.modifiedCount > 0) {
+              console.log(`[Merge] ${mergeResult.modifiedCount}건의 게스트 기록을 ${visitorId}로 병합`);
+          }
+
+          // 클릭 데이터도 동일하게 5분 이내만
           await db.collection('event01ClickData').updateMany(
               {
                   ip: userIp,
@@ -2801,23 +2805,21 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [2] ★ 게스트일 경우: 같은 IP의 기존 게스트 ID 찾기
+      // [2] ★ 게스트일 경우: 같은 IP의 기존 게스트 ID 찾기 (30분 이내)
       // ==========================================================
       if (!isRealMember) {
-          // 같은 IP로 최근 24시간 내 방문한 게스트 기록 찾기
+          // ★ 30분 이내 같은 IP의 게스트만 통합 (기존 24시간 → 30분으로 축소)
           const existingGuestLog = await db.collection('visit_logs1Event').findOne(
               {
                   userIp: userIp,
                   visitorId: { $regex: /^guest_/i },
-                  createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24시간
+                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // 30분
               },
-              { sort: { createdAt: -1 } } // 가장 최근 것
+              { sort: { createdAt: -1 } }
           );
 
-          // 기존 게스트 ID가 있으면 그걸로 통일
           if (existingGuestLog && existingGuestLog.visitorId) {
               visitorId = existingGuestLog.visitorId;
-              console.log(`[Guest Merge] IP ${userIp} → 기존 ID ${visitorId} 사용`);
           }
       }
 
@@ -2833,8 +2835,7 @@ app.post('/api/trace/log', async (req, res) => {
           );
 
           if (lastLog) {
-              const now = new Date();
-              const timeDiff = now - new Date(lastLog.createdAt);
+              const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
 
               // 5분 이내 + 같은 URL = 중복
               if (timeDiff < 5 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
@@ -2855,7 +2856,6 @@ app.post('/api/trace/log', async (req, res) => {
 
       // 예외 필터링
       if (currentUrl && currentUrl.includes('skin-skin')) return res.json({ success: true, msg: 'Skin Ignored' });
-      if (prevUrl && (prevUrl.includes('bot') || prevUrl.includes('crawl'))) return res.json({ success: true, msg: 'Bot Filtered' });
 
       // ==========================================================
       // [4] 로그 저장
@@ -2881,7 +2881,6 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
-
 
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
