@@ -2775,6 +2775,16 @@ app.post('/api/trace/log', async (req, res) => {
       // 회원 여부 (guest_로 시작하지 않으면 회원)
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
+       // ★ [추가] 같은 IP + 같은 URL + 10초 이내 = 무조건 중복
+       const veryRecentLog = await db.collection('visit_logs1Event').findOne({
+            userIp: userIp,
+            currentUrl: currentUrl,
+            createdAt: { $gte: new Date(Date.now() - 10000) } // 10초
+        });
+        if (veryRecentLog) {
+          return res.json({ success: true, msg: 'Duplicate (same IP+URL within 10s)' });
+      }
+
       // ==========================================================
       // [1] ★ 중복 병합 (Merge) - 조건을 더 느슨하게 수정
       // ==========================================================
