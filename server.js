@@ -2990,102 +2990,109 @@ app.get('/api/trace/visitors', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 // ==========================================================
-// [API 4] 특정 유저 이동 경로 (수정: 날짜/IP/visitorId 모두 지원)
+// [API 4] 특정 유저 이동 경로 (수정: 회원/비회원 분리)
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
   const { startDate, endDate } = req.query;
 
-  console.log('[Journey] 요청:', { visitorId, startDate, endDate }); // 디버깅
+  console.log('[Journey] 요청:', { visitorId, startDate, endDate });
 
   try {
       // ==========================================================
-      // [1] 날짜 필터링 준비 (★ 수정: 시간대 문제 해결)
+      // [1] 날짜 필터링 준비
       // ==========================================================
       let dateFilter = null;
       
       if (startDate) {
-          // 로컬 날짜를 UTC로 변환하지 않고 그대로 사용
           const start = new Date(startDate + 'T00:00:00.000Z');
           const end = endDate 
               ? new Date(endDate + 'T23:59:59.999Z') 
               : new Date(startDate + 'T23:59:59.999Z');
           
           dateFilter = { $gte: start, $lte: end };
-          console.log('[Journey] 날짜 필터:', { start, end }); // 디버깅
       }
 
       // ==========================================================
-      // [2] visitorId가 IP 형식인지 확인
+      // [2] ★ 검색 대상이 IP인지, 회원ID인지, 게스트ID인지 판단
       // ==========================================================
-      const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || 
-                        visitorId.includes(':');
+      const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || visitorId.includes(':');
+      const isGuestId = visitorId.toLowerCase().startsWith('guest_');
+      const isMemberId = !isIpFormat && !isGuestId;
 
-      let targetIp = null;
-      let targetVisitorId = null;
+      let baseQuery = {};
+      let clickQuery = {};
 
-      if (isIpFormat) {
-          targetIp = visitorId;
-          console.log('[Journey] IP로 검색:', targetIp);
-      } else {
-          targetVisitorId = visitorId;
+      // ==========================================================
+      // [3] ★ 케이스별 쿼리 생성 (핵심 수정)
+      // ==========================================================
+      
+      if (isMemberId) {
+          // ★ 케이스 1: 회원 ID로 검색 → 해당 회원 기록만!
+          console.log('[Journey] 회원 ID로 검색:', visitorId);
+          baseQuery = { visitorId: visitorId };
+          clickQuery = { visitorId: visitorId };
+      } 
+      else if (isIpFormat) {
+          // ★ 케이스 2: IP로 검색 (비회원 목록에서 클릭) → 해당 IP의 게스트 기록만!
+          console.log('[Journey] IP로 검색 (게스트만):', visitorId);
+          baseQuery = { 
+              userIp: visitorId,
+              visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+          };
+          clickQuery = { 
+              ip: visitorId,
+              visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+          };
+      }
+      else if (isGuestId) {
+          // ★ 케이스 3: 게스트 ID로 검색 → 해당 게스트 + 같은 IP의 다른 게스트
+          console.log('[Journey] 게스트 ID로 검색:', visitorId);
           
-          // 해당 visitorId의 IP도 찾기
-          const userLog = await db.collection('visit_logs1Event').findOne(
+          // 먼저 이 게스트의 IP 찾기
+          const guestLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
-              { sort: { createdAt: -1 }, projection: { userIp: 1 } }
+              { projection: { userIp: 1 } }
           );
-          if (userLog) {
-              targetIp = userLog.userIp;
-              console.log('[Journey] visitorId에서 IP 찾음:', targetIp);
+          
+          if (guestLog && guestLog.userIp) {
+              // 같은 IP의 게스트 기록들만 (회원 제외!)
+              baseQuery = {
+                  userIp: guestLog.userIp,
+                  visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+              };
+              clickQuery = {
+                  ip: guestLog.userIp,
+                  visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+              };
+          } else {
+              // IP 못 찾으면 해당 게스트 ID만
+              baseQuery = { visitorId: visitorId };
+              clickQuery = { visitorId: visitorId };
           }
       }
 
       // ==========================================================
-      // [3] 검색 쿼리 생성 (★ 수정: 더 유연하게)
+      // [4] 날짜 조건 추가
       // ==========================================================
-      let baseQuery = {};
-
-      if (targetVisitorId && targetIp) {
-          // 둘 다 있으면: ID 일치 OR (IP 일치 AND guest)
-          baseQuery = {
-              $or: [
-                  { visitorId: targetVisitorId },
-                  { userIp: targetIp }
-              ]
-          };
-      } else if (targetIp) {
-          baseQuery = { userIp: targetIp };
-      } else if (targetVisitorId) {
-          baseQuery = { visitorId: targetVisitorId };
-      } else {
-          return res.json({ success: true, journey: [], msg: 'No identifier' });
-      }
-
-      // 날짜 조건 추가
       if (dateFilter) {
-          baseQuery = {
-              $and: [
-                  baseQuery,
-                  { createdAt: dateFilter }
-              ]
-          };
+          baseQuery = { $and: [baseQuery, { createdAt: dateFilter }] };
+          clickQuery = { $and: [clickQuery, { createdAt: dateFilter }] };
       }
 
-      console.log('[Journey] 최종 쿼리:', JSON.stringify(baseQuery, null, 2)); // 디버깅
+      console.log('[Journey] 방문 쿼리:', JSON.stringify(baseQuery));
 
       // ==========================================================
-      // [4] 방문 기록 조회
+      // [5] 방문 기록 조회
       // ==========================================================
       const views = await db.collection('visit_logs1Event')
           .find(baseQuery)
           .sort({ createdAt: 1 })
-          .project({ currentUrl: 1, createdAt: 1, visitorId: 1, userIp: 1, _id: 0 })
+          .project({ currentUrl: 1, createdAt: 1, visitorId: 1, _id: 0 })
           .toArray();
 
-      console.log('[Journey] 방문 기록 수:', views.length); // 디버깅
+      console.log('[Journey] 방문 기록:', views.length, '건');
 
       const formattedViews = views.map(v => ({
           type: 'VIEW',
@@ -3095,39 +3102,15 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       }));
 
       // ==========================================================
-      // [5] 클릭 기록 조회
+      // [6] 클릭 기록 조회
       // ==========================================================
-      let clickQuery = {};
-
-      if (targetVisitorId && targetIp) {
-          clickQuery = {
-              $or: [
-                  { visitorId: targetVisitorId },
-                  { ip: targetIp }
-              ]
-          };
-      } else if (targetIp) {
-          clickQuery = { ip: targetIp };
-      } else if (targetVisitorId) {
-          clickQuery = { visitorId: targetVisitorId };
-      }
-
-      if (dateFilter) {
-          clickQuery = {
-              $and: [
-                  clickQuery,
-                  { createdAt: dateFilter }
-              ]
-          };
-      }
-
       const clicks = await db.collection('event01ClickData')
           .find(clickQuery)
           .sort({ createdAt: 1 })
           .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
           .toArray();
 
-      console.log('[Journey] 클릭 기록 수:', clicks.length); // 디버깅
+      console.log('[Journey] 클릭 기록:', clicks.length, '건');
 
       const formattedClicks = clicks.map(c => ({
           type: 'CLICK',
@@ -3136,11 +3119,9 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           timestamp: c.createdAt
       }));
 
-      // 6. 합치기 및 정렬
+      // 7. 합치기 및 정렬
       const journey = [...formattedViews, ...formattedClicks];
       journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-      console.log('[Journey] 최종 결과:', journey.length, '건');
 
       res.json({ success: true, journey });
 
