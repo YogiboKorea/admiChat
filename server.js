@@ -2757,41 +2757,45 @@ app.get("/api/total-sales", async (req, res) => {
       res.status(500).json({ error: "총 매출액을 가져오는 중 오류가 발생했습니다." });
   }
 });
-
 // ==========================================================
-// [API 1] 로그 수집 (수정됨: 정확한 재방문/세션 로직 적용)
+// [API 1] 로그 수집 (최종: IP차단 + Dev예외 + 재방문 로직)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
-      // 1. IP 확인 및 차단 필터
+      // --------------------------------------------------------
+      // 1. IP 확인 및 차단 필터 (개발자 예외 적용)
+      // --------------------------------------------------------
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      // 1. 차단할 공용 IP 리스트
+      // 차단할 IP 리스트 (사무실 등 공용 IP)
       const BLOCKED_IPS = ['127.0.0.1', '61.99.75.10']; 
       
-      // 2. 프론트에서 보낸 '나 개발자야(isDev)' 신호 받기
+      // 프론트에서 보낸 '나 개발자야(isDev)' 신호 받기
       const { isDev } = req.body; 
 
-      // ★ [핵심 수정] IP가 차단 목록에 있어도, isDev가 true면 통과시킴
+      // ★ IP가 차단 목록에 있어도, isDev가 true면 통과 / false면 차단
       if (BLOCKED_IPS.includes(userIp) && !isDev) {
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
+      // --------------------------------------------------------
+      // 2. 요청 데이터 파싱
+      // --------------------------------------------------------
       let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
 
-      // [디버깅] 요청 로깅
       console.log('[LOG] 요청:', { 
           visitorId, 
           currentUrl: currentUrl?.substring(0, 50), 
-          userIp 
+          userIp,
+          isDev // 디버깅용 확인
       });
 
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
-      // ==========================================================
-      // [1] 회원 로그인 시: 5분 이내 게스트 병합
-      // ==========================================================
+      // --------------------------------------------------------
+      // 3. 회원 병합 로직 (로그인 시)
+      // --------------------------------------------------------
       if (isRealMember) {
           const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000);
 
@@ -2818,9 +2822,9 @@ app.post('/api/trace/log', async (req, res) => {
           );
       }
 
-      // ==========================================================
-      // [2] 게스트일 경우: 30분 이내 같은 IP의 기존 게스트 ID 사용
-      // ==========================================================
+      // --------------------------------------------------------
+      // 4. 게스트 ID 재사용 로직 (비회원)
+      // --------------------------------------------------------
       if (!isRealMember) {
           const existingGuestLog = await db.collection('visit_logs1Event').findOne(
               {
@@ -2833,19 +2837,18 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (existingGuestLog && existingGuestLog.visitorId) {
               visitorId = existingGuestLog.visitorId;
-              // console.log(`[GUEST] 기존 ID 재사용: ${visitorId}`);
           }
       }
 
-      // ==========================================================
-      // [3] ★ 중복 / 세션 / 재방문(Retention) 체크 (로직 개선됨)
-      // ==========================================================
+      // --------------------------------------------------------
+      // 5. ★ [핵심] 세션 유지 및 재방문(Retention) 판별
+      // --------------------------------------------------------
       let isNewSession = true;
       let skipReason = null;
-      let isRevisit = false; // 기본값
+      let isRevisit = false; 
 
       if (visitorId) {
-          // 해당 유저의 '가장 최근 로그' 하나만 가져옴
+          // 가장 최근 로그 1개 조회
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { sort: { createdAt: -1 } }
@@ -2853,36 +2856,37 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (lastLog) {
               const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
-              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분 (세션 기준)
+              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
-              // 3-1. 중복 클릭 방지 (2분 이내 + 같은 URL)
+              // [A] 중복 저장 방지 (2분 이내 + 동일 URL)
               if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
                   skipReason = 'Duplicate (same URL within 2min)';
               }
 
-              // 3-2. 세션 판별 및 재방문 로직
+              // [B] 세션 판별
               if (timeDiff < SESSION_TIMEOUT) {
-                  // [CASE A] 30분 이내 방문 (세션 유지 중)
-                  // -> 페이지 이동이나 새로고침입니다.
-                  // -> 절대 재방문 여부를 새로 계산하지 말고, 직전 상태를 그대로 물려받습니다.
+                  // === 세션 유지 중 (페이지 이동/새로고침) ===
                   isNewSession = false;
+                  
+                  // ★ 중요: 세션이 유지되는 동안은 재방문 여부를 새로 계산하지 않고
+                  // 직전 로그의 상태를 그대로 물려받습니다. (Inherit)
                   isRevisit = lastLog.isRevisit || false; 
+                  
               } else {
-                  // [CASE B] 30분 지남 (새로운 세션 시작)
-                  // -> 이때만 "과거(24시간 전)에 온 적 있나?"를 체크합니다.
+                  // === 새로운 세션 시작 (30분 경과 후 재접속) ===
                   isNewSession = true;
                   
-                  // "지금으로부터 24시간보다 더 이전에" 작성된 로그가 하나라도 있는지 체크
+                  // ★ 이때만 "과거(24시간 전)에 방문한 적 있는가?"를 체크합니다.
                   const pastLog = await db.collection('visit_logs1Event').findOne({
                       visitorId: visitorId,
                       createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
                   });
 
                   if (pastLog) {
-                      isRevisit = true; // 24시간 전 기록이 있으므로 재방문 유저!
-                      console.log(`[REVISIT] 24시간 경과 후 재방문 확인: ${visitorId}`);
+                      isRevisit = true; // 24시간 전 기록 있음 -> 재방문 유저
+                      console.log(`[REVISIT] 재방문 유저 확인: ${visitorId}`);
                   } else {
-                      isRevisit = false; // 24시간 전 기록 없음 (신규 혹은 하루 내 재접속)
+                      isRevisit = false; // 24시간 전 기록 없음 -> 신규 또는 하루 내 재접속
                   }
               }
           } else {
@@ -2896,9 +2900,9 @@ app.post('/api/trace/log', async (req, res) => {
           return res.json({ success: true, msg: skipReason });
       }
 
-      // ==========================================================
-      // [4] 진입점 체크
-      // ==========================================================
+      // --------------------------------------------------------
+      // 6. 진입점(Entry Point) 체크
+      // --------------------------------------------------------
       const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
           $or: [ { visitorId: visitorId }, { userIp: userIp } ],
           currentUrl: { $regex: '1_promotion.html' }
@@ -2906,7 +2910,6 @@ app.post('/api/trace/log', async (req, res) => {
 
       if (isNewSession && !hasPromoVisit) {
           if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-              // console.log(`[BLOCK] 진입점 아님: ${currentUrl}`);
               return res.json({ success: true, msg: 'Not entry point' });
           }
       }
@@ -2915,9 +2918,9 @@ app.post('/api/trace/log', async (req, res) => {
           return res.json({ success: true, msg: 'Skin Ignored' });
       }
 
-      // ==========================================================
-      // [5] 로그 저장
-      // ==========================================================
+      // --------------------------------------------------------
+      // 7. 최종 저장
+      // --------------------------------------------------------
       const log = {
           visitorId: visitorId,
           isMember: !!isRealMember,
@@ -2928,14 +2931,14 @@ app.post('/api/trace/log', async (req, res) => {
           userIp: userIp,
           deviceType: deviceType || 'unknown',
           duration: 0,
-          isRevisit: isRevisit, // 결정된 재방문 값 저장
+          isRevisit: isRevisit, // 계산된 재방문 값 저장
           createdAt: new Date()
       };
 
       const result = await db.collection('visit_logs1Event').insertOne(log);
       
-      const prefix = isRevisit ? '[SAVE-Revisit]' : '[SAVE-New]';
-      console.log(`${prefix} ${visitorId} (Session: ${isNewSession ? 'New' : 'Cont'})`);
+      const logStatus = isRevisit ? '[REVISIT]' : '[NEW]';
+      console.log(`[SAVE] ${logStatus} ${visitorId} (Session: ${isNewSession ? 'New' : 'Cont'})`);
       
       res.json({ success: true, logId: result.insertedId });
 
@@ -2944,7 +2947,6 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false, error: e.message });
   }
 });
-
 
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
