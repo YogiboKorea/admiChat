@@ -2767,8 +2767,14 @@ app.post('/api/trace/log', async (req, res) => {
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      const BLOCKED_IPS = ['127.0.0.1'];
-      if (BLOCKED_IPS.includes(userIp)) {
+      // 1. 차단할 공용 IP 리스트
+      const BLOCKED_IPS = ['127.0.0.1', '61.99.75.10']; 
+      
+      // 2. 프론트에서 보낸 '나 개발자야(isDev)' 신호 받기
+      const { isDev } = req.body; 
+
+      // ★ [핵심 수정] IP가 차단 목록에 있어도, isDev가 true면 통과시킴
+      if (BLOCKED_IPS.includes(userIp) && !isDev) {
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
