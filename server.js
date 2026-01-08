@@ -2758,9 +2758,8 @@ app.get("/api/total-sales", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [API 1] 로그 수집 (수정됨: 재방문 로직 포함 전체 코드)
+// [API 1] 로그 수집 (수정됨: 정확한 재방문/세션 로직 적용)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
@@ -2802,8 +2801,7 @@ app.post('/api/trace/log', async (req, res) => {
           if (mergeResult.modifiedCount > 0) {
               console.log(`[MERGE] ${mergeResult.modifiedCount}건 병합 → ${visitorId}`);
           }
-
-          // 클릭 데이터도 병합
+          
           await db.collection('event01ClickData').updateMany(
               {
                   ip: userIp,
@@ -2829,18 +2827,19 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (existingGuestLog && existingGuestLog.visitorId) {
               visitorId = existingGuestLog.visitorId;
-              console.log(`[GUEST] 기존 ID 재사용: ${visitorId}`);
+              // console.log(`[GUEST] 기존 ID 재사용: ${visitorId}`);
           }
       }
 
       // ==========================================================
-      // [3] ★ 중복 / 세션 / 재방문(Retention) 체크
+      // [3] ★ 중복 / 세션 / 재방문(Retention) 체크 (로직 개선됨)
       // ==========================================================
       let isNewSession = true;
       let skipReason = null;
-      let isRevisit = false; // [추가] 재방문 여부 변수
+      let isRevisit = false; // 기본값
 
       if (visitorId) {
+          // 해당 유저의 '가장 최근 로그' 하나만 가져옴
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { sort: { createdAt: -1 } }
@@ -2848,31 +2847,41 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (lastLog) {
               const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
+              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분 (세션 기준)
 
-              // 3-1. 중복 체크 (2분 이내 + 같은 URL)
+              // 3-1. 중복 클릭 방지 (2분 이내 + 같은 URL)
               if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
                   skipReason = 'Duplicate (same URL within 2min)';
               }
 
-              // 3-2. 세션 체크 (30분 이내면 같은 세션)
-              if (timeDiff < 30 * 60 * 1000) {
+              // 3-2. 세션 판별 및 재방문 로직
+              if (timeDiff < SESSION_TIMEOUT) {
+                  // [CASE A] 30분 이내 방문 (세션 유지 중)
+                  // -> 페이지 이동이나 새로고침입니다.
+                  // -> 절대 재방문 여부를 새로 계산하지 말고, 직전 상태를 그대로 물려받습니다.
                   isNewSession = false;
-              }
-
-              // 3-3. ★ [추가] 24시간 재방문 판단 로직
-              const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-              if (timeDiff >= ONE_DAY_MS) {
-                  // 마지막 기록보다 24시간 지났으면 -> 재방문(Retention) 인정
-                  isRevisit = true;
-                  console.log(`[REVISIT] 돌아온 유저! (${visitorId})`);
+                  isRevisit = lastLog.isRevisit || false; 
               } else {
-                  // 24시간이 안 지났다면 -> 이번 세션이 재방문 세션의 연속인지 확인
-                  // (예: 재방문 후 1분 뒤 클릭한 것도 재방문으로 쳐야 함)
-                  if (lastLog.isRevisit === true) {
-                      isRevisit = true;
+                  // [CASE B] 30분 지남 (새로운 세션 시작)
+                  // -> 이때만 "과거(24시간 전)에 온 적 있나?"를 체크합니다.
+                  isNewSession = true;
+                  
+                  // "지금으로부터 24시간보다 더 이전에" 작성된 로그가 하나라도 있는지 체크
+                  const pastLog = await db.collection('visit_logs1Event').findOne({
+                      visitorId: visitorId,
+                      createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
+                  });
+
+                  if (pastLog) {
+                      isRevisit = true; // 24시간 전 기록이 있으므로 재방문 유저!
+                      console.log(`[REVISIT] 24시간 경과 후 재방문 확인: ${visitorId}`);
+                  } else {
+                      isRevisit = false; // 24시간 전 기록 없음 (신규 혹은 하루 내 재접속)
                   }
               }
+          } else {
+              // 로그가 아예 없음 -> 완전 신규
+              isRevisit = false;
           }
       }
 
@@ -2882,33 +2891,26 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [4] 진입점 체크 (조건 완화)
+      // [4] 진입점 체크
       // ==========================================================
-      
-      // 이벤트 페이지 방문 이력 확인
       const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
-          $or: [
-              { visitorId: visitorId },
-              { userIp: userIp }
-          ],
+          $or: [ { visitorId: visitorId }, { userIp: userIp } ],
           currentUrl: { $regex: '1_promotion.html' }
       });
 
-      // 새 세션이고, 이벤트 페이지도 아니고, 과거 방문 이력도 없으면 차단
       if (isNewSession && !hasPromoVisit) {
           if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-              console.log(`[BLOCK] Not entry point & no promo history: ${currentUrl?.substring(0, 50)}`);
+              // console.log(`[BLOCK] 진입점 아님: ${currentUrl}`);
               return res.json({ success: true, msg: 'Not entry point' });
           }
       }
 
-      // 예외 필터링 (스킨 미리보기 등)
       if (currentUrl && currentUrl.includes('skin-skin')) {
           return res.json({ success: true, msg: 'Skin Ignored' });
       }
 
       // ==========================================================
-      // [5] 로그 저장 (isRevisit 필드 추가됨)
+      // [5] 로그 저장
       // ==========================================================
       const log = {
           visitorId: visitorId,
@@ -2920,18 +2922,14 @@ app.post('/api/trace/log', async (req, res) => {
           userIp: userIp,
           deviceType: deviceType || 'unknown',
           duration: 0,
-          
-          // ★ [핵심] 재방문 여부 저장
-          isRevisit: isRevisit,
-
+          isRevisit: isRevisit, // 결정된 재방문 값 저장
           createdAt: new Date()
       };
 
       const result = await db.collection('visit_logs1Event').insertOne(log);
       
-      // 로그 출력 시 재방문이면 표시
-      const prefix = isRevisit ? '[SAVE-REVISIT]' : '[SAVE]';
-      console.log(`${prefix} ${visitorId} → ${currentUrl?.substring(0, 30)}`);
+      const prefix = isRevisit ? '[SAVE-Revisit]' : '[SAVE-New]';
+      console.log(`${prefix} ${visitorId} (Session: ${isNewSession ? 'New' : 'Cont'})`);
       
       res.json({ success: true, logId: result.insertedId });
 
@@ -2940,8 +2938,6 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false, error: e.message });
   }
 });
-
-
 
 
 // ==========================================================
