@@ -2759,12 +2759,12 @@ app.get("/api/total-sales", async (req, res) => {
 });
 
 
-
 // ==========================================================
-// [API 1] 로그 수집 (개선: 디버깅 강화 + 조건 완화)
+// [API 1] 로그 수집 (수정됨: 재방문 로직 포함 전체 코드)
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
+      // 1. IP 확인 및 차단 필터
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
@@ -2775,7 +2775,7 @@ app.post('/api/trace/log', async (req, res) => {
 
       let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
 
-      // ★ [디버깅] 모든 요청 로깅
+      // [디버깅] 요청 로깅
       console.log('[LOG] 요청:', { 
           visitorId, 
           currentUrl: currentUrl?.substring(0, 50), 
@@ -2803,6 +2803,7 @@ app.post('/api/trace/log', async (req, res) => {
               console.log(`[MERGE] ${mergeResult.modifiedCount}건 병합 → ${visitorId}`);
           }
 
+          // 클릭 데이터도 병합
           await db.collection('event01ClickData').updateMany(
               {
                   ip: userIp,
@@ -2833,10 +2834,11 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [3] ★ 중복 및 세션 체크 (조건 완화)
+      // [3] ★ 중복 / 세션 / 재방문(Retention) 체크
       // ==========================================================
       let isNewSession = true;
       let skipReason = null;
+      let isRevisit = false; // [추가] 재방문 여부 변수
 
       if (visitorId) {
           const lastLog = await db.collection('visit_logs1Event').findOne(
@@ -2847,14 +2849,29 @@ app.post('/api/trace/log', async (req, res) => {
           if (lastLog) {
               const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
 
-              // ★ [수정] 2분 이내 + 완전히 같은 URL만 중복 처리 (기존 5분)
+              // 3-1. 중복 체크 (2분 이내 + 같은 URL)
               if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
                   skipReason = 'Duplicate (same URL within 2min)';
               }
 
-              // 30분 이내면 같은 세션
+              // 3-2. 세션 체크 (30분 이내면 같은 세션)
               if (timeDiff < 30 * 60 * 1000) {
                   isNewSession = false;
+              }
+
+              // 3-3. ★ [추가] 24시간 재방문 판단 로직
+              const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+              if (timeDiff >= ONE_DAY_MS) {
+                  // 마지막 기록보다 24시간 지났으면 -> 재방문(Retention) 인정
+                  isRevisit = true;
+                  console.log(`[REVISIT] 돌아온 유저! (${visitorId})`);
+              } else {
+                  // 24시간이 안 지났다면 -> 이번 세션이 재방문 세션의 연속인지 확인
+                  // (예: 재방문 후 1분 뒤 클릭한 것도 재방문으로 쳐야 함)
+                  if (lastLog.isRevisit === true) {
+                      isRevisit = true;
+                  }
               }
           }
       }
@@ -2865,7 +2882,7 @@ app.post('/api/trace/log', async (req, res) => {
       }
 
       // ==========================================================
-      // [4] ★ 진입점 체크 (조건 완화)
+      // [4] 진입점 체크 (조건 완화)
       // ==========================================================
       
       // 이벤트 페이지 방문 이력 확인
@@ -2877,7 +2894,7 @@ app.post('/api/trace/log', async (req, res) => {
           currentUrl: { $regex: '1_promotion.html' }
       });
 
-      // ★ [수정] 새 세션이고, 이벤트 페이지도 아니고, 과거 방문 이력도 없으면 차단
+      // 새 세션이고, 이벤트 페이지도 아니고, 과거 방문 이력도 없으면 차단
       if (isNewSession && !hasPromoVisit) {
           if (currentUrl && !currentUrl.includes('1_promotion.html')) {
               console.log(`[BLOCK] Not entry point & no promo history: ${currentUrl?.substring(0, 50)}`);
@@ -2885,13 +2902,13 @@ app.post('/api/trace/log', async (req, res) => {
           }
       }
 
-      // 예외 필터링
+      // 예외 필터링 (스킨 미리보기 등)
       if (currentUrl && currentUrl.includes('skin-skin')) {
           return res.json({ success: true, msg: 'Skin Ignored' });
       }
 
       // ==========================================================
-      // [5] 로그 저장
+      // [5] 로그 저장 (isRevisit 필드 추가됨)
       // ==========================================================
       const log = {
           visitorId: visitorId,
@@ -2903,11 +2920,18 @@ app.post('/api/trace/log', async (req, res) => {
           userIp: userIp,
           deviceType: deviceType || 'unknown',
           duration: 0,
+          
+          // ★ [핵심] 재방문 여부 저장
+          isRevisit: isRevisit,
+
           createdAt: new Date()
       };
 
       const result = await db.collection('visit_logs1Event').insertOne(log);
-      console.log(`[SAVE] ${visitorId} → ${currentUrl?.substring(0, 30)}`);
+      
+      // 로그 출력 시 재방문이면 표시
+      const prefix = isRevisit ? '[SAVE-REVISIT]' : '[SAVE]';
+      console.log(`${prefix} ${visitorId} → ${currentUrl?.substring(0, 30)}`);
       
       res.json({ success: true, logId: result.insertedId });
 
@@ -2916,6 +2940,9 @@ app.post('/api/trace/log', async (req, res) => {
       res.status(500).json({ success: false, error: e.message });
   }
 });
+
+
+
 
 // ==========================================================
 // [API 1-1] 체류 시간 업데이트
@@ -3818,6 +3845,8 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
       res.status(500).json({ msg: 'Server Error', error: err.toString() });
   }
 });
+
+
 // ==========================================
 //2026년 1월 응모이벤트
 // [API 1] 응모하기 (옵션 검증 로직 추가)
