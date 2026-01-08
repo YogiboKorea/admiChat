@@ -3718,9 +3718,8 @@ app.get('/by-click', async (req, res) => {
   res.json({ success: true, visitors: result });
 });
 
-
 // ==========================================================
-// [API 11] 특정 채널로 유입된 방문자 목록 조회 (수정: 직접방문 포함)
+// [API 11] 특정 채널로 유입된 방문자 목록 조회 (수정: 대용량 처리 옵션 추가)
 // ==========================================================
 app.get('/api/trace/visitors/by-channel', async (req, res) => {
   try {
@@ -3741,7 +3740,7 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                   userIp: 1,
                   createdAt: 1,
                   isMember: 1,
-                  // ★ API 5번과 100% 동일한 매핑 로직 유지
+                  // ★ API 5번과 동일한 매핑 로직
                   computedChannel: {
                       $switch: {
                           branches: [
@@ -3767,15 +3766,16 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                               { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
                               { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
                           ],
-                          // ★ 여기가 핵심: UTM이 없으면 이 값으로 설정됨
                           default: "직접/기타 방문"
                       }
                   }
               }
           },
-          // ★ 여기서 computedChannel과 요청받은 channelName을 비교
+          // 2. 요청받은 채널명과 일치하는 것만 필터링
           { $match: { computedChannel: channelName } },
+          // 3. 최신순 정렬
           { $sort: { createdAt: -1 } },
+          // 4. 그룹핑 (중복 제거)
           {
               $group: {
                   _id: {
@@ -3792,6 +3792,7 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                   count: { $sum: 1 }
               }
           },
+          // 5. 프론트엔드용 필드 정리
           {
               $project: {
                   _id: 0,
@@ -3807,16 +3808,16 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
           { $limit: 100 }
       ];
 
-      const visitors = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
+      // ★ [중요] allowDiskUse: true 옵션 추가 (데이터가 많을 때 메모리 초과 방지)
+      const visitors = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
+      
       res.json({ success: true, visitors });
 
   } catch (err) {
-      console.error(err);
-      res.status(500).json({ msg: 'Server Error' });
+      console.error('API 11 Error:', err);
+      res.status(500).json({ msg: 'Server Error', error: err.toString() });
   }
 });
-
-
 // ==========================================
 //2026년 1월 응모이벤트
 // [API 1] 응모하기 (옵션 검증 로직 추가)
