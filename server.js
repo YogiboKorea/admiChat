@@ -3719,9 +3719,8 @@ app.get('/by-click', async (req, res) => {
 });
 
 
-
 // ==========================================================
-// [API 11] 특정 채널로 유입된 방문자 목록 조회 (신규 추가)
+// [API 11] 특정 채널로 유입된 방문자 목록 조회 (수정: 직접방문 포함)
 // ==========================================================
 app.get('/api/trace/visitors/by-channel', async (req, res) => {
   try {
@@ -3734,7 +3733,6 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
           if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
       }
 
-      // 1. 해당 기간의 모든 로그를 가져와서 채널명을 매핑
       const pipeline = [
           { $match: { createdAt: dateFilter } },
           {
@@ -3743,7 +3741,7 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                   userIp: 1,
                   createdAt: 1,
                   isMember: 1,
-                  // ★ API 5번과 동일한 UTM 매핑 로직 (복사됨)
+                  // ★ API 5번과 100% 동일한 매핑 로직 유지
                   computedChannel: {
                       $switch: {
                           branches: [
@@ -3769,14 +3767,14 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                               { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
                               { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
                           ],
+                          // ★ 여기가 핵심: UTM이 없으면 이 값으로 설정됨
                           default: "직접/기타 방문"
                       }
                   }
               }
           },
-          // 2. 요청받은 채널명과 일치하는 것만 필터링
+          // ★ 여기서 computedChannel과 요청받은 channelName을 비교
           { $match: { computedChannel: channelName } },
-          // 3. 최신순 정렬 및 그룹핑 (중복 제거)
           { $sort: { createdAt: -1 } },
           {
               $group: {
@@ -3794,11 +3792,10 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
                   count: { $sum: 1 }
               }
           },
-          // 4. 프론트엔드용 필드 정리
           {
               $project: {
                   _id: 0,
-                  searchId: "$_id", // 검색용 ID (IP or MemberID)
+                  searchId: "$_id",
                   visitorId: 1,
                   isMember: 1,
                   lastAction: 1,
@@ -3818,7 +3815,6 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
       res.status(500).json({ msg: 'Server Error' });
   }
 });
-
 
 
 // ==========================================
