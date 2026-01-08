@@ -3150,211 +3150,215 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
 });
 
 // ==========================================================
-// [API 5] 퍼널 분석 (IP 기반 고유 방문자)
+// [API 5] 퍼널 분석 (수정: 1월 신규 UTM 매핑 적용)
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
-    try {
-        const { startDate, endDate } = req.query;
-
-        let dateFilter = {};
-        if (startDate || endDate) {
-            dateFilter = {};
-            if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
-            if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
-        }
-
-        const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
-            createdAt: dateFilter,
-            currentUrl: { $regex: '1_promotion.html' }
-        });
-
-        if (validVisitors.length === 0) {
-            return res.json({ success: true, data: [] });
-        }
-
-        const pipeline = [
-            {
-                $match: {
-                    createdAt: dateFilter,
-                    visitorId: { $in: validVisitors }
-                }
-            },
-            {
-                $project: {
-                    visitorId: 1,
-                    userIp: 1,
-                    currentUrl: 1,
-                    // ★ 고유 식별자: 회원은 ID, 비회원은 IP
-                    uniqueId: {
-                        $cond: [
-                            { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
-                            "$userIp",
-                            "$visitorId"
-                        ]
-                    },
-                    channelName: {
-                        $switch: {
-                            branches: [
-                                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
-                                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
-                                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
-                                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브랜드광고[선물 추천]" },
-                                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
-                                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
-                                { case: { $eq: ["$utmData.term", "secretprice"] }, then: "25일프로모션 UTM" },
-                                { case: { $eq: ["$utmData.term", "christmas"] }, then: "메타 광고[크리스마스 쿠폰팩]" },
-                                { case: { $eq: ["$utmData.term", "100won"] }, then: "메타 광고[도전 100원]" },
-                                { case: { $eq: ["$utmData.term", "forgift"] }, then: "메타 광고[선물 추천]" },
-                                { case: { $eq: ["$utmData.term", "limited"] }, then: "메타 광고[LIMITED GIFT]" },
-                                { case: { $eq: ["$utmData.term", "over30"] }, then: "메타 광고[인형증정]" },
-                                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
-                                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
-                                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
-                                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
-                                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
-                                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
-                            ],
-                            default: "직접/기타 방문"
-                        }
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: "$channelName",
-                    // ★ uniqueId로 고유 방문자 집계
-                    step1_visitors: { $addToSet: "$uniqueId" },
-                    step2_visitors: {
-                        $addToSet: {
-                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$uniqueId", "$$REMOVE"]
-                        }
-                    },
-                    step3_visitors: {
-                        $addToSet: {
-                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$uniqueId", "$$REMOVE"]
-                        }
-                    },
-                    step4_visitors: {
-                        $addToSet: {
-                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$uniqueId", "$$REMOVE"]
-                        }
-                    },
-                    step5_visitors: {
-                        $addToSet: {
-                            $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$uniqueId", "$$REMOVE"]
-                        }
-                    }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    channelName: "$_id",
-                    count_total: { $size: "$step1_visitors" },
-                    count_detail: { $size: "$step2_visitors" },
-                    count_cart: { $size: "$step3_visitors" },
-                    count_order: { $size: "$step4_visitors" },
-                    count_purchase: { $size: "$step5_visitors" }
-                }
-            },
-            { $sort: { count_total: -1 } }
-        ];
-
-        const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
-        res.json({ success: true, data: funnelData });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ msg: 'Server Error' });
-    }
-});
-
-
-// ==========================================================
-// [API 6] 채널별 통합 분석 (방문자수, 구매전환 중심)
-// ==========================================================
-app.get('/api/trace/channels', async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
-    
-    let matchStage = {};
-    if (startDate || endDate) {
-        matchStage.createdAt = {};
-        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
-    }
+      const { startDate, endDate } = req.query;
 
-    const stats = await db.collection('visit_logs1Event').aggregate([
-      { $match: matchStage },
-      {
-        $project: {
-          visitorId: 1,
-          currentUrl: 1,
-          // ★ [매핑 로직] API 5와 동일하게 유지
-          displayName: {
-            $switch: {
-              branches: [
-                // 1. 네이버
-                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브랜드광고[메인]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브랜드광고[크리스마스 쿠폰팩]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브랜드광고[도전 100원]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브랜드광고[선물 추천]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브랜드광고[LIMITED GIFT]" },
-                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브랜드광고[인형증정/럭키드로우]" },
+      let dateFilter = {};
+      if (startDate || endDate) {
+          dateFilter = {};
+          if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
+          if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
+      }
 
-                // 2. 메타
-                { case: { $eq: ["$utmData.term", "christmas"] },     then: "메타 광고[크리스마스 쿠폰팩]" },
-                { case: { $eq: ["$utmData.term", "100won"] },        then: "메타 광고[도전 100원]" },
-                { case: { $eq: ["$utmData.term", "forgift"] },       then: "메타 광고[선물 추천]" },
-                { case: { $eq: ["$utmData.term", "limited"] },       then: "메타 광고[LIMITED GIFT]" },
-                { case: { $eq: ["$utmData.term", "over30"] },        then: "메타 광고[인형증정]" },
-                { case: { $eq: ["$utmData.term", "lucky12_event"] }, then: "메타 광고[럭키드로우]" },
+      // 유효 방문자 추출
+      const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
+          createdAt: dateFilter,
+          currentUrl: { $regex: '1_promotion.html|index.html|store.html' } // UTM 랜딩이 다양해져서 조건 확장
+      });
 
-                // 3. 카카오
-                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "카톡플친[메인]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "카톡플친[서브1]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "카톡플친[서브2]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "카톡플친[서브3]" },
-                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "카톡플친[서브4]" }
-              ],
-              default: "직접/기타 방문"
-            }
-          }
-        }
-      },
-      {
-        $group: {
-          _id: "$displayName", 
-          totalVisits: { $sum: 1 },
-          uniqueVisitors: { $addToSet: "$visitorId" },
-          
-          purchaseCount: { 
-            $sum: { 
-              $cond: [ { $regexMatch: { input: "$currentUrl", regex: "order_result" } }, 1, 0 ] 
-            } 
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          channelName: "$_id", // 프론트엔드 통일성을 위해 channelName으로 출력
-          totalVisits: 1,
-          uniqueVisitorCount: { $size: "$uniqueVisitors" },
-          purchaseCount: 1
-        }
-      },
-      { $sort: { totalVisits: -1 } }
-    ]).toArray();
+      if (validVisitors.length === 0) {
+          return res.json({ success: true, data: [] });
+      }
 
-    res.json({ success: true, data: stats });
+      const pipeline = [
+          {
+              $match: {
+                  createdAt: dateFilter,
+                  visitorId: { $in: validVisitors }
+              }
+          },
+          {
+              $project: {
+                  visitorId: 1,
+                  userIp: 1,
+                  currentUrl: 1,
+                  uniqueId: {
+                      $cond: [
+                          { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
+                          "$userIp",
+                          "$visitorId"
+                      ]
+                  },
+                  // ★ [수정됨] 1월 신규 UTM 매핑 로직 (이미지 기준)
+                  channelName: {
+                      $switch: {
+                          branches: [
+                              // 1. 네이버 브랜드 검색 (Campaign 기준)
+                              { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
+                              { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브검 : 1월 말할 수 없는 편안함(서브2)_20%" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
+
+                              // 2. 메타 광고 (Content 기준)
+                              { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
+                              { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
+                              { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
+                              { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
+                              { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
+                              { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
+
+                              // 3. 카카오 플친 (Campaign 기준)
+                              { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
+                          ],
+                          default: "직접/기타 방문"
+                      }
+                  }
+              }
+          },
+          {
+              $group: {
+                  _id: "$channelName",
+                  step1_visitors: { $addToSet: "$uniqueId" },
+                  step2_visitors: {
+                      $addToSet: {
+                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$uniqueId", "$$REMOVE"]
+                      }
+                  },
+                  step3_visitors: {
+                      $addToSet: {
+                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$uniqueId", "$$REMOVE"]
+                      }
+                  },
+                  step4_visitors: {
+                      $addToSet: {
+                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$uniqueId", "$$REMOVE"]
+                      }
+                  },
+                  step5_visitors: {
+                      $addToSet: {
+                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$uniqueId", "$$REMOVE"]
+                      }
+                  }
+              }
+          },
+          {
+              $project: {
+                  _id: 0,
+                  channelName: "$_id",
+                  count_total: { $size: "$step1_visitors" },
+                  count_detail: { $size: "$step2_visitors" },
+                  count_cart: { $size: "$step3_visitors" },
+                  count_order: { $size: "$step4_visitors" },
+                  count_purchase: { $size: "$step5_visitors" }
+              }
+          },
+          { $sort: { count_total: -1 } }
+      ];
+
+      const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
+      res.json({ success: true, data: funnelData });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server Error' });
+      console.error(err);
+      res.status(500).json({ msg: 'Server Error' });
   }
 });
 
+
+// ==========================================================
+// [API 6] 채널별 통합 분석 (수정: 1월 신규 UTM 매핑 적용)
+// ==========================================================
+app.get('/api/trace/channels', async (req, res) => {
+  try {
+      const { startDate, endDate } = req.query;
+      
+      let matchStage = {};
+      if (startDate || endDate) {
+          matchStage.createdAt = {};
+          if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+          if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+      }
+
+      const stats = await db.collection('visit_logs1Event').aggregate([
+          { $match: matchStage },
+          {
+              $project: {
+                  visitorId: 1,
+                  currentUrl: 1,
+                  // ★ [매핑 로직] API 5와 동일하게 업데이트
+                  displayName: {
+                      $switch: {
+                          branches: [
+                              // 1. 네이버 브랜드 검색
+                              { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
+                              { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브검 : 1월 말할 수 없는 편안함(서브2)_20%" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
+                              { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
+
+                              // 2. 메타 광고
+                              { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
+                              { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
+                              { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
+                              { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
+                              { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
+                              { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
+
+                              // 3. 카카오 플친
+                              { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
+                              { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
+                          ],
+                          default: "직접/기타 방문"
+                      }
+                  }
+              }
+          },
+          {
+              $group: {
+                  _id: "$displayName", 
+                  totalVisits: { $sum: 1 },
+                  uniqueVisitors: { $addToSet: "$visitorId" },
+                  purchaseCount: { 
+                      $sum: { 
+                          $cond: [ { $regexMatch: { input: "$currentUrl", regex: "order_result" } }, 1, 0 ] 
+                      } 
+                  }
+              }
+          },
+          {
+              $project: {
+                  _id: 0,
+                  channelName: "$_id",
+                  totalVisits: 1,
+                  uniqueVisitorCount: { $size: "$uniqueVisitors" },
+                  purchaseCount: 1
+              }
+          },
+          { $sort: { totalVisits: -1 } }
+      ]).toArray();
+
+      res.json({ success: true, data: stats });
+
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ msg: 'Server Error' });
+  }
+});
 
 // ==========================================================
 // [API] Cafe24 카테고리 전체 정보 조회 (무한 스크롤링 방식)
