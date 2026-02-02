@@ -1597,6 +1597,38 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
   }
 });
 
+// [임시] DB 토큰 강제 업데이트 (새로 발급받은 토큰으로 DB 덮어쓰기)
+app.get('/force-update-token', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  try {
+      await client.connect();
+      const db = client.db(DB_NAME);
+      
+      // 현재 코드 상단 변수에 들어있는 '새 토큰' 값으로 DB를 강제 업데이트합니다.
+      await db.collection('tokens').updateOne(
+          {}, 
+          { 
+              $set: { 
+                  accessToken: accessToken, // 코드 맨 윗줄의 새 토큰
+                  refreshToken: refreshToken, // 코드 맨 윗줄의 새 리프레시 토큰
+                  updatedAt: new Date()
+              } 
+          },
+          { upsert: true }
+      );
+
+      res.send(`
+          <h1>DB 업데이트 완료!</h1>
+          <p><b>현재 적용된 토큰:</b> ${accessToken.substring(0, 10)}...</p>
+          <p>이제 이벤트 페이지에서 버튼을 다시 눌러보세요.</p>
+      `);
+  } catch (e) {
+      res.send(`에러 발생: ${e.message}`);
+  } finally {
+      await client.close();
+  }
+});
+
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
