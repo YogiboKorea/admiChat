@@ -439,18 +439,50 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [2월 이벤트] 매일 출석체크 & 누적 보상 시스템
+// [2월 이벤트] 매일 출석체크 & 누적 보상 시스템 (최종 수정본)
 // ==========================================================
 
+// [헬퍼 함수] 마케팅 목적 개인정보 수집 이용 동의 업데이트 (버전 강제)
+async function updatePrivacyConsent(memberId) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+  const payload = {
+    shop_no: 1,
+    request: {
+      member_id: memberId,
+      consent_type: 'marketing', // 마케팅 목적 수집 동의
+      agree: 'T',
+      issued_at: new Date().toISOString()
+    }
+  };
+
+  try {
+    // ★ 중요: 이 API는 최신 버전이 필요하므로 헤더에 버전을 직접 명시합니다.
+    const response = await axios({
+      method: 'POST',
+      url: url,
+      data: payload,
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Cafe24-Api-Version': '2024-06-01' // 2024-06-01 이상 필수
+      }
+    });
+    return response.data;
+  } catch (err) {
+    // 401 토큰 만료 시 재시도 로직은 apiRequest를 참고하거나 여기에 추가 구현 필요
+    if (err.response && err.response.status === 401) {
+       await refreshAccessToken(); // 토큰 갱신 시도
+       // 재귀 호출로 재시도 (간략 구현)
+       return updatePrivacyConsent(memberId);
+    }
+    throw err;
+  }
+}
+
+// ----------------------------------------------------------
 // 1. 이벤트 상태 조회 (초기 진입 시 호출)
-// - 누적 참여 횟수(count)
-// - 오늘 참여 여부(todayDone)
-// - 마케팅 수신동의 여부(sms, email) 반환
-// ==========================================================
-// [수정됨] 2월 이벤트 상태 조회 (마케팅 수집 동의 정밀 체크)
-// ==========================================================
+// ----------------------------------------------------------
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
@@ -464,7 +496,7 @@ app.get('/api/event/status', async (req, res) => {
     await client.connect();
     const db = client.db(DB_NAME);
     
-    // [1] DB에서 출석체크 기록 조회 (기존 로직 유지)
+    // [1] DB에서 출석체크 기록 조회
     const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
     let myCount = eventDoc ? (eventDoc.count || 0) : 0;
     let isTodayDone = false;
@@ -477,38 +509,40 @@ app.get('/api/event/status', async (req, res) => {
       }
     }
 
-    // [2] ★ [핵심 변경] "마케팅 목적 개인정보 수집 동의" 여부 조회
-    // privacyconsents 엔드포인트를 통해 'marketing' 타입의 최신 동의 내역을 가져옵니다.
+    // [2] "마케팅 목적 개인정보 수집 동의" 여부 조회
     const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-    let isMarketingAgreed = 'F'; // 기본값: 미동의
+    let isMarketingAgreed = 'F';
 
     try {
-      // Cafe24 API 호출: 해당 회원의 'marketing' 동의 내역 조회
-      const privacyRes = await apiRequest('GET', privacyUrl, {}, {
-        shop_no: 1,
-        member_id: memberId,
-        consent_type: 'marketing', // ★ 이 타입이 스크린샷의 항목입니다.
-        limit: 1,                  // 최신 1건만 조회 (보통 최신순 정렬됨)
-        // sort: 'issued_date_desc' // (API 버전에 따라 지원 시 사용)
+      // ★ 중요: 조회 시에도 API 버전을 2024-06-01로 강제합니다.
+      const privacyRes = await axios.get(privacyUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': '2024-06-01'
+        },
+        params: {
+          shop_no: 1,
+          member_id: memberId,
+          consent_type: 'marketing',
+          limit: 1,
+          sort: 'issued_date_desc' // 최신순
+        }
       });
 
-      if (privacyRes.privacy_consents && privacyRes.privacy_consents.length > 0) {
-        // 가장 최신 기록의 동의 여부 ('T' or 'F')
-        isMarketingAgreed = privacyRes.privacy_consents[0].agree;
+      if (privacyRes.data.privacy_consents && privacyRes.data.privacy_consents.length > 0) {
+        isMarketingAgreed = privacyRes.data.privacy_consents[0].agree;
       }
     } catch (apiErr) {
-      console.error('마케팅 동의 내역 조회 실패:', apiErr.message);
-      // 조회 실패 시 안전하게 'F'로 처리하여 동의 유도
+      console.error('마케팅 동의 조회 실패:', apiErr.response?.data || apiErr.message);
+      // 에러 나면 'F'로 처리하여 버튼 노출 (안전책)
     }
 
-    // [참고] SMS/이메일 여부도 필요하면 같이 조회 (여기선 marketing_consent가 핵심)
-    
     res.json({
       success: true,
       count: myCount,
       todayDone: isTodayDone,
-      // ★ 프론트엔드로 'marketing_consent' 값을 내려줍니다.
-      marketing_consent: isMarketingAgreed 
+      marketing_consent: isMarketingAgreed // 'T' or 'F'
     });
 
   } catch (err) {
@@ -520,9 +554,9 @@ app.get('/api/event/status', async (req, res) => {
 });
 
 
+// ----------------------------------------------------------
 // 2. 이벤트 참여하기 (버튼 클릭 시 호출)
-// - 1일 1회 체크
-// - 카운트 +1 증가
+// ----------------------------------------------------------
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
 
@@ -546,28 +580,23 @@ app.post('/api/event/participate', async (req, res) => {
     // [2] 오늘 이미 참여했는지 체크
     if (eventDoc) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
-      
       if (lastDate.isSame(todayMoment, 'day')) {
         return res.json({ success: false, message: '오늘 이미 출석체크를 완료하셨습니다.' });
       }
     }
 
-    // [3] 데이터 업데이트 (Upsert)
-    // - 없으면 생성(count: 1), 있으면 count + 1
-    // - history 배열에 참여 시간 기록
+    // [3] 데이터 업데이트
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
-        $inc: { count: 1 },                // 횟수 1 증가
-        $set: { lastParticipatedAt: nowKST }, // 마지막 참여 시간 갱신
-        $push: { history: nowKST },           // 이력 저장
-        $setOnInsert: { firstParticipatedAt: nowKST } // 처음일 때만 생성일 저장
+        $inc: { count: 1 },
+        $set: { lastParticipatedAt: nowKST },
+        $push: { history: nowKST },
+        $setOnInsert: { firstParticipatedAt: nowKST }
       },
-      { upsert: true, returnDocument: 'after' } // 업데이트 후의 최신 문서 반환
+      { upsert: true, returnDocument: 'after' }
     );
 
-    // 업데이트된 최신 카운트 가져오기
-    // (MongoDB 드라이버 버전에 따라 returnDocument 구조가 다를 수 있어 안전하게 처리)
     const updatedDoc = updateResult.value || updateResult; 
     const newCount = updatedDoc ? updatedDoc.count : (eventDoc ? eventDoc.count + 1 : 1);
 
@@ -586,6 +615,55 @@ app.post('/api/event/participate', async (req, res) => {
     await client.close();
   }
 });
+
+
+// ----------------------------------------------------------
+// 3. 마케팅 동의 처리 (팝업 버튼 클릭 시 호출)
+// ----------------------------------------------------------
+app.post('/api/event/marketing-consent', async (req, res) => {
+  const { memberId, store } = req.body;
+
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    
+    // [1] Cafe24 API: 마케팅 목적 개인정보 수집 이용 동의 ('marketing')
+    // 위에서 만든 updatePrivacyConsent 함수 사용 (버전 강제 적용됨)
+    try {
+        await updatePrivacyConsent(memberId); 
+        console.log(`[Cafe24] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
+    } catch (e) {
+        console.error(`[Cafe24] 마케팅 수집 동의 실패:`, e.message);
+        // 실패하더라도 SMS 동의 시도
+    }
+
+    // [2] Cafe24 API: SMS 수신 동의 ('sms')
+    // 기존에 있던 updateMarketingConsent 함수 사용
+    try {
+        await updateMarketingConsent(memberId);
+        console.log(`[Cafe24] ${memberId} - SMS 수신 동의 완료`);
+    } catch (e) {
+        console.error(`[Cafe24] SMS 동의 실패:`, e.message);
+    }
+
+    // [3] 로깅 (선택사항)
+    // const db = client.db(DB_NAME);
+    // await db.collection('marketingConsentEvent').insertOne({ memberId, store, participatedAt: new Date() });
+
+    res.json({ success: true, message: '마케팅 동의 처리가 완료되었습니다.' });
+
+  } catch (err) {
+    console.error('이벤트 동의 처리 오류:', err);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  } finally {
+    await client.close();
+  }
+});
+
 
 
 // ==========================================================
