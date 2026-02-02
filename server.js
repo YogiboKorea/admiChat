@@ -642,46 +642,49 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 // ==========================================================
 // 2026년2월02일 2월 이벤트 관련 코드 
 // ==========================================================
-
 // ==========================================
-// [추가] 회원 마케팅 수신여부 조회 (Admin API 사용)
+// [API] 회원 마케팅 수신여부 조회 (Admin API 연동)
 // ==========================================
 app.get('/api/member/consent-info', async (req, res) => {
   const { memberId } = req.query;
 
+  // 1. 아이디 유효성 검사
   if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
+    return res.status(400).json({ success: false, message: 'memberId가 필요합니다.' });
   }
 
-  // Cafe24 고객 정보 조회 API URL
-  // fields 파라미터로 필요한 정보만 콕 집어서 가져옵니다 (sms, news_mail)
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers?member_id=${memberId}&fields=member_id,sms,news_mail,cellphone,name`;
+  // 2. Cafe24 Admin API 호출 (필요한 정보만 콕 집어서 요청: sms, news_mail)
+  // fields=member_id,name,sms,news_mail
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers?member_id=${memberId}&fields=member_id,name,sms,news_mail`;
 
   try {
-    // apiRequest는 기존에 작성하신 함수를 그대로 사용합니다.
+    // 기존에 만드신 apiRequest 함수 사용
     const response = await apiRequest('GET', url);
 
-    // 검색된 회원이 있는지 확인
+    // 3. 결과 확인 및 응답
     if (response.customers && response.customers.length > 0) {
       const customer = response.customers[0];
       
+      console.log(`[조회성공] ${memberId} : SMS(${customer.sms}), Email(${customer.news_mail})`);
+
       res.json({
         success: true,
-        memberId: customer.member_id,
-        sms: customer.sms,            // 'T' 또는 'F'
-        email: customer.news_mail,    // 'T' 또는 'F'
-        name: customer.name
+        data: {
+          memberId: customer.member_id,
+          name: customer.name,
+          sms: customer.sms,         // 'T' or 'F'
+          email: customer.news_mail  // 'T' or 'F'
+        }
       });
     } else {
       res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다.' });
     }
 
   } catch (err) {
-    console.error('회원 정보 조회 실패:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Cafe24 API 연동 중 오류가 발생했습니다.' });
+    console.error('Cafe24 API 조회 오류:', err.response?.data || err.message);
+    res.status(500).json({ success: false, message: '서버 오류 발생' });
   }
 });
-
 
 
 
