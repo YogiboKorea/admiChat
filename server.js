@@ -479,10 +479,11 @@ async function updatePrivacyConsent(memberId) {
     throw err;
   }
 }
+// ==========================================================
+// [최종 수정] 2월 이벤트 상태 조회 (에러 방지 및 대체 로직 적용)
+// ==========================================================
 
-// ----------------------------------------------------------
-// 1. 이벤트 상태 조회 (초기 진입 시 호출)
-// ----------------------------------------------------------
+// 1. 이벤트 상태 조회
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
@@ -509,40 +510,63 @@ app.get('/api/event/status', async (req, res) => {
       }
     }
 
-    // [2] "마케팅 목적 개인정보 수집 동의" 여부 조회
-    const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-    let isMarketingAgreed = 'F';
+    // [2] 마케팅 동의 여부 조회 (우선순위: Privacy API -> 실패 시 SMS API)
+    let isMarketingAgreed = 'F'; // 기본값
 
     try {
-      // ★ 중요: 조회 시에도 API 버전을 2024-06-01로 강제합니다.
+      // 2-1. 정석 방법: privacyconsents API 시도
+      const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
       const privacyRes = await axios.get(privacyUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01'
+          'X-Cafe24-Api-Version': '2024-06-01' // 버전 명시
         },
         params: {
           shop_no: 1,
           member_id: memberId,
           consent_type: 'marketing',
           limit: 1,
-          sort: 'issued_date_desc' // 최신순
-        }
+          sort: 'issued_date_desc'
+        },
+        validateStatus: false // 404 에러가 나도 catch로 바로 안 넘기고 처리
       });
 
-      if (privacyRes.data.privacy_consents && privacyRes.data.privacy_consents.length > 0) {
+      if (privacyRes.status === 200 && privacyRes.data.privacy_consents?.length > 0) {
         isMarketingAgreed = privacyRes.data.privacy_consents[0].agree;
+        console.log(`[Status] Privacy API 성공: ${isMarketingAgreed}`);
+      } else {
+        // 2-2. 실패(404 등) 시 Fallback: customers API로 SMS/Email 확인
+        console.warn(`[Status] Privacy API 실패(${privacyRes.status}) -> SMS 정보로 대체`);
+        
+        const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+        const customerRes = await axios.get(customerUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': '2024-06-01'
+          },
+          params: { member_id: memberId, fields: 'sms,news_mail' }
+        });
+
+        if (customerRes.data.customers && customerRes.data.customers.length > 0) {
+          const { sms, news_mail } = customerRes.data.customers[0];
+          // SMS나 이메일 중 하나라도 T면 마케팅 동의(T)로 간주
+          if (sms === 'T' || news_mail === 'T') {
+            isMarketingAgreed = 'T';
+          }
+        }
       }
-    } catch (apiErr) {
-      console.error('마케팅 동의 조회 실패:', apiErr.response?.data || apiErr.message);
-      // 에러 나면 'F'로 처리하여 버튼 노출 (안전책)
+    } catch (err) {
+      console.error('마케팅 정보 조회 중 치명적 오류:', err.message);
+      // 에러 나면 'F'로 두어 버튼 노출
     }
 
     res.json({
       success: true,
       count: myCount,
       todayDone: isTodayDone,
-      marketing_consent: isMarketingAgreed // 'T' or 'F'
+      marketing_consent: isMarketingAgreed 
     });
 
   } catch (err) {
@@ -552,7 +576,6 @@ app.get('/api/event/status', async (req, res) => {
     await client.close();
   }
 });
-
 
 // ----------------------------------------------------------
 // 2. 이벤트 참여하기 (버튼 클릭 시 호출)
