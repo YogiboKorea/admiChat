@@ -439,25 +439,28 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   }
 });
 
+
+
+
 // ==========================================================
-// [2월 이벤트] 매일 출석체크 & 누적 보상 시스템 (최종 수정본)
+// [최종] 2월 이벤트 상태 조회 & 참여 (마케팅 동의 정밀 체크)
 // ==========================================================
 
-// [헬퍼 함수] 마케팅 목적 개인정보 수집 이용 동의 업데이트 (버전 강제)
+// [헬퍼] 마케팅 목적 개인정보 수집 이용 동의 업데이트
 async function updatePrivacyConsent(memberId) {
+  // ★ API 버전 2024-06-01 필수
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
   const payload = {
     shop_no: 1,
     request: {
       member_id: memberId,
-      consent_type: 'marketing', // 마케팅 목적 수집 동의
+      consent_type: 'marketing',
       agree: 'T',
       issued_at: new Date().toISOString()
     }
   };
 
   try {
-    // ★ 중요: 이 API는 최신 버전이 필요하므로 헤더에 버전을 직접 명시합니다.
     const response = await axios({
       method: 'POST',
       url: url,
@@ -465,25 +468,19 @@ async function updatePrivacyConsent(memberId) {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': '2024-06-01' // 2024-06-01 이상 필수
+        'X-Cafe24-Api-Version': '2024-06-01'
       }
     });
-    return response.data;
+    return { success: true, data: response.data };
   } catch (err) {
-    // 401 토큰 만료 시 재시도 로직은 apiRequest를 참고하거나 여기에 추가 구현 필요
-    if (err.response && err.response.status === 401) {
-       await refreshAccessToken(); // 토큰 갱신 시도
-       // 재귀 호출로 재시도 (간략 구현)
-       return updatePrivacyConsent(memberId);
-    }
+    // 404가 뜨면 권한/버전 문제이므로 에러를 던져서 SMS 동의로 넘어가게 함
     throw err;
   }
 }
-// ==========================================================
-// [최종 수정] 2월 이벤트 상태 조회 (에러 방지 및 대체 로직 적용)
-// ==========================================================
 
-// 1. 이벤트 상태 조회
+// ----------------------------------------------------------
+// 1. 이벤트 상태 조회 (GET)
+// ----------------------------------------------------------
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
@@ -497,7 +494,7 @@ app.get('/api/event/status', async (req, res) => {
     await client.connect();
     const db = client.db(DB_NAME);
     
-    // [1] DB에서 출석체크 기록 조회
+    // [1] DB 출석체크 기록 조회
     const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
     let myCount = eventDoc ? (eventDoc.count || 0) : 0;
     let isTodayDone = false;
@@ -505,22 +502,20 @@ app.get('/api/event/status', async (req, res) => {
     if (eventDoc) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       const today = moment().tz('Asia/Seoul');
-      if (lastDate.isSame(today, 'day')) {
-        isTodayDone = true;
-      }
+      if (lastDate.isSame(today, 'day')) isTodayDone = true;
     }
 
-    // [2] 마케팅 동의 여부 조회 (우선순위: Privacy API -> 실패 시 SMS API)
-    let isMarketingAgreed = 'F'; // 기본값
+    // [2] 마케팅 동의 여부 조회 (우선순위: Privacy API -> 실패시 SMS)
+    let isMarketingAgreed = 'F';
 
     try {
-      // 2-1. 정석 방법: privacyconsents API 시도
+      // 2-1. 정석 방법: Privacy API 시도
       const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
       const privacyRes = await axios.get(privacyUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2024-06-01' // 버전 명시
+          'X-Cafe24-Api-Version': '2024-06-01'
         },
         params: {
           shop_no: 1,
@@ -528,17 +523,17 @@ app.get('/api/event/status', async (req, res) => {
           consent_type: 'marketing',
           limit: 1,
           sort: 'issued_date_desc'
-        },
-        validateStatus: false // 404 에러가 나도 catch로 바로 안 넘기고 처리
+        }
       });
 
-      if (privacyRes.status === 200 && privacyRes.data.privacy_consents?.length > 0) {
+      if (privacyRes.data.privacy_consents?.length > 0) {
         isMarketingAgreed = privacyRes.data.privacy_consents[0].agree;
-        console.log(`[Status] Privacy API 성공: ${isMarketingAgreed}`);
-      } else {
-        // 2-2. 실패(404 등) 시 Fallback: customers API로 SMS/Email 확인
-        console.warn(`[Status] Privacy API 실패(${privacyRes.status}) -> SMS 정보로 대체`);
-        
+      }
+    } catch (err) {
+      console.warn(`[Status] Privacy API 조회 불가(권한/버전 문제). SMS 정보로 대체합니다.`);
+      
+      // 2-2. 대체 방법: SMS/이메일 수신동의 확인
+      try {
         const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
         const customerRes = await axios.get(customerUrl, {
           headers: {
@@ -549,17 +544,14 @@ app.get('/api/event/status', async (req, res) => {
           params: { member_id: memberId, fields: 'sms,news_mail' }
         });
 
-        if (customerRes.data.customers && customerRes.data.customers.length > 0) {
+        if (customerRes.data.customers?.length > 0) {
           const { sms, news_mail } = customerRes.data.customers[0];
-          // SMS나 이메일 중 하나라도 T면 마케팅 동의(T)로 간주
-          if (sms === 'T' || news_mail === 'T') {
-            isMarketingAgreed = 'T';
-          }
+          // SMS나 이메일 중 하나라도 T면 -> 마케팅 동의(T)로 간주
+          if (sms === 'T' || news_mail === 'T') isMarketingAgreed = 'T';
         }
+      } catch (subErr) {
+        console.error('대체 조회 실패:', subErr.message);
       }
-    } catch (err) {
-      console.error('마케팅 정보 조회 중 치명적 오류:', err.message);
-      // 에러 나면 'F'로 두어 버튼 노출
     }
 
     res.json({
@@ -570,22 +562,20 @@ app.get('/api/event/status', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('이벤트 상태 조회 에러:', err);
+    console.error('상태 조회 에러:', err);
     res.status(500).json({ success: false, message: '서버 에러' });
   } finally {
     await client.close();
   }
 });
 
+
 // ----------------------------------------------------------
-// 2. 이벤트 참여하기 (버튼 클릭 시 호출)
+// 2. 이벤트 참여 (POST)
 // ----------------------------------------------------------
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
-
-  if (!memberId) {
-    return res.status(400).json({ success: false, message: '로그인이 필요합니다.' });
-  }
+  if (!memberId) return res.status(400).json({ success: false, message: '로그인 필요' });
 
   const client = new MongoClient(MONGODB_URI);
 
@@ -594,21 +584,19 @@ app.post('/api/event/participate', async (req, res) => {
     const db = client.db(DB_NAME);
     const collection = db.collection('event_daily_checkin');
 
-    // [1] 기존 기록 조회
     const eventDoc = await collection.findOne({ memberId });
-    
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
-    // [2] 오늘 이미 참여했는지 체크
+    // 오늘 중복 참여 방지
     if (eventDoc) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       if (lastDate.isSame(todayMoment, 'day')) {
-        return res.json({ success: false, message: '오늘 이미 출석체크를 완료하셨습니다.' });
+        return res.json({ success: false, message: '오늘 이미 참여하셨습니다.' });
       }
     }
 
-    // [3] 데이터 업데이트
+    // 참여 기록 저장
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
@@ -620,20 +608,14 @@ app.post('/api/event/participate', async (req, res) => {
       { upsert: true, returnDocument: 'after' }
     );
 
-    const updatedDoc = updateResult.value || updateResult; 
-    const newCount = updatedDoc ? updatedDoc.count : (eventDoc ? eventDoc.count + 1 : 1);
+    const updatedDoc = updateResult.value || updateResult;
+    const newCount = updatedDoc ? updatedDoc.count : 1;
 
-    console.log(`[이벤트 참여] ${memberId}님 ${newCount}회차 출석 완료`);
-
-    res.json({
-      success: true,
-      message: '출석체크가 완료되었습니다!',
-      count: newCount
-    });
+    res.json({ success: true, count: newCount, message: '출석 완료!' });
 
   } catch (err) {
-    console.error('이벤트 참여 처리 에러:', err);
-    res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
+    console.error('참여 에러:', err);
+    res.status(500).json({ success: false, message: '서버 에러' });
   } finally {
     await client.close();
   }
@@ -641,51 +623,46 @@ app.post('/api/event/participate', async (req, res) => {
 
 
 // ----------------------------------------------------------
-// 3. 마케팅 동의 처리 (팝업 버튼 클릭 시 호출)
+// 3. 마케팅 동의 처리 (POST)
 // ----------------------------------------------------------
 app.post('/api/event/marketing-consent', async (req, res) => {
-  const { memberId, store } = req.body;
+  const { memberId } = req.body;
+  if (!memberId) return res.status(400).json({ error: 'memberId 필요' });
 
-  if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
-  }
-
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    
-    // [1] Cafe24 API: 마케팅 목적 개인정보 수집 이용 동의 ('marketing')
-    // 위에서 만든 updatePrivacyConsent 함수 사용 (버전 강제 적용됨)
+    // [1] 마케팅 수집 동의 (Privacy) 시도
+    // 토큰 재발급 전이라면 여기서 404가 뜰 수 있음 -> catch로 넘어감
     try {
-        await updatePrivacyConsent(memberId); 
-        console.log(`[Cafe24] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
+        await updatePrivacyConsent(memberId);
+        console.log(`[Privacy] ${memberId} 동의 처리 완료`);
     } catch (e) {
-        console.error(`[Cafe24] 마케팅 수집 동의 실패:`, e.message);
-        // 실패하더라도 SMS 동의 시도
+        console.warn(`[Privacy] 동의 API 실패(권한 문제):`, e.message);
+        // 실패해도 멈추지 않고 SMS 동의로 넘어갑니다.
     }
 
-    // [2] Cafe24 API: SMS 수신 동의 ('sms')
-    // 기존에 있던 updateMarketingConsent 함수 사용
-    try {
-        await updateMarketingConsent(memberId);
-        console.log(`[Cafe24] ${memberId} - SMS 수신 동의 완료`);
-    } catch (e) {
-        console.error(`[Cafe24] SMS 동의 실패:`, e.message);
-    }
+    // [2] SMS 수신 동의 (Fallback)
+    // 기존에 잘 되던 기능이므로 여기서라도 동의 처리를 합니다.
+    const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+    await axios({
+        method: 'PUT',
+        url: url,
+        data: { request: { shop_no: 1, member_id: memberId, sms: 'T' } },
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': '2024-06-01'
+        }
+    });
+    console.log(`[SMS] ${memberId} 동의 처리 완료`);
 
-    // [3] 로깅 (선택사항)
-    // const db = client.db(DB_NAME);
-    // await db.collection('marketingConsentEvent').insertOne({ memberId, store, participatedAt: new Date() });
-
-    res.json({ success: true, message: '마케팅 동의 처리가 완료되었습니다.' });
+    res.json({ success: true, message: '동의 처리가 완료되었습니다.' });
 
   } catch (err) {
-    console.error('이벤트 동의 처리 오류:', err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
-  } finally {
-    await client.close();
+    console.error('동의 처리 에러:', err);
+    res.status(500).json({ error: '서버 에러' });
   }
 });
+
 
 
 
