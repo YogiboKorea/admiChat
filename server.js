@@ -11,8 +11,8 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN || 'gQqCK1FGNJJpKoUXY0kkcD';
-let refreshToken = process.env.REFRESH_TOKEN || 'CMLScZx0Bh3sIxlFTHDeMD';
+let accessToken = process.env.ACCESS_TOKEN || 'UeY0l1RHDi5DRXWHdMamJH';
+let refreshToken = process.env.REFRESH_TOKEN || 'tDftgE64RaDY3CSojHvNeD';
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
