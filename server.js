@@ -448,48 +448,50 @@ app.get('/api/event/status', async (req, res) => {
     await client.connect();
     const db = client.db(DB_NAME);
     
-    // [1] DB에서 참여 기록 조회
+    // [1] DB에서 출석체크 기록 조회 (기존 로직 유지)
     const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
-    
-    let myCount = 0;
+    let myCount = eventDoc ? (eventDoc.count || 0) : 0;
     let isTodayDone = false;
 
     if (eventDoc) {
-      myCount = eventDoc.count || 0;
-      
-      // 마지막 참여 날짜가 '오늘(한국시간)'인지 확인
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       const today = moment().tz('Asia/Seoul');
-      
       if (lastDate.isSame(today, 'day')) {
         isTodayDone = true;
       }
     }
 
-    // [2] Cafe24 API로 실시간 마케팅 동의 여부 조회
-    // (기존 apiRequest 함수 활용)
-    const cafe24Url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers?member_id=${memberId}&fields=sms,news_mail`;
-    let smsConsent = 'F';
-    let emailConsent = 'F';
+    // [2] ★ [핵심 변경] "마케팅 목적 개인정보 수집 동의" 여부 조회
+    // privacyconsents 엔드포인트를 통해 'marketing' 타입의 최신 동의 내역을 가져옵니다.
+    const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+    let isMarketingAgreed = 'F'; // 기본값: 미동의
 
     try {
-      const cafe24Res = await apiRequest('GET', cafe24Url);
-      if (cafe24Res.customers && cafe24Res.customers.length > 0) {
-        smsConsent = cafe24Res.customers[0].sms;
-        emailConsent = cafe24Res.customers[0].news_mail;
+      const privacyRes = await apiRequest('GET', privacyUrl, {}, {
+        shop_no: 1,
+        member_id: memberId,
+        consent_type: 'marketing', // ★ 이 타입이 스크린샷의 항목입니다.
+        limit: 1,                  // 최신 1건만 조회 (보통 최신순 정렬됨)
+        sort: 'issued_date_desc'   // (API 지원 시) 최신순
+      });
+
+      if (privacyRes.privacy_consents && privacyRes.privacy_consents.length > 0) {
+        // 가장 최신 기록의 동의 여부 ('T' or 'F')
+        isMarketingAgreed = privacyRes.privacy_consents[0].agree;
       }
     } catch (apiErr) {
-      console.error('Cafe24 회원정보 조회 실패(이벤트):', apiErr.message);
-      // API 실패해도 이벤트 참여 정보는 줘야 하므로 기본값 'F' 유지하고 진행
+      console.error('마케팅 동의 내역 조회 실패:', apiErr.message);
+      // 조회 실패 시 안전하게 'F'로 처리하여 동의 유도
     }
 
-    // [3] 최종 응답
+    // [참고] SMS/이메일 여부도 필요하면 같이 조회 (여기선 marketing_consent가 핵심)
+    
     res.json({
       success: true,
-      count: myCount,      // 현재 누적 횟수 (0, 1, 2 ...)
-      todayDone: isTodayDone, // 오늘 참여 했는지 (true/false)
-      sms: smsConsent,     // SMS 동의 여부
-      email: emailConsent  // 이메일 동의 여부
+      count: myCount,
+      todayDone: isTodayDone,
+      // ★ 프론트엔드로 'marketing_consent' 값을 내려줍니다.
+      marketing_consent: isMarketingAgreed 
     });
 
   } catch (err) {
