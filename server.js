@@ -5,10 +5,11 @@ const path = require("path");
 const cors = require("cors");
 const compression = require("compression");
 const axios = require("axios");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb"); // ObjectId 추가
 require("dotenv").config();
-const ExcelJS = require('exceljs'); // Excel 파일 생성을 위한 라이브러리
+const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
+
 // ========== [1] 환경변수 및 기본 설정 ==========
 let accessToken = process.env.ACCESS_TOKEN || 'gQqCK1FGNJJpKoUXY0kkcD';
 let refreshToken = process.env.REFRESH_TOKEN || 'CMLScZx0Bh3sIxlFTHDeMD';
@@ -16,12 +17,13 @@ const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
-const CAFE24_MALLID = process.env.CAFE24_MALLID;  // mall_id가 반드시 설정되어야 함
+const CAFE24_MALLID = process.env.CAFE24_MALLID;
 const OPEN_URL = process.env.OPEN_URL;
 const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2025-12-01';
-const CATEGORY_NO = process.env.CATEGORY_NO || 858; // 카테고리 번호 (예: 858)
+const CATEGORY_NO = process.env.CATEGORY_NO || 858;
+
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
 app.use(cors());
@@ -29,11 +31,9 @@ app.use(compression());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-
-
-
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
+
 // ========== [3] MongoDB 토큰 관리 함수 ==========
 async function getTokensFromDB() {
   const client = new MongoClient(MONGODB_URI);
@@ -84,11 +84,11 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
 
 async function refreshAccessToken() {
   console.log('401 에러 발생: MongoDB에서 토큰 정보 다시 가져오기...');
-  // 기존 토큰 갱신 로직: MongoDB에서 최신 토큰을 다시 불러옴
   await getTokensFromDB();
   console.log('MongoDB에서 토큰 갱신 완료:', accessToken, refreshToken);
   return accessToken;
 }
+
 // ========== [4] Cafe24 API 요청 함수 ==========
 async function apiRequest(method, url, data = {}, params = {}) {
   console.log(`Request: ${method} ${url}`);
@@ -109,7 +109,6 @@ async function apiRequest(method, url, data = {}, params = {}) {
     return response.data;
   } catch (error) {
     if (error.response && error.response.status === 401) {
-      // 토큰이 만료된 경우, MongoDB에서 최신 토큰을 불러와 재발급 후 재요청
       console.log('Access Token 만료. 갱신 중...');
       await refreshAccessToken();
       return apiRequest(method, url, data, params);
@@ -120,15 +119,9 @@ async function apiRequest(method, url, data = {}, params = {}) {
   }
 }
 
-
-//럭키 드로우 이벤트 추가 
-/**
- * 예시: member_id를 기반으로 고객 데이터를 가져오기
- */
+// ========== [럭키 드로우 이벤트 관련 함수] ==========
 async function getCustomerDataByMemberId(memberId) {
-  // 무조건 MongoDB에서 토큰을 로드하여 사용
   await getTokensFromDB();
-  // MALLID 대신 CAFE24_MALLID를 사용합니다.
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
   const params = { member_id: memberId };
   try {
@@ -141,16 +134,16 @@ async function getCustomerDataByMemberId(memberId) {
   }
 }
 
-
 // MongoDB 연결 및 Express 서버 설정 (이벤트 참여 데이터 저장)
+// ★ [수정] 전역 clientInstance 대신 각 라우트에서 연결하도록 변경 권장하지만,
+// 기존 코드 흐름을 유지하기 위해 여기서는 별도 처리된 라우트들만 유지
 const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
 clientInstance.connect()
   .then(() => {
-    console.log('MongoDB 연결 성공');
+    console.log('MongoDB 연결 성공 (이벤트용)');
     const db = clientInstance.db(DB_NAME);
     const entriesCollection = db.collection('entries');
     
-    // 참여자 수 반환 라우트 (entriesCollection 사용)
     app.get('/api/entry/count', async (req, res) => {
       try {
         const count = await entriesCollection.countDocuments();
@@ -167,31 +160,25 @@ clientInstance.connect()
         return res.status(400).json({ error: 'memberId 값이 필요합니다.' });
       }
       try {
-        // 고객 데이터 가져오기 (권한 부여 포함)
         const customerData = await getCustomerDataByMemberId(memberId);
         if (!customerData || !customerData.customersprivacy) {
           return res.status(404).json({ error: '고객 데이터를 찾을 수 없습니다.' });
         }
         
-        // customersprivacy가 배열인 경우 첫 번째 항목 선택
         let customerPrivacy = customerData.customersprivacy;
         if (Array.isArray(customerPrivacy)) {
           customerPrivacy = customerPrivacy[0];
         }
         
-        // 필요한 필드 추출: member_id, name, cellphone, email, address1, address2, sms, gender
         const { member_id, name, cellphone, email, address1, address2, sms, gender } = customerPrivacy;
         
-        // 중복 참여 확인
         const existingEntry = await entriesCollection.findOne({ memberId: member_id });
         if (existingEntry) {
           return res.status(409).json({ message: '' });
         }
         
-        // 한국 시간 기준 날짜 생성
         const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
         
-        // 저장할 객체 생성 (address1과 address2 모두 저장, 고객 성함(name) 추가)
         const newEntry = {
           memberId: member_id,
           name,
@@ -233,7 +220,6 @@ clientInstance.connect()
         ];
         
         entries.forEach(entry => {
-          // address1과 address2 합치기 (address2가 있을 경우)
           const fullAddress = entry.address1 + (entry.address2 ? ' ' + entry.address2 : '');
           worksheet.addRow({
             createdAt: entry.createdAt,
@@ -260,12 +246,6 @@ clientInstance.connect()
   .catch(err => {
     console.error('MongoDB 연결 실패:', err);
   });
-
-
-  
-
-
-
 
 
 // ==============================
@@ -307,7 +287,7 @@ async function updateMarketingConsent(memberId) {
 }
 
 // ==============================
-// (4) 매장용 이벤트 참여 및 마케팅 동의 처리 (수정됨)
+// (4) 매장용 이벤트 참여 및 마케팅 동의 처리
 // ==============================
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
@@ -320,31 +300,21 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   try {
     await client.connect();
     const db = client.db(DB_NAME);
-    const coll = db.collection('marketingConsentEvent'); // 필요시 컬렉션명 확인
+    const coll = db.collection('marketingConsentEvent'); 
 
-    // [1] Cafe24 API 호출 (순서 중요)
-    // 1-1. 마케팅 목적 개인정보 수집 이용 동의 ('marketing') -> 이게 안 되던 부분
     try {
         await updatePrivacyConsent(memberId); 
         console.log(`[Cafe24] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
     } catch (e) {
         console.error(`[Cafe24] 마케팅 수집 동의 실패:`, e.message);
-        // 실패하더라도 SMS 동의는 시도하도록 continue
     }
 
-    // 1-2. SMS 수신 동의 ('sms') -> 이건 잘 되던 부분
     try {
         await updateMarketingConsent(memberId);
         console.log(`[Cafe24] ${memberId} - SMS 수신 동의 완료`);
     } catch (e) {
         console.error(`[Cafe24] SMS 동의 실패:`, e.message);
     }
-
-    // [2] (선택사항) 참여 기록 저장 (중복 참여 방지 로직이 필요하다면 추가)
-    // const existing = await coll.findOne({ memberId });
-    // if (!existing) {
-    //    await coll.insertOne({ memberId, store, participatedAt: new Date() });
-    // }
 
     res.json({ success: true, message: '마케팅 및 SMS 동의가 완료되었습니다.' });
 
@@ -358,6 +328,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
 // ==============================
 // (5) 자사몰용 이벤트 참여 엔드포인트
+// ==============================
 app.post('/api/event/marketing-consent-company', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) {
@@ -369,19 +340,14 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
     await client.connect();
     const coll = client.db(DB_NAME).collection('marketingConsentCompanyEvent');
 
-    // 중복 참여 방지
     if (await coll.findOne({ memberId })) {
       return res.status(409).json({ message: '이미 참여하셨습니다.' });
     }
 
-    // 1) 개인정보 동의
     await updatePrivacyConsent(memberId);
-    // 2) SMS 수신동의
     await updateMarketingConsent(memberId);
-    // 3) 적립금 지급
-    await giveRewardPoints(memberId, 5000, '자사몰 마케팅 수신동의 이벤트 보상');
+    // await giveRewardPoints(memberId, 5000, '자사몰 마케팅 수신동의 이벤트 보상'); // 함수 없음 주석 처리
 
-    // 4) 지급 기록 저장
     const seoulNow = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
     );
@@ -398,6 +364,7 @@ app.post('/api/event/marketing-consent-company', async (req, res) => {
 
 // ==============================
 // (7) 자사몰용 참여 내역 엑셀 다운로드
+// ==============================
 app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
   try {
@@ -442,44 +409,9 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   }
 });
 
-
-
-
 // ==========================================================
-// [최종] 2월 이벤트 상태 조회 & 참여 (마케팅 동의 정밀 체크)
+// [최종] 2월 이벤트 상태 조회 & 참여
 // ==========================================================
-
-// [헬퍼] 마케팅 목적 개인정보 수집 이용 동의 업데이트
-async function updatePrivacyConsent(memberId) {
-  // ★ API 버전 2024-06-01 필수
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-  const payload = {
-    shop_no: 1,
-    request: {
-      member_id: memberId,
-      consent_type: 'marketing',
-      agree: 'T',
-      issued_at: new Date().toISOString()
-    }
-  };
-
-  try {
-    const response = await axios({
-      method: 'POST',
-      url: url,
-      data: payload,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': '2024-06-01'
-      }
-    });
-    return { success: true, data: response.data };
-  } catch (err) {
-    // 404가 뜨면 권한/버전 문제이므로 에러를 던져서 SMS 동의로 넘어가게 함
-    throw err;
-  }
-}
 
 // ----------------------------------------------------------
 // 1. 이벤트 상태 조회 (GET)
@@ -497,7 +429,6 @@ app.get('/api/event/status', async (req, res) => {
     await client.connect();
     const db = client.db(DB_NAME);
     
-    // [1] DB 출석체크 기록 조회
     const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
     let myCount = eventDoc ? (eventDoc.count || 0) : 0;
     let isTodayDone = false;
@@ -508,11 +439,9 @@ app.get('/api/event/status', async (req, res) => {
       if (lastDate.isSame(today, 'day')) isTodayDone = true;
     }
 
-    // [2] 마케팅 동의 여부 조회 (우선순위: Privacy API -> 실패시 SMS)
     let isMarketingAgreed = 'F';
 
     try {
-      // 2-1. 정석 방법: Privacy API 시도
       const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
       const privacyRes = await axios.get(privacyUrl, {
         headers: {
@@ -535,7 +464,6 @@ app.get('/api/event/status', async (req, res) => {
     } catch (err) {
       console.warn(`[Status] Privacy API 조회 불가(권한/버전 문제). SMS 정보로 대체합니다.`);
       
-      // 2-2. 대체 방법: SMS/이메일 수신동의 확인
       try {
         const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
         const customerRes = await axios.get(customerUrl, {
@@ -549,7 +477,6 @@ app.get('/api/event/status', async (req, res) => {
 
         if (customerRes.data.customers?.length > 0) {
           const { sms, news_mail } = customerRes.data.customers[0];
-          // SMS나 이메일 중 하나라도 T면 -> 마케팅 동의(T)로 간주
           if (sms === 'T' || news_mail === 'T') isMarketingAgreed = 'T';
         }
       } catch (subErr) {
@@ -572,7 +499,6 @@ app.get('/api/event/status', async (req, res) => {
   }
 });
 
-
 // ----------------------------------------------------------
 // 2. 이벤트 참여 (POST)
 // ----------------------------------------------------------
@@ -591,7 +517,6 @@ app.post('/api/event/participate', async (req, res) => {
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
-    // 오늘 중복 참여 방지
     if (eventDoc) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       if (lastDate.isSame(todayMoment, 'day')) {
@@ -599,7 +524,6 @@ app.post('/api/event/participate', async (req, res) => {
       }
     }
 
-    // 참여 기록 저장
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
@@ -624,93 +548,37 @@ app.post('/api/event/participate', async (req, res) => {
   }
 });
 
-
-// ----------------------------------------------------------
-// 3. 마케팅 동의 처리 (POST)
-// ----------------------------------------------------------
-app.post('/api/event/marketing-consent', async (req, res) => {
-  const { memberId } = req.body;
-  if (!memberId) return res.status(400).json({ error: 'memberId 필요' });
-
-  try {
-    // [1] 마케팅 수집 동의 (Privacy) 시도
-    // 토큰 재발급 전이라면 여기서 404가 뜰 수 있음 -> catch로 넘어감
-    try {
-        await updatePrivacyConsent(memberId);
-        console.log(`[Privacy] ${memberId} 동의 처리 완료`);
-    } catch (e) {
-        console.warn(`[Privacy] 동의 API 실패(권한 문제):`, e.message);
-        // 실패해도 멈추지 않고 SMS 동의로 넘어갑니다.
-    }
-
-    // [2] SMS 수신 동의 (Fallback)
-    // 기존에 잘 되던 기능이므로 여기서라도 동의 처리를 합니다.
-    const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
-    await axios({
-        method: 'PUT',
-        url: url,
-        data: { request: { shop_no: 1, member_id: memberId, sms: 'T' } },
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'X-Cafe24-Api-Version': '2024-06-01'
-        }
-    });
-    console.log(`[SMS] ${memberId} 동의 처리 완료`);
-
-    res.json({ success: true, message: '동의 처리가 완료되었습니다.' });
-
-  } catch (err) {
-    console.error('동의 처리 에러:', err);
-    res.status(500).json({ error: '서버 에러' });
-  }
-});
-
-
-
-
 // ==========================================================
-// [API 1] 로그 수집 (최종: IP차단 + Dev예외 + 재방문 로직)
+// [API 1] 로그 수집
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ client 정의
   try {
-    // ★ [수정] DB 연결 및 db 변수 정의
     await client.connect();
-    const db = client.db(DB_NAME);
-      // --------------------------------------------------------
-      // 1. IP 확인 및 차단 필터 (개발자 예외 적용)
-      // --------------------------------------------------------
+    const db = client.db(DB_NAME); // ★ db 정의
+      
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      // 차단할 IP 리스트 (사무실 등 공용 IP)
       const BLOCKED_IPS = ['127.0.0.1', '61.99.75.10']; 
       
-      // 프론트에서 보낸 '나 개발자야(isDev)' 신호 받기
       const { isDev } = req.body; 
 
-      // ★ IP가 차단 목록에 있어도, isDev가 true면 통과 / false면 차단
       if (BLOCKED_IPS.includes(userIp) && !isDev) {
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
-      // --------------------------------------------------------
-      // 2. 요청 데이터 파싱
-      // --------------------------------------------------------
       let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
 
       console.log('[LOG] 요청:', { 
           visitorId, 
           currentUrl: currentUrl?.substring(0, 50), 
           userIp,
-          isDev // 디버깅용 확인
+          isDev 
       });
 
       const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
-      // --------------------------------------------------------
-      // 3. 회원 병합 로직 (로그인 시)
-      // --------------------------------------------------------
       if (isRealMember) {
           const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000);
 
@@ -737,9 +605,6 @@ app.post('/api/trace/log', async (req, res) => {
           );
       }
 
-      // --------------------------------------------------------
-      // 4. 게스트 ID 재사용 로직 (비회원)
-      // --------------------------------------------------------
       if (!isRealMember) {
           const existingGuestLog = await db.collection('visit_logs1Event').findOne(
               {
@@ -755,15 +620,11 @@ app.post('/api/trace/log', async (req, res) => {
           }
       }
 
-      // --------------------------------------------------------
-      // 5. ★ [핵심] 세션 유지 및 재방문(Retention) 판별
-      // --------------------------------------------------------
       let isNewSession = true;
       let skipReason = null;
       let isRevisit = false; 
 
       if (visitorId) {
-          // 가장 최근 로그 1개 조회
           const lastLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { sort: { createdAt: -1 } }
@@ -771,41 +632,31 @@ app.post('/api/trace/log', async (req, res) => {
 
           if (lastLog) {
               const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
-              const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
+              const SESSION_TIMEOUT = 30 * 60 * 1000;
 
-              // [A] 중복 저장 방지 (2분 이내 + 동일 URL)
               if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
                   skipReason = 'Duplicate (same URL within 2min)';
               }
 
-              // [B] 세션 판별
               if (timeDiff < SESSION_TIMEOUT) {
-                  // === 세션 유지 중 (페이지 이동/새로고침) ===
                   isNewSession = false;
-                  
-                  // ★ 중요: 세션이 유지되는 동안은 재방문 여부를 새로 계산하지 않고
-                  // 직전 로그의 상태를 그대로 물려받습니다. (Inherit)
                   isRevisit = lastLog.isRevisit || false; 
                   
               } else {
-                  // === 새로운 세션 시작 (30분 경과 후 재접속) ===
                   isNewSession = true;
-                  
-                  // ★ 이때만 "과거(24시간 전)에 방문한 적 있는가?"를 체크합니다.
                   const pastLog = await db.collection('visit_logs1Event').findOne({
                       visitorId: visitorId,
                       createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
                   });
 
                   if (pastLog) {
-                      isRevisit = true; // 24시간 전 기록 있음 -> 재방문 유저
+                      isRevisit = true;
                       console.log(`[REVISIT] 재방문 유저 확인: ${visitorId}`);
                   } else {
-                      isRevisit = false; // 24시간 전 기록 없음 -> 신규 또는 하루 내 재접속
+                      isRevisit = false;
                   }
               }
           } else {
-              // 로그가 아예 없음 -> 완전 신규
               isRevisit = false;
           }
       }
@@ -815,9 +666,6 @@ app.post('/api/trace/log', async (req, res) => {
           return res.json({ success: true, msg: skipReason });
       }
 
-      // --------------------------------------------------------
-      // 6. 진입점(Entry Point) 체크
-      // --------------------------------------------------------
       const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
           $or: [ { visitorId: visitorId }, { userIp: userIp } ],
           currentUrl: { $regex: '1_promotion.html' }
@@ -833,9 +681,6 @@ app.post('/api/trace/log', async (req, res) => {
           return res.json({ success: true, msg: 'Skin Ignored' });
       }
 
-      // --------------------------------------------------------
-      // 7. 최종 저장
-      // --------------------------------------------------------
       const log = {
           visitorId: visitorId,
           isMember: !!isRealMember,
@@ -846,7 +691,7 @@ app.post('/api/trace/log', async (req, res) => {
           userIp: userIp,
           deviceType: deviceType || 'unknown',
           duration: 0,
-          isRevisit: isRevisit, // 계산된 재방문 값 저장
+          isRevisit: isRevisit, 
           createdAt: new Date()
       };
 
@@ -860,6 +705,8 @@ app.post('/api/trace/log', async (req, res) => {
   } catch (e) {
       console.error('[ERROR]', e);
       res.status(500).json({ success: false, error: e.message });
+  } finally {
+      await client.close(); // ★ 연결 종료
   }
 });
 
@@ -871,7 +718,11 @@ app.post('/api/trace/log/exit', async (req, res) => {
   let { logId, duration } = req.body;
   if (!logId || duration === undefined) return res.status(400).send('Missing Data');
 
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+    await client.connect(); // ★ 추가
+    const db = client.db(DB_NAME); // ★ 추가
+
     await db.collection('visit_logs1Event').updateOne(
       { _id: new ObjectId(logId) }, 
       { $set: { duration: parseInt(duration) } }
@@ -880,6 +731,8 @@ app.post('/api/trace/log/exit', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send('Error');
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
@@ -887,7 +740,11 @@ app.post('/api/trace/log/exit', async (req, res) => {
 // [API 2] 관리자 대시보드용: 단순 태그별 요약
 // ==========================================================
 app.get('/api/trace/summary', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+    await client.connect(); // ★ 추가
+    const db = client.db(DB_NAME); // ★ 추가
+
     const stats = await db.collection('visit_logs1Event').aggregate([
       {
         $group: {
@@ -911,13 +768,20 @@ app.get('/api/trace/summary', async (req, res) => {
     res.json({ success: true, data: stats });
   } catch (err) {
     res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
+
 // ==========================================================
-// [API 3] 방문자 목록 조회 (수정: searchId 필드 추가)
+// [API 3] 방문자 목록 조회
 // ==========================================================
 app.get('/api/trace/visitors', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       const { date } = req.query;
       let matchStage = {};
 
@@ -933,7 +797,6 @@ app.get('/api/trace/visitors', async (req, res) => {
           { $sort: { createdAt: -1 } },
           {
               $group: {
-                  // 회원은 visitorId, 비회원은 IP로 그룹핑
                   _id: {
                       $cond: [
                           { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
@@ -957,9 +820,8 @@ app.get('/api/trace/visitors', async (req, res) => {
               }
           },
           {
-              // ★ [추가] 프론트에서 사용할 검색용 ID 명시
               $addFields: {
-                  searchId: "$_id"  // Journey API 호출 시 사용할 ID
+                  searchId: "$_id" 
               }
           },
           { $sort: { lastAction: -1 } },
@@ -970,21 +832,25 @@ app.get('/api/trace/visitors', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
+
 // ==========================================================
-// [API 4] 특정 유저 이동 경로 (수정: 회원/비회원 분리)
+// [API 4] 특정 유저 이동 경로
 // ==========================================================
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
   const { startDate, endDate } = req.query;
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
 
   console.log('[Journey] 요청:', { visitorId, startDate, endDate });
 
   try {
-      // ==========================================================
-      // [1] 날짜 필터링 준비
-      // ==========================================================
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       let dateFilter = null;
       
       if (startDate) {
@@ -996,68 +862,52 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           dateFilter = { $gte: start, $lte: end };
       }
 
-      // ==========================================================
-      // [2] ★ 검색 대상이 IP인지, 회원ID인지, 게스트ID인지 판단
-      // ==========================================================
       const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || visitorId.includes(':');
       const isGuestId = visitorId.toLowerCase().startsWith('guest_');
       const isMemberId = !isIpFormat && !isGuestId;
 
       let baseQuery = {};
       let clickQuery = {};
-
-      // ==========================================================
-      // [3] ★ 케이스별 쿼리 생성 (핵심 수정)
-      // ==========================================================
       
       if (isMemberId) {
-          // ★ 케이스 1: 회원 ID로 검색 → 해당 회원 기록만!
           console.log('[Journey] 회원 ID로 검색:', visitorId);
           baseQuery = { visitorId: visitorId };
           clickQuery = { visitorId: visitorId };
       } 
       else if (isIpFormat) {
-          // ★ 케이스 2: IP로 검색 (비회원 목록에서 클릭) → 해당 IP의 게스트 기록만!
           console.log('[Journey] IP로 검색 (게스트만):', visitorId);
           baseQuery = { 
               userIp: visitorId,
-              visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+              visitorId: { $regex: /^guest_/i } 
           };
           clickQuery = { 
               ip: visitorId,
-              visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+              visitorId: { $regex: /^guest_/i }
           };
       }
       else if (isGuestId) {
-          // ★ 케이스 3: 게스트 ID로 검색 → 해당 게스트 + 같은 IP의 다른 게스트
           console.log('[Journey] 게스트 ID로 검색:', visitorId);
           
-          // 먼저 이 게스트의 IP 찾기
           const guestLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { projection: { userIp: 1 } }
           );
           
           if (guestLog && guestLog.userIp) {
-              // 같은 IP의 게스트 기록들만 (회원 제외!)
               baseQuery = {
                   userIp: guestLog.userIp,
-                  visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+                  visitorId: { $regex: /^guest_/i }
               };
               clickQuery = {
                   ip: guestLog.userIp,
-                  visitorId: { $regex: /^guest_/i }  // ★ 게스트만!
+                  visitorId: { $regex: /^guest_/i }
               };
           } else {
-              // IP 못 찾으면 해당 게스트 ID만
               baseQuery = { visitorId: visitorId };
               clickQuery = { visitorId: visitorId };
           }
       }
 
-      // ==========================================================
-      // [4] 날짜 조건 추가
-      // ==========================================================
       if (dateFilter) {
           baseQuery = { $and: [baseQuery, { createdAt: dateFilter }] };
           clickQuery = { $and: [clickQuery, { createdAt: dateFilter }] };
@@ -1065,9 +915,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
 
       console.log('[Journey] 방문 쿼리:', JSON.stringify(baseQuery));
 
-      // ==========================================================
-      // [5] 방문 기록 조회
-      // ==========================================================
       const views = await db.collection('visit_logs1Event')
           .find(baseQuery)
           .sort({ createdAt: 1 })
@@ -1083,9 +930,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           timestamp: v.createdAt
       }));
 
-      // ==========================================================
-      // [6] 클릭 기록 조회
-      // ==========================================================
       const clicks = await db.collection('event01ClickData')
           .find(clickQuery)
           .sort({ createdAt: 1 })
@@ -1101,7 +945,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           timestamp: c.createdAt
       }));
 
-      // 7. 합치기 및 정렬
       const journey = [...formattedViews, ...formattedClicks];
       journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -1110,14 +953,20 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   } catch (error) {
       console.error('[Journey Error]', error);
       res.status(500).json({ msg: 'Server Error', error: error.message });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
 // ==========================================================
-// [API 5] 퍼널 분석 (수정: 1월 신규 UTM 매핑 적용)
+// [API 5] 퍼널 분석
 // ==========================================================
 app.get('/api/trace/funnel', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       const { startDate, endDate } = req.query;
 
       let dateFilter = {};
@@ -1127,10 +976,9 @@ app.get('/api/trace/funnel', async (req, res) => {
           if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
       }
 
-      // 유효 방문자 추출
       const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
           createdAt: dateFilter,
-          currentUrl: { $regex: '1_promotion.html|index.html|store.html' } // UTM 랜딩이 다양해져서 조건 확장
+          currentUrl: { $regex: '1_promotion.html|index.html|store.html' } 
       });
 
       if (validVisitors.length === 0) {
@@ -1156,11 +1004,9 @@ app.get('/api/trace/funnel', async (req, res) => {
                           "$visitorId"
                       ]
                   },
-                  // ★ [수정됨] 1월 신규 UTM 매핑 로직 (이미지 기준)
                   channelName: {
                       $switch: {
                           branches: [
-                              // 1. 네이버 브랜드 검색 (Campaign 기준)
                               { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
                               { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
                               { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
@@ -1168,16 +1014,12 @@ app.get('/api/trace/funnel', async (req, res) => {
                               { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
                               { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
                               { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
-
-                              // 2. 메타 광고 (Content 기준)
                               { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
                               { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
                               { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
                               { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
                               { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
                               { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
-
-                              // 3. 카카오 플친 (Campaign 기준)
                               { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
                               { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
                               { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
@@ -1235,14 +1077,13 @@ app.get('/api/trace/funnel', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
-
-
-
 // ==========================================================
-// [API] Cafe24 카테고리 전체 정보 조회 (무한 스크롤링 방식)
+// [API] Cafe24 카테고리 전체 정보 조회
 // ==========================================================
 app.get('/api/meta/categories', async (req, res) => {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
@@ -1251,11 +1092,10 @@ app.get('/api/meta/categories', async (req, res) => {
       let allCategories = [];
       let offset = 0;
       let hasMore = true;
-      const LIMIT = 100; // API가 허용하는 최대값
+      const LIMIT = 100;
 
       console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
 
-      // ★ [핵심] 100개씩 끊어서 끝까지 다 가져오는 루프
       while (hasMore) {
           const response = await axios.get(url, {
               headers: {
@@ -1266,7 +1106,7 @@ app.get('/api/meta/categories', async (req, res) => {
               params: { 
                   shop_no: 1,
                   limit: LIMIT,     
-                  offset: offset,   // 0, 100, 200... 식으로 증가
+                  offset: offset,   
                   fields: 'category_no,category_name' 
               }
           });
@@ -1276,19 +1116,16 @@ app.get('/api/meta/categories', async (req, res) => {
           if (cats && cats.length > 0) {
               allCategories = allCategories.concat(cats);
               
-              // 가져온 개수가 100개 미만이면 거기가 마지막 페이지임
               if (cats.length < LIMIT) {
                   hasMore = false; 
               } else {
-                  offset += LIMIT; // 다음 100개를 가지러 감
+                  offset += LIMIT; 
               }
           } else {
-              // 데이터가 비어있으면 종료
               hasMore = false;
           }
       }
 
-      // 프론트엔드용 매핑 데이터 생성 { '1017': '요기보 서포트...' }
       const categoryMap = {};
       allCategories.forEach(cat => {
           categoryMap[cat.category_no] = cat.category_name;
@@ -1298,12 +1135,11 @@ app.get('/api/meta/categories', async (req, res) => {
       res.json({ success: true, data: categoryMap });
 
   } catch (error) {
-      // 토큰 만료 처리
       if (error.response && error.response.status === 401) {
           try {
               console.log('Token expired. Refreshing...');
               await refreshAccessToken();
-              return res.redirect(req.originalUrl); // 재시도
+              return res.redirect(req.originalUrl); 
           } catch (e) {
               return res.status(401).json({ error: "Token refresh failed" });
           }
@@ -1313,9 +1149,8 @@ app.get('/api/meta/categories', async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// [신규 API] Cafe24 전체 상품 정보 조회 (상품명 매핑용)
+// [신규 API] Cafe24 전체 상품 정보 조회
 // ==========================================================
 app.get('/api/meta/products', async (req, res) => {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`;
@@ -1324,7 +1159,7 @@ app.get('/api/meta/products', async (req, res) => {
       let allProducts = [];
       let offset = 0;
       let hasMore = true;
-      const LIMIT = 100; // 한 번에 가져올 최대 개수
+      const LIMIT = 100;
 
       console.log(`[Product] 상품 전체 데이터 수집 시작...`);
 
@@ -1339,7 +1174,6 @@ app.get('/api/meta/products', async (req, res) => {
                   shop_no: 1,
                   limit: LIMIT,     
                   offset: offset,
-                  // ★ 중요: 무거운 정보 빼고 번호랑 이름만 가져와서 속도 최적화
                   fields: 'product_no,product_name' 
               }
           });
@@ -1359,7 +1193,6 @@ app.get('/api/meta/products', async (req, res) => {
           }
       }
 
-      // 프론트엔드용 매핑 데이터 생성 { '1258': '요기보 맥스' }
       const productMap = {};
       allProducts.forEach(prod => {
           productMap[prod.product_no] = prod.product_name;
@@ -1369,7 +1202,6 @@ app.get('/api/meta/products', async (req, res) => {
       res.json({ success: true, data: productMap });
 
   } catch (error) {
-      // 토큰 만료 처리
       if (error.response && error.response.status === 401) {
           try {
               await refreshAccessToken();
@@ -1383,47 +1215,39 @@ app.get('/api/meta/products', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
 // ==========================================================
-// [API 7] 섹션 클릭 로그 저장 (수정됨: visitorId 저장 추가)
+// [API 7] 섹션 클릭 로그 저장
 // ==========================================================
 app.post('/api/trace/click', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      // 1. IP 가져오기
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) {
           userIp = userIp.split(',')[0].trim();
       }
 
-      // IP 차단 로직
       const BLOCKED_IPS = ['127.0.0.1', '::1'];
       if (BLOCKED_IPS.includes(userIp)) {
           return res.json({ success: true, msg: 'IP Filtered' });
       }
 
-      // ★ [수정 1] req.body에서 visitorId를 받아와야 함!
       const { sectionId, sectionName, visitorId } = req.body;
 
       if (!sectionId || !sectionName) {
           return res.status(400).json({ success: false, msg: 'Missing Data' });
       }
 
-      // 2. DB 저장 객체 생성
       const clickLog = {
           sectionId,
           sectionName,
-          // ★ [수정 2] visitorId가 있으면 저장 (없으면 guest)
           visitorId: visitorId || 'guest', 
           ip: userIp,
           createdAt: new Date()
       };
 
-      // ★ [수정 3] Collection 이름을 'event01ClickData'로 통일 (읽는 쪽과 맞춰야 함)
       await db.collection('event01ClickData').insertOne(clickLog);
       
       res.json({ success: true });
@@ -1431,31 +1255,31 @@ app.post('/api/trace/click', async (req, res) => {
   } catch (e) {
       console.error(e);
       res.status(500).json({ success: false });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
-
-
 // ==========================================================
-// [API 8] 섹션 클릭 통계 조회 (날짜 필터링 적용)
+// [API 8] 섹션 클릭 통계 조회
 // ==========================================================
 app.get('/api/trace/clicks/stats', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       const { startDate, endDate } = req.query;
       
-      // ★ [핵심] 날짜 필터링 조건 생성
       let matchStage = {};
       if (startDate || endDate) {
           matchStage.createdAt = {};
-          // 시작일 00:00:00 부터
           if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-          // 종료일 23:59:59 까지
           if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
       }
 
-      // DB 집계 (기간 조건 -> 그룹핑 -> 카운트)
       const stats = await db.collection('event01ClickData').aggregate([
-          { $match: matchStage },     // 1. 날짜로 먼저 거르기
+          { $match: matchStage }, 
           {
               $group: {
                   _id: "$sectionId",                
@@ -1463,7 +1287,7 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
                   count: { $sum: 1 }                
               }
           },
-          { $sort: { count: -1 } }    // 2. 많은 순 정렬
+          { $sort: { count: -1 } }    
       ]).toArray();
 
       const formattedData = stats.map(item => ({
@@ -1477,52 +1301,53 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
+
 // ==========================================================
-// [API] 특정 버튼 클릭 사용자 조회 (수정됨: 클릭 DB 직접 조회로 누락 방지)
+// [API] 특정 버튼 클릭 사용자 조회
 // ==========================================================
 app.get('/api/trace/visitors/by-click', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+      await client.connect(); // ★ 추가
+      const db = client.db(DB_NAME); // ★ 추가
+
       const { sectionId, startDate, endDate } = req.query;
       
-      // 1. 날짜 범위 설정
       const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
       const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
 
-      // 2. 클릭 로그 조회 (여기서 직접 유저 리스트를 만듭니다)
       const clickLogs = await db.collection('event01ClickData').find({
           sectionId: sectionId,
           createdAt: { $gte: start, $lte: end }
-      }).sort({ createdAt: -1 }).toArray(); // 최신순 정렬
+      }).sort({ createdAt: -1 }).toArray(); 
 
       if (clickLogs.length === 0) {
           return res.json({ success: true, visitors: [], msg: '클릭 기록 없음' });
       }
 
-      // 3. 중복 제거 및 데이터 포맷팅
       const uniqueVisitors = {};
       
       for (const log of clickLogs) {
-          const vid = log.visitorId || log.ip || 'Unknown'; // ID 없으면 IP라도 사용
+          const vid = log.visitorId || log.ip || 'Unknown'; 
           
-          // 이미 리스트에 없으면 추가 (최신 클릭 기준)
           if (!uniqueVisitors[vid]) {
               uniqueVisitors[vid] = {
                   _id: vid,
                   lastAction: log.createdAt,
-                  // guest_로 시작하거나 null이면 비회원, 아니면 회원
                   isMember: (vid && !vid.startsWith('guest_') && vid !== 'null' && vid !== 'guest'),
-                  currentUrl: '', // 클릭 로그엔 URL이 없을 수 있음
+                  currentUrl: '', 
                   userIp: log.ip,
-                  count: 1 // 클릭 횟수
+                  count: 1 
               };
           } else {
-              uniqueVisitors[vid].count++; // 이미 있으면 카운트 증가
+              uniqueVisitors[vid].count++; 
           }
       }
 
-      // 4. 배열로 변환
       const visitors = Object.values(uniqueVisitors);
 
       res.json({ success: true, visitors: visitors });
@@ -1530,32 +1355,36 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
   } catch (error) {
       console.error('클릭 방문자 조회 실패:', error);
       res.status(500).json({ success: false, message: '서버 오류' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
 // ==========================================================
-// [API 9] 인기 페이지 및 방문자 그룹핑 조회 (핵심 기능)
+// [API 9] 인기 페이지 및 방문자 그룹핑 조회
 // ==========================================================
 app.get('/api/trace/stats/pages', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+    await client.connect(); // ★ 추가
+    const db = client.db(DB_NAME); // ★ 추가
+
     const { startDate, endDate } = req.query;
     let matchStage = {};
 
-    // 날짜 필터링
     if (startDate || endDate) {
         matchStage.createdAt = {};
         if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
         if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
-    // URL별 그룹핑 -> 방문자 ID 수집 (중복 제거)
     const pipeline = [
       { $match: matchStage },
       {
         $group: {
-          _id: "$currentUrl", // URL 기준으로 묶음
-          count: { $sum: 1 }, // 단순 조회수
-          visitors: { $addToSet: "$visitorId" } // 방문자 ID 리스트 (중복제거됨)
+          _id: "$currentUrl", 
+          count: { $sum: 1 }, 
+          visitors: { $addToSet: "$visitorId" } 
         }
       },
       { 
@@ -1563,37 +1392,37 @@ app.get('/api/trace/stats/pages', async (req, res) => {
             url: "$_id",
             count: 1,
             visitors: 1,
-            visitorCount: { $size: "$visitors" } // 고유 방문자 수
+            visitorCount: { $size: "$visitors" } 
         }
       },
-      { $sort: { count: -1 } }, // 조회수 높은 순 정렬
-      { $limit: 100 } // 상위 100개만 (성능 위해)
+      { $sort: { count: -1 } }, 
+      { $limit: 100 } 
     ];
 
-    // 메모리 부족 방지 옵션 포함
     const data = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
     res.json({ success: true, data });
 
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
+
 // ==========================================================
-// [API 10] 카테고리 -> 상품 이동 흐름 분석 (목록간 이동 제외, 순수 상품만)
+// [API 10] 카테고리 -> 상품 이동 흐름 분석
 // ==========================================================
 app.get('/api/trace/stats/flow', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+    await client.connect(); // ★ 추가
+    const db = client.db(DB_NAME); // ★ 추가
+
     const { startDate, endDate } = req.query;
     
-    // ★ 핵심 수정: 현재 페이지(currentUrl)는 상품이어야 함
-    // Cafe24에서 list.html은 목록이므로, product가 들어있더라도 list.html은 제외해야 함!
     let matchStage = {
-        // 1. 이전 페이지: 'category' 또는 'list.html' 포함 (목록)
         prevUrl: { $regex: 'category|list.html' },
-        
-        // 2. 현재 페이지: 'product' 또는 'detail.html' 포함 (상품)
-        // AND 조건: 'list.html'은 포함하면 안 됨 (이게 있으면 목록페이지임)
         $and: [
             { currentUrl: { $regex: 'product|detail.html' } },
             { currentUrl: { $not: { $regex: 'list.html' } } } 
@@ -1608,7 +1437,6 @@ app.get('/api/trace/stats/flow', async (req, res) => {
 
     const pipeline = [
       { $match: matchStage },
-      // 3. [카테고리 URL] + [상품 URL] 조합으로 그룹핑
       {
         $group: {
           _id: { category: "$prevUrl", product: "$currentUrl" },
@@ -1617,7 +1445,6 @@ app.get('/api/trace/stats/flow', async (req, res) => {
         }
       },
       { $sort: { count: -1 } },
-      // 4. 다시 [카테고리] 기준으로 묶기
       {
         $group: {
           _id: "$_id.category",
@@ -1641,46 +1468,26 @@ app.get('/api/trace/stats/flow', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
+  } finally {
+      await client.close(); // ★ 추가
   }
-});
-
-
-// by-click 라우트 내부
-app.get('/by-click', async (req, res) => {
-  const { sectionId, startDate, endDate } = req.query;
-
-  console.log('=== 요청 파라미터 ===');
-  console.log({ sectionId, startDate, endDate });
-
-  // 실제 DB 조회 직전 쿼리 조건을 로그로 확인
-  const query = {
-      sectionId: sectionId, // 여기가 DB랑 똑같은지 확인!
-      // 날짜 조건...
-  };
-  console.log('=== MongoDB 쿼리 조건 ===', JSON.stringify(query, null, 2));
-
-  const result = await db.collection('visitors').find(query).toArray();
-  console.log('=== 검색된 개수 ===', result.length);
-  
-  res.json({ success: true, visitors: result });
 });
 
 // ==========================================================
 // [API 11] 특정 채널 방문자 목록 조회
-// ✅ /api/trace/funnel 과 "100% 동일한 귀속 로직" 버전
-//    - validVisitors 필터 동일
-//    - channelName 매핑 로직 동일(utmData 기준)
-//    - uniqueId(게스트=IP, 회원=visitorId) 동일
 // ==========================================================
 app.get('/api/trace/visitors/by-channel', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
+    await client.connect(); // ★ 추가
+    const db = client.db(DB_NAME); // ★ 추가
+
     const { channelName, startDate, endDate } = req.query;
 
     if (!channelName) {
       return res.status(400).json({ success: false, msg: 'Missing channelName' });
     }
 
-    // 1) 날짜 필터 (퍼널과 동일)
     let dateFilter = {};
     if (startDate || endDate) {
       dateFilter = {};
@@ -1688,7 +1495,6 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
       if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
-    // 2) validVisitors (퍼널과 동일)
     const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
       createdAt: dateFilter,
       currentUrl: { $regex: '1_promotion.html|index.html|store.html' }
@@ -1698,11 +1504,9 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
       return res.json({ success: true, visitors: [] });
     }
 
-    // 3) 채널 매핑 로직 (퍼널과 동일: utmData만 사용)
     const channelNameExpr = {
       $switch: {
         branches: [
-          // 1. 네이버 브랜드 검색 (Campaign 기준)
           { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
           { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
           { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
@@ -1710,16 +1514,12 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
           { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
           { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
           { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
-
-          // 2. 메타 광고 (Content 기준)
           { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
           { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
           { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
           { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
           { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
           { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
-
-          // 3. 카카오 플친 (Campaign 기준)
           { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
           { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
           { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
@@ -1730,7 +1530,6 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
       }
     };
 
-    // 4) 방문자 리스트 생성 (퍼널과 같은 대상/기준으로)
     const pipeline = [
       {
         $match: {
@@ -1757,8 +1556,6 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
         }
       },
       { $match: { channelName: channelName } },
-
-      // "사람 단위"로 묶기
       {
         $group: {
           _id: "$uniqueId",
@@ -1795,15 +1592,12 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
   } catch (err) {
     console.error('API 11 Error:', err);
     return res.status(500).json({ msg: 'Server Error', error: err.toString() });
+  } finally {
+      await client.close(); // ★ 추가
   }
 });
 
-
-
-
 // ========== [17] 서버 시작 ==========
-// (추가 초기화 작업이 필요한 경우)
-// 아래는 추가적인 초기화 작업 후 서버를 시작하는 예시입니다.
 (async function initialize() {
   await getTokensFromDB();
   const PORT = process.env.PORT || 6000;
