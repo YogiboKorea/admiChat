@@ -30,17 +30,7 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 
-// [임시] 토큰 삭제용 코드 (한 번 실행 후 지우세요)
-app.get('/reset-token', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
-  try {
-      await client.connect();
-      // 'tokens' 컬렉션 내용을 싹 지웁니다.
-      await client.db(DB_NAME).collection('tokens').deleteMany({});
-      res.send('<h1>토큰 삭제 완료!</h1><p>이제 쇼핑몰 관리자 페이지에서 앱을 실행해 <b>다시 동의하고 로그인</b>해주세요.</p>');
-  } catch (e) { res.send(e.message); }
-  finally { await client.close(); }
-});
+
 
 // MongoDB에서 토큰을 저장할 컬렉션명
 const tokenCollectionName = "tokens";
@@ -684,6 +674,9 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 // ==========================================================
 app.post('/api/trace/log', async (req, res) => {
   try {
+    // ★ [수정] DB 연결 및 db 변수 정의
+    await client.connect();
+    const db = client.db(DB_NAME);
       // --------------------------------------------------------
       // 1. IP 확인 및 차단 필터 (개발자 예외 적용)
       // --------------------------------------------------------
