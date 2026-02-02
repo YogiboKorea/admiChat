@@ -427,55 +427,146 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 });
 
 
-
-
 // ==========================================================
-// 2026년2월02일 2월 이벤트 관련 코드 
+// [2월 이벤트] 매일 출석체크 & 누적 보상 시스템
 // ==========================================================
-// ==========================================
-// [API] 회원 마케팅 수신여부 조회 (Admin API 연동)
-// ==========================================
-app.get('/api/member/consent-info', async (req, res) => {
+
+// 1. 이벤트 상태 조회 (초기 진입 시 호출)
+// - 누적 참여 횟수(count)
+// - 오늘 참여 여부(todayDone)
+// - 마케팅 수신동의 여부(sms, email) 반환
+app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
-  // 1. 아이디 유효성 검사
   if (!memberId) {
     return res.status(400).json({ success: false, message: 'memberId가 필요합니다.' });
   }
 
-  // 2. Cafe24 Admin API 호출 (필요한 정보만 콕 집어서 요청: sms, news_mail)
-  // fields=member_id,name,sms,news_mail
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers?member_id=${memberId}&fields=member_id,name,sms,news_mail`;
-
+  const client = new MongoClient(MONGODB_URI);
+  
   try {
-    // 기존에 만드신 apiRequest 함수 사용
-    const response = await apiRequest('GET', url);
+    await client.connect();
+    const db = client.db(DB_NAME);
+    
+    // [1] DB에서 참여 기록 조회
+    const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
+    
+    let myCount = 0;
+    let isTodayDone = false;
 
-    // 3. 결과 확인 및 응답
-    if (response.customers && response.customers.length > 0) {
-      const customer = response.customers[0];
+    if (eventDoc) {
+      myCount = eventDoc.count || 0;
       
-      console.log(`[조회성공] ${memberId} : SMS(${customer.sms}), Email(${customer.news_mail})`);
-
-      res.json({
-        success: true,
-        data: {
-          memberId: customer.member_id,
-          name: customer.name,
-          sms: customer.sms,         // 'T' or 'F'
-          email: customer.news_mail  // 'T' or 'F'
-        }
-      });
-    } else {
-      res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다.' });
+      // 마지막 참여 날짜가 '오늘(한국시간)'인지 확인
+      const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
+      const today = moment().tz('Asia/Seoul');
+      
+      if (lastDate.isSame(today, 'day')) {
+        isTodayDone = true;
+      }
     }
 
+    // [2] Cafe24 API로 실시간 마케팅 동의 여부 조회
+    // (기존 apiRequest 함수 활용)
+    const cafe24Url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers?member_id=${memberId}&fields=sms,news_mail`;
+    let smsConsent = 'F';
+    let emailConsent = 'F';
+
+    try {
+      const cafe24Res = await apiRequest('GET', cafe24Url);
+      if (cafe24Res.customers && cafe24Res.customers.length > 0) {
+        smsConsent = cafe24Res.customers[0].sms;
+        emailConsent = cafe24Res.customers[0].news_mail;
+      }
+    } catch (apiErr) {
+      console.error('Cafe24 회원정보 조회 실패(이벤트):', apiErr.message);
+      // API 실패해도 이벤트 참여 정보는 줘야 하므로 기본값 'F' 유지하고 진행
+    }
+
+    // [3] 최종 응답
+    res.json({
+      success: true,
+      count: myCount,      // 현재 누적 횟수 (0, 1, 2 ...)
+      todayDone: isTodayDone, // 오늘 참여 했는지 (true/false)
+      sms: smsConsent,     // SMS 동의 여부
+      email: emailConsent  // 이메일 동의 여부
+    });
+
   } catch (err) {
-    console.error('Cafe24 API 조회 오류:', err.response?.data || err.message);
-    res.status(500).json({ success: false, message: '서버 오류 발생' });
+    console.error('이벤트 상태 조회 에러:', err);
+    res.status(500).json({ success: false, message: '서버 에러' });
+  } finally {
+    await client.close();
   }
 });
 
+
+// 2. 이벤트 참여하기 (버튼 클릭 시 호출)
+// - 1일 1회 체크
+// - 카운트 +1 증가
+app.post('/api/event/participate', async (req, res) => {
+  const { memberId } = req.body;
+
+  if (!memberId) {
+    return res.status(400).json({ success: false, message: '로그인이 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI);
+
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('event_daily_checkin');
+
+    // [1] 기존 기록 조회
+    const eventDoc = await collection.findOne({ memberId });
+    
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const todayMoment = moment(nowKST).tz('Asia/Seoul');
+
+    // [2] 오늘 이미 참여했는지 체크
+    if (eventDoc) {
+      const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
+      
+      if (lastDate.isSame(todayMoment, 'day')) {
+        return res.json({ success: false, message: '오늘 이미 출석체크를 완료하셨습니다.' });
+      }
+    }
+
+    // [3] 데이터 업데이트 (Upsert)
+    // - 없으면 생성(count: 1), 있으면 count + 1
+    // - history 배열에 참여 시간 기록
+    const updateResult = await collection.findOneAndUpdate(
+      { memberId: memberId },
+      { 
+        $inc: { count: 1 },                // 횟수 1 증가
+        $set: { lastParticipatedAt: nowKST }, // 마지막 참여 시간 갱신
+        $push: { history: nowKST },           // 이력 저장
+        $setOnInsert: { firstParticipatedAt: nowKST } // 처음일 때만 생성일 저장
+      },
+      { upsert: true, returnDocument: 'after' } // 업데이트 후의 최신 문서 반환
+    );
+
+    // 업데이트된 최신 카운트 가져오기
+    // (MongoDB 드라이버 버전에 따라 returnDocument 구조가 다를 수 있어 안전하게 처리)
+    const updatedDoc = updateResult.value || updateResult; 
+    const newCount = updatedDoc ? updatedDoc.count : (eventDoc ? eventDoc.count + 1 : 1);
+
+    console.log(`[이벤트 참여] ${memberId}님 ${newCount}회차 출석 완료`);
+
+    res.json({
+      success: true,
+      message: '출석체크가 완료되었습니다!',
+      count: newCount
+    });
+
+  } catch (err) {
+    console.error('이벤트 참여 처리 에러:', err);
+    res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
+  } finally {
+    await client.close();
+  }
+});
 
 
 // ==========================================================
