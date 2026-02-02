@@ -20,7 +20,7 @@ const CAFE24_MALLID = process.env.CAFE24_MALLID;  // mall_id가 반드시 설정
 const OPEN_URL = process.env.OPEN_URL;
 const API_KEY = process.env.API_KEY;
 const FINETUNED_MODEL = process.env.FINETUNED_MODEL || "gpt-3.5-turbo";
-const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2024-06-01';
+const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2025-12-01';
 const CATEGORY_NO = process.env.CATEGORY_NO || 858; // 카테고리 번호 (예: 858)
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
