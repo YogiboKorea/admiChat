@@ -410,12 +410,8 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 });
 
 // ==========================================================
-// [최종] 2월 이벤트 상태 조회 & 참여
+// [최종] 2월 이벤트 상태 조회 (DB 기준 - API 호출 X)
 // ==========================================================
-
-// ----------------------------------------------------------
-// 1. 이벤트 상태 조회 (GET)
-// ----------------------------------------------------------
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
@@ -429,58 +425,29 @@ app.get('/api/event/status', async (req, res) => {
     await client.connect();
     const db = client.db(DB_NAME);
     
+    // [1] DB에서 유저 정보 조회
     const eventDoc = await db.collection('event_daily_checkin').findOne({ memberId });
-    let myCount = eventDoc ? (eventDoc.count || 0) : 0;
+    
+    let myCount = 0;
     let isTodayDone = false;
+    let isMarketingAgreed = 'F'; // 기본값: 미동의
 
     if (eventDoc) {
-      const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
-      const today = moment().tz('Asia/Seoul');
-      if (lastDate.isSame(today, 'day')) isTodayDone = true;
-    }
+      // 1. 참여 횟수
+      myCount = eventDoc.count || 0;
 
-    let isMarketingAgreed = 'F';
-
-    try {
-      const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-      const privacyRes = await axios.get(privacyUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'X-Cafe24-Api-Version': '2025-12-01'
-        },
-        params: {
-          shop_no: 1,
-          member_id: memberId,
-          consent_type: 'marketing',
-          limit: 1,
-          sort: 'issued_date_desc'
+      // 2. 오늘 출석 여부
+      if (eventDoc.lastParticipatedAt) {
+        const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
+        const today = moment().tz('Asia/Seoul');
+        if (lastDate.isSame(today, 'day')) {
+          isTodayDone = true;
         }
-      });
-
-      if (privacyRes.data.privacy_consents?.length > 0) {
-        isMarketingAgreed = privacyRes.data.privacy_consents[0].agree;
       }
-    } catch (err) {
-      console.warn(`[Status] Privacy API 조회 불가(권한/버전 문제). SMS 정보로 대체합니다.`);
-      
-      try {
-        const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
-        const customerRes = await axios.get(customerUrl, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'X-Cafe24-Api-Version': '2025-12-01'
-          },
-          params: { member_id: memberId, fields: 'sms,news_mail' }
-        });
 
-        if (customerRes.data.customers?.length > 0) {
-          const { sms, news_mail } = customerRes.data.customers[0];
-          if (sms === 'T' || news_mail === 'T') isMarketingAgreed = 'T';
-        }
-      } catch (subErr) {
-        console.error('대체 조회 실패:', subErr.message);
+      // 3. ★ 핵심: 우리 DB에 동의 기록이 있는가? (Cafe24 API 호출 안 함)
+      if (eventDoc.marketingAgreed === true) {
+        isMarketingAgreed = 'T';
       }
     }
 
@@ -492,16 +459,17 @@ app.get('/api/event/status', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('상태 조회 에러:', err);
+    console.error('이벤트 상태 조회 에러:', err);
     res.status(500).json({ success: false, message: '서버 에러' });
   } finally {
     await client.close();
   }
 });
 
-// ----------------------------------------------------------
-// 2. 이벤트 참여 (POST)
-// ----------------------------------------------------------
+
+// ==========================================================
+// [최종] 이벤트 참여 (출석체크) - 기존 유지
+// ==========================================================
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) return res.status(400).json({ success: false, message: '로그인 필요' });
@@ -517,6 +485,7 @@ app.post('/api/event/participate', async (req, res) => {
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
+    // 오늘 중복 참여 방지
     if (eventDoc) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       if (lastDate.isSame(todayMoment, 'day')) {
@@ -524,13 +493,14 @@ app.post('/api/event/participate', async (req, res) => {
       }
     }
 
+    // 참여 기록 저장
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
         $inc: { count: 1 },
         $set: { lastParticipatedAt: nowKST },
         $push: { history: nowKST },
-        $setOnInsert: { firstParticipatedAt: nowKST }
+        $setOnInsert: { firstParticipatedAt: nowKST } // 첫 참여면 최초 시간 저장
       },
       { upsert: true, returnDocument: 'after' }
     );
@@ -547,6 +517,119 @@ app.post('/api/event/participate', async (req, res) => {
     await client.close();
   }
 });
+
+
+// ==========================================================
+// [최종] 마케팅 동의 처리 (API 호출 X -> 오직 DB 저장만)
+// ==========================================================
+app.post('/api/event/marketing-consent', async (req, res) => {
+  const { memberId } = req.body;
+
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('event_daily_checkin');
+
+    // ★ Cafe24 API 호출 없이, 우리 DB에만 "동의함" 기록을 남깁니다.
+    await collection.updateOne(
+      { memberId: memberId },
+      { 
+        $set: { 
+          marketingAgreed: true,        // 동의 여부 체크 (true)
+          marketingAgreedAt: new Date() // 동의한 시간 (증빙용)
+        },
+        // 혹시 출석체크 안 하고 동의부터 누른 경우를 대비해 문서 생성
+        $setOnInsert: { 
+            count: 0,
+            firstParticipatedAt: new Date() 
+        }
+      },
+      { upsert: true }
+    );
+
+    console.log(`[DB저장] ${memberId} - 마케팅 동의 DB 저장 완료`);
+
+    res.json({ success: true, message: '마케팅 동의가 저장되었습니다.' });
+
+  } catch (err) {
+    console.error('동의 처리 에러:', err);
+    res.status(500).json({ error: '서버 에러' });
+  } finally {
+    await client.close();
+  }
+});
+
+
+// ==========================================================
+// [추가] 2월 이벤트 참여자 & 동의 내역 엑셀 다운로드
+// ==========================================================
+app.get('/api/event/download', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    // event_daily_checkin 컬렉션의 모든 데이터를 가져옵니다.
+    const entries = await db.collection('event_daily_checkin').find({}).toArray();
+
+    // 엑셀 워크북 생성
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('2Event_Participants'); // 시트 이름
+
+    // 컬럼 설정
+    worksheet.columns = [
+      { header: '회원 아이디', key: 'memberId', width: 20 },
+      { header: '참여 횟수', key: 'count', width: 10 },
+      { header: '마케팅 동의 여부', key: 'marketingAgreed', width: 15 },
+      { header: '동의 일시 (KST)', key: 'marketingAgreedAt', width: 25 },
+      { header: '마지막 참여 일시 (KST)', key: 'lastParticipatedAt', width: 25 },
+      { header: '최초 참여 일시 (KST)', key: 'firstParticipatedAt', width: 25 }
+    ];
+
+    // 데이터 행 추가
+    entries.forEach(entry => {
+      // 날짜 포맷팅 함수 (한국 시간)
+      const formatDate = (date) => date ? moment(date).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-';
+
+      worksheet.addRow({
+        memberId: entry.memberId,
+        count: entry.count || 0,
+        marketingAgreed: entry.marketingAgreed ? 'O (동의)' : 'X',
+        marketingAgreedAt: formatDate(entry.marketingAgreedAt),
+        lastParticipatedAt: formatDate(entry.lastParticipatedAt),
+        firstParticipatedAt: formatDate(entry.firstParticipatedAt)
+      });
+    });
+
+    // 파일명 설정 및 다운로드 처리
+    const filename = 'Event2_Participants.xlsx';
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error('엑셀 다운로드 에러:', err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  } finally {
+    await client.close();
+  }
+});
+
+
+
+
+
+
+
+
 
 // ==========================================================
 // [API 1] 로그 수집
