@@ -303,37 +303,50 @@ async function updateMarketingConsent(memberId) {
   return apiRequest('PUT', url, payload);
 }
 
-
 // ==============================
-// (4) 매장용 이벤트 참여 엔드포인트
+// (4) 매장용 이벤트 참여 및 마케팅 동의 처리 (수정됨)
+// ==============================
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId, store } = req.body;
-  if (!memberId || !store) {
-    return res.status(400).json({ error: 'memberId와 store가 필요합니다.' });
+
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId가 필요합니다.' });
   }
 
   const client = new MongoClient(MONGODB_URI);
   try {
     await client.connect();
-    const coll = client.db(DB_NAME).collection('marketingConsentEvent');
+    const db = client.db(DB_NAME);
+    const coll = db.collection('marketingConsentEvent'); // 필요시 컬렉션명 확인
 
-    // 중복 참여 방지
-    if (await coll.findOne({ memberId })) {
-      return res.status(409).json({ success: false, message: '이미 참여 완료하신 고객입니다.' });
+    // [1] Cafe24 API 호출 (순서 중요)
+    // 1-1. 마케팅 목적 개인정보 수집 이용 동의 ('marketing') -> 이게 안 되던 부분
+    try {
+        await updatePrivacyConsent(memberId); 
+        console.log(`[Cafe24] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
+    } catch (e) {
+        console.error(`[Cafe24] 마케팅 수집 동의 실패:`, e.message);
+        // 실패하더라도 SMS 동의는 시도하도록 continue
     }
 
-    // SMS 수신동의 업데이트
-    await updateMarketingConsent(memberId);
+    // 1-2. SMS 수신 동의 ('sms') -> 이건 잘 되던 부분
+    try {
+        await updateMarketingConsent(memberId);
+        console.log(`[Cafe24] ${memberId} - SMS 수신 동의 완료`);
+    } catch (e) {
+        console.error(`[Cafe24] SMS 동의 실패:`, e.message);
+    }
 
-    // 참여 기록 저장
-    const seoulNow = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
-    );
-    await coll.insertOne({ memberId, store, participatedAt: seoulNow });
+    // [2] (선택사항) 참여 기록 저장 (중복 참여 방지 로직이 필요하다면 추가)
+    // const existing = await coll.findOne({ memberId });
+    // if (!existing) {
+    //    await coll.insertOne({ memberId, store, participatedAt: new Date() });
+    // }
 
-    res.json({ success: true, message: '참여 완료!' });
+    res.json({ success: true, message: '마케팅 및 SMS 동의가 완료되었습니다.' });
+
   } catch (err) {
-    console.error('이벤트 처리 오류:', err.response?.data || err.message);
+    console.error('이벤트 처리 오류:', err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   } finally {
     await client.close();
