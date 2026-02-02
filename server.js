@@ -448,6 +448,9 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 // - 누적 참여 횟수(count)
 // - 오늘 참여 여부(todayDone)
 // - 마케팅 수신동의 여부(sms, email) 반환
+// ==========================================================
+// [수정됨] 2월 이벤트 상태 조회 (마케팅 수집 동의 정밀 체크)
+// ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
 
@@ -480,12 +483,13 @@ app.get('/api/event/status', async (req, res) => {
     let isMarketingAgreed = 'F'; // 기본값: 미동의
 
     try {
+      // Cafe24 API 호출: 해당 회원의 'marketing' 동의 내역 조회
       const privacyRes = await apiRequest('GET', privacyUrl, {}, {
         shop_no: 1,
         member_id: memberId,
         consent_type: 'marketing', // ★ 이 타입이 스크린샷의 항목입니다.
         limit: 1,                  // 최신 1건만 조회 (보통 최신순 정렬됨)
-        sort: 'issued_date_desc'   // (API 지원 시) 최신순
+        // sort: 'issued_date_desc' // (API 버전에 따라 지원 시 사용)
       });
 
       if (privacyRes.privacy_consents && privacyRes.privacy_consents.length > 0) {
