@@ -1712,6 +1712,149 @@ app.get('/force-update-token', async (req, res) => {
   }
 });
 
+
+
+
+//인스타그램 연동 부분
+
+const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
+const SALLYFELLTOKEN = process.env.SALLYFELLTOKEN;
+
+
+// 기존 /api/instagramFeed 엔드포인트 수정
+app.get("/api/instagramFeed", async (req, res) => {
+  try {
+    const pageLimit = 40;
+    // Instagram Graph API 요청 URL 구성
+    const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
+    const response = await axios.get(url);
+    const feedData = response.data;
+    
+    // 가져온 인스타그램 데이터를 DB에 저장
+    saveInstagramFeedData(feedData);
+    
+    res.json(feedData);
+  } catch (error) {
+    console.error("Error fetching Instagram feed:", error.message);
+    res.status(500).json({ error: "Failed to fetch Instagram feed" });
+  }
+});
+
+//샐리필 전용
+app.get("/api/instagramSallyFeed", async (req, res) => {
+  try {
+    const pageLimit = 16;
+    // Instagram Graph API 요청 URL 구성
+    const url = `https://graph.instagram.com/v22.0/me/media?access_token=${SALLYFELLTOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
+    const response = await axios.get(url);
+    const feedData = response.data;
+    
+    // 가져온 인스타그램 데이터를 DB에 저장
+    saveInstagramFeedData(feedData);
+    
+    res.json(feedData);
+  } catch (error) {
+    console.error("Error fetching Instagram feed:", error.message);
+    res.status(500).json({ error: "Failed to fetch Instagram feed" });
+  }
+});
+
+
+
+app.get('/api/instagramToken', (req, res) => {
+  const token = process.env.INSTAGRAM_TOKEN;
+  if (token) {
+    res.json({ token });
+  } else {
+    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+  }
+});
+
+
+app.get('/api/sallyfeelToken', (req, res) => {
+  const token = process.env.SALLYFELLTOKEN;
+  if (token) {
+    res.json({ token });
+  } else {
+    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+  }
+});
+
+
+// 인스타그램 피드 데이터를 MongoDB에 저장하는 함수 추가
+async function saveInstagramFeedData(feedData) {
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const instagramCollection = db.collection('instagramData');
+    
+    const feedItems = feedData.data || [];
+    for (const item of feedItems) {
+      // 각 인스타그램 게시물을 id를 기준으로 upsert 처리
+      await instagramCollection.updateOne(
+        { id: item.id },
+        { $set: item },
+        { upsert: true }
+      );
+    }
+    await client.close();
+    console.log("Instagram feed data saved to DB successfully.");
+  } catch (err) {
+    console.error("Error saving Instagram feed data to DB:", err);
+  }
+}
+app.post('/api/trackClick', async (req, res) => {
+  const { postId } = req.body;
+  if (!postId) {
+    return res.status(400).json({ error: 'postId 값이 필요합니다.' });
+  }
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('instaClickdata');
+    
+    // postId를 기준으로 클릭 카운터를 1 증가 (upsert: document가 없으면 생성)
+    await collection.updateOne(
+      { postId: postId },
+      { $inc: { counter: 1 } },
+      { upsert: true }
+    );
+    
+    await client.close();
+    res.status(200).json({ message: 'Click tracked successfully', postId });
+  } catch (error) {
+    console.error("Error tracking click event:", error);
+    res.status(500).json({ error: 'Error tracking click event' });
+  }
+});
+//인스타 클릭데이터 가져오기
+app.get('/api/getClickCount', async (req, res) => {
+  const postId = req.query.postId;
+  if (!postId) {
+    return res.status(400).json({ error: 'postId query parameter is required' });
+  }
+  try {
+    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('instaClickdata');
+    
+    // postId 기준으로 document를 찾고, counter 필드 반환 (없으면 0)
+    const doc = await collection.findOne({ postId: postId });
+    const clickCount = doc && doc.counter ? doc.counter : 0;
+    
+    await client.close();
+    res.status(200).json({ clickCount });
+  } catch (error) {
+    console.error("Error fetching click count:", error);
+    res.status(500).json({ error: 'Error fetching click count' });
+  }
+});
+
+
+
 // ========== [17] 서버 시작 ==========
 (async function initialize() {
   await getTokensFromDB();
