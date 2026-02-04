@@ -475,13 +475,11 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
     await client.close();
   }
 });
-
-
 // ==========================================================
-// [최종 수정] 2월 이벤트 상태 조회
-// 1. 로컬 DB 우선 확인
-// 2. 미동의(F) 상태면 Cafe24 Privacy API 확인 (SMS 확인 로직 삭제됨)
-// 3. Cafe24가 동의(T)면 로컬 DB 자동 동기화
+// [최종] 2월 이벤트 상태 조회
+// 1. 우리 DB 확인 -> T면 바로 통과
+// 2. 우리 DB가 F면 -> Cafe24 API '조회'만 수행
+// 3. Cafe24가 T면 -> 우리 DB를 T로 동기화 (다음부터 조회 안 함)
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
@@ -497,7 +495,7 @@ app.get('/api/event/status', async (req, res) => {
     const db = client.db(DB_NAME);
     const collection = db.collection('event_daily_checkin');
     
-    // [1] 로컬 DB에서 유저 정보 조회
+    // [1] 우리 DB에서 유저 정보 조회
     const eventDoc = await collection.findOne({ memberId });
     
     let myCount = 0;
@@ -505,10 +503,9 @@ app.get('/api/event/status', async (req, res) => {
     let isMarketingAgreed = 'F'; // 기본값
 
     if (eventDoc) {
-      // 1. 참여 횟수
       myCount = eventDoc.count || 0;
 
-      // 2. 오늘 출석 여부
+      // 오늘 출석 여부
       if (eventDoc.lastParticipatedAt) {
         const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
         const today = moment().tz('Asia/Seoul');
@@ -517,56 +514,47 @@ app.get('/api/event/status', async (req, res) => {
         }
       }
 
-      // 3. 로컬 DB 동의 여부 확인
+      // ★ 우리 DB에 동의 기록이 있으면 바로 T (Cafe24 조회 안 함)
       if (eventDoc.marketingAgreed === true) {
         isMarketingAgreed = 'T';
       }
     }
 
-    // ★ [수정됨] 로컬 DB가 'F'일 때, Cafe24 API 확인
-    // 주의: SMS/이메일 수신동의 확인 로직은 삭제되었습니다. (오직 마케팅 동의만 체크)
+    // [2] 우리 DB에는 없는데(F), 실제로는 동의했을 수도 있으니 Cafe24 '조회'
     if (isMarketingAgreed === 'F') {
         try {
             const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-            const privacyRes = await axios.get(privacyUrl, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                    'X-Cafe24-Api-Version': '2025-12-01'
-                },
-                params: {
-                    shop_no: 1,
-                    member_id: memberId,
-                    consent_type: 'marketing',
-                    limit: 1,
-                    sort: 'issued_date_desc'
-                }
+            
+            // apiRequest 사용 (토큰 만료 시 자동 갱신됨)
+            const privacyRes = await apiRequest('GET', privacyUrl, {}, {
+                shop_no: 1,
+                member_id: memberId,
+                consent_type: 'marketing',
+                limit: 1,
+                sort: 'issued_date_desc'
             });
 
-            if (privacyRes.data.privacy_consents?.length > 0) {
-                // 가장 최근 동의 내역이 'T'인지 확인
-                if (privacyRes.data.privacy_consents[0].agree === 'T') {
-                    console.log(`[Sync] ${memberId} Cafe24 마케팅 동의 확인됨 -> 로컬 DB 업데이트`);
+            if (privacyRes.privacy_consents?.length > 0) {
+                // Cafe24에 '동의함(T)' 기록이 있다면?
+                if (privacyRes.privacy_consents[0].agree === 'T') {
+                    console.log(`[Sync] ${memberId} 기존 동의 회원 확인됨 -> 로컬 DB 동기화`);
                     
-                    // 실제 동의 유저이므로 DB 업데이트 (동기화)
+                    // 우리 DB만 업데이트 (유저에게 팝업 안 띄우기 위해)
                     await collection.updateOne(
                         { memberId: memberId },
                         { 
-                            $set: { 
-                                marketingAgreed: true, 
-                                marketingAgreedAt: new Date()
-                            },
+                            $set: { marketingAgreed: true, marketingAgreedAt: new Date() },
                             $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                         },
                         { upsert: true }
                     );
                     
-                    isMarketingAgreed = 'T'; 
+                    isMarketingAgreed = 'T'; // 프론트엔드에 T 전달 (팝업 숨김)
                 }
             }
-        } catch (apiErr) {
-            // 404(정보 없음) 등의 에러가 발생하면 그냥 '미동의(F)' 상태 유지
-            // console.warn(`Privacy API 조회 실패 (미동의로 간주): ${apiErr.message}`);
+        } catch (e) {
+            // 404 등 조회 실패 시 그냥 F 유지 (팝업 띄움)
+            // console.warn('Cafe24 조회 실패(미동의 간주):', e.message);
         }
     }
 
@@ -578,12 +566,59 @@ app.get('/api/event/status', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('이벤트 상태 조회 에러:', err);
+    console.error('상태 조회 에러:', err);
     res.status(500).json({ success: false, message: '서버 에러' });
   } finally {
     await client.close();
   }
 });
+
+
+// ==========================================================
+// [최종] 마케팅 동의 버튼 클릭 시 (DB만 업데이트)
+// - Cafe24로 정보를 보내지 않음 (API Call X)
+// - 오직 우리 DB의 marketingAgreed를 true로 변경
+// ==========================================================
+app.post('/api/event/marketing-consent', async (req, res) => {
+  const { memberId } = req.body;
+
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId가 필요합니다.' });
+  }
+
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const db = client.db(DB_NAME);
+    const collection = db.collection('event_daily_checkin');
+
+    // ★ Cafe24 API 호출 없이, 우리 DB에만 저장
+    await collection.updateOne(
+      { memberId: memberId },
+      { 
+        $set: { 
+          marketingAgreed: true,        // 동의함 처리
+          marketingAgreedAt: new Date() // 시간 기록
+        },
+        // 혹시 출석체크 안 하고 동의부터 누른 경우 대비
+        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
+      },
+      { upsert: true }
+    );
+
+    console.log(`[DB저장] ${memberId} - 마케팅 동의(Local) 완료`);
+
+    res.json({ success: true, message: '마케팅 동의가 처리되었습니다.' });
+
+  } catch (err) {
+    console.error('동의 처리 에러:', err);
+    res.status(500).json({ error: '서버 에러' });
+  } finally {
+    await client.close();
+  }
+});
+
+
 
 
 // ==========================================================
