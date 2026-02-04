@@ -316,11 +316,14 @@ clientInstance.connect()
 
 
 
+// ==========================================================
+// 2월 출석체크 부분
+// ==========================================================
 
-   
-  // ==========================================================
-// 2월 이벤트 출석체크
-// [이벤트 API 1] 상태 조회 (기존 동의자 구분 저장)
+
+// ==========================================================
+// [이벤트 API 1] 상태 조회
+// - 우리 DB(F) -> Cafe24 조회(T) -> 우리 DB 업데이트(T, EXISTING)
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
@@ -348,7 +351,7 @@ app.get('/api/event/status', async (req, res) => {
       if (eventDoc.marketingAgreed === true) isMarketingAgreed = 'T';
     }
 
-    // 2. 우리 DB 미동의 상태면 Cafe24 조회 (동기화)
+    // 2. 우리 DB 미동의 상태면 Cafe24 API '조회' (GET만 수행)
     if (isMarketingAgreed === 'F') {
         try {
             let realConsent = false;
@@ -357,11 +360,7 @@ app.get('/api/event/status', async (req, res) => {
             try {
                 const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
                 const privacyRes = await apiRequest('GET', privacyUrl, {}, {
-                    shop_no: 1,
-                    member_id: memberId,
-                    consent_type: 'marketing',
-                    limit: 1,
-                    sort: 'issued_date_desc'
+                    shop_no: 1, member_id: memberId, consent_type: 'marketing', limit: 1, sort: 'issued_date_desc'
                 });
                 if (privacyRes.privacy_consents?.length > 0 && privacyRes.privacy_consents[0].agree === 'T') {
                     realConsent = true;
@@ -382,7 +381,7 @@ app.get('/api/event/status', async (req, res) => {
                 } catch (e) {}
             }
 
-            // ★ [수정] 기존 동의자로 확인되면 'EXISTING' 타입으로 저장
+            // ★ [DB저장] 기존 동의자로 확인됨 -> 'EXISTING'
             if (realConsent) {
                 console.log(`[Sync] ${memberId} 기존 동의 확인 -> DB 업데이트 (EXISTING)`);
                 await collection.updateOne(
@@ -391,7 +390,7 @@ app.get('/api/event/status', async (req, res) => {
                         $set: { 
                             marketingAgreed: true, 
                             marketingAgreedAt: new Date(),
-                            consentType: 'EXISTING' // ★ 기존 동의자 표시
+                            consentType: 'EXISTING' // ★ 기존 동의자
                         },
                         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                     },
@@ -415,165 +414,63 @@ app.get('/api/event/status', async (req, res) => {
 });
 
 // ==========================================================
-// [최종] 마케팅 동의 버튼 클릭 시 (DB만 업데이트)
-// - Cafe24로 정보를 보내지 않음 (API Call X)
-// - 오직 우리 DB의 marketingAgreed를 true로 변경
-// ==========================================================
-app.post('/api/event/marketing-consent', async (req, res) => {
-  const { memberId } = req.body;
-
-  if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
-  }
-
-  const client = new MongoClient(MONGODB_URI);
-  try {
-    await client.connect();
-    const db = client.db(DB_NAME);
-    const collection = db.collection('event_daily_checkin');
-
-    // ★ Cafe24 호출 없이, 우리 DB에만 저장
-    await collection.updateOne(
-      { memberId: memberId },
-      { 
-        $set: { 
-          marketingAgreed: true, 
-          marketingAgreedAt: new Date() 
-        },
-        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
-      },
-      { upsert: true }
-    );
-
-    console.log(`[DB저장] ${memberId} - 마케팅 동의 DB 저장 완료`);
-    res.json({ success: true, message: '마케팅 동의가 저장되었습니다.' });
-
-  } catch (err) {
-    console.error('동의 처리 에러:', err);
-    res.status(500).json({ error: '서버 에러' });
-  } finally {
-    await client.close();
-  }
-});
-
-
-
-// ==========================================================
-// [수정됨] 이벤트 참여 (출석체크)
-// - 날짜 비교 로직 버그 수정 (count 0일 때 중복 참여 뜨는 문제 해결)
+// [이벤트 API 2] 참여하기 (3회 제한 및 0회차 버그 수정)
 // ==========================================================
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
-  if (!memberId) return res.status(400).json({ success: false, message: '로그인 필요' });
+  if (!memberId) return res.status(400).json({ success: false, message: 'Login required' });
 
   const client = new MongoClient(MONGODB_URI);
-
   try {
     await client.connect();
-    const db = client.db(DB_NAME);
-    const collection = db.collection('event_daily_checkin');
+    const collection = client.db(DB_NAME).collection('event_daily_checkin');
 
     const eventDoc = await collection.findOne({ memberId });
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
-    // ★ [수정 포인트] lastParticipatedAt 값이 '실제로 존재할 때만' 날짜를 비교합니다.
-    // (값이 없으면 첫 참여이므로 통과)
-    if (eventDoc && eventDoc.lastParticipatedAt) {
-      const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
-      if (lastDate.isSame(todayMoment, 'day')) {
-        return res.json({ success: false, message: '오늘 이미 참여하셨습니다.' });
+    if (eventDoc) {
+      // 3회 이상이면 차단
+      if ((eventDoc.count || 0) >= 3) {
+         return res.json({ success: false, message: '모든 이벤트 참여가 완료되었습니다!' });
+      }
+      // 날짜 중복 체크 (기록이 있을 때만)
+      if (eventDoc.lastParticipatedAt) {
+        const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
+        if (lastDate.isSame(todayMoment, 'day')) {
+          return res.json({ success: false, message: '오늘 이미 참여하셨습니다.' });
+        }
       }
     }
 
-    // 참여 기록 저장 및 업데이트
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
-        $inc: { count: 1 },             // 횟수 1 증가
-        $set: { lastParticipatedAt: nowKST }, // 마지막 참여 시간 갱신
-        $push: { history: nowKST },     // 히스토리 추가
-        $setOnInsert: { firstParticipatedAt: nowKST } // 첫 참여 시 최초 시간 기록
+        $inc: { count: 1 },
+        $set: { lastParticipatedAt: nowKST },
+        $push: { history: nowKST },
+        $setOnInsert: { firstParticipatedAt: nowKST, marketingAgreed: false }
       },
       { upsert: true, returnDocument: 'after' }
     );
 
     const updatedDoc = updateResult.value || updateResult;
     const newCount = updatedDoc ? updatedDoc.count : 1;
+    const msg = newCount >= 3 ? '모든 이벤트 참여 완료!' : '출석 완료!';
 
-    res.json({ success: true, count: newCount, message: '출석 완료!' });
+    res.json({ success: true, count: newCount, message: msg });
 
   } catch (err) {
-    console.error('참여 에러:', err);
-    res.status(500).json({ success: false, message: '서버 에러' });
+    console.error('Participate Error:', err);
+    res.status(500).json({ success: false });
   } finally {
     await client.close();
   }
 });
-
-
-// ==========================
-// ==========================================================
-// [추가] 2월 이벤트 참여자 & 동의 내역 엑셀 다운로드
-// ==========================================================
-app.get('/api/event/download', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
-  
-  try {
-    await client.connect();
-    const db = client.db(DB_NAME);
-    // event_daily_checkin 컬렉션의 모든 데이터를 가져옵니다.
-    const entries = await db.collection('event_daily_checkin').find({}).toArray();
-
-    // 엑셀 워크북 생성
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('2Event_Participants'); // 시트 이름
-
-    // 컬럼 설정
-    worksheet.columns = [
-      { header: '회원 아이디', key: 'memberId', width: 20 },
-      { header: '참여 횟수', key: 'count', width: 10 },
-      { header: '마케팅 동의 여부', key: 'marketingAgreed', width: 15 },
-      { header: '동의 일시 (KST)', key: 'marketingAgreedAt', width: 25 },
-      { header: '마지막 참여 일시 (KST)', key: 'lastParticipatedAt', width: 25 },
-      { header: '최초 참여 일시 (KST)', key: 'firstParticipatedAt', width: 25 }
-    ];
-
-    // 데이터 행 추가
-    entries.forEach(entry => {
-      // 날짜 포맷팅 함수 (한국 시간)
-      const formatDate = (date) => date ? moment(date).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-';
-
-      worksheet.addRow({
-        memberId: entry.memberId,
-        count: entry.count || 0,
-        marketingAgreed: entry.marketingAgreed ? 'O (동의)' : 'X',
-        marketingAgreedAt: formatDate(entry.marketingAgreedAt),
-        lastParticipatedAt: formatDate(entry.lastParticipatedAt),
-        firstParticipatedAt: formatDate(entry.firstParticipatedAt)
-      });
-    });
-
-    // 파일명 설정 및 다운로드 처리
-    const filename = 'Event2_Participants.xlsx';
-    
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-
-    await workbook.xlsx.write(res);
-    res.end();
-
-  } catch (err) {
-    console.error('엑셀 다운로드 에러:', err);
-    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
-  } finally {
-    await client.close();
-  }
-});
-
 
 // ==========================================================
 // [이벤트 API 3] 마케팅 동의 (신규 동의자 구분 저장)
+// - 이벤트 페이지에서 버튼 클릭 시 'NEW' 타입으로 저장
 // ==========================================================
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId } = req.body;
@@ -584,14 +481,14 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.connect();
     const collection = client.db(DB_NAME).collection('event_daily_checkin');
 
-    // ★ [수정] 버튼 클릭 시 'NEW' 타입으로 저장
+    // ★ [DB저장] 버튼 클릭 -> 'NEW'
     await collection.updateOne(
       { memberId: memberId },
       { 
         $set: { 
             marketingAgreed: true, 
             marketingAgreedAt: new Date(),
-            consentType: 'NEW' // ★ 신규 동의자 표시 (이벤트 참여)
+            consentType: 'NEW' // ★ 신규 동의자 (이벤트 참여)
         },
         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
       },
@@ -609,15 +506,65 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   }
 });
 
+// ==========================================================
+// [이벤트 API 4] 엑셀 다운로드 (동의 구분 컬럼 추가)
+// ==========================================================
+app.get('/api/event/download', async (req, res) => {
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const entries = await client.db(DB_NAME).collection('event_daily_checkin').find({}).toArray();
 
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Participants');
 
+    worksheet.columns = [
+      { header: 'ID', key: 'memberId', width: 20 },
+      { header: 'Count', key: 'count', width: 10 },
+      { header: 'Marketing', key: 'marketingAgreed', width: 15 },
+      // ★ 동의 일시 삭제하고 구분 컬럼 추가
+      { header: '동의 구분', key: 'consentType', width: 25 }, 
+      { header: 'Last Action', key: 'lastParticipatedAt', width: 25 },
+      { header: 'First Action', key: 'firstParticipatedAt', width: 25 }
+    ];
 
+    entries.forEach(entry => {
+      const fmt = (d) => d ? moment(d).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-';
+      
+      // ★ 구분값 한글 변환 로직
+      let consentLabel = '-';
+      if (entry.marketingAgreed) {
+          if (entry.consentType === 'NEW') {
+              consentLabel = '신규 동의 (이벤트)';
+          } else if (entry.consentType === 'EXISTING') {
+              consentLabel = '기존 동의 (SMS/마케팅)';
+          } else {
+              consentLabel = '확인 필요 (기존)';
+          }
+      }
 
+      worksheet.addRow({
+        memberId: entry.memberId,
+        count: entry.count || 0,
+        marketingAgreed: entry.marketingAgreed ? 'O' : 'X',
+        consentType: consentLabel,
+        lastParticipatedAt: fmt(entry.lastParticipatedAt),
+        firstParticipatedAt: fmt(entry.firstParticipatedAt)
+      });
+    });
 
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=Event2_Participants.xlsx`);
+    await workbook.xlsx.write(res);
+    res.end();
 
-
-
-
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Excel Error');
+  } finally {
+    await client.close();
+  }
+});
 
 
 
