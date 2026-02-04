@@ -543,10 +543,9 @@ app.get('/api/event/status', async (req, res) => {
     await client.close();
   }
 });
-
-
 // ==========================================================
-// [최종] 이벤트 참여 (출석체크) - 기존 유지
+// [수정됨] 이벤트 참여 (출석체크)
+// - 날짜 비교 로직 버그 수정 (count 0일 때 중복 참여 뜨는 문제 해결)
 // ==========================================================
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
@@ -563,22 +562,23 @@ app.post('/api/event/participate', async (req, res) => {
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
-    // 오늘 중복 참여 방지
-    if (eventDoc) {
+    // ★ [수정 포인트] lastParticipatedAt 값이 '존재할 때만' 날짜를 비교합니다.
+    // (값이 없으면 아직 참여 안 한 것이므로 통과)
+    if (eventDoc && eventDoc.lastParticipatedAt) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       if (lastDate.isSame(todayMoment, 'day')) {
         return res.json({ success: false, message: '오늘 이미 참여하셨습니다.' });
       }
     }
 
-    // 참여 기록 저장
+    // 참여 기록 저장 및 업데이트
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
       { 
-        $inc: { count: 1 },
-        $set: { lastParticipatedAt: nowKST },
-        $push: { history: nowKST },
-        $setOnInsert: { firstParticipatedAt: nowKST } // 첫 참여면 최초 시간 저장
+        $inc: { count: 1 },             // 횟수 1 증가
+        $set: { lastParticipatedAt: nowKST }, // 마지막 참여 시간 갱신
+        $push: { history: nowKST },     // 히스토리 추가
+        $setOnInsert: { firstParticipatedAt: nowKST } // 첫 참여 시 최초 시간 기록
       },
       { upsert: true, returnDocument: 'after' }
     );
@@ -595,7 +595,6 @@ app.post('/api/event/participate', async (req, res) => {
     await client.close();
   }
 });
-
 
 // ==========================================================
 // [최종] 마케팅 동의 처리 (API 호출 X -> 오직 DB 저장만)
