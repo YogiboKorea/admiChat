@@ -505,9 +505,8 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
-
 // ==========================================================
-// [이벤트 API 4] 엑셀 다운로드 (동의 구분 컬럼 추가)
+// [이벤트 API 4] 엑셀 다운로드 (시간 제외, 날짜만 출력)
 // ==========================================================
 app.get('/api/event/download', async (req, res) => {
   const client = new MongoClient(MONGODB_URI);
@@ -522,16 +521,15 @@ app.get('/api/event/download', async (req, res) => {
       { header: 'ID', key: 'memberId', width: 20 },
       { header: 'Count', key: 'count', width: 10 },
       { header: 'Marketing', key: 'marketingAgreed', width: 15 },
-      // ★ 동의 일시 삭제하고 구분 컬럼 추가
       { header: '동의 구분', key: 'consentType', width: 25 }, 
-      { header: 'Last Action', key: 'lastParticipatedAt', width: 25 },
-      { header: 'First Action', key: 'firstParticipatedAt', width: 25 }
+      { header: 'Last Action', key: 'lastParticipatedAt', width: 15 }, // 너비 줄임
+      { header: 'First Action', key: 'firstParticipatedAt', width: 15 } // 너비 줄임
     ];
 
     entries.forEach(entry => {
-      const fmt = (d) => d ? moment(d).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-';
+      // ★ [수정] HH:mm:ss 제거하고 날짜만 표시 ('YYYY-MM-DD')
+      const fmt = (d) => d ? moment(d).tz('Asia/Seoul').format('YYYY-MM-DD') : '-';
       
-      // ★ 구분값 한글 변환 로직
       let consentLabel = '-';
       if (entry.marketingAgreed) {
           if (entry.consentType === 'NEW') {
