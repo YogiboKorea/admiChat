@@ -409,9 +409,12 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   }
 });
 
+
 // ==========================================================
 // [최종 수정] 2월 이벤트 상태 조회
-// - Privacy API 404 에러 발생 시 '미동의(F)'로 간주하고 진행
+// 1. 로컬 DB 우선 확인
+// 2. 미동의(F) 상태면 Cafe24 Privacy API 확인 (SMS 확인 로직 삭제됨)
+// 3. Cafe24가 동의(T)면 로컬 DB 자동 동기화
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
@@ -453,7 +456,8 @@ app.get('/api/event/status', async (req, res) => {
       }
     }
 
-    // ★ [수정됨] 로컬 DB가 'F'일 때, Cafe24 API 확인 (에러 처리 강화)
+    // ★ [수정됨] 로컬 DB가 'F'일 때, Cafe24 API 확인
+    // 주의: SMS/이메일 수신동의 확인 로직은 삭제되었습니다. (오직 마케팅 동의만 체크)
     if (isMarketingAgreed === 'F') {
         try {
             const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
@@ -477,7 +481,7 @@ app.get('/api/event/status', async (req, res) => {
                 if (privacyRes.data.privacy_consents[0].agree === 'T') {
                     console.log(`[Sync] ${memberId} Cafe24 마케팅 동의 확인됨 -> 로컬 DB 업데이트`);
                     
-                    // DB 업데이트
+                    // 실제 동의 유저이므로 DB 업데이트 (동기화)
                     await collection.updateOne(
                         { memberId: memberId },
                         { 
@@ -494,8 +498,8 @@ app.get('/api/event/status', async (req, res) => {
                 }
             }
         } catch (apiErr) {
-            // 404 등 에러가 나면 그냥 '동의 정보 없음(F)'으로 간주하고 넘어갑니다.
-            // console.warn(`Privacy API 조회 실패 (미동의로 처리): ${apiErr.message}`);
+            // 404(정보 없음) 등의 에러가 발생하면 그냥 '미동의(F)' 상태 유지
+            // console.warn(`Privacy API 조회 실패 (미동의로 간주): ${apiErr.message}`);
         }
     }
 
@@ -534,8 +538,8 @@ app.post('/api/event/participate', async (req, res) => {
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const todayMoment = moment(nowKST).tz('Asia/Seoul');
 
-    // ★ [수정 포인트] lastParticipatedAt 값이 '존재할 때만' 날짜를 비교합니다.
-    // (값이 없으면 아직 참여 안 한 것이므로 통과)
+    // ★ [수정 포인트] lastParticipatedAt 값이 '실제로 존재할 때만' 날짜를 비교합니다.
+    // (값이 없으면 첫 참여이므로 통과)
     if (eventDoc && eventDoc.lastParticipatedAt) {
       const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
       if (lastDate.isSame(todayMoment, 'day')) {
@@ -567,6 +571,7 @@ app.post('/api/event/participate', async (req, res) => {
     await client.close();
   }
 });
+
 
 // ==========================================================
 // [최종] 마케팅 동의 처리 (API 호출 X -> 오직 DB 저장만)
@@ -671,9 +676,6 @@ app.get('/api/event/download', async (req, res) => {
     await client.close();
   }
 });
-
-
-
 
 
 
