@@ -314,13 +314,10 @@ clientInstance.connect()
     console.error('MongoDB 연결 실패:', err);
   });
 
-
-
 // ==========================================================
-// [최종] 2월 이벤트 상태 조회
-// 1. 우리 DB 확인 -> T면 바로 통과
-// 2. 우리 DB가 F면 -> Cafe24 API '조회'만 수행
-// 3. Cafe24가 T면 -> 우리 DB를 T로 동기화 (다음부터 조회 안 함)
+// [최종 수정] 2월 이벤트 상태 조회
+// - 로컬 DB 우선 확인
+// - 미동의(F) 상태면 Cafe24 API 확인 (마케팅동의 OR SMS동의 중 하나라도 T면 OK)
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
@@ -336,7 +333,7 @@ app.get('/api/event/status', async (req, res) => {
     const db = client.db(DB_NAME);
     const collection = db.collection('event_daily_checkin');
     
-    // [1] 우리 DB에서 유저 정보 조회
+    // [1] 로컬 DB에서 유저 정보 조회
     const eventDoc = await collection.findOne({ memberId });
     
     let myCount = 0;
@@ -345,8 +342,6 @@ app.get('/api/event/status', async (req, res) => {
 
     if (eventDoc) {
       myCount = eventDoc.count || 0;
-
-      // 오늘 출석 여부
       if (eventDoc.lastParticipatedAt) {
         const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
         const today = moment().tz('Asia/Seoul');
@@ -354,48 +349,71 @@ app.get('/api/event/status', async (req, res) => {
           isTodayDone = true;
         }
       }
-
-      // ★ 우리 DB에 동의 기록이 있으면 바로 T (Cafe24 조회 안 함)
       if (eventDoc.marketingAgreed === true) {
         isMarketingAgreed = 'T';
       }
     }
 
-    // [2] 우리 DB에는 없는데(F), 실제로는 동의했을 수도 있으니 Cafe24 '조회'
+    // [2] 로컬 DB가 'F'일 때, Cafe24 API 확인 (마케팅 동의 OR SMS 동의)
     if (isMarketingAgreed === 'F') {
         try {
-            const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-            
-            // apiRequest 사용 (토큰 만료 시 자동 갱신됨)
-            const privacyRes = await apiRequest('GET', privacyUrl, {}, {
-                shop_no: 1,
-                member_id: memberId,
-                consent_type: 'marketing',
-                limit: 1,
-                sort: 'issued_date_desc'
-            });
+            let realConsent = false;
 
-            if (privacyRes.privacy_consents?.length > 0) {
-                // Cafe24에 '동의함(T)' 기록이 있다면?
-                if (privacyRes.privacy_consents[0].agree === 'T') {
-                    console.log(`[Sync] ${memberId} 기존 동의 회원 확인됨 -> 로컬 DB 동기화`);
-                    
-                    // 우리 DB만 업데이트 (유저에게 팝업 안 띄우기 위해)
-                    await collection.updateOne(
-                        { memberId: memberId },
-                        { 
-                            $set: { marketingAgreed: true, marketingAgreedAt: new Date() },
-                            $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
-                        },
-                        { upsert: true }
-                    );
-                    
-                    isMarketingAgreed = 'T'; // 프론트엔드에 T 전달 (팝업 숨김)
+            // A. 마케팅 목적 개인정보 수집 이용 동의 (Privacy) 확인
+            try {
+                const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+                const privacyRes = await apiRequest('GET', privacyUrl, {}, {
+                    shop_no: 1,
+                    member_id: memberId,
+                    consent_type: 'marketing',
+                    limit: 1,
+                    sort: 'issued_date_desc'
+                });
+
+                if (privacyRes.privacy_consents?.length > 0) {
+                    if (privacyRes.privacy_consents[0].agree === 'T') {
+                        realConsent = true;
+                    }
                 }
+            } catch (e) { /* API 미지원 등 에러 시 무시 */ }
+
+            // B. (A가 아닐 경우) SMS 수신동의 여부 확인 (Fallback)
+            if (!realConsent) {
+                try {
+                    const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+                    const customerRes = await apiRequest('GET', customerUrl, {}, {
+                        member_id: memberId,
+                        fields: 'sms,news_mail'
+                    });
+
+                    if (customerRes.customers?.length > 0) {
+                        const { sms, news_mail } = customerRes.customers[0];
+                        // SMS나 이메일 중 하나라도 수신동의 되어있으면 '동의'로 간주
+                        if (sms === 'T' || news_mail === 'T') {
+                            realConsent = true;
+                        }
+                    }
+                } catch (e) { /* 에러 시 무시 */ }
             }
-        } catch (e) {
-            // 404 등 조회 실패 시 그냥 F 유지 (팝업 띄움)
-            // console.warn('Cafe24 조회 실패(미동의 간주):', e.message);
+
+            // ★ 둘 중 하나라도 동의했다면 DB 업데이트 및 통과 처리
+            if (realConsent) {
+                console.log(`[Sync] ${memberId} 기존 동의(마케팅/SMS) 확인됨 -> 로컬 DB 동기화`);
+                
+                await collection.updateOne(
+                    { memberId: memberId },
+                    { 
+                        $set: { marketingAgreed: true, marketingAgreedAt: new Date() },
+                        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
+                    },
+                    { upsert: true }
+                );
+                
+                isMarketingAgreed = 'T'; // 팝업 안 뜨게 설정
+            }
+
+        } catch (checkErr) {
+            // console.error(`Cafe24 조회 중 오류:`, checkErr.message);
         }
     }
 
@@ -407,13 +425,12 @@ app.get('/api/event/status', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('상태 조회 에러:', err);
+    console.error('이벤트 상태 조회 에러:', err);
     res.status(500).json({ success: false, message: '서버 에러' });
   } finally {
     await client.close();
   }
 });
-
 
 // ==========================================================
 // [최종] 마케팅 동의 버튼 클릭 시 (DB만 업데이트)
