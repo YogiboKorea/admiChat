@@ -315,166 +315,7 @@ clientInstance.connect()
   });
 
 
-// ==============================
-// (1) 개인정보 수집·이용 동의(선택) 업데이트
-async function updatePrivacyConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-  const payload = {
-    shop_no: 1,
-    request: {
-      member_id:   memberId,
-      consent_type:'marketing',
-      agree:       'T',
-      issued_at:   new Date().toISOString()
-    }
-  };
-  try {
-    return await apiRequest('POST', url, payload);
-  } catch (err) {
-    if (err.response?.data?.error?.message.includes('No API found')) {
-      console.warn('privacyconsents 엔드포인트 미지원, 패스');
-      return;
-    }
-    throw err;
-  }
-}
 
-// ==============================
-// (2) SMS 수신동의 업데이트
-async function updateMarketingConsent(memberId) {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
-  const payload = {
-    request: {
-      shop_no:   1,
-      member_id: memberId,
-      sms:       'T'
-    }
-  };
-  return apiRequest('PUT', url, payload);
-}
-
-// ==============================
-// (4) 매장용 이벤트 참여 및 마케팅 동의 처리
-// ==============================
-app.post('/api/event/marketing-consent', async (req, res) => {
-  const { memberId, store } = req.body;
-
-  if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
-  }
-
-  const client = new MongoClient(MONGODB_URI);
-  try {
-    await client.connect();
-    const db = client.db(DB_NAME);
-    const coll = db.collection('marketingConsentEvent'); 
-
-    try {
-        await updatePrivacyConsent(memberId); 
-        console.log(`[Cafe24] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
-    } catch (e) {
-        console.error(`[Cafe24] 마케팅 수집 동의 실패:`, e.message);
-    }
-
-    try {
-        await updateMarketingConsent(memberId);
-        console.log(`[Cafe24] ${memberId} - SMS 수신 동의 완료`);
-    } catch (e) {
-        console.error(`[Cafe24] SMS 동의 실패:`, e.message);
-    }
-
-    res.json({ success: true, message: '마케팅 및 SMS 동의가 완료되었습니다.' });
-
-  } catch (err) {
-    console.error('이벤트 처리 오류:', err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
-  } finally {
-    await client.close();
-  }
-});
-
-// ==============================
-// (5) 자사몰용 이벤트 참여 엔드포인트
-// ==============================
-app.post('/api/event/marketing-consent-company', async (req, res) => {
-  const { memberId } = req.body;
-  if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
-  }
-
-  const client = new MongoClient(MONGODB_URI);
-  try {
-    await client.connect();
-    const coll = client.db(DB_NAME).collection('marketingConsentCompanyEvent');
-
-    if (await coll.findOne({ memberId })) {
-      return res.status(409).json({ message: '이미 참여하셨습니다.' });
-    }
-
-    await updatePrivacyConsent(memberId);
-    await updateMarketingConsent(memberId);
-    // await giveRewardPoints(memberId, 5000, '자사몰 마케팅 수신동의 이벤트 보상'); // 함수 없음 주석 처리
-
-    const seoulNow = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })
-    );
-    await coll.insertOne({ memberId, rewardedAt: seoulNow });
-
-    res.json({ success: true, message: '적립금 지급 완료!' });
-  } catch (err) {
-    console.error('자사몰 이벤트 처리 오류:', err.response?.data || err.message);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
-  } finally {
-    await client.close();
-  }
-});
-
-// ==============================
-// (7) 자사몰용 참여 내역 엑셀 다운로드
-// ==============================
-app.get('/api/event/marketing-consent-company-export', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
-  try {
-    await client.connect();
-    const coll = client.db(DB_NAME).collection('marketingConsentCompanyEvent');
-    const docs = await coll.find({})
-      .project({ _id: 0, rewardedAt: 1, memberId: 1 })
-      .toArray();
-
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('자사몰 참여 내역');
-
-    ws.columns = [
-      { header: '참여 날짜', key: 'rewardedAt', width: 25 },
-      { header: '회원 아이디', key: 'memberId',    width: 20 },
-    ];
-
-    docs.forEach(d => {
-      ws.addRow({
-        rewardedAt: d.rewardedAt.toLocaleString('ko-KR'),
-        memberId:   d.memberId
-      });
-    });
-
-    const companyFilename = '자사몰_참여_내역.xlsx';
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="company_export.xlsx"; filename*=UTF-8''${encodeURIComponent(companyFilename)}`
-    );
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
-
-    await wb.xlsx.write(res);
-    res.end();
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
-  } finally {
-    await client.close();
-  }
-});
 // ==========================================================
 // [최종] 2월 이벤트 상태 조회
 // 1. 우리 DB 확인 -> T면 바로 통과
@@ -592,23 +433,21 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     const db = client.db(DB_NAME);
     const collection = db.collection('event_daily_checkin');
 
-    // ★ Cafe24 API 호출 없이, 우리 DB에만 저장
+    // ★ Cafe24 호출 없이, 우리 DB에만 저장
     await collection.updateOne(
       { memberId: memberId },
       { 
         $set: { 
-          marketingAgreed: true,        // 동의함 처리
-          marketingAgreedAt: new Date() // 시간 기록
+          marketingAgreed: true, 
+          marketingAgreedAt: new Date() 
         },
-        // 혹시 출석체크 안 하고 동의부터 누른 경우 대비
         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
       },
       { upsert: true }
     );
 
-    console.log(`[DB저장] ${memberId} - 마케팅 동의(Local) 완료`);
-
-    res.json({ success: true, message: '마케팅 동의가 처리되었습니다.' });
+    console.log(`[DB저장] ${memberId} - 마케팅 동의 DB 저장 완료`);
+    res.json({ success: true, message: '마케팅 동의가 저장되었습니다.' });
 
   } catch (err) {
     console.error('동의 처리 에러:', err);
@@ -617,7 +456,6 @@ app.post('/api/event/marketing-consent', async (req, res) => {
     await client.close();
   }
 });
-
 
 
 
@@ -675,52 +513,7 @@ app.post('/api/event/participate', async (req, res) => {
 });
 
 
-// ==========================================================
-// [최종] 마케팅 동의 처리 (API 호출 X -> 오직 DB 저장만)
-// ==========================================================
-app.post('/api/event/marketing-consent', async (req, res) => {
-  const { memberId } = req.body;
-
-  if (!memberId) {
-    return res.status(400).json({ error: 'memberId가 필요합니다.' });
-  }
-
-  const client = new MongoClient(MONGODB_URI);
-  try {
-    await client.connect();
-    const db = client.db(DB_NAME);
-    const collection = db.collection('event_daily_checkin');
-
-    // ★ Cafe24 API 호출 없이, 우리 DB에만 "동의함" 기록을 남깁니다.
-    await collection.updateOne(
-      { memberId: memberId },
-      { 
-        $set: { 
-          marketingAgreed: true,        // 동의 여부 체크 (true)
-          marketingAgreedAt: new Date() // 동의한 시간 (증빙용)
-        },
-        // 혹시 출석체크 안 하고 동의부터 누른 경우를 대비해 문서 생성
-        $setOnInsert: { 
-            count: 0,
-            firstParticipatedAt: new Date() 
-        }
-      },
-      { upsert: true }
-    );
-
-    console.log(`[DB저장] ${memberId} - 마케팅 동의 DB 저장 완료`);
-
-    res.json({ success: true, message: '마케팅 동의가 저장되었습니다.' });
-
-  } catch (err) {
-    console.error('동의 처리 에러:', err);
-    res.status(500).json({ error: '서버 에러' });
-  } finally {
-    await client.close();
-  }
-});
-
-
+// ==========================
 // ==========================================================
 // [추가] 2월 이벤트 참여자 & 동의 내역 엑셀 다운로드
 // ==========================================================
