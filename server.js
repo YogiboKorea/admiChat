@@ -314,52 +314,46 @@ clientInstance.connect()
     console.error('MongoDB 연결 실패:', err);
   });
 
-// ==========================================================
-// [최종 수정] 2월 이벤트 상태 조회
-// - 로컬 DB 우선 확인
-// - 미동의(F) 상태면 Cafe24 API 확인 (마케팅동의 OR SMS동의 중 하나라도 T면 OK)
+
+
+
+   
+  // ==========================================================
+// 2월 이벤트 출석체크
+// [이벤트 API 1] 상태 조회 (기존 동의자 구분 저장)
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
-
-  if (!memberId) {
-    return res.status(400).json({ success: false, message: 'memberId가 필요합니다.' });
-  }
+  if (!memberId) return res.status(400).json({ success: false, message: 'memberId required' });
 
   const client = new MongoClient(MONGODB_URI);
-  
   try {
     await client.connect();
-    const db = client.db(DB_NAME);
-    const collection = db.collection('event_daily_checkin');
+    const collection = client.db(DB_NAME).collection('event_daily_checkin');
     
-    // [1] 로컬 DB에서 유저 정보 조회
+    // 1. 우리 DB 조회
     const eventDoc = await collection.findOne({ memberId });
     
     let myCount = 0;
     let isTodayDone = false;
-    let isMarketingAgreed = 'F'; // 기본값
+    let isMarketingAgreed = 'F';
 
     if (eventDoc) {
       myCount = eventDoc.count || 0;
       if (eventDoc.lastParticipatedAt) {
         const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
         const today = moment().tz('Asia/Seoul');
-        if (lastDate.isSame(today, 'day')) {
-          isTodayDone = true;
-        }
+        if (lastDate.isSame(today, 'day')) isTodayDone = true;
       }
-      if (eventDoc.marketingAgreed === true) {
-        isMarketingAgreed = 'T';
-      }
+      if (eventDoc.marketingAgreed === true) isMarketingAgreed = 'T';
     }
 
-    // [2] 로컬 DB가 'F'일 때, Cafe24 API 확인 (마케팅 동의 OR SMS 동의)
+    // 2. 우리 DB 미동의 상태면 Cafe24 조회 (동기화)
     if (isMarketingAgreed === 'F') {
         try {
             let realConsent = false;
 
-            // A. 마케팅 목적 개인정보 수집 이용 동의 (Privacy) 확인
+            // A. 마케팅 동의(Privacy) 확인
             try {
                 const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
                 const privacyRes = await apiRequest('GET', privacyUrl, {}, {
@@ -369,64 +363,52 @@ app.get('/api/event/status', async (req, res) => {
                     limit: 1,
                     sort: 'issued_date_desc'
                 });
-
-                if (privacyRes.privacy_consents?.length > 0) {
-                    if (privacyRes.privacy_consents[0].agree === 'T') {
-                        realConsent = true;
-                    }
+                if (privacyRes.privacy_consents?.length > 0 && privacyRes.privacy_consents[0].agree === 'T') {
+                    realConsent = true;
                 }
-            } catch (e) { /* API 미지원 등 에러 시 무시 */ }
+            } catch (e) {}
 
-            // B. (A가 아닐 경우) SMS 수신동의 여부 확인 (Fallback)
+            // B. SMS 수신동의 확인 (Fallback)
             if (!realConsent) {
                 try {
                     const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
                     const customerRes = await apiRequest('GET', customerUrl, {}, {
-                        member_id: memberId,
-                        fields: 'sms,news_mail'
+                        member_id: memberId, fields: 'sms,news_mail'
                     });
-
                     if (customerRes.customers?.length > 0) {
                         const { sms, news_mail } = customerRes.customers[0];
-                        // SMS나 이메일 중 하나라도 수신동의 되어있으면 '동의'로 간주
-                        if (sms === 'T' || news_mail === 'T') {
-                            realConsent = true;
-                        }
+                        if (sms === 'T' || news_mail === 'T') realConsent = true;
                     }
-                } catch (e) { /* 에러 시 무시 */ }
+                } catch (e) {}
             }
 
-            // ★ 둘 중 하나라도 동의했다면 DB 업데이트 및 통과 처리
+            // ★ [수정] 기존 동의자로 확인되면 'EXISTING' 타입으로 저장
             if (realConsent) {
-                console.log(`[Sync] ${memberId} 기존 동의(마케팅/SMS) 확인됨 -> 로컬 DB 동기화`);
-                
+                console.log(`[Sync] ${memberId} 기존 동의 확인 -> DB 업데이트 (EXISTING)`);
                 await collection.updateOne(
                     { memberId: memberId },
                     { 
-                        $set: { marketingAgreed: true, marketingAgreedAt: new Date() },
+                        $set: { 
+                            marketingAgreed: true, 
+                            marketingAgreedAt: new Date(),
+                            consentType: 'EXISTING' // ★ 기존 동의자 표시
+                        },
                         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                     },
                     { upsert: true }
                 );
-                
-                isMarketingAgreed = 'T'; // 팝업 안 뜨게 설정
+                isMarketingAgreed = 'T';
             }
-
-        } catch (checkErr) {
-            // console.error(`Cafe24 조회 중 오류:`, checkErr.message);
+        } catch (e) {
+            // API 오류 시 무시
         }
     }
 
-    res.json({
-      success: true,
-      count: myCount,
-      todayDone: isTodayDone,
-      marketing_consent: isMarketingAgreed 
-    });
+    res.json({ success: true, count: myCount, todayDone: isTodayDone, marketing_consent: isMarketingAgreed });
 
   } catch (err) {
-    console.error('이벤트 상태 조회 에러:', err);
-    res.status(500).json({ success: false, message: '서버 에러' });
+    console.error('Status Error:', err);
+    res.status(500).json({ success: false });
   } finally {
     await client.close();
   }
@@ -588,6 +570,53 @@ app.get('/api/event/download', async (req, res) => {
     await client.close();
   }
 });
+
+
+// ==========================================================
+// [이벤트 API 3] 마케팅 동의 (신규 동의자 구분 저장)
+// ==========================================================
+app.post('/api/event/marketing-consent', async (req, res) => {
+  const { memberId } = req.body;
+  if (!memberId) return res.status(400).json({ error: 'memberId required' });
+
+  const client = new MongoClient(MONGODB_URI);
+  try {
+    await client.connect();
+    const collection = client.db(DB_NAME).collection('event_daily_checkin');
+
+    // ★ [수정] 버튼 클릭 시 'NEW' 타입으로 저장
+    await collection.updateOne(
+      { memberId: memberId },
+      { 
+        $set: { 
+            marketingAgreed: true, 
+            marketingAgreedAt: new Date(),
+            consentType: 'NEW' // ★ 신규 동의자 표시 (이벤트 참여)
+        },
+        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
+      },
+      { upsert: true }
+    );
+
+    console.log(`[DB] ${memberId} 신규 마케팅 동의 저장 (NEW)`);
+    res.json({ success: true, message: '마케팅 동의 완료' });
+
+  } catch (err) {
+    console.error('Consent Error:', err);
+    res.status(500).json({ error: 'Error' });
+  } finally {
+    await client.close();
+  }
+});
+
+
+
+
+
+
+
+
+
 
 
 
