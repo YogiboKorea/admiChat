@@ -411,8 +411,6 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
 
 
 
-
-
 // ==========================================================
 // [최종 수정] 2월 이벤트 상태 조회
 // (로컬DB 우선 확인 -> 없으면 Cafe24 API 확인 후 동기화)
@@ -458,12 +456,14 @@ app.get('/api/event/status', async (req, res) => {
     }
 
     // ★ [추가된 로직] 로컬 DB에는 'F'인데, 실제 Cafe24에는 'T'일 수 있으므로 확인
+    // (이미 동의한 회원이 팝업을 또 보지 않도록 처리)
     if (isMarketingAgreed === 'F') {
         try {
-            console.log(`[Check] ${memberId} 로컬DB 미동의 상태 -> Cafe24 API 재확인 시도`);
+            // console.log(`[Check] ${memberId} 로컬DB 미동의 상태 -> Cafe24 API 재확인 시도`);
             
-            // A. Cafe24 최신 API (privacyconsents) 조회
             let realConsent = false;
+
+            // A. Cafe24 최신 API (privacyconsents) 조회
             try {
                 const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
                 const privacyRes = await axios.get(privacyUrl, {
@@ -488,7 +488,8 @@ app.get('/api/event/status', async (req, res) => {
                 }
             } catch (apiErr) {
                 // B. 최신 API 실패 시 구형 API (customers - SMS/Email) 조회
-                console.warn(`Privacy API 실패, SMS 정보 확인: ${apiErr.message}`);
+                // (주의: 마케팅 동의가 꺼져있어도 SMS가 켜져있으면 동의로 간주하는 로직)
+                // console.warn(`Privacy API 실패, SMS 정보 확인: ${apiErr.message}`);
                 const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
                 const customerRes = await axios.get(customerUrl, {
                     headers: {
@@ -510,6 +511,7 @@ app.get('/api/event/status', async (req, res) => {
             // ★ 실제로는 동의한 유저라면 -> 로컬 DB 업데이트 및 상태 변경
             if (realConsent) {
                 console.log(`[Sync] ${memberId} Cafe24 확인 결과 동의회원 -> 로컬 DB 업데이트`);
+                
                 await collection.updateOne(
                     { memberId: memberId },
                     { 
@@ -517,11 +519,13 @@ app.get('/api/event/status', async (req, res) => {
                             marketingAgreed: true, 
                             marketingAgreedAt: new Date() // 현재 시간으로 기록
                         },
+                        // 문서가 없었다면 새로 생성 (참여 횟수 0)
                         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                     },
                     { upsert: true }
                 );
-                isMarketingAgreed = 'T'; // 프론트엔드에 'T'로 응답
+                
+                isMarketingAgreed = 'T'; // 프론트엔드에 'T'로 응답 (팝업 안 뜸)
             }
 
         } catch (checkErr) {
@@ -543,6 +547,7 @@ app.get('/api/event/status', async (req, res) => {
     await client.close();
   }
 });
+
 // ==========================================================
 // [수정됨] 이벤트 참여 (출석체크)
 // - 날짜 비교 로직 버그 수정 (count 0일 때 중복 참여 뜨는 문제 해결)
