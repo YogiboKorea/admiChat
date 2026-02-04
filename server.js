@@ -409,11 +409,9 @@ app.get('/api/event/marketing-consent-company-export', async (req, res) => {
   }
 });
 
-
 // ==========================================================
 // [최종 수정] 2월 이벤트 상태 조회
-// - SMS/이메일 수신동의 확인 로직 삭제 (사용자 요청)
-// - 오직 '마케팅 목적 개인정보 수집 이용 동의'만 확인
+// - Privacy API 404 에러 발생 시 '미동의(F)'로 간주하고 진행
 // ==========================================================
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
@@ -455,61 +453,49 @@ app.get('/api/event/status', async (req, res) => {
       }
     }
 
-    // ★ [수정됨] 로컬 DB가 'F'일 때, Cafe24 API 확인 (SMS 확인 로직 삭제됨)
+    // ★ [수정됨] 로컬 DB가 'F'일 때, Cafe24 API 확인 (에러 처리 강화)
     if (isMarketingAgreed === 'F') {
         try {
-            let realConsent = false;
-
-            // 오직 'privacyconsents' (마케팅 동의) API만 확인합니다.
-            try {
-                const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-                const privacyRes = await axios.get(privacyUrl, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'X-Cafe24-Api-Version': '2025-12-01'
-                    },
-                    params: {
-                        shop_no: 1,
-                        member_id: memberId,
-                        consent_type: 'marketing',
-                        limit: 1,
-                        sort: 'issued_date_desc'
-                    }
-                });
-
-                if (privacyRes.data.privacy_consents?.length > 0) {
-                    // 가장 최근 동의 내역이 'T'인지 확인
-                    if (privacyRes.data.privacy_consents[0].agree === 'T') {
-                        realConsent = true;
-                    }
+            const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+            const privacyRes = await axios.get(privacyUrl, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Cafe24-Api-Version': '2025-12-01'
+                },
+                params: {
+                    shop_no: 1,
+                    member_id: memberId,
+                    consent_type: 'marketing',
+                    limit: 1,
+                    sort: 'issued_date_desc'
                 }
-            } catch (apiErr) {
-                console.warn(`Privacy API 조회 실패: ${apiErr.message}`);
-                // ★ 중요: 여기서 더 이상 customers(SMS) API를 조회하지 않습니다.
-            }
+            });
 
-            // 실제 마케팅 동의가 확인된 경우에만 DB 업데이트
-            if (realConsent) {
-                console.log(`[Sync] ${memberId} Cafe24 마케팅 동의 확인됨 -> 로컬 DB 업데이트`);
-                
-                await collection.updateOne(
-                    { memberId: memberId },
-                    { 
-                        $set: { 
-                            marketingAgreed: true, 
-                            marketingAgreedAt: new Date()
+            if (privacyRes.data.privacy_consents?.length > 0) {
+                // 가장 최근 동의 내역이 'T'인지 확인
+                if (privacyRes.data.privacy_consents[0].agree === 'T') {
+                    console.log(`[Sync] ${memberId} Cafe24 마케팅 동의 확인됨 -> 로컬 DB 업데이트`);
+                    
+                    // DB 업데이트
+                    await collection.updateOne(
+                        { memberId: memberId },
+                        { 
+                            $set: { 
+                                marketingAgreed: true, 
+                                marketingAgreedAt: new Date()
+                            },
+                            $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                         },
-                        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
-                    },
-                    { upsert: true }
-                );
-                
-                isMarketingAgreed = 'T'; 
+                        { upsert: true }
+                    );
+                    
+                    isMarketingAgreed = 'T'; 
+                }
             }
-
-        } catch (checkErr) {
-            console.error(`Cafe24 재확인 중 오류:`, checkErr.message);
+        } catch (apiErr) {
+            // 404 등 에러가 나면 그냥 '동의 정보 없음(F)'으로 간주하고 넘어갑니다.
+            // console.warn(`Privacy API 조회 실패 (미동의로 처리): ${apiErr.message}`);
         }
     }
 
@@ -527,6 +513,8 @@ app.get('/api/event/status', async (req, res) => {
     await client.close();
   }
 });
+
+
 // ==========================================================
 // [수정됨] 이벤트 참여 (출석체크)
 // - 날짜 비교 로직 버그 수정 (count 0일 때 중복 참여 뜨는 문제 해결)
