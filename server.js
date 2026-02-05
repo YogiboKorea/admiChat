@@ -11,8 +11,8 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN || ''; // 초기값 비워둠 (DB에서 로드)
-let refreshToken = process.env.REFRESH_TOKEN || '';
+let accessToken = process.env.ACCESS_TOKEN || 'usO0ie9QNyhVhW03D1SH2G'; // 초기값 비워둠 (DB에서 로드)
+let refreshToken = process.env.REFRESH_TOKEN || 'C847eYG7T6pHfuHzYfke0S';
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
@@ -30,9 +30,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // MongoDB 컬렉션명
 const tokenCollectionName = "tokens";
 
-// ========== [3] 토큰 관리 함수 (핵심 수정됨) ==========
-
-// A. DB에서 토큰 불러오기
+// ========== [3] MongoDB 토큰 관리 함수 ==========
 async function getTokensFromDB() {
   const client = new MongoClient(MONGODB_URI);
   try {
@@ -42,19 +40,19 @@ async function getTokensFromDB() {
     const tokensDoc = await collection.findOne({});
     if (tokensDoc) {
       accessToken = tokensDoc.accessToken;
-      refreshToken = tokensDoc.refreshToken;
-      console.log('✅ [System] MongoDB에서 토큰 로드 완료');
+      refreshToken = tokensDoc.refreshToken;g
+      console.log('MongoDB에서 토큰 로드 성공:', tokensDoc);
     } else {
-      console.log('⚠️ [System] 저장된 토큰 없음. 초기 토큰 저장 필요.');
+      console.log('MongoDB에 저장된 토큰이 없습니다. 초기 토큰을 저장합니다.');
+      await saveTokensToDB(accessToken, refreshToken);
     }
   } catch (error) {
-    console.error('❌ 토큰 로드 오류:', error);
+    console.error('토큰 로드 중 오류:', error);
   } finally {
     await client.close();
   }
 }
 
-// B. DB에 토큰 저장하기
 async function saveTokensToDB(newAccessToken, newRefreshToken) {
   const client = new MongoClient(MONGODB_URI);
   try {
@@ -72,88 +70,19 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
       },
       { upsert: true }
     );
-    console.log('✅ [System] 새 토큰 DB 저장 완료');
+    console.log('MongoDB에 토큰 저장 완료');
   } catch (error) {
-    console.error('❌ 토큰 저장 오류:', error);
+    console.error('토큰 저장 중 오류:', error);
   } finally {
     await client.close();
   }
 }
 
-// C. ★ [신규] Cafe24 OAuth 서버에 실제 토큰 갱신 요청
-async function requestCafe24TokenRefresh() {
-    const authHeader = Buffer.from(`${CAFE24_CLIENT_ID}:${CAFE24_CLIENT_SECRET}`).toString('base64');
-    try {
-        console.log('🔄 [Auth] Cafe24 서버에 토큰 갱신 요청 중...');
-        const response = await axios.post('https://auth.cafe24api.com/api/v2/oauth/token',
-            `grant_type=refresh_token&refresh_token=${refreshToken}`,
-            {
-                headers: {
-                    'Authorization': `Basic ${authHeader}`,
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            }
-        );
-        return response.data; // { access_token, refresh_token, ... }
-    } catch (error) {
-        console.error('❌ [Auth] Cafe24 토큰 갱신 실패:', error.response ? error.response.data : error.message);
-        throw error; // 갱신 실패 시 에러 던짐
-    }
-}
-
-// D. 토큰 갱신 통합 함수 (요청 -> 변수업데이트 -> DB저장)
 async function refreshAccessToken() {
-  try {
-      const newTokens = await requestCafe24TokenRefresh();
-      
-      // 전역 변수 업데이트
-      accessToken = newTokens.access_token;
-      refreshToken = newTokens.refresh_token;
-      
-      // DB 저장
-      await saveTokensToDB(accessToken, refreshToken);
-      
-      console.log('✨ [Auth] 토큰 갱신 프로세스 완료');
-      return accessToken;
-  } catch (error) {
-      console.error('🚨 [Critical] 토큰 갱신 불가. 관리자 확인 요망.');
-      throw error;
-  }
-}
-
-// ========== [4] Cafe24 API 요청 함수 (재시도 로직 개선) ==========
-async function apiRequest(method, url, data = {}, params = {}, retryCount = 0) {
-  // console.log(`Request: ${method} ${url}`);
-  try {
-    const response = await axios({
-      method,
-      url,
-      data,
-      params,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION
-      },
-    });
-    return response.data;
-  } catch (error) {
-    // 401 에러이고, 재시도 횟수가 0일 때만 갱신 시도 (무한 루프 방지)
-    if (error.response && error.response.status === 401 && retryCount < 1) {
-      console.log(`⚠️ [API] 401 토큰 만료됨. 갱신 후 재시도 (Count: ${retryCount + 1})`);
-      try {
-          await refreshAccessToken(); // 실제 갱신 수행
-          return await apiRequest(method, url, data, params, retryCount + 1); // 재귀 호출
-      } catch (refreshErr) {
-          console.error('❌ 재시도 실패: 토큰 갱신 오류');
-          throw refreshErr;
-      }
-    } else {
-      // 그 외 에러는 바로 던짐
-      console.error('❌ [API] 요청 오류:', error.response ? error.response.data : error.message);
-      throw error;
-    }
-  }
+  console.log('401 에러 발생: MongoDB에서 토큰 정보 다시 가져오기...');
+  await getTokensFromDB();
+  console.log('MongoDB에서 토큰 갱신 완료:', accessToken, refreshToken);
+  return accessToken;
 }
 
 // ========== [4] Cafe24 API 요청 함수 ==========
@@ -185,6 +114,8 @@ async function apiRequest(method, url, data = {}, params = {}) {
     }
   }
 }
+
+
 
 // ========== [럭키 드로우 이벤트 관련 함수] ==========
 async function getCustomerDataByMemberId(memberId) {
