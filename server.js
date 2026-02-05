@@ -11,14 +11,15 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN; // 초기값 비워둠 (DB에서 로드)
-let refreshToken = process.env.REFRESH_TOKEN //;
+let accessToken = process.env.ACCESS_TOKEN || 'usO0ie9QNyhVhW03D1SH2G';; // 초기값 비워둠 (DB에서 로드)
+let refreshToken = process.env.REFRESH_TOKEN || 'C847eYG7T6pHfuHzYfke0S'; //;
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
 const MONGODB_URI = process.env.MONGODB_URI;
 const CAFE24_MALLID = process.env.CAFE24_MALLID;
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2025-12-01';
+
 
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
