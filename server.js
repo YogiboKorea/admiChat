@@ -404,7 +404,7 @@ app.post('/api/event/participate', async (req, res) => {
       if (eventDoc.lastParticipatedAt) {
         const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
         if (lastDate.isSame(todayMoment, 'day')) {
-          return res.json({ success: false, message: '오늘 이미 참여하셨습니다.' });
+          return res.json({ success: false, message: '당일 참여 완료한 이벤트 입니다.' });
         }
       }
     }
