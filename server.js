@@ -11,8 +11,8 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN || 'usO0ie9QNyhVhW03D1SH2G'; // 초기값 비워둠 (DB에서 로드)
-let refreshToken = process.env.REFRESH_TOKEN || 'C847eYG7T6pHfuHzYfke0S';
+let accessToken = process.env.ACCESS_TOKEN; // 초기값 비워둠 (DB에서 로드)
+let refreshToken = process.env.REFRESH_TOKEN //;
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
@@ -40,7 +40,7 @@ async function getTokensFromDB() {
     const tokensDoc = await collection.findOne({});
     if (tokensDoc) {
       accessToken = tokensDoc.accessToken;
-      refreshToken = tokensDoc.refreshToken;g
+      refreshToken = tokensDoc.refreshToken;
       console.log('MongoDB에서 토큰 로드 성공:', tokensDoc);
     } else {
       console.log('MongoDB에 저장된 토큰이 없습니다. 초기 토큰을 저장합니다.');
