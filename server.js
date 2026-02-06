@@ -11,8 +11,10 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN || 'Pp3tzSSTF1ku3OLJNVWTCA';; // 초기값 비워둠 (DB에서 로드)
-let refreshToken = process.env.REFRESH_TOKEN || 'AhNaeUglaCdMRzTBWqb0BH'; //;
+// 초기값은 비워두거나 안전하게 처리 (DB에서 로드됨)
+let accessToken = process.env.ACCESS_TOKEN || ''; 
+let refreshToken = process.env.REFRESH_TOKEN || '';
+
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
@@ -20,6 +22,8 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const CAFE24_MALLID = process.env.CAFE24_MALLID;
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2025-12-01';
 
+// ★ [핵심] 전역 DB 변수 선언 (모든 API가 공유)
+let db; 
 
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
@@ -28,37 +32,36 @@ app.use(compression());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// MongoDB 컬렉션명
+// MongoDB 컬렉션명 정의
 const tokenCollectionName = "tokens";
 
-// ========== [3] MongoDB 토큰 관리 함수 ==========
+// ========== [3] MongoDB 토큰 관리 함수 (전역 db 사용) ==========
 async function getTokensFromDB() {
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const db = client.db(DB_NAME);
     const collection = db.collection(tokenCollectionName);
     const tokensDoc = await collection.findOne({});
+    
     if (tokensDoc) {
       accessToken = tokensDoc.accessToken;
       refreshToken = tokensDoc.refreshToken;
-      console.log('MongoDB에서 토큰 로드 성공:', tokensDoc);
+      console.log('✅ MongoDB에서 토큰 로드 성공:', { 
+        accessToken: accessToken.substring(0, 10) + '...',
+        updatedAt: tokensDoc.updatedAt 
+      });
     } else {
-      console.log('MongoDB에 저장된 토큰이 없습니다. 초기 토큰을 저장합니다.');
-      await saveTokensToDB(accessToken, refreshToken);
+      console.log('⚠️ MongoDB에 저장된 토큰이 없습니다. (첫 실행이거나 데이터 없음)');
+      // 초기 토큰이 환경변수에 있다면 저장 시도
+      if (accessToken && refreshToken) {
+         await saveTokensToDB(accessToken, refreshToken);
+      }
     }
   } catch (error) {
-    console.error('토큰 로드 중 오류:', error);
-  } finally {
-    await client.close();
+    console.error('❌ 토큰 로드 중 오류:', error);
   }
 }
 
 async function saveTokensToDB(newAccessToken, newRefreshToken) {
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const db = client.db(DB_NAME);
     const collection = db.collection(tokenCollectionName);
     await collection.updateOne(
       {},
@@ -71,15 +74,15 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
       },
       { upsert: true }
     );
-    console.log('MongoDB에 토큰 저장 완료');
+    console.log('💾 MongoDB에 토큰 저장(업데이트) 완료');
   } catch (error) {
-    console.error('토큰 저장 중 오류:', error);
-  } finally {
-    await client.close();
+    console.error('❌ 토큰 저장 중 오류:', error);
   }
 }
 
-// [수정] 상세 로그가 포함된 토큰 갱신 함수
+// ========== [4] 토큰 갱신 및 API 요청 로직 ==========
+
+// 토큰 갱신 함수
 async function refreshAccessToken() {
   const now = new Date().toLocaleTimeString();
   console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
@@ -109,13 +112,14 @@ async function refreshAccessToken() {
 
       console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
       console.log(`   - New Access Token: ${newAccessToken.substring(0, 10)}...`);
-      console.log(`   - New Refresh Token: ${newRefreshToken.substring(0, 10)}...`);
-
+      
+      // 메모리 변수 갱신
       accessToken = newAccessToken;
       refreshToken = newRefreshToken;
 
+      // DB 저장
       await saveTokensToDB(newAccessToken, newRefreshToken);
-      console.log(`[${now}] 💾 MongoDB 저장 완료. 갱신 프로세스 종료.\n`);
+      console.log(`[${now}] 갱신 프로세스 정상 종료.\n`);
 
       return newAccessToken;
 
@@ -125,31 +129,25 @@ async function refreshAccessToken() {
   }
 }
 
-// [추가] 테스트용: 현재 토큰을 일부러 망가뜨리는 API
-app.get('/api/test/expire-token', (req, res) => {
-  accessToken = "INVALID_TOKEN_TEST"; // 토큰을 가짜로 변경
-  console.log(`\n[TEST] 🧪 현재 AccessToken을 강제로 망가뜨렸습니다: ${accessToken}`);
-  res.json({ message: '토큰이 강제로 만료(변조) 처리되었습니다. 다음 API 호출 시 갱신이 시도됩니다.' });
-});
-
+// 공통 API 요청 함수 (재시도 로직 포함)
 async function apiRequest(method, url, data = {}, params = {}) {
   try {
       const response = await axios({
           method, url, data, params,
           headers: {
-              Authorization: `Bearer ${accessToken}`, // 현재 토큰 사용
+              Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
               'X-Cafe24-Api-Version': CAFE24_API_VERSION
           },
       });
       return response.data;
   } catch (error) {
-      // Cafe24가 "토큰 이상해(401)"라고 응답하면 여기로 옴
+      // 401 에러 발생 시 토큰 갱신 후 재시도
       if (error.response && error.response.status === 401) {
           console.log(`⚠️ [401 에러 감지] 토큰이 만료되었습니다. 갱신을 시도합니다...`);
-          await refreshAccessToken(); // 위에서 만든 갱신 함수 실행
+          await refreshAccessToken(); 
           console.log(`🔄 갱신된 토큰으로 API 재요청...`);
-          return apiRequest(method, url, data, params); // 재시도
+          return apiRequest(method, url, data, params); // 재귀 호출
       } else {
           console.error('API 요청 오류:', error.message);
           throw error;
@@ -157,18 +155,38 @@ async function apiRequest(method, url, data = {}, params = {}) {
   }
 }
 
+// [테스트용] 토큰 강제 만료 API
+app.get('/api/test/expire-token', (req, res) => {
+  accessToken = "INVALID_TOKEN_TEST"; 
+  console.log(`\n[TEST] 🧪 현재 AccessToken을 강제로 망가뜨렸습니다: ${accessToken}`);
+  res.json({ message: '토큰이 강제로 변조되었습니다. 다음 API 호출 시 갱신이 시도됩니다.' });
+});
+
+// [임시] DB 토큰 강제 업데이트 (현재 메모리 값으로)
+app.get('/force-update-token', async (req, res) => {
+  try {
+      await saveTokensToDB(accessToken, refreshToken);
+      res.send(`
+          <h1>DB 업데이트 완료!</h1>
+          <p><b>현재 적용된 토큰:</b> ${accessToken.substring(0, 10)}...</p>
+      `);
+  } catch (e) {
+      res.send(`에러 발생: ${e.message}`);
+  }
+});
 
 
+// ========== [5] 럭키 드로우 & 고객 정보 API ==========
 
-
-// ========== [럭키 드로우 이벤트 관련 함수] ==========
 async function getCustomerDataByMemberId(memberId) {
-  await getTokensFromDB();
+  // 토큰이 없으면 DB에서 로드 시도 (혹시 모를 상황 대비)
+  if (!accessToken) await getTokensFromDB();
+  
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
   const params = { member_id: memberId };
   try {
     const data = await apiRequest('GET', url, {}, params);
-    console.log('Customer Data:', JSON.stringify(data, null, 2));
+    // console.log('Customer Data:', JSON.stringify(data, null, 2)); // 로그 너무 길면 주석
     return data;
   } catch (error) {
     console.error(`Error fetching customer data for member_id ${memberId}:`, error);
@@ -176,138 +194,118 @@ async function getCustomerDataByMemberId(memberId) {
   }
 }
 
-// MongoDB 연결 및 Express 서버 설정 (이벤트 참여 데이터 저장)
-// ★ [수정] 전역 clientInstance 대신 각 라우트에서 연결하도록 변경 권장하지만,
-// 기존 코드 흐름을 유지하기 위해 여기서는 별도 처리된 라우트들만 유지
-const clientInstance = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-clientInstance.connect()
-  .then(() => {
-    console.log('MongoDB 연결 성공 (이벤트용)');
-    const db = clientInstance.db(DB_NAME);
-    const entriesCollection = db.collection('entries');
+// 럭키 드로우 참여자 수
+app.get('/api/entry/count', async (req, res) => {
+  try {
+    const count = await db.collection('entries').countDocuments();
+    res.json({ count });
+  } catch (error) {
+    console.error('참여자 수 가져오기 오류:', error);
+    res.status(500).json({ error: '서버 내부 오류' });
+  }
+});
+
+// 럭키 드로우 응모
+app.post('/api/entry', async (req, res) => {
+  const { memberId } = req.body;
+  if (!memberId) {
+    return res.status(400).json({ error: 'memberId 값이 필요합니다.' });
+  }
+  try {
+    const customerData = await getCustomerDataByMemberId(memberId);
+    if (!customerData || !customerData.customersprivacy) {
+      return res.status(404).json({ error: '고객 데이터를 찾을 수 없습니다.' });
+    }
     
-    app.get('/api/entry/count', async (req, res) => {
-      try {
-        const count = await entriesCollection.countDocuments();
-        res.json({ count });
-      } catch (error) {
-        console.error('참여자 수 가져오기 오류:', error);
-        res.status(500).json({ error: '서버 내부 오류' });
-      }
+    let customerPrivacy = customerData.customersprivacy;
+    if (Array.isArray(customerPrivacy)) {
+      customerPrivacy = customerPrivacy[0];
+    }
+    
+    const { member_id, name, cellphone, email, address1, address2, sms, gender } = customerPrivacy;
+    
+    const existingEntry = await db.collection('entries').findOne({ memberId: member_id });
+    if (existingEntry) {
+      return res.status(409).json({ message: '이미 응모하셨습니다.' });
+    }
+    
+    const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    
+    const newEntry = {
+      memberId: member_id,
+      name,
+      cellphone,
+      email,
+      address1,
+      address2,
+      sms,
+      gender,
+      createdAt: createdAtKST
+    };
+
+    const result = await db.collection('entries').insertOne(newEntry);
+    res.json({
+      message: '이벤트 응모 완료 되었습니다.',
+      entry: newEntry,
+      insertedId: result.insertedId
+    });
+  } catch (error) {
+    console.error('회원 정보 저장 오류:', error);
+    res.status(500).json({ error: '서버 내부 오류' });
+  }
+});
+
+// 럭키 드로우 엑셀 다운로드
+app.get('/api/lucky/download', async (req, res) => {
+  try {
+    const entries = await db.collection('entries').find({}).toArray();
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Entries');
+    worksheet.columns = [
+      { header: '참여 날짜', key: 'createdAt', width: 30 },
+      { header: '회원아이디', key: 'memberId', width: 20 },
+      { header: '회원 성함', key: 'name', width: 20 },
+      { header: '휴대폰 번호', key: 'cellphone', width: 20 },
+      { header: '이메일', key: 'email', width: 30 },
+      { header: '주소', key: 'fullAddress', width: 50 },
+      { header: 'SNS 수신여부', key: 'sms', width: 15 },
+      { header: '성별', key: 'gender', width: 10 },
+    ];
+    
+    entries.forEach(entry => {
+      const fullAddress = (entry.address1 || '') + (entry.address2 ? ' ' + entry.address2 : '');
+      worksheet.addRow({
+        createdAt: entry.createdAt,
+        memberId: entry.memberId,
+        name: entry.name,
+        cellphone: entry.cellphone,
+        email: entry.email,
+        fullAddress: fullAddress,
+        sms: entry.sms,
+        gender: entry.gender,
+      });
     });
     
-    app.post('/api/entry', async (req, res) => {
-      const { memberId } = req.body;
-      if (!memberId) {
-        return res.status(400).json({ error: 'memberId 값이 필요합니다.' });
-      }
-      try {
-        const customerData = await getCustomerDataByMemberId(memberId);
-        if (!customerData || !customerData.customersprivacy) {
-          return res.status(404).json({ error: '고객 데이터를 찾을 수 없습니다.' });
-        }
-        
-        let customerPrivacy = customerData.customersprivacy;
-        if (Array.isArray(customerPrivacy)) {
-          customerPrivacy = customerPrivacy[0];
-        }
-        
-        const { member_id, name, cellphone, email, address1, address2, sms, gender } = customerPrivacy;
-        
-        const existingEntry = await entriesCollection.findOne({ memberId: member_id });
-        if (existingEntry) {
-          return res.status(409).json({ message: '' });
-        }
-        
-        const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-        
-        const newEntry = {
-          memberId: member_id,
-          name,
-          cellphone,
-          email,
-          address1,
-          address2,
-          sms,
-          gender,
-          createdAt: createdAtKST
-        };
-    
-        const result = await entriesCollection.insertOne(newEntry);
-        res.json({
-          message: '이벤트 응모 완료 되었습니다.',
-          entry: newEntry,
-          insertedId: result.insertedId
-        });
-      } catch (error) {
-        console.error('회원 정보 저장 오류:', error);
-        res.status(500).json({ error: '서버 내부 오류' });
-      }
-    });
-    
-    app.get('/api/lucky/download', async (req, res) => {
-      try {
-        const entries = await entriesCollection.find({}).toArray();
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Entries');
-        worksheet.columns = [
-          { header: '참여 날짜', key: 'createdAt', width: 30 },
-          { header: '회원아이디', key: 'memberId', width: 20 },
-          { header: '회원 성함', key: 'name', width: 20 },
-          { header: '휴대폰 번호', key: 'cellphone', width: 20 },
-          { header: '이메일', key: 'email', width: 30 },
-          { header: '주소', key: 'fullAddress', width: 50 },
-          { header: 'SNS 수신여부', key: 'sms', width: 15 },
-          { header: '성별', key: 'gender', width: 10 },
-        ];
-        
-        entries.forEach(entry => {
-          const fullAddress = entry.address1 + (entry.address2 ? ' ' + entry.address2 : '');
-          worksheet.addRow({
-            createdAt: entry.createdAt,
-            memberId: entry.memberId,
-            name: entry.name,
-            cellphone: entry.cellphone,
-            email: entry.email,
-            fullAddress: fullAddress,
-            sms: entry.sms,
-            gender: entry.gender,
-          });
-        });
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=luckyEvent.xlsx');
-        await workbook.xlsx.write(res);
-        res.end();
-      } catch (error) {
-        console.error('Excel 다운로드 오류:', error);
-        res.status(500).json({ error: 'Excel 다운로드 중 오류 발생' });
-      }
-    });
-  })
-  .catch(err => {
-    console.error('MongoDB 연결 실패:', err);
-  });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=luckyEvent.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Excel 다운로드 오류:', error);
+    res.status(500).json({ error: 'Excel 다운로드 중 오류 발생' });
+  }
+});
 
 
+// ========== [6] 2월 출석체크 이벤트 API ==========
 
-// ==========================================================
-// 2월 출석체크 부분
-// ==========================================================
-
-
-// ==========================================================
-// [이벤트 API 1] 상태 조회
-// - 우리 DB(F) -> Cafe24 조회(T) -> 우리 DB 업데이트(T, EXISTING)
-// ==========================================================
+// 상태 조회
 app.get('/api/event/status', async (req, res) => {
   const { memberId } = req.query;
   if (!memberId) return res.status(400).json({ success: false, message: 'memberId required' });
 
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const collection = client.db(DB_NAME).collection('event_daily_checkin');
+    const collection = db.collection('event_daily_checkin');
     
     // 1. 우리 DB 조회
     const eventDoc = await collection.findOne({ memberId });
@@ -326,7 +324,7 @@ app.get('/api/event/status', async (req, res) => {
       if (eventDoc.marketingAgreed === true) isMarketingAgreed = 'T';
     }
 
-    // 2. 우리 DB 미동의 상태면 Cafe24 API '조회' (GET만 수행)
+    // 2. 우리 DB 미동의 상태면 Cafe24 API '조회'
     if (isMarketingAgreed === 'F') {
         try {
             let realConsent = false;
@@ -356,7 +354,7 @@ app.get('/api/event/status', async (req, res) => {
                 } catch (e) {}
             }
 
-            // ★ [DB저장] 기존 동의자로 확인됨 -> 'EXISTING'
+            // ★ [DB저장] 기존 동의자로 확인됨
             if (realConsent) {
                 console.log(`[Sync] ${memberId} 기존 동의 확인 -> DB 업데이트 (EXISTING)`);
                 await collection.updateOne(
@@ -365,7 +363,7 @@ app.get('/api/event/status', async (req, res) => {
                         $set: { 
                             marketingAgreed: true, 
                             marketingAgreedAt: new Date(),
-                            consentType: 'EXISTING' // ★ 기존 동의자
+                            consentType: 'EXISTING' 
                         },
                         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
                     },
@@ -383,22 +381,16 @@ app.get('/api/event/status', async (req, res) => {
   } catch (err) {
     console.error('Status Error:', err);
     res.status(500).json({ success: false });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
-// ==========================================================
-// [이벤트 API 2] 참여하기 (3회 제한 및 0회차 버그 수정)
-// ==========================================================
+// 참여하기
 app.post('/api/event/participate', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) return res.status(400).json({ success: false, message: 'Login required' });
 
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const collection = client.db(DB_NAME).collection('event_daily_checkin');
+    const collection = db.collection('event_daily_checkin');
 
     const eventDoc = await collection.findOne({ memberId });
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
@@ -409,7 +401,7 @@ app.post('/api/event/participate', async (req, res) => {
       if ((eventDoc.count || 0) >= 3) {
          return res.json({ success: false, message: '모든 이벤트 참여가 완료되었습니다!' });
       }
-      // 날짜 중복 체크 (기록이 있을 때만)
+      // 날짜 중복 체크
       if (eventDoc.lastParticipatedAt) {
         const lastDate = moment(eventDoc.lastParticipatedAt).tz('Asia/Seoul');
         if (lastDate.isSame(todayMoment, 'day')) {
@@ -438,32 +430,24 @@ app.post('/api/event/participate', async (req, res) => {
   } catch (err) {
     console.error('Participate Error:', err);
     res.status(500).json({ success: false });
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
-// ==========================================================
-// [이벤트 API 3] 마케팅 동의 (신규 동의자 구분 저장)
-// - 이벤트 페이지에서 버튼 클릭 시 'NEW' 타입으로 저장
-// ==========================================================
+// 마케팅 동의
 app.post('/api/event/marketing-consent', async (req, res) => {
   const { memberId } = req.body;
   if (!memberId) return res.status(400).json({ error: 'memberId required' });
 
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const collection = client.db(DB_NAME).collection('event_daily_checkin');
+    const collection = db.collection('event_daily_checkin');
 
-    // ★ [DB저장] 버튼 클릭 -> 'NEW'
     await collection.updateOne(
       { memberId: memberId },
       { 
         $set: { 
             marketingAgreed: true, 
             marketingAgreedAt: new Date(),
-            consentType: 'NEW' // ★ 신규 동의자 (이벤트 참여)
+            consentType: 'NEW'
         },
         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
       },
@@ -476,18 +460,13 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   } catch (err) {
     console.error('Consent Error:', err);
     res.status(500).json({ error: 'Error' });
-  } finally {
-    await client.close();
-  }
+  } 
 });
-// ==========================================================
-// [이벤트 API 4] 엑셀 다운로드 (시간 제외, 날짜만 출력)
-// ==========================================================
+
+// 출석체크 엑셀 다운로드
 app.get('/api/event/download', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
   try {
-    await client.connect();
-    const entries = await client.db(DB_NAME).collection('event_daily_checkin').find({}).toArray();
+    const entries = await db.collection('event_daily_checkin').find({}).toArray();
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Participants');
@@ -497,12 +476,11 @@ app.get('/api/event/download', async (req, res) => {
       { header: 'Count', key: 'count', width: 10 },
       { header: 'Marketing', key: 'marketingAgreed', width: 15 },
       { header: '동의 구분', key: 'consentType', width: 25 }, 
-      { header: 'Last Action', key: 'lastParticipatedAt', width: 15 }, // 너비 줄임
-      { header: 'First Action', key: 'firstParticipatedAt', width: 15 } // 너비 줄임
+      { header: 'Last Action', key: 'lastParticipatedAt', width: 15 }, 
+      { header: 'First Action', key: 'firstParticipatedAt', width: 15 }
     ];
 
     entries.forEach(entry => {
-      // ★ [수정] HH:mm:ss 제거하고 날짜만 표시 ('YYYY-MM-DD')
       const fmt = (d) => d ? moment(d).tz('Asia/Seoul').format('YYYY-MM-DD') : '-';
       
       let consentLabel = '-';
@@ -534,24 +512,15 @@ app.get('/api/event/download', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Excel Error');
-  } finally {
-    await client.close();
-  }
+  } 
 });
 
 
+// ========== [7] 로그 수집 및 통계 API (전역 db 사용) ==========
 
-
-
-// ==========================================================
-// [API 1] 로그 수집
-// ==========================================================
+// 로그 수집
 app.post('/api/trace/log', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ client 정의
   try {
-    await client.connect();
-    const db = client.db(DB_NAME); // ★ db 정의
-      
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
@@ -700,24 +669,15 @@ app.post('/api/trace/log', async (req, res) => {
   } catch (e) {
       console.error('[ERROR]', e);
       res.status(500).json({ success: false, error: e.message });
-  } finally {
-      await client.close(); // ★ 연결 종료
-  }
+  } 
 });
 
-
-// ==========================================================
-// [API 1-1] 체류 시간 업데이트
-// ==========================================================
+// 체류 시간 업데이트
 app.post('/api/trace/log/exit', async (req, res) => {
   let { logId, duration } = req.body;
   if (!logId || duration === undefined) return res.status(400).send('Missing Data');
 
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-    await client.connect(); // ★ 추가
-    const db = client.db(DB_NAME); // ★ 추가
-
     await db.collection('visit_logs1Event').updateOne(
       { _id: new ObjectId(logId) }, 
       { $set: { duration: parseInt(duration) } }
@@ -726,20 +686,12 @@ app.post('/api/trace/log/exit', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send('Error');
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 2] 관리자 대시보드용: 단순 태그별 요약
-// ==========================================================
+// 관리자 대시보드: 요약
 app.get('/api/trace/summary', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-    await client.connect(); // ★ 추가
-    const db = client.db(DB_NAME); // ★ 추가
-
     const stats = await db.collection('visit_logs1Event').aggregate([
       {
         $group: {
@@ -763,20 +715,12 @@ app.get('/api/trace/summary', async (req, res) => {
     res.json({ success: true, data: stats });
   } catch (err) {
     res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 3] 방문자 목록 조회
-// ==========================================================
+// 방문자 목록 조회
 app.get('/api/trace/visitors', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       const { date } = req.query;
       let matchStage = {};
 
@@ -827,25 +771,17 @@ app.get('/api/trace/visitors', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 4] 특정 유저 이동 경로
-// ==========================================================
+// Journey
 app.get('/api/trace/journey/:visitorId', async (req, res) => {
   const { visitorId } = req.params;
   const { startDate, endDate } = req.query;
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
 
   console.log('[Journey] 요청:', { visitorId, startDate, endDate });
 
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       let dateFilter = null;
       
       if (startDate) {
@@ -865,12 +801,10 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
       let clickQuery = {};
       
       if (isMemberId) {
-          console.log('[Journey] 회원 ID로 검색:', visitorId);
           baseQuery = { visitorId: visitorId };
           clickQuery = { visitorId: visitorId };
       } 
       else if (isIpFormat) {
-          console.log('[Journey] IP로 검색 (게스트만):', visitorId);
           baseQuery = { 
               userIp: visitorId,
               visitorId: { $regex: /^guest_/i } 
@@ -881,8 +815,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           };
       }
       else if (isGuestId) {
-          console.log('[Journey] 게스트 ID로 검색:', visitorId);
-          
           const guestLog = await db.collection('visit_logs1Event').findOne(
               { visitorId: visitorId },
               { projection: { userIp: 1 } }
@@ -908,15 +840,11 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           clickQuery = { $and: [clickQuery, { createdAt: dateFilter }] };
       }
 
-      console.log('[Journey] 방문 쿼리:', JSON.stringify(baseQuery));
-
       const views = await db.collection('visit_logs1Event')
           .find(baseQuery)
           .sort({ createdAt: 1 })
           .project({ currentUrl: 1, createdAt: 1, visitorId: 1, _id: 0 })
           .toArray();
-
-      console.log('[Journey] 방문 기록:', views.length, '건');
 
       const formattedViews = views.map(v => ({
           type: 'VIEW',
@@ -930,8 +858,6 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
           .sort({ createdAt: 1 })
           .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
           .toArray();
-
-      console.log('[Journey] 클릭 기록:', clicks.length, '건');
 
       const formattedClicks = clicks.map(c => ({
           type: 'CLICK',
@@ -948,20 +874,12 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   } catch (error) {
       console.error('[Journey Error]', error);
       res.status(500).json({ msg: 'Server Error', error: error.message });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 5] 퍼널 분석
-// ==========================================================
+// 퍼널 분석
 app.get('/api/trace/funnel', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       const { startDate, endDate } = req.query;
 
       let dateFilter = {};
@@ -1072,153 +990,12 @@ app.get('/api/trace/funnel', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API] Cafe24 카테고리 전체 정보 조회
-// ==========================================================
-app.get('/api/meta/categories', async (req, res) => {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-  
-  try {
-      let allCategories = [];
-      let offset = 0;
-      let hasMore = true;
-      const LIMIT = 100;
-
-      console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
-
-      while (hasMore) {
-          const response = await axios.get(url, {
-              headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              },
-              params: { 
-                  shop_no: 1,
-                  limit: LIMIT,     
-                  offset: offset,   
-                  fields: 'category_no,category_name' 
-              }
-          });
-
-          const cats = response.data.categories;
-          
-          if (cats && cats.length > 0) {
-              allCategories = allCategories.concat(cats);
-              
-              if (cats.length < LIMIT) {
-                  hasMore = false; 
-              } else {
-                  offset += LIMIT; 
-              }
-          } else {
-              hasMore = false;
-          }
-      }
-
-      const categoryMap = {};
-      allCategories.forEach(cat => {
-          categoryMap[cat.category_no] = cat.category_name;
-      });
-
-      console.log(`[Category] 총 ${allCategories.length}개의 카테고리 로드 완료`);
-      res.json({ success: true, data: categoryMap });
-
-  } catch (error) {
-      if (error.response && error.response.status === 401) {
-          try {
-              console.log('Token expired. Refreshing...');
-              await refreshAccessToken();
-              return res.redirect(req.originalUrl); 
-          } catch (e) {
-              return res.status(401).json({ error: "Token refresh failed" });
-          }
-      }
-      console.error("카테고리 전체 조회 실패:", error.message);
-      res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
-// ==========================================================
-// [신규 API] Cafe24 전체 상품 정보 조회
-// ==========================================================
-app.get('/api/meta/products', async (req, res) => {
-  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`;
-  
-  try {
-      let allProducts = [];
-      let offset = 0;
-      let hasMore = true;
-      const LIMIT = 100;
-
-      console.log(`[Product] 상품 전체 데이터 수집 시작...`);
-
-      while (hasMore) {
-          const response = await axios.get(url, {
-              headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              },
-              params: { 
-                  shop_no: 1,
-                  limit: LIMIT,     
-                  offset: offset,
-                  fields: 'product_no,product_name' 
-              }
-          });
-
-          const products = response.data.products;
-          
-          if (products && products.length > 0) {
-              allProducts = allProducts.concat(products);
-              
-              if (products.length < LIMIT) {
-                  hasMore = false; 
-              } else {
-                  offset += LIMIT;
-              }
-          } else {
-              hasMore = false;
-          }
-      }
-
-      const productMap = {};
-      allProducts.forEach(prod => {
-          productMap[prod.product_no] = prod.product_name;
-      });
-
-      console.log(`[Product] 총 ${allProducts.length}개의 상품 정보 로드 완료`);
-      res.json({ success: true, data: productMap });
-
-  } catch (error) {
-      if (error.response && error.response.status === 401) {
-          try {
-              await refreshAccessToken();
-              return res.redirect(req.originalUrl); 
-          } catch (e) {
-              return res.status(401).json({ error: "Token refresh failed" });
-          }
-      }
-      console.error("상품 전체 조회 실패:", error.message);
-      res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
-// ==========================================================
-// [API 7] 섹션 클릭 로그 저장
-// ==========================================================
+// 섹션 클릭 로그
 app.post('/api/trace/click', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       if (userIp.includes(',')) {
           userIp = userIp.split(',')[0].trim();
@@ -1250,20 +1027,12 @@ app.post('/api/trace/click', async (req, res) => {
   } catch (e) {
       console.error(e);
       res.status(500).json({ success: false });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 8] 섹션 클릭 통계 조회
-// ==========================================================
+// 섹션 클릭 통계
 app.get('/api/trace/clicks/stats', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       const { startDate, endDate } = req.query;
       
       let matchStage = {};
@@ -1296,20 +1065,12 @@ app.get('/api/trace/clicks/stats', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API] 특정 버튼 클릭 사용자 조회
-// ==========================================================
+// 클릭 상세 조회
 app.get('/api/trace/visitors/by-click', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-      await client.connect(); // ★ 추가
-      const db = client.db(DB_NAME); // ★ 추가
-
       const { sectionId, startDate, endDate } = req.query;
       
       const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
@@ -1350,20 +1111,12 @@ app.get('/api/trace/visitors/by-click', async (req, res) => {
   } catch (error) {
       console.error('클릭 방문자 조회 실패:', error);
       res.status(500).json({ success: false, message: '서버 오류' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 9] 인기 페이지 및 방문자 그룹핑 조회
-// ==========================================================
+// 인기 페이지 조회
 app.get('/api/trace/stats/pages', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-    await client.connect(); // ★ 추가
-    const db = client.db(DB_NAME); // ★ 추가
-
     const { startDate, endDate } = req.query;
     let matchStage = {};
 
@@ -1400,20 +1153,12 @@ app.get('/api/trace/stats/pages', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 10] 카테고리 -> 상품 이동 흐름 분석
-// ==========================================================
+// 흐름 분석
 app.get('/api/trace/stats/flow', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-    await client.connect(); // ★ 추가
-    const db = client.db(DB_NAME); // ★ 추가
-
     const { startDate, endDate } = req.query;
     
     let matchStage = {
@@ -1463,20 +1208,12 @@ app.get('/api/trace/stats/flow', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
-  } finally {
-      await client.close(); // ★ 추가
-  }
+  } 
 });
 
-// ==========================================================
-// [API 11] 특정 채널 방문자 목록 조회
-// ==========================================================
+// 채널별 방문자
 app.get('/api/trace/visitors/by-channel', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI); // ★ 추가
   try {
-    await client.connect(); // ★ 추가
-    const db = client.db(DB_NAME); // ★ 추가
-
     const { channelName, startDate, endDate } = req.query;
 
     if (!channelName) {
@@ -1587,62 +1324,153 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
   } catch (err) {
     console.error('API 11 Error:', err);
     return res.status(500).json({ msg: 'Server Error', error: err.toString() });
-  } finally {
-      await client.close(); // ★ 추가
-  }
-});
-
-// [임시] DB 토큰 강제 업데이트 (새로 발급받은 토큰으로 DB 덮어쓰기)
-app.get('/force-update-token', async (req, res) => {
-  const client = new MongoClient(MONGODB_URI);
-  try {
-      await client.connect();
-      const db = client.db(DB_NAME);
-      
-      // 현재 코드 상단 변수에 들어있는 '새 토큰' 값으로 DB를 강제 업데이트합니다.
-      await db.collection('tokens').updateOne(
-          {}, 
-          { 
-              $set: { 
-                  accessToken: accessToken, // 코드 맨 윗줄의 새 토큰
-                  refreshToken: refreshToken, // 코드 맨 윗줄의 새 리프레시 토큰
-                  updatedAt: new Date()
-              } 
-          },
-          { upsert: true }
-      );
-
-      res.send(`
-          <h1>DB 업데이트 완료!</h1>
-          <p><b>현재 적용된 토큰:</b> ${accessToken.substring(0, 10)}...</p>
-          <p>이제 이벤트 페이지에서 버튼을 다시 눌러보세요.</p>
-      `);
-  } catch (e) {
-      res.send(`에러 발생: ${e.message}`);
-  } finally {
-      await client.close();
-  }
+  } 
 });
 
 
-
-
-//인스타그램 연동 부분
+// ========== [8] 메타/인스타그램 관련 API ==========
 
 const INSTAGRAM_TOKEN = process.env.INSTAGRAM_TOKEN;
 const SALLYFELLTOKEN = process.env.SALLYFELLTOKEN;
 
+// 카테고리 조회
+app.get('/api/meta/categories', async (req, res) => {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
+  
+  try {
+      let allCategories = [];
+      let offset = 0;
+      let hasMore = true;
+      const LIMIT = 100;
 
-// 기존 /api/instagramFeed 엔드포인트 수정
+      console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
+
+      while (hasMore) {
+          const response = await axios.get(url, {
+              headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
+              },
+              params: { 
+                  shop_no: 1,
+                  limit: LIMIT,     
+                  offset: offset,   
+                  fields: 'category_no,category_name' 
+              }
+          });
+
+          const cats = response.data.categories;
+          
+          if (cats && cats.length > 0) {
+              allCategories = allCategories.concat(cats);
+              
+              if (cats.length < LIMIT) {
+                  hasMore = false; 
+              } else {
+                  offset += LIMIT; 
+              }
+          } else {
+              hasMore = false;
+          }
+      }
+
+      const categoryMap = {};
+      allCategories.forEach(cat => {
+          categoryMap[cat.category_no] = cat.category_name;
+      });
+
+      console.log(`[Category] 총 ${allCategories.length}개의 카테고리 로드 완료`);
+      res.json({ success: true, data: categoryMap });
+
+  } catch (error) {
+      if (error.response && error.response.status === 401) {
+          try {
+              console.log('Token expired. Refreshing...');
+              await refreshAccessToken();
+              return res.redirect(req.originalUrl); 
+          } catch (e) {
+              return res.status(401).json({ error: "Token refresh failed" });
+          }
+      }
+      console.error("카테고리 전체 조회 실패:", error.message);
+      res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+// 상품 조회
+app.get('/api/meta/products', async (req, res) => {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`;
+  
+  try {
+      let allProducts = [];
+      let offset = 0;
+      let hasMore = true;
+      const LIMIT = 100;
+
+      console.log(`[Product] 상품 전체 데이터 수집 시작...`);
+
+      while (hasMore) {
+          const response = await axios.get(url, {
+              headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
+              },
+              params: { 
+                  shop_no: 1,
+                  limit: LIMIT,     
+                  offset: offset,
+                  fields: 'product_no,product_name' 
+              }
+          });
+
+          const products = response.data.products;
+          
+          if (products && products.length > 0) {
+              allProducts = allProducts.concat(products);
+              
+              if (products.length < LIMIT) {
+                  hasMore = false; 
+              } else {
+                  offset += LIMIT;
+              }
+          } else {
+              hasMore = false;
+          }
+      }
+
+      const productMap = {};
+      allProducts.forEach(prod => {
+          productMap[prod.product_no] = prod.product_name;
+      });
+
+      console.log(`[Product] 총 ${allProducts.length}개의 상품 정보 로드 완료`);
+      res.json({ success: true, data: productMap });
+
+  } catch (error) {
+      if (error.response && error.response.status === 401) {
+          try {
+              await refreshAccessToken();
+              return res.redirect(req.originalUrl); 
+          } catch (e) {
+              return res.status(401).json({ error: "Token refresh failed" });
+          }
+      }
+      console.error("상품 전체 조회 실패:", error.message);
+      res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+// 인스타그램 피드 1
 app.get("/api/instagramFeed", async (req, res) => {
   try {
     const pageLimit = 40;
-    // Instagram Graph API 요청 URL 구성
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
     const feedData = response.data;
     
-    // 가져온 인스타그램 데이터를 DB에 저장
+    // DB 저장 (비동기)
     saveInstagramFeedData(feedData);
     
     res.json(feedData);
@@ -1652,16 +1480,14 @@ app.get("/api/instagramFeed", async (req, res) => {
   }
 });
 
-//샐리필 전용
+// 인스타그램 피드 2 (샐리필)
 app.get("/api/instagramSallyFeed", async (req, res) => {
   try {
     const pageLimit = 16;
-    // Instagram Graph API 요청 URL 구성
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${SALLYFELLTOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
     const feedData = response.data;
     
-    // 가져온 인스타그램 데이터를 DB에 저장
     saveInstagramFeedData(feedData);
     
     res.json(feedData);
@@ -1671,93 +1497,74 @@ app.get("/api/instagramSallyFeed", async (req, res) => {
   }
 });
 
-
-
+// 인스타 토큰 조회 API
 app.get('/api/instagramToken', (req, res) => {
   const token = process.env.INSTAGRAM_TOKEN;
   if (token) {
     res.json({ token });
   } else {
-    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set.' });
   }
 });
-
 
 app.get('/api/sallyfeelToken', (req, res) => {
   const token = process.env.SALLYFELLTOKEN;
   if (token) {
     res.json({ token });
   } else {
-    res.status(500).json({ error: 'INSTAGRAM_TOKEN is not set in environment variables.' });
+    res.status(500).json({ error: 'SALLYFELLTOKEN is not set.' });
   }
 });
 
-
-// 인스타그램 피드 데이터를 MongoDB에 저장하는 함수 추가
+// 인스타 피드 저장 함수
 async function saveInstagramFeedData(feedData) {
   try {
-    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-    await client.connect();
-    const db = client.db(DB_NAME);
     const instagramCollection = db.collection('instagramData');
-    
     const feedItems = feedData.data || [];
     for (const item of feedItems) {
-      // 각 인스타그램 게시물을 id를 기준으로 upsert 처리
       await instagramCollection.updateOne(
         { id: item.id },
         { $set: item },
         { upsert: true }
       );
     }
-    await client.close();
     console.log("Instagram feed data saved to DB successfully.");
   } catch (err) {
     console.error("Error saving Instagram feed data to DB:", err);
   }
 }
+
+// 인스타 클릭 추적
 app.post('/api/trackClick', async (req, res) => {
   const { postId } = req.body;
   if (!postId) {
     return res.status(400).json({ error: 'postId 값이 필요합니다.' });
   }
   try {
-    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-    await client.connect();
-    const db = client.db(DB_NAME);
     const collection = db.collection('instaClickdata');
-    
-    // postId를 기준으로 클릭 카운터를 1 증가 (upsert: document가 없으면 생성)
     await collection.updateOne(
       { postId: postId },
       { $inc: { counter: 1 } },
       { upsert: true }
     );
-    
-    await client.close();
     res.status(200).json({ message: 'Click tracked successfully', postId });
   } catch (error) {
     console.error("Error tracking click event:", error);
     res.status(500).json({ error: 'Error tracking click event' });
   }
 });
-//인스타 클릭데이터 가져오기
+
+// 인스타 클릭수 조회
 app.get('/api/getClickCount', async (req, res) => {
   const postId = req.query.postId;
   if (!postId) {
     return res.status(400).json({ error: 'postId query parameter is required' });
   }
   try {
-    const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
-    await client.connect();
-    const db = client.db(DB_NAME);
     const collection = db.collection('instaClickdata');
-    
-    // postId 기준으로 document를 찾고, counter 필드 반환 (없으면 0)
     const doc = await collection.findOne({ postId: postId });
     const clickCount = doc && doc.counter ? doc.counter : 0;
     
-    await client.close();
     res.status(200).json({ clickCount });
   } catch (error) {
     console.error("Error fetching click count:", error);
@@ -1766,12 +1573,26 @@ app.get('/api/getClickCount', async (req, res) => {
 });
 
 
-
-// ========== [17] 서버 시작 ==========
+// ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
-  await getTokensFromDB();
-  const PORT = process.env.PORT || 6000;
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+  const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
+  
+  try {
+    // 1. 서버 시작 전 DB 연결 (싱글톤)
+    await client.connect();
+    db = client.db(DB_NAME); 
+    console.log("✅ MongoDB Connected (Single Connection)");
+
+    // 2. 토큰 로드
+    await getTokensFromDB(); 
+
+    // 3. 서버 리스닝
+    const PORT = process.env.PORT || 6000;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+  } catch (err) {
+    console.error("서버 시작 실패:", err);
+  }
 })();
