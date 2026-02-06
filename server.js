@@ -11,8 +11,8 @@ const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
 // ========== [1] 환경변수 및 기본 설정 ==========
-let accessToken = process.env.ACCESS_TOKEN || 'usO0ie9QNyhVhW03D1SH2G';; // 초기값 비워둠 (DB에서 로드)
-let refreshToken = process.env.REFRESH_TOKEN || 'C847eYG7T6pHfuHzYfke0S'; //;
+let accessToken = process.env.ACCESS_TOKEN || 'Pp3tzSSTF1ku3OLJNVWTCA';; // 초기값 비워둠 (DB에서 로드)
+let refreshToken = process.env.REFRESH_TOKEN || 'AhNaeUglaCdMRzTBWqb0BH'; //;
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
 const CAFE24_CLIENT_SECRET = process.env.CAFE24_CLIENT_SECRET;
 const DB_NAME = process.env.DB_NAME;
@@ -79,77 +79,85 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
   }
 }
 
+// [수정] 상세 로그가 포함된 토큰 갱신 함수
 async function refreshAccessToken() {
-  console.log('토큰 만료 감지: Cafe24 서버에 토큰 갱신 요청 중...');
-  
+  const now = new Date().toLocaleTimeString();
+  console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
+
   try {
-    // 1. Cafe24 OAuth 갱신 요청을 위한 헤더 생성 (Basic Auth)
-    const authHeader = Buffer.from(`${CAFE24_CLIENT_ID}:${CAFE24_CLIENT_SECRET}`).toString('base64');
+      const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
+      const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
+      const mallId = (process.env.CAFE24_MALLID || '').trim();
 
-    // 2. Cafe24에 갱신 요청 (POST)
-    const response = await axios({
-      method: 'POST',
-      url: `https://${CAFE24_MALLID}.cafe24api.com/api/v2/oauth/token`,
-      headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      data: `grant_type=refresh_token&refresh_token=${refreshToken}`
-    });
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-    // 3. 응답 받은 새 토큰 정보 추출
-    const { access_token, refresh_token } = response.data;
+      console.log(`[${now}] 🚀 Cafe24 서버로 새 토큰 요청 전송...`);
 
-    // 4. 전역 변수 업데이트
-    accessToken = access_token;
-    // Cafe24는 갱신 시 새 Refresh Token을 줄 수도 있고 안 줄 수도 있음 (주면 업데이트)
-    if (refresh_token) {
-      refreshToken = refresh_token;
-    }
+      const response = await axios.post(
+          `https://${mallId}.cafe24api.com/api/v2/oauth/token`,
+          `grant_type=refresh_token&refresh_token=${refreshToken}`,
+          {
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Authorization': `Basic ${basicAuth}`,
+              },
+          }
+      );
 
-    console.log('Cafe24 토큰 갱신 성공!');
+      const newAccessToken = response.data.access_token;
+      const newRefreshToken = response.data.refresh_token;
 
-    // 5. DB에 새 토큰 저장 (중요: 그래야 다음 재시작 때도 유지됨)
-    await saveTokensToDB(accessToken, refreshToken);
+      console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
+      console.log(`   - New Access Token: ${newAccessToken.substring(0, 10)}...`);
+      console.log(`   - New Refresh Token: ${newRefreshToken.substring(0, 10)}...`);
 
-    return accessToken;
+      accessToken = newAccessToken;
+      refreshToken = newRefreshToken;
+
+      await saveTokensToDB(newAccessToken, newRefreshToken);
+      console.log(`[${now}] 💾 MongoDB 저장 완료. 갱신 프로세스 종료.\n`);
+
+      return newAccessToken;
 
   } catch (error) {
-    console.error('토큰 갱신 실패 (치명적 오류):', error.response ? error.response.data : error.message);
-    // 리프레시 토큰까지 만료된 경우일 수 있음 -> 알림 필요
-    throw error;
-  }
-}
-
-// ========== [4] Cafe24 API 요청 함수 ==========
-async function apiRequest(method, url, data = {}, params = {}) {
-  console.log(`Request: ${method} ${url}`);
-  console.log("Params:", params);
-  console.log("Data:", data);
-  try {
-    const response = await axios({
-      method,
-      url,
-      data,
-      params,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': CAFE24_API_VERSION
-      },
-    });
-    return response.data;
-  } catch (error) {
-    if (error.response && error.response.status === 401) {
-      console.log('Access Token 만료. 갱신 중...');
-      await refreshAccessToken();
-      return apiRequest(method, url, data, params);
-    } else {
-      console.error('API 요청 오류:', error.response ? error.response.data : error.message);
+      console.error(`[${now}] ❌ 토큰 갱신 실패:`, error.response ? error.response.data : error.message);
       throw error;
-    }
   }
 }
+
+// [추가] 테스트용: 현재 토큰을 일부러 망가뜨리는 API
+app.get('/api/test/expire-token', (req, res) => {
+  accessToken = "INVALID_TOKEN_TEST"; // 토큰을 가짜로 변경
+  console.log(`\n[TEST] 🧪 현재 AccessToken을 강제로 망가뜨렸습니다: ${accessToken}`);
+  res.json({ message: '토큰이 강제로 만료(변조) 처리되었습니다. 다음 API 호출 시 갱신이 시도됩니다.' });
+});
+
+async function apiRequest(method, url, data = {}, params = {}) {
+  try {
+      const response = await axios({
+          method, url, data, params,
+          headers: {
+              Authorization: `Bearer ${accessToken}`, // 현재 토큰 사용
+              'Content-Type': 'application/json',
+              'X-Cafe24-Api-Version': CAFE24_API_VERSION
+          },
+      });
+      return response.data;
+  } catch (error) {
+      // Cafe24가 "토큰 이상해(401)"라고 응답하면 여기로 옴
+      if (error.response && error.response.status === 401) {
+          console.log(`⚠️ [401 에러 감지] 토큰이 만료되었습니다. 갱신을 시도합니다...`);
+          await refreshAccessToken(); // 위에서 만든 갱신 함수 실행
+          console.log(`🔄 갱신된 토큰으로 API 재요청...`);
+          return apiRequest(method, url, data, params); // 재시도
+      } else {
+          console.error('API 요청 오류:', error.message);
+          throw error;
+      }
+  }
+}
+
+
 
 
 
