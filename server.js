@@ -86,7 +86,14 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
 async function refreshAccessToken() {
   const now = new Date().toLocaleTimeString();
   console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
+  console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작!`);
 
+  // ▼ [진단용 코드] 변수 값이 제대로 들어오는지 확인
+  console.log('DEBUG CHECK:', {
+      CID: process.env.CAFE24_CLIENT_ID, // 이 값이 undefined나 null이면 안됨
+      SECRET: process.env.CAFE24_CLIENT_SECRET ? 'EXIST' : 'MISSING'
+  });
+  
   try {
       const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
       const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
