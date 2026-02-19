@@ -86,14 +86,12 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
 async function refreshAccessToken() {
   const now = new Date().toLocaleTimeString();
   console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
-  console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작!`);
-
   // ▼ [진단용 코드] 변수 값이 제대로 들어오는지 확인
   console.log('DEBUG CHECK:', {
       CID: process.env.CAFE24_CLIENT_ID, // 이 값이 undefined나 null이면 안됨
       SECRET: process.env.CAFE24_CLIENT_SECRET ? 'EXIST' : 'MISSING'
   });
-  
+
   try {
       const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
       const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
@@ -473,18 +471,18 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 // 출석체크 엑셀 다운로드
 app.get('/api/event/download', async (req, res) => {
   try {
-    const entries = await db.collection('event_daily_checkin').find({}).toArray();
+    const entries = await db.collection('event_daily_checkin').find({ count: { $gt: 0 } }).toArray();
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Participants');
 
     worksheet.columns = [
       { header: 'ID', key: 'memberId', width: 20 },
-      { header: 'Count', key: 'count', width: 10 },
-      { header: 'Marketing', key: 'marketingAgreed', width: 15 },
+      { header: '참여횟수', key: 'count', width: 10 },
+      { header: '마케팅 수신동의 여부', key: 'marketingAgreed', width: 15 },
       { header: '동의 구분', key: 'consentType', width: 25 }, 
-      { header: 'Last Action', key: 'lastParticipatedAt', width: 15 }, 
-      { header: 'First Action', key: 'firstParticipatedAt', width: 15 }
+      { header: '마지막 참여날짜', key: 'lastParticipatedAt', width: 15 }, 
+      { header: '처음 참여날짜', key: 'firstParticipatedAt', width: 15 }
     ];
 
     entries.forEach(entry => {
