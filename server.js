@@ -153,8 +153,10 @@ async function apiRequest(method, url, data = {}, params = {}) {
           await refreshAccessToken(); 
           console.log(`🔄 갱신된 토큰으로 API 재요청...`);
           return apiRequest(method, url, data, params); // 재귀 호출
-      } else {
-          console.error('API 요청 오류:', error.message);
+        } else {
+          const errorDetails = error.response ? JSON.stringify(error.response.data.error) : '상세 에러 없음';
+          console.error(`❌ API 요청 오류 [${error.response?.status}]:`, error.message);
+          console.error(`📝 카페24 상세 응답:`, errorDetails);
           throw error;
       }
   }
