@@ -134,6 +134,8 @@ async function refreshAccessToken() {
   }
 }
 
+
+
 // 공통 API 요청 함수 (재시도 로직 포함)
 async function apiRequest(method, url, data = {}, params = {}) {
   try {
@@ -1578,6 +1580,371 @@ app.get('/api/getClickCount', async (req, res) => {
     res.status(500).json({ error: 'Error fetching click count' });
   }
 });
+
+
+
+
+
+
+
+// ==========================================
+// [5] Cafe24 API (상품 & 옵션 조회)
+// ==========================================
+// ==========================================
+// [수정] Cafe24 카테고리(분류) 목록 조회 API (전체 가져오기)
+// ==========================================
+app.get('/api/cafe24/categories', async (req, res) => {
+  try {
+      let allCategories = [];
+      let offset = 0;
+      const limit = 100; // 카페24가 허용하는 최대 개수
+      let hasMore = true;
+      let loopCount = 0;
+
+      // 데이터가 안 끊기고 다 나올 때까지 반복해서 긁어옵니다 (무한루프 방지: 최대 10번 = 1000개)
+      while (hasMore && loopCount < 10) {
+          const fetchFromCafe24 = async (retry = false) => {
+              try {
+                  return await axios.get(
+                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`,
+                      {
+                          params: { 
+                              shop_no: 1, 
+                              limit: limit,
+                              offset: offset 
+                          },
+                          headers: { 
+                              Authorization: `Bearer ${accessToken}`, 
+                              'Content-Type': 'application/json', 
+                              'X-Cafe24-Api-Version': CAFE24_API_VERSION 
+                          }
+                      }
+                  );
+              } catch (err) {
+                  if (err.response && err.response.status === 401 && !retry) {
+                      await refreshAccessToken();
+                      return await fetchFromCafe24(true);
+                  }
+                  throw err;
+              }
+          };
+
+          const response = await fetchFromCafe24();
+          const cats = response.data.categories || [];
+          allCategories = allCategories.concat(cats);
+
+          // 불러온 개수가 100개보다 적으면 뒤에 더 이상 데이터가 없는 것이므로 종료
+          if (cats.length < limit) {
+              hasMore = false;
+          } else {
+              offset += limit; // 다음 100개를 가져오기 위해 오프셋 증가
+          }
+          loopCount++;
+      }
+
+      res.json({ success: true, data: allCategories });
+  } catch (error) {
+      console.error("🔥 Cafe24 카테고리 목록 조회 에러:", error.message);
+      res.status(500).json({ success: false, message: "Cafe24 API Error" });
+  }
+});
+// ==========================================
+// [추가] 특정 카테고리의 상품 목록 조회 API
+// ==========================================
+app.get('/api/cafe24/categories/:categoryNo/products', async (req, res) => {
+  try {
+      const { categoryNo } = req.params;
+      const fetchFromCafe24 = async (retry = false) => {
+          try {
+              return await axios.get(
+                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+                  {
+                      params: { 
+                          shop_no: 1, 
+                          category: categoryNo, 
+                          display: 'T', 
+                          selling: 'T', 
+                          embed: 'options,images', 
+                          limit: 100 
+                      },
+                      headers: { 
+                          Authorization: `Bearer ${accessToken}`, 
+                          'Content-Type': 'application/json', 
+                          'X-Cafe24-Api-Version': CAFE24_API_VERSION 
+                      }
+                  }
+              );
+          } catch (err) {
+              if (err.response && err.response.status === 401 && !retry) {
+                  await refreshAccessToken();
+                  return await fetchFromCafe24(true);
+              }
+              throw err;
+          }
+      };
+
+      const response = await fetchFromCafe24();
+      res.json({ success: true, data: response.data.products });
+  } catch (error) {
+      console.error("🔥 Cafe24 카테고리별 상품 조회 에러:", error.message);
+      res.status(500).json({ success: false, message: "Cafe24 API Error" });
+  }
+});
+
+app.get('/api/cafe24/products', async (req, res) => {
+  try {
+      const { keyword } = req.query;
+      if (!keyword) return res.json({ success: true, count: 0, data: [] });
+
+      const fetchFromCafe24 = async (retry = false) => {
+          try {
+              return await axios.get(
+                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+                  {
+                      params: { shop_no: 1, product_name: keyword, display: 'T', selling: 'T', embed: 'options,images', limit: 100, sort: 'created_date', order: 'asc' },
+                      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
+                  }
+              );
+          } catch (err) {
+              if (err.response && err.response.status === 401 && !retry) {
+                  await refreshAccessToken();
+                  return await fetchFromCafe24(true);
+              }
+              throw err;
+          }
+      };
+
+      const response = await fetchFromCafe24();
+      const products = response.data.products || [];
+      const cleanData = products.map(item => {
+          let myOptions = [];
+          let rawOptionList = item.options ? (Array.isArray(item.options) ? item.options : item.options.options) : [];
+          
+          if (rawOptionList.length > 0) {
+              let targetOption = rawOptionList.find(opt => {
+                  const name = (opt.option_name || opt.name || "").toLowerCase();
+                  return name.includes('색상') || name.includes('color');
+              }) || rawOptionList[0];
+              if (targetOption && targetOption.option_value) {
+                  myOptions = targetOption.option_value.map(val => ({
+                      option_code: val.value_no || val.value_code || val.value,
+                      option_name: val.value_name || val.option_text || val.name
+                  }));
+              }
+          }
+          let img = item.detail_image || item.list_image || item.small_image || (item.images && item.images[0] && item.images[0].big);
+          return {
+              product_no: item.product_no, product_name: item.product_name,
+              price: Math.floor(Number(item.price)), options: myOptions,
+              detail_image: img
+          };
+      });
+      res.json({ success: true, count: cleanData.length, data: cleanData });
+  } catch (error) { res.status(500).json({ success: false, message: "Cafe24 API Error" }); }
+});
+
+app.get('/api/cafe24/products/:productNo/options', async (req, res) => {
+  try {
+      const { productNo } = req.params;
+      const fetchFromCafe24 = async (retry = false) => {
+          try {
+              return await axios.get(
+                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${productNo}`,
+                  { params: { shop_no: 1, embed: 'options' }, headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION } }
+              );
+          } catch (err) {
+              if (err.response && err.response.status === 401 && !retry) { await refreshAccessToken(); return await fetchFromCafe24(true); }
+              throw err;
+          }
+      };
+      const response = await fetchFromCafe24();
+      const product = response.data.product;
+      let myOptions = [];
+      let rawOptionList = Array.isArray(product.options) ? product.options : (product.options && product.options.options ? product.options.options : []);
+      
+      if (rawOptionList.length > 0) {
+          let targetOption = rawOptionList.find(opt => {
+              const name = (opt.option_name || opt.name || "").toLowerCase();
+              return name.includes('색상') || name.includes('color');
+          }) || rawOptionList[0];
+          if (targetOption && targetOption.option_value) {
+              myOptions = targetOption.option_value.map(val => ({
+                  option_code: val.value_no || val.value_code || val.value,
+                  option_name: val.value_name || val.option_text || val.name
+              }));
+          }
+      }
+      res.json({ success: true, product_no: product.product_no, product_name: product.product_name, options: myOptions });
+  } catch (error) { res.status(500).json({ success: false, message: "Cafe24 API Error" }); }
+});
+
+// ==========================================
+// [5-2] Cafe24 쿠폰 및 자동 매핑 API
+// ==========================================
+app.get('/api/cafe24/coupons', async (req, res) => {
+  try {
+      const fetchFromCafe24 = async (url, params, retry = false) => {
+          try {
+              return await axios.get(url, {
+                  params,
+                  headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json',
+                      'X-Cafe24-Api-Version': CAFE24_API_VERSION
+                  }
+              });
+          } catch (err) {
+              if (err.response && err.response.status === 401 && !retry) {
+                  await refreshAccessToken();
+                  return await fetchFromCafe24(url, params, true);
+              }
+              throw err;
+          }
+      };
+
+      const listRes = await fetchFromCafe24(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`,
+          { shop_no: 1, limit: 100, issue_type: 'D' }
+      );
+      const coupons = listRes.data.coupons || [];
+
+      const now = new Date();
+      const activeCoupons = coupons.filter(c => {
+          if (c.deleted === 'T') return false;
+          if (c.is_stopped_issued_coupon === 'T') return false;
+          if (c.issue_type !== 'D') return false;
+          if (c.issue_start_date && new Date(c.issue_start_date) > now) return false;
+          if (c.issue_end_date && new Date(c.issue_end_date) < now) return false;
+          if (c.available_period_type === 'F') {
+              if (c.available_start_datetime && new Date(c.available_start_datetime) > now) return false;
+              if (c.available_end_datetime && new Date(c.available_end_datetime) < now) return false;
+          }
+          return true;
+      });
+
+      const detailResults = await Promise.allSettled(
+          activeCoupons.map(c => fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons/${c.coupon_no}`, { shop_no: 1 }))
+      );
+
+      const enriched = activeCoupons.map((c, idx) => {
+          let availableProducts = [];
+          let availableProductType = c.available_product_type || 'A';
+          const detail = detailResults[idx];
+          
+          if (detail.status === 'fulfilled' && detail.value.data.coupon) {
+              const dc = detail.value.data.coupon;
+              availableProductType = dc.available_product_type || availableProductType;
+              const raw = dc.available_product;
+              if (Array.isArray(raw)) {
+                  availableProducts = raw.map(p => (typeof p === 'object' && p !== null && p.product_no) ? Number(p.product_no) : Number(p)).filter(n => !isNaN(n));
+              } else if (typeof raw === 'number') {
+                  availableProducts = [raw];
+              } else if (typeof raw === 'string' && raw) {
+                  availableProducts = raw.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+              }
+          }
+
+          return {
+              coupon_no: c.coupon_no,
+              coupon_name: c.coupon_name,
+              benefit_type: c.benefit_type,
+              benefit_percentage: c.benefit_percentage ? parseFloat(c.benefit_percentage) : null,
+              benefit_price: c.benefit_price ? Math.floor(parseFloat(c.benefit_price)) : null,
+              available_date: c.available_date || '',
+              available_product_type: availableProductType,
+              available_product: availableProducts
+          };
+      });
+
+      res.json({ success: true, count: enriched.length, data: enriched });
+  } catch (error) { res.status(500).json({ success: false, message: 'Cafe24 Coupon API Error' }); }
+});
+
+app.get('/api/cafe24/coupons/:couponNo', async (req, res) => {
+  try {
+      const { couponNo } = req.params;
+      const fetchFromCafe24 = async (url, params, retry = false) => {
+          try {
+              return await axios.get(url, {
+                  params,
+                  headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
+              });
+          } catch (err) {
+              if (err.response && err.response.status === 401 && !retry) {
+                  await refreshAccessToken(); return await fetchFromCafe24(url, params, true);
+              }
+              throw err;
+          }
+      };
+
+      const couponRes = await fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`, { shop_no: 1, coupon_no: couponNo });
+      const coupon = (couponRes.data.coupons || [])[0];
+      if (!coupon) return res.status(404).json({ success: false, message: '쿠폰 없음' });
+
+      const productNos = coupon.available_product_list || [];
+      let productDetails = [];
+      
+      if (productNos.length > 0) {
+          try {
+              const chunkSize = 100;
+              for (let i = 0; i < productNos.length; i += chunkSize) {
+                  const chunk = productNos.slice(i, i + chunkSize);
+                  const productRes = await fetchFromCafe24(
+                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+                      { shop_no: 1, product_no: chunk.join(','), fields: 'product_no,product_name,price,detail_image,list_image,small_image', limit: 100 }
+                  );
+                  const chunkDetails = (productRes.data.products || []).map(p => ({
+                      product_no: p.product_no, product_name: p.product_name, price: Math.floor(Number(p.price)), image: p.detail_image || p.list_image || p.small_image || ''
+                  }));
+                  productDetails = productDetails.concat(chunkDetails);
+              }
+          } catch (e) {
+              productDetails = productNos.map(no => ({ product_no: no, product_name: `상품 #${no}`, price: 0, image: '' }));
+          }
+      }
+
+      res.json({
+          success: true, 
+          data: {
+              coupon_no: coupon.coupon_no, coupon_name: coupon.coupon_name, benefit_type: coupon.benefit_type,
+              benefit_percentage: coupon.benefit_percentage ? parseFloat(coupon.benefit_percentage) : null,
+              benefit_price: coupon.benefit_price ? Math.floor(parseFloat(coupon.benefit_price)) : null,
+              available_product_type: coupon.available_product || 'A', available_product_list: productNos, products: productDetails
+          }
+      });
+  } catch (error) { res.status(500).json({ success: false, message: 'Cafe24 Coupon API Error' }); }
+});
+
+app.post('/api/coupon-map', async (req, res) => {
+  try {
+      const { coupon_no, coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products } = req.body;
+      if (!coupon_no) return res.status(400).json({ success: false });
+
+      await db.collection(COLLECTION_COUPON_MAP).updateOne(
+          { coupon_no: String(coupon_no) },
+          { $set: { coupon_no: String(coupon_no), coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products, updated_at: new Date() } },
+          { upsert: true }
+      );
+      res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.get('/api/coupon-map', async (req, res) => {
+  try {
+      const mappings = await db.collection(COLLECTION_COUPON_MAP).find({}).toArray();
+      const today = new Date().toISOString().slice(0, 10);
+      const active = mappings.filter(m => !m.end_date || m.end_date >= today);
+      res.json({ success: true, data: active });
+  } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.delete('/api/coupon-map/:couponNo', async (req, res) => {
+  try {
+      await db.collection(COLLECTION_COUPON_MAP).deleteOne({ coupon_no: String(req.params.couponNo) });
+      res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false }); }
+});
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
