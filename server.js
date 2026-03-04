@@ -1946,19 +1946,33 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 });
 
 
+
 // ==========================================
-// [추가] 자사몰(홈페이지) 전용 통계 데이터 호출 API
+// [수정] 자사몰(홈페이지) 전용 통계 데이터 호출 (안정성 및 전월 비교 추가)
 // ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { month } = req.query; // 예: '2026-03'
       if (!month) return res.status(400).json({ success: false, message: '월(month) 정보가 필요합니다.' });
 
-      // 조회할 월의 시작일과 종료일 계산 (YYYY-MM-DD 형식)
-      const [year, m] = month.split('-');
-      const startDate = `${year}-${m}-01`;
-      // 해당 월의 마지막 날짜 계산
-      const endDate = new Date(year, m, 0).toISOString().split('T')[0];
+      const [year, m] = month.split('-').map(Number);
+
+      // KST 기준 안전한 날짜(문자열) 계산 함수 (UTC 변환 시 하루 밀리는 현상 방지)
+      const getMonthDates = (y, mo) => {
+          const lastDay = new Date(y, mo, 0).getDate();
+          return {
+              s: `${y}-${String(mo).padStart(2, '0')}-01`,
+              e: `${y}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+          };
+      };
+
+      // 당월 날짜
+      const current = getMonthDates(year, m);
+      
+      // 전월 날짜 계산
+      const prevY = m === 1 ? year - 1 : year;
+      const prevM = m === 1 ? 12 : m - 1;
+      const previous = getMonthDates(prevY, prevM);
 
       // API 반복 호출을 위한 래퍼 함수 (토큰 갱신 포함)
       const fetchFromCafe24 = async (url, params, retry = false) => {
@@ -1976,113 +1990,100 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                   await refreshAccessToken();
                   return await fetchFromCafe24(url, params, true);
               }
+              // 권한 부족 등 에러 발생 시 로그를 남기고 위로 던짐
+              console.error(`[Cafe24 API 실패] ${url}:`, err.response ? err.response.data : err.message);
               throw err;
           }
       };
 
-      // 1. 주문 데이터 긁어오기 (결제완료 기준)
-      let allOrders = [];
-      let orderHasMore = true;
-      let orderOffset = 0;
-      
-      while (orderHasMore && orderOffset < 3000) { // 최대 3000건 제한 (무한루프 방지)
-          const orderRes = await fetchFromCafe24(
-              `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-              {
-                  shop_no: 1,
-                  start_date: startDate,
-                  end_date: endDate,
-                  date_type: 'payment_date', // 결제일 기준
-                  limit: 100,
-                  offset: orderOffset
+      // 데이터 집계 공통 함수 (특정 기간을 받아서 처리)
+      const getStats = async (startDate, endDate) => {
+          let totalAmt = 0, ordCount = 0, firstP = 0, repeatP = 0, signups = 0;
+          
+          // 1. 주문 데이터 긁어오기 (결제완료 기준)
+          try {
+              let orderHasMore = true;
+              let orderOffset = 0;
+              
+              while (orderHasMore && orderOffset < 3000) { // 최대 3000건 제한
+                  const orderRes = await fetchFromCafe24(
+                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+                      {
+                          shop_no: 1,
+                          start_date: startDate,
+                          end_date: endDate,
+                          date_type: 'payment_date',
+                          limit: 100,
+                          offset: orderOffset
+                      }
+                  );
+                  const orders = orderRes.data.orders || [];
+                  
+                  // 취소/교환/반품(C, R, E)을 제외한 유효 주문 집계
+                  orders.filter(o => !['C', 'R', 'E'].includes(o.order_status)).forEach(o => {
+                      totalAmt += Number(o.actual_pay_amount || 0);
+                      ordCount++;
+                      if (o.member_id) repeatP++; else firstP++;
+                  });
+                  
+                  if (orders.length < 100) orderHasMore = false;
+                  else orderOffset += 100;
               }
-          );
-          const orders = orderRes.data.orders || [];
-          // 결제완료, 배송준비중 등 유효한 주문만 필터링 (취소/교환/반품 제외)
-          const validOrders = orders.filter(o => !['C', 'R', 'E'].includes(o.order_status));
-          allOrders = allOrders.concat(validOrders);
-          
-          if (orders.length < 100) orderHasMore = false;
-          else orderOffset += 100;
-      }
-
-      // 2. 신규 가입자 데이터 긁어오기
-      let allCustomers = [];
-      let custHasMore = true;
-      let custOffset = 0;
-
-      while (custHasMore && custOffset < 3000) {
-          const custRes = await fetchFromCafe24(
-              `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
-              {
-                  shop_no: 1,
-                  start_date: startDate,
-                  end_date: endDate,
-                  date_type: 'created_date', // 가입일 기준
-                  limit: 100,
-                  offset: custOffset
-              }
-          );
-          const customers = custRes.data.customers || [];
-          allCustomers = allCustomers.concat(customers);
-          
-          if (customers.length < 100) custHasMore = false;
-          else custOffset += 100;
-      }
-
-      // --- 3. 데이터 집계 ---
-      let purchaseAmt = 0;              // 총 구매액
-      let purchaseCount = allOrders.length; // 총 구매건수
-      let firstPurchase = 0;            // 첫구매 수
-      let repeatPurchase = 0;           // 재구매 수
-
-      // 카페24 API 응답을 기반으로 첫/재구매 및 금액 계산
-      allOrders.forEach(o => {
-          purchaseAmt += Number(o.actual_pay_amount || 0); // 실 결제금액 합산
-          
-          // 주문 목록에서 첫/재구매 완벽 분리는 무거우므로, 
-          // 임시로 회원 ID 존재 여부나 과거 주문 유무 추정 방식을 씁니다.
-          if (o.member_id) {
-              repeatPurchase++; 
-          } else {
-              firstPurchase++;
+          } catch (err) {
+              console.log(`⚠️ ${startDate} ~ ${endDate} 주문 정보 가져오기 실패`);
+              // 실패해도 서버가 죽지 않고 넘어감 (totalAmt = 0 처리)
           }
-      });
 
-      // 수식 계산
-      let avgPurchaseAmt = purchaseCount > 0 ? Math.floor(purchaseAmt / purchaseCount) : 0;
-      let signups = allCustomers.length; // 신규 가입수
+          // 2. 신규 가입자 데이터 긁어오기 (회원조회 권한 없으면 여기서 자주 터짐)
+          try {
+              let custHasMore = true;
+              let custOffset = 0;
 
-      // ⚠️ 방문수, 회원로그인수는 카페24 REST API 미지원 항목입니다. 
-      // 차후 구글 애널리틱스 연동 전까지 0으로 비워둡니다.
-      let visitors = 0; 
-      let logins = 0;   
-      
-      let amtPerVisitor = visitors > 0 ? Math.floor(purchaseAmt / visitors) : 0;
-      let conversionRate = visitors > 0 ? ((purchaseCount / visitors) * 100) : 0;
+              while (custHasMore && custOffset < 3000) {
+                  const custRes = await fetchFromCafe24(
+                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
+                      {
+                          shop_no: 1,
+                          start_date: startDate,
+                          end_date: endDate,
+                          date_type: 'created_date',
+                          limit: 100,
+                          offset: custOffset
+                      }
+                  );
+                  const customers = custRes.data.customers || [];
+                  signups += customers.length;
+                  
+                  if (customers.length < 100) custHasMore = false;
+                  else custOffset += 100;
+              }
+          } catch (err) {
+              console.log(`⚠️ ${startDate} ~ ${endDate} 가입자 정보 가져오기 실패 (mall.read_customer 권한 문제일 확률 높음)`);
+              signups = 0; // 권한 없어서 실패하면 가입자 수 0으로 처리
+          }
 
-      // 최종 데이터 프론트로 전송
+          return { totalAmt, ordCount, firstP, repeatP, signups };
+      };
+
+      // 당월과 전월 데이터를 한 번에 조회
+      const [curStats, prevStats] = await Promise.all([
+          getStats(current.s, current.e),
+          getStats(previous.s, previous.e)
+      ]);
+
+      // 프론트엔드에서 요구하는 { current, previous } 구조로 리턴
       res.json({
           success: true,
-          data: {
-              purchaseAmt: purchaseAmt,
-              visitors: visitors,
-              logins: logins,
-              signups: signups,
-              purchaseCount: purchaseCount,
-              amtPerVisitor: amtPerVisitor,
-              avgPurchaseAmt: avgPurchaseAmt,
-              conversionRate: conversionRate,
-              firstPurchase: firstPurchase,
-              repeatPurchase: repeatPurchase
-          }
+          current: { ...curStats, visitors: 0, logins: 0 },
+          previous: { ...prevStats, visitors: 0, logins: 0 }
       });
 
   } catch (error) {
-      console.error("🔥 자사몰 통계 API 에러:", error.message);
+      console.error("🔥 자사몰 통계 API 최상위 에러:", error.message);
       res.status(500).json({ success: false, message: "통계 데이터를 불러오지 못했습니다." });
   }
 });
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
