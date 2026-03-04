@@ -1949,47 +1949,39 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 // ==========================================
 // [수정] 자사몰 통계 (CA API 방문자 + 첫구매/재구매 개선 - 기간 지정 방식)
 // ==========================================
-
-// ⚠️ 전제조건: 
-// 1. Cafe24 Analytics API(CA API) 앱 등록 및 토큰 발급 완료
-//    - CA API는 Admin API와 동일한 OAuth 토큰 사용 가능
-//    - 단, CA API 앱을 별도로 생성해야 할 수 있음 (개발자센터 > Cafe24 Analytics API)
-// 2. Admin API 권한: mall.read_order, mall.read_customer 필수
+// ==========================================
+// [수정] 자사몰 통계 (CA API 방문자 + 첫구매/재구매 개선 - 422 에러 해결)
+// ==========================================
 
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
-      // ★ 프론트엔드에서 넘겨주는 startDate와 endDate를 직접 받습니다.
       const { startDate, endDate } = req.query; 
       
       if (!startDate || !endDate) {
           return res.status(400).json({ success: false, message: '시작일과 종료일 정보가 필요합니다.' });
       }
 
-      // ── 1. 조회 기간 설정 ──
       const currentStart = startDate;
       const currentEnd = endDate;
 
-      // 전월 동기간 계산 (정확히 한 달 전)
       const sd = new Date(startDate);
       const ed = new Date(endDate);
       
       sd.setMonth(sd.getMonth() - 1);
       ed.setMonth(ed.getMonth() - 1);
 
-      // 3월 31일 -> 한 달 전으로 빼면 2월 31일이 되어 3월 3일로 넘어가는 버그 방지
       if (new Date(endDate).getDate() !== ed.getDate()) {
-          ed.setDate(0); // 이전 달의 마지막 날로 맞춤
+          ed.setDate(0); 
       }
 
       const formatD = (d) => {
-          const tzOffset = d.getTimezoneOffset() * 60000; // KST 보정
+          const tzOffset = d.getTimezoneOffset() * 60000; 
           return new Date(d.getTime() - tzOffset).toISOString().split('T')[0];
       };
 
       const prevStart = formatD(sd);
       const prevEnd = formatD(ed);
 
-      // ── 2. API 호출 헬퍼 ──
       const fetchFromCafe24 = async (url, params, retry = false) => {
           try {
               return await axios.get(url, {
@@ -2010,11 +2002,9 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 3. 방문자수 조회 (Cafe24 Analytics API) ──
       const getVisitors = async (sDate, eDate) => {
           let totalVisitors = 0;
           try {
-              // CA API: 방문자수 (순방문자)
               const visitorRes = await fetchFromCafe24(
                   `https://ca-api.cafe24data.com/visitors/view`,
                   {
@@ -2032,17 +2022,15 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                   });
               }
           } catch (err) {
-              console.log(`⚠️ ${sDate}~${eDate} 방문자 정보 가져오기 실패 (CA API)`);
+              // CA API 에러는 무시
           }
           return totalVisitors;
       };
 
-      // ── 4. 주문 + 가입자 통계 (Admin API) ──
       const getStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, signups = 0;
 
-          // ── 4-1. 주문 데이터 + member_id 수집 ──
-          const memberOrderMap = new Map(); // member_id → 해당 기간 주문 수
+          const memberOrderMap = new Map(); 
           let guestOrders = 0;
 
           try {
@@ -2055,7 +2043,8 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                           shop_no: 1,
                           start_date: sDate,
                           end_date: eDate,
-                          date_type: 'payment_date',
+                          // ★ 수정 포인트 1: 카페24 결제일 기준 검색 파라미터는 'pay_date' 입니다.
+                          date_type: 'pay_date', 
                           limit: 100,
                           offset: orderOffset
                       }
@@ -2080,7 +2069,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               console.log(`⚠️ ${sDate}~${eDate} 주문 정보 가져오기 실패`);
           }
 
-          // ── 4-2. 첫구매 / 재구매 판별 ──
           let firstP = 0, repeatP = 0;
           const memberIds = Array.from(memberOrderMap.keys());
           const chunkSize = 10;
@@ -2095,7 +2083,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                               shop_no: 1,
                               member_id: memberId,
                               end_date: new Date(new Date(sDate).getTime() - 86400000).toISOString().split('T')[0],
-                              date_type: 'payment_date',
+                              date_type: 'pay_date', // 여기도 수정
                               limit: 1,
                               offset: 0
                           }
@@ -2108,15 +2096,14 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                           firstP += memberOrderMap.get(memberId);
                       }
                   } catch (err) {
-                      repeatP += memberOrderMap.get(memberId); // 보수적으로 재구매로 분류
+                      repeatP += memberOrderMap.get(memberId); 
                   }
               });
               await Promise.all(checks);
           }
 
-          firstP += guestOrders; // 비회원은 첫구매 취급
+          firstP += guestOrders; 
 
-          // ── 4-3. 가입자 데이터 ──
           try {
               let custHasMore = true;
               let custOffset = 0;
@@ -2125,9 +2112,9 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
                       {
                           shop_no: 1,
-                          start_date: sDate,
-                          end_date: eDate,
-                          date_type: 'created_date',
+                          // ★ 수정 포인트 2: 회원 가입일 검색 시에는 전용 파라미터를 써야 합니다.
+                          created_start_date: sDate,
+                          created_end_date: eDate,
                           limit: 100,
                           offset: custOffset
                       }
@@ -2144,7 +2131,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           return { startDate: sDate, endDate: eDate, totalAmt, ordCount, firstP, repeatP, signups };
       };
 
-      // ── 5. 전체 데이터 병렬 조회 ──
       const [curStats, prevStats, curVisitors, prevVisitors] = await Promise.all([
           getStats(currentStart, currentEnd),
           getStats(prevStart, prevEnd),
@@ -2154,10 +2140,14 @@ app.get('/api/online/homepage-stats', async (req, res) => {
 
       res.json({
           success: true,
+          period: {
+              current: { start: currentStart, end: currentEnd },
+              previous: { start: prevStart, end: prevEnd }
+          },
           current: {
               ...curStats,
               visitors: curVisitors,
-              logins: 0
+              logins: 0 
           },
           previous: {
               ...prevStats,
@@ -2171,6 +2161,14 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
+
+
+
+
+
+
+
+
 
 
 
