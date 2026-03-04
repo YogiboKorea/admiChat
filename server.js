@@ -1945,9 +1945,8 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
-
 // ==========================================
-// [수정] 자사몰 통계 (Cafe24 Data API 방문자 + 주문 + 가입 완벽 연동본)
+// [수정] 자사몰 통계 (빠른 응답 & 서버 멈춤 방지 완료)
 // ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
@@ -1957,19 +1956,12 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           return res.status(400).json({ success: false, message: '시작일과 종료일 정보가 필요합니다.' });
       }
 
-      const currentStart = startDate;
-      const currentEnd = endDate;
-
       // 전월 동기간 계산
       const sd = new Date(startDate);
       const ed = new Date(endDate);
-      
       sd.setMonth(sd.getMonth() - 1);
       ed.setMonth(ed.getMonth() - 1);
-
-      if (new Date(endDate).getDate() !== ed.getDate()) {
-          ed.setDate(0); 
-      }
+      if (new Date(endDate).getDate() !== ed.getDate()) ed.setDate(0); 
 
       const formatD = (d) => {
           const tzOffset = d.getTimezoneOffset() * 60000; 
@@ -1994,59 +1986,41 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                   await refreshAccessToken();
                   return await fetchFromCafe24(url, params, true);
               }
-              console.error(`[Cafe24 API 실패] ${url}:`, err.response ? err.response.data : err.message);
               throw err;
           }
       };
 
-      // ── ★ 1. 방문수 & 로그인 방문수 조회 (Cafe24 Data API) ──
+      // ── 1. 방문자수 조회 (★ Data API 경로 수정 완료: /admin/ 없음) ──
       const getTraffic = async (sDate, eDate) => {
           let visitors = 0;
-          let logins = 0;
           try {
-              // 카페24 Data API 호출 (방문자 수)
               const trafficRes = await fetchFromCafe24(
-                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/data/visitors`,
-                  {
-                      shop_no: 1,
-                      start_date: sDate,
-                      end_date: eDate
-                  }
+                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/data/visitors`,
+                  { shop_no: 1, start_date: sDate, end_date: eDate }
               );
               
               const dataList = trafficRes.data.visitors || [];
               dataList.forEach(item => {
-                  // 순방문수 (unique_visitor) 또는 총방문수 합산
-                  visitors += Number(item.visitor || item.unique_visitor || item.visit_count || 0);
-                  // 로그인 회원 방문수 합산
-                  logins += Number(item.login_visitor || item.member_visitor || 0);
+                  visitors += Number(item.visit_count || item.visitor_count || 0);
               });
           } catch (err) {
-              console.log(`⚠️ ${sDate}~${eDate} 방문자 데이터 조회 실패 (Data API 관련)`);
+              console.log(`⚠️ ${sDate}~${eDate} 방문자 데이터 조회 실패 (Data API 권한 확인)`);
           }
-          return { visitors, logins };
+          return { visitors, logins: 0 }; // ⚠️ 카페24 API에서 로그인 방문자수는 외부 제공을 안 함
       };
 
-      // ── 2. 주문 & 가입자 조회 (Admin API) ──
+      // ── 2. 주문 & 가입자 조회 (과부하 루프 제거 완료) ──
       const getStats = async (sDate, eDate) => {
-          let totalAmt = 0, ordCount = 0, signups = 0;
-          const memberOrderMap = new Map(); 
-          let guestOrders = 0;
+          let totalAmt = 0, ordCount = 0, signups = 0, firstP = 0, repeatP = 0;
 
+          // 주문 수집
           try {
               let orderHasMore = true;
               let orderOffset = 0;
               while (orderHasMore && orderOffset < 3000) {
                   const orderRes = await fetchFromCafe24(
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-                      {
-                          shop_no: 1,
-                          start_date: sDate,
-                          end_date: eDate,
-                          date_type: 'pay_date', 
-                          limit: 100,
-                          offset: orderOffset
-                      }
+                      { shop_no: 1, start_date: sDate, end_date: eDate, date_type: 'pay_date', limit: 100, offset: orderOffset }
                   );
                   const orders = orderRes.data.orders || [];
                   orders
@@ -2054,86 +2028,36 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       .forEach(o => {
                           totalAmt += Number(o.actual_pay_amount || 0);
                           ordCount++;
-
-                          if (o.member_id) {
-                              memberOrderMap.set(o.member_id, (memberOrderMap.get(o.member_id) || 0) + 1);
-                          } else {
-                              guestOrders++;
-                          }
+                          // ★ 속도를 위해 가볍게 추정 (회원번호 있으면 재구매, 없으면 비회원 첫구매)
+                          if (o.member_id) repeatP++; else firstP++;
                       });
-                  if (orders.length < 100) orderHasMore = false;
-                  else orderOffset += 100;
+                  if (orders.length < 100) orderHasMore = false; else orderOffset += 100;
               }
-          } catch (err) {
-              console.log(`⚠️ ${sDate}~${eDate} 주문 정보 가져오기 실패`);
-          }
+          } catch (err) { console.log(`⚠️ ${sDate}~${eDate} 주문 정보 가져오기 실패`); }
 
-          let firstP = 0, repeatP = 0;
-          const memberIds = Array.from(memberOrderMap.keys());
-          const chunkSize = 10;
-          
-          for (let i = 0; i < memberIds.length; i += chunkSize) {
-              const chunk = memberIds.slice(i, i + chunkSize);
-              const checks = chunk.map(async (memberId) => {
-                  try {
-                      const prevOrderRes = await fetchFromCafe24(
-                          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-                          {
-                              shop_no: 1,
-                              member_id: memberId,
-                              end_date: new Date(new Date(sDate).getTime() - 86400000).toISOString().split('T')[0],
-                              date_type: 'pay_date',
-                              limit: 1,
-                              offset: 0
-                          }
-                      );
-                      const prevOrders = (prevOrderRes.data.orders || []).filter(o => !['C', 'R', 'E'].includes(o.order_status));
-
-                      if (prevOrders.length > 0) {
-                          repeatP += memberOrderMap.get(memberId);
-                      } else {
-                          firstP += memberOrderMap.get(memberId);
-                      }
-                  } catch (err) {
-                      repeatP += memberOrderMap.get(memberId); 
-                  }
-              });
-              await Promise.all(checks);
-          }
-
-          firstP += guestOrders; 
-
+          // 가입자 수집
           try {
               let custHasMore = true;
               let custOffset = 0;
               while (custHasMore && custOffset < 3000) {
                   const custRes = await fetchFromCafe24(
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
-                      {
-                          shop_no: 1,
-                          created_start_date: sDate,
-                          created_end_date: eDate,
-                          limit: 100,
-                          offset: custOffset
-                      }
+                      { shop_no: 1, created_start_date: sDate, created_end_date: eDate, limit: 100, offset: custOffset }
                   );
                   const customers = custRes.data.customers || [];
                   signups += customers.length;
-                  if (customers.length < 100) custHasMore = false;
-                  else custOffset += 100;
+                  if (customers.length < 100) custHasMore = false; else custOffset += 100;
               }
-          } catch (err) {
-              console.log(`⚠️ ${sDate}~${eDate} 가입자 정보 가져오기 실패`);
-          }
+          } catch (err) { console.log(`⚠️ ${sDate}~${eDate} 가입자 정보 가져오기 실패`); }
 
           return { startDate: sDate, endDate: eDate, totalAmt, ordCount, firstP, repeatP, signups };
       };
 
-      // ── 3. 모든 데이터 병렬 조회 (현재월 주문, 현재월 방문, 전월 주문, 전월 방문) ──
+      // 당월과 전월 데이터 4개를 동시에 쫙 긁어옴
       const [curStats, prevStats, curTraffic, prevTraffic] = await Promise.all([
-          getStats(currentStart, currentEnd),
+          getStats(startDate, endDate),
           getStats(prevStart, prevEnd),
-          getTraffic(currentStart, currentEnd),
+          getTraffic(startDate, endDate),
           getTraffic(prevStart, prevEnd)
       ]);
 
@@ -2144,11 +2068,10 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       });
 
   } catch (error) {
-      console.error("🔥 자사몰 통계 API 에러:", error.message);
+      console.error("🔥 홈페이지 통계 API 에러:", error);
       res.status(500).json({ success: false });
   }
 });
-
 
 
 
