@@ -1946,9 +1946,8 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 });
 
 
-
 // ==========================================
-// [수정] 자사몰(홈페이지) 전용 통계 데이터 호출 (안정성 및 전월 비교 추가)
+// [수정] 자사몰 통계 (스마트 당월/전월 동기간 비교 로직 적용)
 // ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
@@ -1956,122 +1955,93 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       if (!month) return res.status(400).json({ success: false, message: '월(month) 정보가 필요합니다.' });
 
       const [year, m] = month.split('-').map(Number);
-
-      // KST 기준 안전한 날짜(문자열) 계산 함수 (UTC 변환 시 하루 밀리는 현상 방지)
-      const getMonthDates = (y, mo) => {
-          const lastDay = new Date(y, mo, 0).getDate();
-          return {
-              s: `${y}-${String(mo).padStart(2, '0')}-01`,
-              e: `${y}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-          };
-      };
-
-      // 당월 날짜
-      const current = getMonthDates(year, m);
       
-      // 전월 날짜 계산
+      // 오늘 날짜 구하기 (KST 기준 처리를 위해 약간의 보정)
+      const today = new Date();
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth() + 1;
+      const todayDate = today.getDate();
+
+      // 선택한 월이 '이번 달'인지 확인
+      const isCurrentMonth = (year === todayYear && m === todayMonth);
+
+      // 1. 현재 조회 기간 (Current Period) 설정
+      let startDay = 1;
+      let endDay = isCurrentMonth ? todayDate : new Date(year, m, 0).getDate(); // 이번 달이면 오늘까지, 과거면 말일까지
+
+      const currentStart = `${year}-${String(m).padStart(2, '0')}-01`;
+      const currentEnd = `${year}-${String(m).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+      // 2. 전월 동기간 (Previous Period) 설정
       const prevY = m === 1 ? year - 1 : year;
       const prevM = m === 1 ? 12 : m - 1;
-      const previous = getMonthDates(prevY, prevM);
+      const prevMonthMaxDay = new Date(prevY, prevM, 0).getDate();
+      // 2월 28일/29일 같은 예외 상황 방지 (endDay가 전월 말일보다 크면 전월 말일로 맞춤)
+      const safePrevEndDay = Math.min(endDay, prevMonthMaxDay); 
 
-      // API 반복 호출을 위한 래퍼 함수 (토큰 갱신 포함)
+      const prevStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+      const prevEnd = `${prevY}-${String(prevM).padStart(2, '0')}-${String(safePrevEndDay).padStart(2, '0')}`;
+
       const fetchFromCafe24 = async (url, params, retry = false) => {
           try {
               return await axios.get(url, {
-                  params: params,
-                  headers: {
-                      Authorization: `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                      'X-Cafe24-Api-Version': CAFE24_API_VERSION
-                  }
+                  params,
+                  headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
               });
           } catch (err) {
               if (err.response && err.response.status === 401 && !retry) {
                   await refreshAccessToken();
                   return await fetchFromCafe24(url, params, true);
               }
-              // 권한 부족 등 에러 발생 시 로그를 남기고 위로 던짐
               console.error(`[Cafe24 API 실패] ${url}:`, err.response ? err.response.data : err.message);
               throw err;
           }
       };
 
-      // 데이터 집계 공통 함수 (특정 기간을 받아서 처리)
       const getStats = async (startDate, endDate) => {
           let totalAmt = 0, ordCount = 0, firstP = 0, repeatP = 0, signups = 0;
           
-          // 1. 주문 데이터 긁어오기 (결제완료 기준)
+          // 주문 데이터 긁어오기
           try {
               let orderHasMore = true;
               let orderOffset = 0;
-              
-              while (orderHasMore && orderOffset < 3000) { // 최대 3000건 제한
-                  const orderRes = await fetchFromCafe24(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-                      {
-                          shop_no: 1,
-                          start_date: startDate,
-                          end_date: endDate,
-                          date_type: 'payment_date',
-                          limit: 100,
-                          offset: orderOffset
-                      }
-                  );
+              while (orderHasMore && orderOffset < 3000) {
+                  const orderRes = await fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`, {
+                      shop_no: 1, start_date: startDate, end_date: endDate, date_type: 'payment_date', limit: 100, offset: orderOffset
+                  });
                   const orders = orderRes.data.orders || [];
-                  
-                  // 취소/교환/반품(C, R, E)을 제외한 유효 주문 집계
                   orders.filter(o => !['C', 'R', 'E'].includes(o.order_status)).forEach(o => {
                       totalAmt += Number(o.actual_pay_amount || 0);
                       ordCount++;
                       if (o.member_id) repeatP++; else firstP++;
                   });
-                  
-                  if (orders.length < 100) orderHasMore = false;
-                  else orderOffset += 100;
+                  if (orders.length < 100) orderHasMore = false; else orderOffset += 100;
               }
-          } catch (err) {
-              console.log(`⚠️ ${startDate} ~ ${endDate} 주문 정보 가져오기 실패`);
-              // 실패해도 서버가 죽지 않고 넘어감 (totalAmt = 0 처리)
-          }
+          } catch (err) { console.log(`⚠️ ${startDate}~${endDate} 주문 정보 가져오기 실패`); }
 
-          // 2. 신규 가입자 데이터 긁어오기 (회원조회 권한 없으면 여기서 자주 터짐)
+          // 가입자 데이터 긁어오기
           try {
               let custHasMore = true;
               let custOffset = 0;
-
               while (custHasMore && custOffset < 3000) {
-                  const custRes = await fetchFromCafe24(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
-                      {
-                          shop_no: 1,
-                          start_date: startDate,
-                          end_date: endDate,
-                          date_type: 'created_date',
-                          limit: 100,
-                          offset: custOffset
-                      }
-                  );
+                  const custRes = await fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`, {
+                      shop_no: 1, start_date: startDate, end_date: endDate, date_type: 'created_date', limit: 100, offset: custOffset
+                  });
                   const customers = custRes.data.customers || [];
                   signups += customers.length;
-                  
-                  if (customers.length < 100) custHasMore = false;
-                  else custOffset += 100;
+                  if (customers.length < 100) custHasMore = false; else custOffset += 100;
               }
-          } catch (err) {
-              console.log(`⚠️ ${startDate} ~ ${endDate} 가입자 정보 가져오기 실패 (mall.read_customer 권한 문제일 확률 높음)`);
-              signups = 0; // 권한 없어서 실패하면 가입자 수 0으로 처리
-          }
+          } catch (err) { console.log(`⚠️ ${startDate}~${endDate} 가입자 정보 가져오기 실패`); }
 
-          return { totalAmt, ordCount, firstP, repeatP, signups };
+          return { startDate, endDate, totalAmt, ordCount, firstP, repeatP, signups };
       };
 
-      // 당월과 전월 데이터를 한 번에 조회
+      // 당월과 전월 데이터 병렬 조회
       const [curStats, prevStats] = await Promise.all([
-          getStats(current.s, current.e),
-          getStats(previous.s, previous.e)
+          getStats(currentStart, currentEnd),
+          getStats(prevStart, prevEnd)
       ]);
 
-      // 프론트엔드에서 요구하는 { current, previous } 구조로 리턴
       res.json({
           success: true,
           current: { ...curStats, visitors: 0, logins: 0 },
@@ -2079,11 +2049,10 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       });
 
   } catch (error) {
-      console.error("🔥 자사몰 통계 API 최상위 에러:", error.message);
-      res.status(500).json({ success: false, message: "통계 데이터를 불러오지 못했습니다." });
+      console.error("🔥 자사몰 통계 API 에러:", error.message);
+      res.status(500).json({ success: false });
   }
 });
-
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
