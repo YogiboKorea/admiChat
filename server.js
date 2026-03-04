@@ -1947,12 +1947,8 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 
 
 // ==========================================
-// [수정] 자사몰 통계 (CA API 방문자 + 첫구매/재구매 개선 - 기간 지정 방식)
+// [수정] 자사몰 통계 (Cafe24 Data API 방문자 + 주문 + 가입 완벽 연동본)
 // ==========================================
-// ==========================================
-// [수정] 자사몰 통계 (CA API 방문자 + 첫구매/재구매 개선 - 422 에러 해결)
-// ==========================================
-
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query; 
@@ -1964,6 +1960,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       const currentStart = startDate;
       const currentEnd = endDate;
 
+      // 전월 동기간 계산
       const sd = new Date(startDate);
       const ed = new Date(endDate);
       
@@ -2002,34 +1999,37 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      const getVisitors = async (sDate, eDate) => {
-          let totalVisitors = 0;
+      // ── ★ 1. 방문수 & 로그인 방문수 조회 (Cafe24 Data API) ──
+      const getTraffic = async (sDate, eDate) => {
+          let visitors = 0;
+          let logins = 0;
           try {
-              const visitorRes = await fetchFromCafe24(
-                  `https://ca-api.cafe24data.com/visitors/view`,
+              // 카페24 Data API 호출 (방문자 수)
+              const trafficRes = await fetchFromCafe24(
+                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/data/visitors`,
                   {
-                      mall_id: CAFE24_MALLID,
                       shop_no: 1,
                       start_date: sDate,
                       end_date: eDate
                   }
               );
-
-              const visitorData = visitorRes.data.visitors || visitorRes.data || [];
-              if (Array.isArray(visitorData)) {
-                  visitorData.forEach(v => {
-                      totalVisitors += Number(v.unique_visitor || v.visitor || v.visit || 0);
-                  });
-              }
+              
+              const dataList = trafficRes.data.visitors || [];
+              dataList.forEach(item => {
+                  // 순방문수 (unique_visitor) 또는 총방문수 합산
+                  visitors += Number(item.visitor || item.unique_visitor || item.visit_count || 0);
+                  // 로그인 회원 방문수 합산
+                  logins += Number(item.login_visitor || item.member_visitor || 0);
+              });
           } catch (err) {
-              // CA API 에러는 무시
+              console.log(`⚠️ ${sDate}~${eDate} 방문자 데이터 조회 실패 (Data API 관련)`);
           }
-          return totalVisitors;
+          return { visitors, logins };
       };
 
+      // ── 2. 주문 & 가입자 조회 (Admin API) ──
       const getStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, signups = 0;
-
           const memberOrderMap = new Map(); 
           let guestOrders = 0;
 
@@ -2043,7 +2043,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                           shop_no: 1,
                           start_date: sDate,
                           end_date: eDate,
-                          // ★ 수정 포인트 1: 카페24 결제일 기준 검색 파라미터는 'pay_date' 입니다.
                           date_type: 'pay_date', 
                           limit: 100,
                           offset: orderOffset
@@ -2083,7 +2082,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                               shop_no: 1,
                               member_id: memberId,
                               end_date: new Date(new Date(sDate).getTime() - 86400000).toISOString().split('T')[0],
-                              date_type: 'pay_date', // 여기도 수정
+                              date_type: 'pay_date',
                               limit: 1,
                               offset: 0
                           }
@@ -2112,7 +2111,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
                       {
                           shop_no: 1,
-                          // ★ 수정 포인트 2: 회원 가입일 검색 시에는 전용 파라미터를 써야 합니다.
                           created_start_date: sDate,
                           created_end_date: eDate,
                           limit: 100,
@@ -2131,29 +2129,18 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           return { startDate: sDate, endDate: eDate, totalAmt, ordCount, firstP, repeatP, signups };
       };
 
-      const [curStats, prevStats, curVisitors, prevVisitors] = await Promise.all([
+      // ── 3. 모든 데이터 병렬 조회 (현재월 주문, 현재월 방문, 전월 주문, 전월 방문) ──
+      const [curStats, prevStats, curTraffic, prevTraffic] = await Promise.all([
           getStats(currentStart, currentEnd),
           getStats(prevStart, prevEnd),
-          getVisitors(currentStart, currentEnd),
-          getVisitors(prevStart, prevEnd)
+          getTraffic(currentStart, currentEnd),
+          getTraffic(prevStart, prevEnd)
       ]);
 
       res.json({
           success: true,
-          period: {
-              current: { start: currentStart, end: currentEnd },
-              previous: { start: prevStart, end: prevEnd }
-          },
-          current: {
-              ...curStats,
-              visitors: curVisitors,
-              logins: 0 
-          },
-          previous: {
-              ...prevStats,
-              visitors: prevVisitors,
-              logins: 0
-          }
+          current: { ...curStats, ...curTraffic },
+          previous: { ...prevStats, ...prevTraffic }
       });
 
   } catch (error) {
@@ -2161,11 +2148,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false });
   }
 });
-
-
-
-
-
 
 
 
