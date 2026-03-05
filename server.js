@@ -1944,8 +1944,10 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
       res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false }); }
 });
+
+
 // ==========================================
-// [수정] 자사몰 통계 - 필드명 및 로직 수정
+// [수정 완료] 자사몰 통계 - 실제 API 응답 구조 반영
 // ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
@@ -1957,7 +1959,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
 
       const fetchFromCafe24 = async (url, params, retry = false) => {
           try {
-              const response = await axios.get(url, {
+              return await axios.get(url, {
                   params,
                   headers: {
                       Authorization: `Bearer ${accessToken}`,
@@ -1965,7 +1967,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       'X-Cafe24-Api-Version': CAFE24_API_VERSION
                   }
               });
-              return response;
           } catch (err) {
               if (err.response && err.response.status === 401 && !retry) {
                   await refreshAccessToken();
@@ -1975,12 +1976,10 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 주문 & 가입자 조회 ──
       const getStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, signups = 0, firstP = 0, repeatP = 0;
-          const memberOrderCount = {}; // 회원별 주문 횟수 추적
 
-          // 주문 수집
+          // ── 주문 수집 ──
           try {
               let orderHasMore = true;
               let orderOffset = 0;
@@ -1994,57 +1993,40 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                           end_date: eDate, 
                           date_type: 'pay_date', 
                           limit: 100, 
-                          offset: orderOffset,
-                          // 임베드로 결제 정보 포함 요청
-                          embed: 'payments'
+                          offset: orderOffset 
                       }
                   );
                   
                   const orders = orderRes.data.orders || [];
                   
-                  // 디버깅: 첫 주문 데이터 구조 확인
-                  if (orderOffset === 0 && orders.length > 0) {
-                      console.log('📦 주문 데이터 샘플:', JSON.stringify(orders[0], null, 2));
-                  }
-                  
                   orders
                       .filter(o => !['C', 'R', 'E'].includes(o.order_status))
                       .forEach(o => {
-                          // ★ 카페24 실제 필드명으로 수정
-                          const amount = Number(o.actual_order_amount) 
-                                      || Number(o.payment_amount) 
-                                      || Number(o.total_order_price_amount)
-                                      || Number(o.order_price_amount)
-                                      || 0;
+                          // ★ 최상위 payment_amount 사용 (문자열이므로 Number 변환)
+                          const amount = Number(o.payment_amount) || 0;
                           
                           totalAmt += amount;
                           ordCount++;
                           
-                          // 첫구매/재구매 판별
-                          const memberId = o.member_id || o.buyer_email || 'guest';
-                          if (!memberOrderCount[memberId]) {
-                              memberOrderCount[memberId] = 0;
+                          // ★ first_order 필드로 정확한 첫구매/재구매 판별
+                          if (o.first_order === 'T') {
                               firstP++;
                           } else {
                               repeatP++;
                           }
-                          memberOrderCount[memberId]++;
                       });
                       
                   if (orders.length < 100) orderHasMore = false; 
                   else orderOffset += 100;
               }
               
-              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
+              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원, 첫구매: ${firstP}, 재구매: ${repeatP}`);
               
           } catch (err) { 
               console.log(`⚠️ ${sDate}~${eDate} 주문 정보 가져오기 실패:`, err.message);
-              if (err.response) {
-                  console.log('응답 데이터:', err.response.data);
-              }
           }
 
-          // 가입자 수집
+          // ── 가입자 수집 ──
           try {
               let custHasMore = true;
               let custOffset = 0;
@@ -2054,9 +2036,8 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
                       { 
                           shop_no: 1, 
-                          // ★ 파라미터명 수정
-                          created_start_date: sDate.replace(/-/g, ''), // YYYYMMDD 형식
-                          created_end_date: eDate.replace(/-/g, ''),
+                          created_start_date: sDate,
+                          created_end_date: eDate,
                           limit: 100, 
                           offset: custOffset 
                       }
@@ -2086,15 +2067,15 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           };
       };
 
-      // 현재 기간 데이터만 조회 (전월 비교 제거됨)
       const curStats = await getStats(startDate, endDate);
 
       res.json({
           success: true,
           current: { 
-              ...curStats, 
-              visitors: 0,  // Data API 미사용시 0 반환
-              logins: 0 
+              ...curStats,
+              // ⚠️ 방문수/로그인수는 Data API 별도 구독 필요 (현재 미지원)
+              visitors: null,
+              logins: null
           }
       });
 
@@ -2103,8 +2084,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 });
-
-
 
 
 
