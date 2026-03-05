@@ -1946,6 +1946,12 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 });
 
 
+
+// ==========온라인 목표 매출 통계관련 데이터 ==========
+
+// ==========================================
+// [업데이트] 자사몰 통계 - 일별 데이터 + 합계
+// ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query; 
@@ -1973,9 +1979,23 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 1. 방문자 데이터 ──
-      const getVisitors = async (sDate, eDate) => {
-          let visitors = 0, firstVisit = 0, reVisit = 0;
+      // 날짜 범위 생성
+      const getDatesInRange = (start, end) => {
+          const dates = [];
+          let current = new Date(start);
+          const endDate = new Date(end);
+          while (current <= endDate) {
+              dates.push(current.toISOString().split('T')[0]);
+              current.setDate(current.getDate() + 1);
+          }
+          return dates;
+      };
+
+      const dateRange = getDatesInRange(startDate, endDate);
+
+      // ── 1. 방문자 데이터 (일별) ──
+      const getVisitorsByDate = async (sDate, eDate) => {
+          const visitorMap = {};
           
           try {
               const visitorRes = await axios.get(
@@ -1997,175 +2017,171 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               const data = visitorRes.data;
               if (data.view && Array.isArray(data.view)) {
                   data.view.forEach(v => {
-                      visitors += Number(v.visit_count || 0);
-                      firstVisit += Number(v.first_visit_count || 0);
-                      reVisit += Number(v.re_visit_count || 0);
+                      const date = v.date.split('T')[0];
+                      visitorMap[date] = {
+                          visitors: Number(v.visit_count || 0),
+                          firstVisit: Number(v.first_visit_count || 0),
+                          reVisit: Number(v.re_visit_count || 0)
+                      };
                   });
               }
-              
-              console.log(`✅ ${sDate}~${eDate} 방문자: ${visitors}명 (신규: ${firstVisit}, 재방문: ${reVisit})`);
-              
           } catch (err) {
               console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
           }
           
-          return { visitors, firstVisit, reVisit };
+          return visitorMap;
       };
 
-      // ── 2. 회원가입 데이터 ──
-      const getMemberJoin = async (sDate, eDate) => {
-          let joinCount = 0;
-          
+      // ── 2. 주문 데이터 (일별 집계) ──
+      const getOrdersByDate = async (sDate, eDate) => {
+          const orderMap = {};
+          const detailMap = {
+              newMemberList: [],
+              existMemberList: [],
+              guestList: []
+          };
+
           try {
-              const joinRes = await axios.get(
-                  `https://ca-api.cafe24data.com/members/join`,
-                  {
-                      params: {
-                          mall_id: 'yogibo',
-                          shop_no: 1,
-                          start_date: sDate,
-                          end_date: eDate
-                      },
-                      headers: {
-                          Authorization: `Bearer ${accessToken}`,
-                          'Content-Type': 'application/json'
+              let orderHasMore = true;
+              let orderOffset = 0;
+              
+              while (orderHasMore && orderOffset < 5000) {
+                  const orderRes = await fetchFromCafe24(
+                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+                      { 
+                          shop_no: 1, 
+                          start_date: sDate, 
+                          end_date: eDate, 
+                          date_type: 'pay_date', 
+                          limit: 100, 
+                          offset: orderOffset,
+                          embed: 'items'
                       }
-                  }
-              );
-              
-              console.log('📋 회원가입 API 응답:', JSON.stringify(joinRes.data, null, 2));
-              
-              const data = joinRes.data;
-              if (data.join && Array.isArray(data.join)) {
-                  data.join.forEach(v => joinCount += Number(v.join_count || v.count || 0));
-              } else if (data.view && Array.isArray(data.view)) {
-                  data.view.forEach(v => joinCount += Number(v.join_count || v.count || 0));
+                  );
+                  
+                  const orders = orderRes.data.orders || [];
+                  
+                  orders
+                      .filter(o => !['C', 'R', 'E'].includes(o.order_status))
+                      .forEach(o => {
+                          const date = o.payment_date ? o.payment_date.split('T')[0] : o.order_date.split('T')[0];
+                          
+                          if (!orderMap[date]) {
+                              orderMap[date] = {
+                                  totalAmt: 0,
+                                  ordCount: 0,
+                                  newMemberBuy: 0,
+                                  existMemberBuy: 0,
+                                  guestBuy: 0
+                              };
+                          }
+                          
+                          const amt = Number(o.payment_amount) || 0;
+                          orderMap[date].totalAmt += amt;
+                          orderMap[date].ordCount++;
+                          
+                          // 상세 정보
+                          const orderDetail = {
+                              orderNo: o.order_id,
+                              orderDate: o.order_date,
+                              buyerName: o.billing_name || '비공개',
+                              buyerEmail: o.member_email || '-',
+                              memberId: o.member_id || null,
+                              paymentAmount: amt,
+                              items: (o.items || []).map(item => ({
+                                  productName: item.product_name,
+                                  quantity: item.quantity,
+                                  price: Number(item.product_price) || 0,
+                                  optionValue: item.option_value || ''
+                              }))
+                          };
+                          
+                          if (o.member_id) {
+                              if (o.first_order === 'T') {
+                                  orderMap[date].newMemberBuy++;
+                                  detailMap.newMemberList.push({ ...orderDetail, date });
+                              } else {
+                                  orderMap[date].existMemberBuy++;
+                                  detailMap.existMemberList.push({ ...orderDetail, date });
+                              }
+                          } else {
+                              orderMap[date].guestBuy++;
+                              detailMap.guestList.push({ ...orderDetail, date });
+                          }
+                      });
+                      
+                  if (orders.length < 100) orderHasMore = false; 
+                  else orderOffset += 100;
               }
               
-              console.log(`✅ ${sDate}~${eDate} 신규가입: ${joinCount}명`);
-              
-          } catch (err) {
-              console.log('⚠️ 회원가입 데이터 조회 실패:', err.message);
-              if (err.response) {
-                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
-              }
+          } catch (err) { 
+              console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
           }
-          
-          return joinCount;
-      };
 
-            // ── 주문 데이터 (구매자 상세 정보 포함) ──
-      const getOrderStats = async (sDate, eDate) => {
-        let totalAmt = 0, ordCount = 0;
-        let newMemberBuy = 0, existMemberBuy = 0, guestBuy = 0;
-        
-        // 상세 정보 저장
-        let newMemberList = [];
-        let existMemberList = [];
-        let guestList = [];
-
-        try {
-            let orderHasMore = true;
-            let orderOffset = 0;
-            
-            while (orderHasMore && orderOffset < 3000) {
-                const orderRes = await fetchFromCafe24(
-                    `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-                    { 
-                        shop_no: 1, 
-                        start_date: sDate, 
-                        end_date: eDate, 
-                        date_type: 'pay_date', 
-                        limit: 100, 
-                        offset: orderOffset,
-                        embed: 'items'  // 주문 상품 정보 포함
-                    }
-                );
-                
-                const orders = orderRes.data.orders || [];
-                
-                orders
-                    .filter(o => !['C', 'R', 'E'].includes(o.order_status))
-                    .forEach(o => {
-                        totalAmt += Number(o.payment_amount) || 0;
-                        ordCount++;
-                        
-                        // 주문 상세 정보 구성
-                        const orderDetail = {
-                            orderNo: o.order_id,
-                            orderDate: o.order_date,
-                            buyerName: o.billing_name || '비공개',
-                            buyerEmail: o.member_email || '-',
-                            memberId: o.member_id || null,
-                            paymentAmount: Number(o.payment_amount) || 0,
-                            items: (o.items || []).map(item => ({
-                                productName: item.product_name,
-                                quantity: item.quantity,
-                                price: Number(item.product_price) || 0,
-                                optionValue: item.option_value || ''
-                            }))
-                        };
-                        
-                        if (o.member_id) {
-                            if (o.first_order === 'T') {
-                                newMemberBuy++;
-                                newMemberList.push(orderDetail);
-                            } else {
-                                existMemberBuy++;
-                                existMemberList.push(orderDetail);
-                            }
-                        } else {
-                            guestBuy++;
-                            guestList.push(orderDetail);
-                        }
-                    });
-                    
-                if (orders.length < 100) orderHasMore = false; 
-                else orderOffset += 100;
-            }
-            
-            console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
-            console.log(`   └ 신규회원: ${newMemberBuy}, 기존회원: ${existMemberBuy}, 비회원: ${guestBuy}`);
-            
-        } catch (err) { 
-            console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
-        }
-
-        return { 
-            totalAmt, 
-            ordCount, 
-            newMemberBuy,
-            existMemberBuy,
-            guestBuy,
-            // 상세 리스트
-            newMemberList,
-            existMemberList,
-            guestList
-        };
+          return { orderMap, detailMap };
       };
 
       // 병렬 조회
-      const [orderStats, visitorStats, joinCount] = await Promise.all([
-          getOrderStats(startDate, endDate),
-          getVisitors(startDate, endDate),
-          getMemberJoin(startDate, endDate)
+      const [visitorMap, orderData] = await Promise.all([
+          getVisitorsByDate(startDate, endDate),
+          getOrdersByDate(startDate, endDate)
       ]);
 
-      // 구매율 계산
-      const purchaseRate = visitorStats.visitors > 0 
-          ? ((orderStats.ordCount / visitorStats.visitors) * 100).toFixed(2)
-          : 0;
+      const { orderMap, detailMap } = orderData;
+
+      // 일별 데이터 조합
+      const dailyData = dateRange.map(date => {
+          const visitor = visitorMap[date] || { visitors: 0, firstVisit: 0, reVisit: 0 };
+          const order = orderMap[date] || { totalAmt: 0, ordCount: 0, newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0 };
+          
+          const purchaseRate = visitor.visitors > 0 
+              ? ((order.ordCount / visitor.visitors) * 100).toFixed(2)
+              : '0.00';
+          const visitAvg = visitor.visitors > 0 ? Math.floor(order.totalAmt / visitor.visitors) : 0;
+          const orderAvg = order.ordCount > 0 ? Math.floor(order.totalAmt / order.ordCount) : 0;
+          
+          return {
+              date,
+              ...visitor,
+              ...order,
+              purchaseRate,
+              visitAvg,
+              orderAvg
+          };
+      });
+
+      // 합계 계산
+      const totals = dailyData.reduce((acc, d) => {
+          acc.visitors += d.visitors;
+          acc.firstVisit += d.firstVisit;
+          acc.reVisit += d.reVisit;
+          acc.totalAmt += d.totalAmt;
+          acc.ordCount += d.ordCount;
+          acc.newMemberBuy += d.newMemberBuy;
+          acc.existMemberBuy += d.existMemberBuy;
+          acc.guestBuy += d.guestBuy;
+          return acc;
+      }, {
+          visitors: 0, firstVisit: 0, reVisit: 0,
+          totalAmt: 0, ordCount: 0,
+          newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0
+      });
+
+      totals.purchaseRate = totals.visitors > 0 
+          ? ((totals.ordCount / totals.visitors) * 100).toFixed(2)
+          : '0.00';
+      totals.visitAvg = totals.visitors > 0 ? Math.floor(totals.totalAmt / totals.visitors) : 0;
+      totals.orderAvg = totals.ordCount > 0 ? Math.floor(totals.totalAmt / totals.ordCount) : 0;
+
+      console.log(`✅ ${startDate}~${endDate} 일별 데이터 ${dailyData.length}일, 총 주문 ${totals.ordCount}건`);
 
       res.json({
           success: true,
-          current: {
-              startDate,
-              endDate,
-              ...orderStats,
-              ...visitorStats,
-              joinCount,
-              purchaseRate
-          }
+          startDate,
+          endDate,
+          daily: dailyData,
+          totals,
+          details: detailMap
       });
 
   } catch (error) {
@@ -2173,7 +2189,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 });
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
