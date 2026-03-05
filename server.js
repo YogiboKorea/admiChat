@@ -1945,9 +1945,7 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
-// ==========================================
-// [최종] 자사몰 통계 - 방문자 Data API 추가
-// ==========================================
+
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query; 
@@ -1975,9 +1973,9 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 1. 방문자 데이터 (Data API - cafe24data.com) ──
+      // ── 1. 방문자 데이터 ──
       const getVisitors = async (sDate, eDate) => {
-          let visitors = 0;
+          let visitors = 0, firstVisit = 0, reVisit = 0;
           
           try {
               const visitorRes = await axios.get(
@@ -1996,39 +1994,26 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                   }
               );
               
-              console.log('📊 방문자 API 응답:', JSON.stringify(visitorRes.data, null, 2));
-              
-              // 응답 구조에 따라 파싱 (로그 보고 조정 필요)
               const data = visitorRes.data;
-              if (Array.isArray(data)) {
-                  data.forEach(v => visitors += Number(v.visit_count || v.visitor_count || v.visitors || 0));
-              } else if (data.visitors) {
-                  if (Array.isArray(data.visitors)) {
-                      data.visitors.forEach(v => visitors += Number(v.visit_count || v.visitor_count || 0));
-                  } else {
-                      visitors = Number(data.visitors) || 0;
-                  }
-              } else if (data.data) {
-                  if (Array.isArray(data.data)) {
-                      data.data.forEach(v => visitors += Number(v.visit_count || v.visitor_count || v.visitors || 0));
-                  }
-              } else if (data.total_visitors) {
-                  visitors = Number(data.total_visitors) || 0;
+              
+              if (data.view && Array.isArray(data.view)) {
+                  data.view.forEach(v => {
+                      visitors += Number(v.visit_count || 0);
+                      firstVisit += Number(v.first_visit_count || 0);
+                      reVisit += Number(v.re_visit_count || 0);
+                  });
               }
               
-              console.log(`✅ ${sDate}~${eDate} 방문자: ${visitors}명`);
+              console.log(`✅ ${sDate}~${eDate} 방문자: ${visitors}명 (신규: ${firstVisit}, 재방문: ${reVisit})`);
               
           } catch (err) {
               console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
-              if (err.response) {
-                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
-              }
           }
           
-          return visitors;
+          return { visitors, firstVisit, reVisit };
       };
 
-      // ── 2. 주문 데이터 + 신규회원 추출 ──
+      // ── 2. 주문 데이터 ──
       const getOrderStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, firstP = 0, repeatP = 0;
           let newMemberIds = new Set();
@@ -2069,7 +2054,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                   else orderOffset += 100;
               }
               
-              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원, 첫구매: ${firstP}, 재구매: ${repeatP}`);
+              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
               
           } catch (err) { 
               console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
@@ -2079,10 +2064,15 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       };
 
       // 병렬 조회
-      const [orderStats, visitors] = await Promise.all([
+      const [orderStats, visitorStats] = await Promise.all([
           getOrderStats(startDate, endDate),
           getVisitors(startDate, endDate)
       ]);
+
+      // 구매율 계산
+      const purchaseRate = visitorStats.visitors > 0 
+          ? ((orderStats.ordCount / visitorStats.visitors) * 100).toFixed(2)
+          : 0;
 
       res.json({
           success: true,
@@ -2090,7 +2080,8 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               startDate,
               endDate,
               ...orderStats,
-              visitors
+              ...visitorStats,
+              purchaseRate
           }
       });
 
@@ -2099,6 +2090,8 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 });
+
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
