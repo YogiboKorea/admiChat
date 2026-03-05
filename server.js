@@ -2190,6 +2190,101 @@ app.get('/api/online/homepage-stats', async (req, res) => {
   }
 });
 
+
+
+
+// ==========================================
+// [추가] 요기보 나에게 꼭 맞는 찾기 TEST API
+// ==========================================
+
+// 1. 테스트 결과 저장 (프론트엔드에서 '결과 확인하기' 클릭 시 호출)
+app.post('/api/yogibo/test-result', async (req, res) => {
+  try {
+    const { visitorId, answers, journey, recommendedName, recommendedDesc } = req.body;
+    
+    // 한국 시간(KST)으로 저장
+    const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+
+    const newResult = {
+      visitorId: visitorId || 'guest_unknown',
+      answers: answers || {},
+      journey: journey || [],
+      recommendedName: recommendedName || '',
+      recommendedDesc: recommendedDesc || '',
+      createdAt: createdAtKST
+    };
+
+    // 'yogibo_test_results' 컬렉션에 데이터 저장
+    const result = await db.collection('yogibo_test_results').insertOne(newResult);
+    
+    console.log(`[Yogibo Test] 테스트 결과 저장 완료: ${visitorId} -> 추천: ${recommendedName}`);
+    res.json({ success: true, insertedId: result.insertedId });
+  } catch (error) {
+    console.error('[Yogibo Test] 결과 저장 오류:', error);
+    res.status(500).json({ success: false, message: 'Server Internal Error' });
+  }
+});
+
+// 2. 관리자용: 테스트 결과 엑셀 다운로드
+app.get('/api/yogibo/test-result/download', async (req, res) => {
+  try {
+    const results = await db.collection('yogibo_test_results')
+                            .find({})
+                            .sort({ createdAt: -1 })
+                            .toArray();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Test Results');
+
+    // 엑셀 컬럼 정의
+    worksheet.columns = [
+      { header: '참여 일시', key: 'createdAt', width: 25 },
+      { header: '방문자 ID', key: 'visitorId', width: 25 },
+      { header: '최종 추천 제품', key: 'recommendedName', width: 35 },
+      { header: '추천 상세/충전재', key: 'recommendedDesc', width: 30 },
+      { header: 'Q1 (관심제품)', key: 'q1', width: 15 },
+      { header: 'Q2 (사용자)', key: 'q2', width: 15 },
+      { header: 'Q3 (사용장소)', key: 'q3', width: 15 },
+      { header: 'Q4 (중요가치)', key: 'q4', width: 15 },
+      { header: 'Q5 (사용용도)', key: 'q5', width: 15 },
+      { header: '여정 (클릭 순서)', key: 'journey', width: 30 }
+    ];
+    
+    results.forEach(item => {
+      // 시간 포맷팅
+      const fmtDate = item.createdAt 
+                      ? moment(item.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') 
+                      : '-';
+
+      worksheet.addRow({
+        createdAt: fmtDate,
+        visitorId: item.visitorId,
+        recommendedName: item.recommendedName,
+        recommendedDesc: item.recommendedDesc,
+        q1: item.answers?.q1 || '-',
+        q2: item.answers?.q2 || '-',
+        q3: item.answers?.q3 || '-',
+        q4: item.answers?.q4 || '-',
+        q5: item.answers?.q5 || '-',
+        journey: (item.journey || []).join(' > ') // 예: q1 > q5 > result
+      });
+    });
+    
+    // 헤더 및 파일명 설정 후 응답
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=yogibo_test_results.xlsx');
+    
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('[Yogibo Test] 엑셀 다운로드 오류:', error);
+    res.status(500).json({ error: 'Excel 다운로드 중 오류 발생' });
+  }
+});
+
+
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
