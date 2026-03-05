@@ -2025,9 +2025,8 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           } catch (err) { 
               console.log(`⚠️ ${sDate}~${eDate} 주문 정보 가져오기 실패:`, err.message);
           }
-
-          // ── 가입자 수집 ──
-          try {
+            // ── 가입자 수집 (파라미터 형식 수정) ──
+            try {
               let custHasMore = true;
               let custOffset = 0;
               
@@ -2036,8 +2035,9 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`,
                       { 
                           shop_no: 1, 
-                          created_start_date: sDate,
-                          created_end_date: eDate,
+                          // ★ 날짜 형식을 YYYY-MM-DD에서 타임스탬프 범위로 변경
+                          created_start_date: `${sDate}T00:00:00+09:00`,
+                          created_end_date: `${eDate}T23:59:59+09:00`,
                           limit: 100, 
                           offset: custOffset 
                       }
@@ -2052,10 +2052,13 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               
               console.log(`✅ ${sDate}~${eDate} 신규가입: ${signups}명`);
               
-          } catch (err) { 
+            } catch (err) { 
               console.log(`⚠️ ${sDate}~${eDate} 가입자 정보 가져오기 실패:`, err.message);
-          }
-
+              // ★ 에러 상세 내용 확인
+              if (err.response) {
+                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
+              }
+            }
           return { 
               startDate: sDate, 
               endDate: eDate, 
