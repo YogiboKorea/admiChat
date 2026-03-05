@@ -2092,6 +2092,84 @@ app.get('/api/online/homepage-stats', async (req, res) => {
 });
 
 
+// ── 회원가입/탈퇴 데이터 (Data API) ──
+const getMemberStats = async (sDate, eDate) => {
+  let joinCount = 0, leaveCount = 0;
+  
+  // 회원가입 조회
+  try {
+      const joinRes = await axios.get(
+          `https://ca-api.cafe24data.com/members/join`,
+          {
+              params: {
+                  mall_id: 'yogibo',
+                  shop_no: 1,
+                  start_date: sDate,
+                  end_date: eDate
+              },
+              headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+              }
+          }
+      );
+      
+      console.log('📋 회원가입 API 응답:', JSON.stringify(joinRes.data, null, 2));
+      
+      const data = joinRes.data;
+      if (data.join && Array.isArray(data.join)) {
+          data.join.forEach(v => joinCount += Number(v.join_count || v.count || 0));
+      } else if (data.view && Array.isArray(data.view)) {
+          data.view.forEach(v => joinCount += Number(v.join_count || v.count || 0));
+      }
+      
+  } catch (err) {
+      console.log('⚠️ 회원가입 데이터 조회 실패:', err.message);
+      if (err.response) {
+          console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
+      }
+  }
+  
+  // 회원탈퇴 조회
+  try {
+      const leaveRes = await axios.get(
+          `https://ca-api.cafe24data.com/members/leave`,
+          {
+              params: {
+                  mall_id: 'yogibo',
+                  shop_no: 1,
+                  start_date: sDate,
+                  end_date: eDate
+              },
+              headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+              }
+          }
+      );
+      
+      console.log('📋 회원탈퇴 API 응답:', JSON.stringify(leaveRes.data, null, 2));
+      
+      const data = leaveRes.data;
+      if (data.leave && Array.isArray(data.leave)) {
+          data.leave.forEach(v => leaveCount += Number(v.leave_count || v.count || 0));
+      } else if (data.view && Array.isArray(data.view)) {
+          data.view.forEach(v => leaveCount += Number(v.leave_count || v.count || 0));
+      }
+      
+  } catch (err) {
+      console.log('⚠️ 회원탈퇴 데이터 조회 실패:', err.message);
+      if (err.response) {
+          console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
+      }
+  }
+  
+  console.log(`✅ ${sDate}~${eDate} 회원가입: ${joinCount}명, 탈퇴: ${leaveCount}명`);
+  
+  return { joinCount, leaveCount };
+};
+
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
