@@ -1945,11 +1945,6 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
-
-
-// ==========================================
-// [업데이트] 자사몰 통계 - 방문자 & 신규가입 추가
-// ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query; 
@@ -1977,91 +1972,10 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 1. 방문자 데이터 (Data API) ──
-      const getVisitors = async (sDate, eDate) => {
-          let visitors = 0;
-          try {
-              // Data API 엔드포인트 시도
-              const visitorRes = await fetchFromCafe24(
-                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/reports/dailyvisits`,
-                  { 
-                      shop_no: 1, 
-                      start_date: sDate, 
-                      end_date: eDate 
-                  }
-              );
-              
-              console.log('📊 방문자 API 응답:', JSON.stringify(visitorRes.data, null, 2));
-              
-              const visits = visitorRes.data.dailyvisits || visitorRes.data.visitors || [];
-              visits.forEach(v => {
-                  visitors += Number(v.visit_count || v.visitor_count || v.visits || 0);
-              });
-              
-          } catch (err) {
-              console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
-              if (err.response) {
-                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
-              }
-          }
-          return visitors;
-      };
-
-      // ── 2. 신규 가입자 (소셜 회원 포함 전체 조회) ──
-      const getSignups = async (sDate, eDate) => {
-          let signups = 0;
-          
-          // 방법 1: 소셜 회원 목록에서 created_date 필터링
-          try {
-              let hasMore = true;
-              let offset = 0;
-              
-              while (hasMore && offset < 3000) {
-                  const custRes = await fetchFromCafe24(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/social`,
-                      { 
-                          shop_no: 1,
-                          limit: 100, 
-                          offset: offset 
-                      }
-                  );
-                  
-                  if (offset === 0) {
-                      console.log('📋 소셜회원 API 응답 샘플:', JSON.stringify(custRes.data, null, 2).substring(0, 500));
-                  }
-                  
-                  const customers = custRes.data.social || custRes.data.customers || [];
-                  
-                  // created_date가 조회 기간 내인 회원만 카운트
-                  customers.forEach(c => {
-                      const createdDate = (c.created_date || '').split('T')[0];
-                      if (createdDate >= sDate && createdDate <= eDate) {
-                          signups++;
-                      }
-                  });
-                  
-                  if (customers.length < 100) hasMore = false;
-                  else offset += 100;
-              }
-              
-              console.log(`✅ ${sDate}~${eDate} 신규가입: ${signups}명`);
-              
-          } catch (err) {
-              console.log('⚠️ 소셜회원 조회 실패:', err.message);
-              if (err.response) {
-                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
-              }
-              
-              // 방법 2: 주문 데이터의 first_order로 대체 추정
-              // (이미 주문 통계에서 firstP로 계산 중)
-          }
-          
-          return signups;
-      };
-
-      // ── 3. 주문 데이터 ──
+      // ── 주문 데이터 + 신규회원 추출 ──
       const getOrderStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, firstP = 0, repeatP = 0;
+          let newMemberIds = new Set();
 
           try {
               let orderHasMore = true;
@@ -2087,29 +2001,28 @@ app.get('/api/online/homepage-stats', async (req, res) => {
                       .forEach(o => {
                           totalAmt += Number(o.payment_amount) || 0;
                           ordCount++;
-                          if (o.first_order === 'T') firstP++;
-                          else repeatP++;
+                          if (o.first_order === 'T') {
+                              firstP++;
+                              if (o.member_id) newMemberIds.add(o.member_id);
+                          } else {
+                              repeatP++;
+                          }
                       });
                       
                   if (orders.length < 100) orderHasMore = false; 
                   else orderOffset += 100;
               }
               
-              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
+              console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원, 첫구매: ${firstP}, 재구매: ${repeatP}`);
               
           } catch (err) { 
               console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
           }
 
-          return { totalAmt, ordCount, firstP, repeatP };
+          return { totalAmt, ordCount, firstP, repeatP, signups: newMemberIds.size };
       };
 
-      // 병렬로 모든 데이터 조회
-      const [orderStats, visitors, signups] = await Promise.all([
-          getOrderStats(startDate, endDate),
-          getVisitors(startDate, endDate),
-          getSignups(startDate, endDate)
-      ]);
+      const orderStats = await getOrderStats(startDate, endDate);
 
       res.json({
           success: true,
@@ -2117,8 +2030,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               startDate,
               endDate,
               ...orderStats,
-              visitors,
-              signups
+              visitors: null  // Data API 별도 구독 필요
           }
       });
 
@@ -2127,6 +2039,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
