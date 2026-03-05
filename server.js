@@ -2053,69 +2053,97 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           
           return joinCount;
       };
-// ── 주문 데이터 (구매자 유형 세분화) ──
-const getOrderStats = async (sDate, eDate) => {
-  let totalAmt = 0, ordCount = 0;
-  let newMemberBuy = 0;    // 신규 가입 후 첫 구매
-  let existMemberBuy = 0;  // 기존 회원 재구매
-  let guestBuy = 0;        // 비회원 구매
 
-  try {
-      let orderHasMore = true;
-      let orderOffset = 0;
-      
-      while (orderHasMore && orderOffset < 3000) {
-          const orderRes = await fetchFromCafe24(
-              `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-              { 
-                  shop_no: 1, 
-                  start_date: sDate, 
-                  end_date: eDate, 
-                  date_type: 'pay_date', 
-                  limit: 100, 
-                  offset: orderOffset 
-              }
-          );
-          
-          const orders = orderRes.data.orders || [];
-          
-          orders
-              .filter(o => !['C', 'R', 'E'].includes(o.order_status))
-              .forEach(o => {
-                  totalAmt += Number(o.payment_amount) || 0;
-                  ordCount++;
-                  
-                  if (o.member_id) {
-                      // 회원 구매
-                      if (o.first_order === 'T') {
-                          newMemberBuy++;  // 신규 가입 첫 구매
-                      } else {
-                          existMemberBuy++;  // 기존 회원 재구매
-                      }
-                  } else {
-                      guestBuy++;  // 비회원 구매
-                  }
-              });
-              
-          if (orders.length < 100) orderHasMore = false; 
-          else orderOffset += 100;
-      }
-      
-      console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
-      console.log(`   └ 신규회원: ${newMemberBuy}, 기존회원: ${existMemberBuy}, 비회원: ${guestBuy}`);
-      
-  } catch (err) { 
-      console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
-  }
+            // ── 주문 데이터 (구매자 상세 정보 포함) ──
+      const getOrderStats = async (sDate, eDate) => {
+        let totalAmt = 0, ordCount = 0;
+        let newMemberBuy = 0, existMemberBuy = 0, guestBuy = 0;
+        
+        // 상세 정보 저장
+        let newMemberList = [];
+        let existMemberList = [];
+        let guestList = [];
 
-  return { 
-      totalAmt, 
-      ordCount, 
-      newMemberBuy,   // 신규 가입 첫 구매
-      existMemberBuy, // 기존 회원 재구매  
-      guestBuy        // 비회원 구매
-  };
-};
+        try {
+            let orderHasMore = true;
+            let orderOffset = 0;
+            
+            while (orderHasMore && orderOffset < 3000) {
+                const orderRes = await fetchFromCafe24(
+                    `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+                    { 
+                        shop_no: 1, 
+                        start_date: sDate, 
+                        end_date: eDate, 
+                        date_type: 'pay_date', 
+                        limit: 100, 
+                        offset: orderOffset,
+                        embed: 'items'  // 주문 상품 정보 포함
+                    }
+                );
+                
+                const orders = orderRes.data.orders || [];
+                
+                orders
+                    .filter(o => !['C', 'R', 'E'].includes(o.order_status))
+                    .forEach(o => {
+                        totalAmt += Number(o.payment_amount) || 0;
+                        ordCount++;
+                        
+                        // 주문 상세 정보 구성
+                        const orderDetail = {
+                            orderNo: o.order_id,
+                            orderDate: o.order_date,
+                            buyerName: o.billing_name || '비공개',
+                            buyerEmail: o.member_email || '-',
+                            memberId: o.member_id || null,
+                            paymentAmount: Number(o.payment_amount) || 0,
+                            items: (o.items || []).map(item => ({
+                                productName: item.product_name,
+                                quantity: item.quantity,
+                                price: Number(item.product_price) || 0,
+                                optionValue: item.option_value || ''
+                            }))
+                        };
+                        
+                        if (o.member_id) {
+                            if (o.first_order === 'T') {
+                                newMemberBuy++;
+                                newMemberList.push(orderDetail);
+                            } else {
+                                existMemberBuy++;
+                                existMemberList.push(orderDetail);
+                            }
+                        } else {
+                            guestBuy++;
+                            guestList.push(orderDetail);
+                        }
+                    });
+                    
+                if (orders.length < 100) orderHasMore = false; 
+                else orderOffset += 100;
+            }
+            
+            console.log(`✅ ${sDate}~${eDate} 주문: ${ordCount}건, 금액: ${totalAmt}원`);
+            console.log(`   └ 신규회원: ${newMemberBuy}, 기존회원: ${existMemberBuy}, 비회원: ${guestBuy}`);
+            
+        } catch (err) { 
+            console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
+        }
+
+        return { 
+            totalAmt, 
+            ordCount, 
+            newMemberBuy,
+            existMemberBuy,
+            guestBuy,
+            // 상세 리스트
+            newMemberList,
+            existMemberList,
+            guestList
+        };
+      };
+
       // 병렬 조회
       const [orderStats, visitorStats, joinCount] = await Promise.all([
           getOrderStats(startDate, endDate),
