@@ -1945,6 +1945,9 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
+// ==========================================
+// [최종] 자사몰 통계 - 방문자 Data API 추가
+// ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
       const { startDate, endDate } = req.query; 
@@ -1972,7 +1975,60 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           }
       };
 
-      // ── 주문 데이터 + 신규회원 추출 ──
+      // ── 1. 방문자 데이터 (Data API - cafe24data.com) ──
+      const getVisitors = async (sDate, eDate) => {
+          let visitors = 0;
+          
+          try {
+              const visitorRes = await axios.get(
+                  `https://ca-api.cafe24data.com/visitors/view`,
+                  {
+                      params: {
+                          mall_id: 'yogibo',
+                          shop_no: 1,
+                          start_date: sDate,
+                          end_date: eDate
+                      },
+                      headers: {
+                          Authorization: `Bearer ${accessToken}`,
+                          'Content-Type': 'application/json'
+                      }
+                  }
+              );
+              
+              console.log('📊 방문자 API 응답:', JSON.stringify(visitorRes.data, null, 2));
+              
+              // 응답 구조에 따라 파싱 (로그 보고 조정 필요)
+              const data = visitorRes.data;
+              if (Array.isArray(data)) {
+                  data.forEach(v => visitors += Number(v.visit_count || v.visitor_count || v.visitors || 0));
+              } else if (data.visitors) {
+                  if (Array.isArray(data.visitors)) {
+                      data.visitors.forEach(v => visitors += Number(v.visit_count || v.visitor_count || 0));
+                  } else {
+                      visitors = Number(data.visitors) || 0;
+                  }
+              } else if (data.data) {
+                  if (Array.isArray(data.data)) {
+                      data.data.forEach(v => visitors += Number(v.visit_count || v.visitor_count || v.visitors || 0));
+                  }
+              } else if (data.total_visitors) {
+                  visitors = Number(data.total_visitors) || 0;
+              }
+              
+              console.log(`✅ ${sDate}~${eDate} 방문자: ${visitors}명`);
+              
+          } catch (err) {
+              console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
+              if (err.response) {
+                  console.log('에러 상세:', JSON.stringify(err.response.data, null, 2));
+              }
+          }
+          
+          return visitors;
+      };
+
+      // ── 2. 주문 데이터 + 신규회원 추출 ──
       const getOrderStats = async (sDate, eDate) => {
           let totalAmt = 0, ordCount = 0, firstP = 0, repeatP = 0;
           let newMemberIds = new Set();
@@ -2022,7 +2078,11 @@ app.get('/api/online/homepage-stats', async (req, res) => {
           return { totalAmt, ordCount, firstP, repeatP, signups: newMemberIds.size };
       };
 
-      const orderStats = await getOrderStats(startDate, endDate);
+      // 병렬 조회
+      const [orderStats, visitors] = await Promise.all([
+          getOrderStats(startDate, endDate),
+          getVisitors(startDate, endDate)
+      ]);
 
       res.json({
           success: true,
@@ -2030,7 +2090,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
               startDate,
               endDate,
               ...orderStats,
-              visitors: null  // Data API 별도 구독 필요
+              visitors
           }
       });
 
@@ -2039,8 +2099,6 @@ app.get('/api/online/homepage-stats', async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 });
-
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
