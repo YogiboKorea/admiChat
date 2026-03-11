@@ -2544,7 +2544,6 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 });
 
 
-const cheerio = require('cheerio');
 
 // [추가] 과거 데이터 싹쓸이 크롤링 API (최초 1회만 사용)
 app.get('/api/test/crawl-all-news', async (req, res) => {
