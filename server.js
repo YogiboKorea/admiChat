@@ -2497,7 +2497,7 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 
     // FTP 업로드 (basic-ftp 사용)
     const client = new ftp.Client();
-    client.ftp.verbose = false; 
+    client.ftp.verbose = true; // 디버그 로그 활성화
     try {
       await client.access({
         host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
@@ -2507,10 +2507,14 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
         secure: 'explicit',
       });
 
+      // 디렉토리 존재 확인 및 생성
+      await client.ensureDir('/web/img/news'); // 디렉토리 생성 시도
+      console.log('디렉토리 생성 또는 확인 성공');
+
       // Buffer를 스트림으로 감싸서 업로드
       const stream = Readable.from(processedBuffer);
-      await client.ensureDir('/web/img/news');
       await client.uploadFrom(stream, remotePath.startsWith('/') ? remotePath.slice(1) : remotePath);
+      console.log('파일 업로드 성공:', remotePath);
     } finally {
       client.close();
     }
