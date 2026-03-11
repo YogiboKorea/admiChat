@@ -2415,7 +2415,22 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+// [추가] 개별 게시글 삭제 API
+app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.collection('yogiboJPnews').deleteOne({ _id: new ObjectId(id) });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: '게시글을 찾을 수 없습니다.' });
+    }
 
+    res.json({ success: true, message: '게시글이 삭제되었습니다.' });
+  } catch (error) {
+    console.error('게시글 삭제 에러:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
 
 
 // 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
