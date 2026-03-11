@@ -2506,13 +2506,18 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
         secure: 'explicit',
       });
 
-      // 디렉토리 존재 확인 및 생성
-      await client.ensureDir('web/img/news'); // 슬래시 제거
+      await client.ensureDir('web/img/news'); 
       console.log('디렉토리 생성 또는 확인 성공');
 
       // Buffer를 스트림으로 감싸서 업로드
       const stream = Readable.from(processedBuffer);
-      await client.uploadFrom(stream, remotePath);
+      
+      // ❌ 에러가 나던 부분 (경로 중복)
+      // await client.uploadFrom(stream, remotePath); 
+      
+      // ✅ 이렇게 수정: 이미 news 폴더 안이므로 파일명만 전달
+      await client.uploadFrom(stream, filename); 
+      
       console.log('파일 업로드 성공:', remotePath);
     } finally {
       client.close();
