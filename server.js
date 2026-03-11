@@ -12,7 +12,7 @@ const moment = require('moment-timezone');
 const { translate: googleTranslate } = require('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
-
+const cheerio = require('cheerio');
 const multer = require('multer');         
 const sharp = require('sharp');             
 const ftp = require('basic-ftp');
@@ -2316,7 +2316,6 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
 
 ///yogibo.jp rss 피드 
 
-
 // 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식)
 async function fetchAndSaveYogiboJPNews() {
   if (!db) {
@@ -2545,7 +2544,93 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 });
 
 
+const cheerio = require('cheerio');
 
+// [추가] 과거 데이터 싹쓸이 크롤링 API (최초 1회만 사용)
+app.get('/api/test/crawl-all-news', async (req, res) => {
+  // 크롤링은 시간이 오래 걸리므로, 브라우저에는 먼저 응답을 보내고 백그라운드에서 실행합니다.
+  res.json({ 
+    success: true, 
+    message: '과거 데이터 전체 크롤링이 백그라운드에서 시작되었습니다. 터미널(콘솔) 로그를 확인해 주세요!' 
+  });
+
+  (async () => {
+    try {
+      console.log('🚀 [과거 데이터 수집] 웹 크롤링을 시작합니다...');
+      const collection = db.collection('yogiboJPnews');
+      let page = 1;
+      let hasNextPage = true;
+      let totalSaved = 0;
+
+      while (hasNextPage && page < 50) { // 무한루프 방지용 (최대 50페이지)
+        console.log(`\n📄 [${page} 페이지] 링크 수집 중...`);
+        const listUrl = `https://yogibo.jp/blogs/life?page=${page}`;
+        
+        const { data: listHtml } = await axios.get(listUrl);
+        const $ = cheerio.load(listHtml);
+        
+        const articleLinks = [];
+        // 요기보 블로그 목록에서 상세 페이지 링크 추출
+        $('a[href^="/blogs/life/"]').each((i, el) => {
+          let link = $(el).attr('href');
+          // 태그, 카테고리 링크 제외하고 순수 게시글 링크만 필터링
+          if (link && link.split('/').length > 3) {
+            link = 'https://yogibo.jp' + link;
+            if (!articleLinks.includes(link)) articleLinks.push(link);
+          }
+        });
+
+        if (articleLinks.length === 0) {
+          console.log("🛑 더 이상 게시글이 없습니다. 크롤링 종료.");
+          hasNextPage = false;
+          break;
+        }
+
+        console.log(`   -> ${articleLinks.length}개의 게시글 발견! 상세 내용 긁어오기 시작...`);
+
+        for (const link of articleLinks) {
+          // 이미 DB에 있는 글(방금 .atom으로 가져온 31개 등)은 건너뜀
+          const exists = await collection.findOne({ guid: link });
+          if (exists) {
+            console.log(`   ⏭️ 이미 수집된 글 (스킵): ${link}`);
+            continue;
+          }
+
+          // 상세 페이지 긁어오기
+          const { data: articleHtml } = await axios.get(link);
+          const $$ = cheerio.load(articleHtml);
+
+          const title = $$('h1').first().text().trim(); 
+          // 쇼피파이 본문 기본 클래스인 .rte 또는 article 안의 내용 추출
+          const content = $$('.rte').html() || $$('.article-template__content').html() || $$('article').html() || ''; 
+          const pubDateStr = $$('time').attr('datetime') || new Date().toISOString();
+
+          if (title && content) {
+            await collection.insertOne({
+              guid: link,
+              title: title,
+              content: content.trim(),
+              link: link,
+              pubDate: new Date(pubDateStr),
+              status: 'draft', // 무조건 임시저장
+              createdAt: new Date()
+            });
+            totalSaved++;
+            console.log(`   ✅ 수집 완료: ${title}`);
+          }
+
+          // 요기보 서버에 차단당하지 않도록 1건 긁고 0.5초씩 휴식
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        page++;
+      }
+      console.log(`\n🎉 [크롤링 완료] 총 ${totalSaved}개의 과거 게시글을 DB에 추가했습니다!`);
+
+    } catch (error) {
+      console.error('❌ 크롤링 중 에러 발생 (혹은 마지막 페이지 도달):', error.message);
+    }
+  })();
+});
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
