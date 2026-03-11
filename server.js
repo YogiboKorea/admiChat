@@ -2315,8 +2315,7 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
 });
 
 ///yogibo.jp rss 피드 
-
-// 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식)
+// 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식 - 중복 방지 강화)
 async function fetchAndSaveYogiboJPNews() {
   if (!db) {
     console.log('⚠️ DB 연결이 안 되어있어 뉴스레터 동기화를 보류합니다.');
@@ -2326,36 +2325,45 @@ async function fetchAndSaveYogiboJPNews() {
   try {
     console.log('🇯🇵 [Yogibo JP] 일본 뉴스레터 업데이트 확인 중...');
     
-    // 일본 요기보 Atom 피드 가져오기
     const feed = await parser.parseURL('https://yogibo.jp/blogs/life.atom');
     const collection = db.collection('yogiboJPnews');
     let newCount = 0;
 
     for (const item of feed.items) {
-      // 고유 ID 추출 (id가 없으면 link를 고유 키로 사용)
-      const uniqueId = item.id || item.link;
+      // ★ 핵심: URL 뒤에 붙는 ? 쿼리파라미터나 / 슬래시를 제거하여 순수 주소만 추출
+      let cleanLink = item.link || '';
+      if (cleanLink.includes('?')) {
+        cleanLink = cleanLink.split('?')[0]; 
+      }
+      if (cleanLink.endsWith('/')) {
+        cleanLink = cleanLink.slice(0, -1);
+      }
 
-      // $setOnInsert를 사용하여 DB에 없을 때만 'draft' 상태로 새로 추가
-      const result = await collection.updateOne(
-        { guid: uniqueId }, // 기준 키
-        {
-          $setOnInsert: {
-            guid: uniqueId,
-            title: item.title,
-            content: item.content, // 일본어 원본 HTML
-            link: item.link,
-            pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-            status: 'draft', // 기본 상태는 무조건 '임시저장'
-            createdAt: new Date()
-          }
-        },
-        { upsert: true }
-      );
+      // 제목이 완전히 똑같은 글이 있는지 먼저 확인 (2차 방어막)
+      const existingPost = await collection.findOne({ title: item.title });
+      
+      if (!existingPost) {
+        // DB에 같은 제목이 없을 때만 새로 추가
+        const result = await collection.updateOne(
+          { guid: cleanLink }, // 기준 키를 깔끔한 주소로 설정
+          {
+            $setOnInsert: {
+              guid: cleanLink,
+              title: item.title,
+              content: item.content, 
+              link: cleanLink, // 저장도 깔끔한 주소로
+              pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
+              status: 'draft', 
+              createdAt: new Date()
+            }
+          },
+          { upsert: true }
+        );
 
-      // upsertedId가 있으면 새로 추가된 글이라는 뜻
-      if (result.upsertedId) {
-        newCount++;
-        console.log(`🆕 새 뉴스레터 발견 및 임시저장: ${item.title}`);
+        if (result.upsertedId) {
+          newCount++;
+          console.log(`🆕 새 뉴스레터 발견 및 임시저장: ${item.title}`);
+        }
       }
     }
 
@@ -2369,7 +2377,6 @@ async function fetchAndSaveYogiboJPNews() {
     console.error('❌ [Yogibo JP] 뉴스레터 가져오기 실패:', error.message);
   }
 }
-
 // 2. 스케줄러 등록 (1시간마다 실행되도록 설정)
 cron.schedule('0 * * * *', () => {
   fetchAndSaveYogiboJPNews();
@@ -2636,6 +2643,40 @@ app.get('/api/test/crawl-all-news', async (req, res) => {
     }
   })();
 });
+
+
+// [추가] 중복 데이터 자동 삭제 API (제목이 똑같은 글 중 가장 예전 1개만 남기고 다 지움)
+app.get('/api/test/cleanup-duplicates', async (req, res) => {
+  try {
+    const collection = db.collection('yogiboJPnews');
+    
+    // 제목(title)을 기준으로 그룹화해서 2개 이상인 것들을 찾음
+    const duplicates = await collection.aggregate([
+      { $group: { _id: "$title", count: { $sum: 1 }, docs: { $push: "$_id" } } },
+      { $match: { count: { $gt: 1 } } }
+    ]).toArray();
+
+    let deletedCount = 0;
+
+    for (const dup of duplicates) {
+      // 첫 번째(가장 처음 수집된 것) 1개만 남기고, 나머지 배열(slice(1))은 삭제 목록에 넣음
+      const toDeleteIds = dup.docs.slice(1);
+      
+      const result = await collection.deleteMany({ _id: { $in: toDeleteIds } });
+      deletedCount += result.deletedCount;
+    }
+
+    res.json({ 
+      success: true, 
+      message: `청소 완료! 총 ${deletedCount}개의 중복 게시글이 삭제되었습니다.` 
+    });
+
+  } catch (error) {
+    console.error('청소 에러:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
