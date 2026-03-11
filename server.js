@@ -9,7 +9,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 require("dotenv").config();
 const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
-const { translate } = require('@vitalets/google-translate-api');
+const { translate: googleTranslate } = require('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
 const cron = require('node-cron');
@@ -2409,24 +2409,19 @@ app.get('/api/test/fetch-jp-news', async (req, res) => {
 });
 
 
-// 코드 맨 위 모듈 불러오는 곳에 추가
-const { translate } = require('@vitalets/google-translate-api');
 
-// ... (기존 코드들) ...
 
-// [추가] 구글 무료 번역 API 라우터
+
+// 2. 라우터 안에서도 바꾼 이름을 사용합니다.
 app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
 
-    // 1. 제목 번역 (일본어 -> 한국어)
-    const titleResult = await translate(title, { from: 'ja', to: 'ko' });
-
-    // 2. 본문(HTML) 번역
-    // 구글 번역기가 알아서 태그는 최대한 남기고 글자만 번역해줍니다.
-    const contentResult = await translate(content, { from: 'ja', to: 'ko' });
+    // translate() 대신 googleTranslate() 사용!
+    const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
+    const contentResult = await googleTranslate(content, { from: 'ja', to: 'ko' });
 
     console.log('✅ 번역 완료!');
 
@@ -2441,7 +2436,6 @@ app.post('/api/translate-news', async (req, res) => {
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
   }
 });
-
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
