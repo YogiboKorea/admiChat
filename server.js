@@ -10,6 +10,12 @@ require("dotenv").config();
 const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
 
+// ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
+const Parser = require('rss-parser');
+const cron = require('node-cron');
+const parser = new Parser();
+
+
 // ========== [1] 환경변수 및 기본 설정 ==========
 // 초기값은 비워두거나 안전하게 처리 (DB에서 로드됨)
 let accessToken = process.env.ACCESS_TOKEN || ''; 
@@ -2225,6 +2231,9 @@ app.post('/api/yogibo/test-result', async (req, res) => {
   }
 });
 
+
+
+
 // 2. 관리자용: 테스트 결과 엑셀 다운로드
 app.get('/api/yogibo/test-result/download', async (req, res) => {
   try {
@@ -2282,6 +2291,122 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
   }
 });
 
+///yogibo.jp rss 피드 
+
+
+// 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식)
+async function fetchAndSaveYogiboJPNews() {
+  if (!db) {
+    console.log('⚠️ DB 연결이 안 되어있어 뉴스레터 동기화를 보류합니다.');
+    return;
+  }
+
+  try {
+    console.log('🇯🇵 [Yogibo JP] 일본 뉴스레터 업데이트 확인 중...');
+    
+    // 일본 요기보 Atom 피드 가져오기
+    const feed = await parser.parseURL('https://yogibo.jp/blogs/life.atom');
+    const collection = db.collection('yogiboJPnews');
+    let newCount = 0;
+
+    for (const item of feed.items) {
+      // 고유 ID 추출 (id가 없으면 link를 고유 키로 사용)
+      const uniqueId = item.id || item.link;
+
+      // $setOnInsert를 사용하여 DB에 없을 때만 'draft' 상태로 새로 추가
+      const result = await collection.updateOne(
+        { guid: uniqueId }, // 기준 키
+        {
+          $setOnInsert: {
+            guid: uniqueId,
+            title: item.title,
+            content: item.content, // 일본어 원본 HTML
+            link: item.link,
+            pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
+            status: 'draft', // 기본 상태는 무조건 '임시저장'
+            createdAt: new Date()
+          }
+        },
+        { upsert: true }
+      );
+
+      // upsertedId가 있으면 새로 추가된 글이라는 뜻
+      if (result.upsertedId) {
+        newCount++;
+        console.log(`🆕 새 뉴스레터 발견 및 임시저장: ${item.title}`);
+      }
+    }
+
+    if (newCount === 0) {
+      console.log('✅ [Yogibo JP] 새로운 뉴스레터가 없습니다.');
+    } else {
+      console.log(`✅ [Yogibo JP] 총 ${newCount}개의 새 뉴스레터 동기화 완료`);
+    }
+
+  } catch (error) {
+    console.error('❌ [Yogibo JP] 뉴스레터 가져오기 실패:', error.message);
+  }
+}
+
+// 2. 스케줄러 등록 (1시간마다 실행되도록 설정)
+cron.schedule('0 * * * *', () => {
+  fetchAndSaveYogiboJPNews();
+});
+
+
+// 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
+app.get('/api/yogibo-jp-news', async (req, res) => {
+  try {
+    // 프론트엔드에서는 ?status=published 로 라이브 글만 요청하고,
+    // 관리자 페이지에서는 쿼리 없이 전체를 다 가져옵니다.
+    const { status } = req.query; 
+    const query = status ? { status } : {};
+
+    const newsList = await db.collection('yogiboJPnews')
+      .find(query)
+      .sort({ pubDate: -1 }) // 최신 발행일 순
+      .toArray();
+
+    res.json({ success: true, data: newsList });
+  } catch (error) {
+    console.error('뉴스레터 조회 에러:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+// 4. API - 뉴스레터 번역/내용 수정 및 라이브 발행 (관리자 페이지용)
+app.put('/api/yogibo-jp-news/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content, status } = req.body;
+    
+    const updateData = {};
+    if (title) updateData.title = title;
+    if (content) updateData.content = content;
+    if (status) updateData.status = status; // 'draft' <-> 'published' 변경
+    updateData.updatedAt = new Date();
+
+    const result = await db.collection('yogiboJPnews').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ success: false, message: '게시글을 찾을 수 없습니다.' });
+    }
+
+    res.json({ success: true, message: '게시글이 성공적으로 업데이트되었습니다.' });
+  } catch (error) {
+    console.error('뉴스레터 업데이트 에러:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+// 5. [테스트용] 즉시 동기화 API (스케줄러 1시간 기다리기 답답할 때 호출)
+app.get('/api/test/fetch-jp-news', async (req, res) => {
+  await fetchAndSaveYogiboJPNews();
+  res.json({ success: true, message: '수동 피드 동기화가 실행되었습니다. 서버 로그를 확인하세요.' });
+});
 
 
 
