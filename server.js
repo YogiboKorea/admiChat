@@ -2479,67 +2479,63 @@ app.post('/api/translate-news', async (req, res) => {
   }
 });
 
-
-
- 
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
- 
+
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
- 
+
     // 이미지 처리
     const processedBuffer = await sharp(req.file.buffer)
       .resize(800, 500, { fit: 'cover', position: 'center' })
       .webp({ quality: 82 })
       .toBuffer();
- 
+
     const randomHex = crypto.randomBytes(6).toString('hex');
     const filename = `news-${postId}-${Date.now()}-${randomHex}.webp`;
     const remotePath = `/web/img/news/${filename}`;
- 
+
     // FTP 업로드 (basic-ftp 사용)
     const client = new ftp.Client();
-    client.ftp.verbose = false; // true로 하면 콘솔에 디버그 로그 출력
+    client.ftp.verbose = false; 
     try {
       await client.access({
         host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
         port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
         user: process.env.FTP_USER,
         password: process.env.FTP_PASS,
-        secure: 'explicit', // 명시적 TLS (FTPS)
-        // secureOptions: { rejectUnauthorized: false } // 필요 시 사용 (사설 인증서)
+        secure: 'explicit',
       });
- 
+
       // Buffer를 스트림으로 감싸서 업로드
       const stream = Readable.from(processedBuffer);
-      await client.ensureDir('/web/img/news'); // 디렉터리 없으면 만들기 (권한에 따라 실패 가능)
+      await client.ensureDir('/web/img/news');
       await client.uploadFrom(stream, remotePath.startsWith('/') ? remotePath.slice(1) : remotePath);
-      // basic-ftp는 원격 경로가 상대 기준(루트가 사용자 홈 디렉터리)일 수 있으니 경로 확인 필요
     } finally {
       client.close();
     }
- 
-    // public URL 생성 — 실제로 접근 가능한 도메인/경로로 맞춰야 함
+
+    // public URL 생성
     const publicUrl = `https://yogibo.cafe24.com/web/img/news/${filename}`;
- 
+
     // DB 업데이트
     const result = await db.collection('yogiboJPnews').updateOne(
       { _id: new ObjectId(postId) },
       { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } }
     );
+    
     if (result.matchedCount === 0) {
       return res.status(404).json({ success: false, message: '게시글 없음' });
     }
- 
+
     return res.json({ success: true, url: publicUrl, filename });
- 
+
   } catch (err) {
     console.error('[FTP Upload Error]', err);
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
- 
+
 
 
 
