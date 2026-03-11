@@ -2557,6 +2557,37 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
+// [추가] 순서 변경 저장 API (드래그 앤 드롭)
+app.put('/api/yogibo-jp-news/order', async (req, res) => {
+  try {
+    const { order } = req.body; 
+    // order 형태 예시: [{ id: '...', position: 100 }, { id: '...', position: 200 }]
+    
+    if (!order || !Array.isArray(order)) {
+      return res.status(400).json({ success: false, message: '잘못된 데이터 형식입니다.' });
+    }
+
+    const collection = db.collection('yogiboJPnews');
+    
+    // bulkWrite를 사용하면 여러 개의 게시글 순서를 DB 요청 1번 만에 초고속으로 업데이트할 수 있습니다.
+    const bulkOps = order.map(item => ({
+      updateOne: {
+        filter: { _id: new ObjectId(item.id) },
+        update: { $set: { position: item.position } }
+      }
+    }));
+
+    if (bulkOps.length > 0) {
+      await collection.bulkWrite(bulkOps);
+    }
+
+    res.json({ success: true, message: '순서가 성공적으로 업데이트되었습니다.' });
+  } catch (error) {
+    console.error('순서 업데이트 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
