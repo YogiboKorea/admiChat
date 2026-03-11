@@ -12,6 +12,7 @@ const moment = require('moment-timezone');
 const { translate: googleTranslate } = require('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
+
 const multer = require('multer');         
 const sharp = require('sharp');             
 const ftp = require('basic-ftp');
@@ -34,11 +35,8 @@ const upload = multer({
 });
  
 
-
 const cron = require('node-cron');
 const parser = new Parser();
-
-
 
 
 // ========== [1] 환경변수 및 기본 설정 ==========
@@ -2542,6 +2540,7 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
   }
 });
  
+
 
 
 
