@@ -2410,6 +2410,30 @@ app.get('/api/test/fetch-jp-news', async (req, res) => {
 
 
 
+// 백엔드 라우터 쪽에 추가할 코드
+app.post('/api/translate-news', async (req, res) => {
+  const { title, content } = req.body;
+
+  try {
+    
+    // [테스트용] API 키가 없을 때 작동하는 임시 목업(Mock) 데이터
+    const translatedTitle = "[번역됨] " + title;
+    const translatedContent = content.replace(/<\/p>/g, " (한국어로 번역된 문장입니다)</p>");
+    
+    // 클라이언트(프론트엔드)로 번역된 결과 응답
+    res.json({
+      success: true,
+      translatedTitle: translatedTitle,
+      translatedContent: translatedContent
+    });
+
+  } catch (error) {
+    console.error('번역 에러:', error);
+    res.status(500).json({ success: false, message: 'Translation API Error' });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
