@@ -2410,25 +2410,44 @@ app.get('/api/test/fetch-jp-news', async (req, res) => {
 
 
 
-
-
-// 2. 라우터 안에서도 바꾼 이름을 사용합니다.
+// [추가/수정] 구글 무료 번역 API 라우터 (이미지 엑박 방지 적용)
 app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
 
-    // translate() 대신 googleTranslate() 사용!
+    // 1. 제목 번역
     const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
-    const contentResult = await googleTranslate(content, { from: 'ja', to: 'ko' });
 
-    console.log('✅ 번역 완료!');
+    // ==========================================
+    // 2. 본문 번역 전: <img> 태그 임시 추출 및 마스킹
+    // ==========================================
+    const imgTags = [];
+    // 정규식으로 <img ...> 태그를 모두 찾아서 배열에 넣고, 그 자리는 임시 글자로 치환합니다.
+    let maskedContent = content.replace(/<img[^>]*>/gi, (match) => {
+      imgTags.push(match);
+      return `___IMG_PLACEHOLDER_${imgTags.length - 1}___`; 
+    });
+
+    // 3. 마스킹된 안전한 본문만 구글 번역기에 돌립니다.
+    const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
+    let translatedHtml = contentResult.text;
+
+    // ==========================================
+    // 4. 번역 후: 빼두었던 <img> 태그 원상 복구
+    // ==========================================
+    // 구글 번역기가 임의로 띄어쓰기를 넣었을 수 있으므로 유연하게 찾아서 원래 이미지로 덮어씌웁니다.
+    translatedHtml = translatedHtml.replace(/___\s*IMG_PLACEHOLDER_\s*(\d+)\s*___/gi, (match, index) => {
+      return imgTags[parseInt(index)] || match;
+    });
+
+    console.log('✅ 번역 완료 (이미지 보호 성공)!');
 
     res.json({
       success: true,
       translatedTitle: titleResult.text,
-      translatedContent: contentResult.text
+      translatedContent: translatedHtml
     });
 
   } catch (error) {
@@ -2436,6 +2455,8 @@ app.post('/api/translate-news', async (req, res) => {
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
   }
 });
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
