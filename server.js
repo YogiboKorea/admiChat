@@ -2601,7 +2601,13 @@ app.get('/api/test/crawl-all-news', async (req, res) => {
 
           const title = $$('h1').first().text().trim(); 
           // 쇼피파이 본문 기본 클래스인 .rte 또는 article 안의 내용 추출
-          const content = $$('.rte').html() || $$('.article-template__content').html() || $$('article').html() || ''; 
+          const content = $$('.rte').html() || 
+                $$('.article-template__content').html() || 
+                $$('.article-content').html() || 
+                $$('.blog-article__content').html() || 
+                $$('.main-content').html() || 
+                $$('article').html() || 
+                '';
           const pubDateStr = $$('time').attr('datetime') || new Date().toISOString();
 
           if (title && content) {
