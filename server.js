@@ -2478,7 +2478,6 @@ app.post('/api/translate-news', async (req, res) => {
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
   }
 });
-
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
 
@@ -2493,7 +2492,7 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 
     const randomHex = crypto.randomBytes(6).toString('hex');
     const filename = `news-${postId}-${Date.now()}-${randomHex}.webp`;
-    const remotePath = `/web/img/news/${filename}`;
+    const remotePath = `web/img/news/${filename}`; // 슬래시 제거
 
     // FTP 업로드 (basic-ftp 사용)
     const client = new ftp.Client();
@@ -2508,19 +2507,19 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
       });
 
       // 디렉토리 존재 확인 및 생성
-      await client.ensureDir('/web/img/news'); // 디렉토리 생성 시도
+      await client.ensureDir('web/img/news'); // 슬래시 제거
       console.log('디렉토리 생성 또는 확인 성공');
 
       // Buffer를 스트림으로 감싸서 업로드
       const stream = Readable.from(processedBuffer);
-      await client.uploadFrom(stream, remotePath.startsWith('/') ? remotePath.slice(1) : remotePath);
+      await client.uploadFrom(stream, remotePath);
       console.log('파일 업로드 성공:', remotePath);
     } finally {
       client.close();
     }
 
     // public URL 생성
-    const publicUrl = `https://yogibo.cafe24.com/web/img/news/${filename}`;
+    const publicUrl = `https://yogibo.cafe24.com/${remotePath}`;
 
     // DB 업데이트
     const result = await db.collection('yogiboJPnews').updateOne(
@@ -2539,8 +2538,6 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
-
-
 
 
 
