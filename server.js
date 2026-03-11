@@ -2314,8 +2314,11 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
   }
 });
 
-///yogibo.jp rss 피드 
-// 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식 - 중복 방지 강화)
+// =================================================================
+// 🇯🇵 요기보 일본 뉴스레터 자동화 모듈 (스케줄러 & API)
+// =================================================================
+
+// 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식 - 중복 방지 완벽 적용)
 async function fetchAndSaveYogiboJPNews() {
   if (!db) {
     console.log('⚠️ DB 연결이 안 되어있어 뉴스레터 동기화를 보류합니다.');
@@ -2323,37 +2326,33 @@ async function fetchAndSaveYogiboJPNews() {
   }
 
   try {
-    console.log('🇯🇵 [Yogibo JP] 일본 뉴스레터 업데이트 확인 중...');
+    console.log('🇯🇵 [Yogibo JP] 일본 뉴스레터 정기 업데이트 확인 중...');
     
     const feed = await parser.parseURL('https://yogibo.jp/blogs/life.atom');
     const collection = db.collection('yogiboJPnews');
     let newCount = 0;
 
     for (const item of feed.items) {
-      // ★ 핵심: URL 뒤에 붙는 ? 쿼리파라미터나 / 슬래시를 제거하여 순수 주소만 추출
+      // URL 뒤에 붙는 ? 쿼리파라미터나 / 슬래시를 제거하여 순수 주소만 추출 (중복 수집 1차 방어)
       let cleanLink = item.link || '';
-      if (cleanLink.includes('?')) {
-        cleanLink = cleanLink.split('?')[0]; 
-      }
-      if (cleanLink.endsWith('/')) {
-        cleanLink = cleanLink.slice(0, -1);
-      }
+      if (cleanLink.includes('?')) cleanLink = cleanLink.split('?')[0]; 
+      if (cleanLink.endsWith('/')) cleanLink = cleanLink.slice(0, -1);
 
-      // 제목이 완전히 똑같은 글이 있는지 먼저 확인 (2차 방어막)
+      // 제목이 완전히 똑같은 글이 있는지 먼저 확인 (중복 수집 2차 방어)
       const existingPost = await collection.findOne({ title: item.title });
       
       if (!existingPost) {
         // DB에 같은 제목이 없을 때만 새로 추가
         const result = await collection.updateOne(
-          { guid: cleanLink }, // 기준 키를 깔끔한 주소로 설정
+          { guid: cleanLink }, // 기준 키
           {
             $setOnInsert: {
               guid: cleanLink,
               title: item.title,
               content: item.content, 
-              link: cleanLink, // 저장도 깔끔한 주소로
+              link: cleanLink, 
               pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-              status: 'draft', 
+              status: 'draft', // 무조건 '임시저장' 상태로 대기
               createdAt: new Date()
             }
           },
@@ -2368,7 +2367,7 @@ async function fetchAndSaveYogiboJPNews() {
     }
 
     if (newCount === 0) {
-      console.log('✅ [Yogibo JP] 새로운 뉴스레터가 없습니다.');
+      console.log('✅ [Yogibo JP] 새로운 뉴스레터가 없습니다. (기존 데이터 유지)');
     } else {
       console.log(`✅ [Yogibo JP] 총 ${newCount}개의 새 뉴스레터 동기화 완료`);
     }
@@ -2377,8 +2376,10 @@ async function fetchAndSaveYogiboJPNews() {
     console.error('❌ [Yogibo JP] 뉴스레터 가져오기 실패:', error.message);
   }
 }
-// 2. 스케줄러 등록 (1시간마다 실행되도록 설정)
-cron.schedule('0 * * * *', () => {
+
+// 2. 스케줄러 등록 (매일 자정 12시에 1번만 실행되도록 설정)
+// 크론 표현식 '0 0 * * *' = 매일 00:00 (24시간마다 1번)
+cron.schedule('0 0 * * *', () => {
   fetchAndSaveYogiboJPNews();
 });
 
@@ -2386,8 +2387,6 @@ cron.schedule('0 * * * *', () => {
 // 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
 app.get('/api/yogibo-jp-news', async (req, res) => {
   try {
-    // 프론트엔드에서는 ?status=published 로 라이브 글만 요청하고,
-    // 관리자 페이지에서는 쿼리 없이 전체를 다 가져옵니다.
     const { status } = req.query; 
     const query = status ? { status } : {};
 
@@ -2403,7 +2402,8 @@ app.get('/api/yogibo-jp-news', async (req, res) => {
   }
 });
 
-// 4. API - 뉴스레터 번역/내용 수정 및 라이브 발행 (관리자 페이지용)
+
+// 4. API - 뉴스레터 내용 수정 및 라이브 상태 변경 (관리자 페이지용)
 app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2412,7 +2412,7 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
     const updateData = {};
     if (title) updateData.title = title;
     if (content) updateData.content = content;
-    if (status) updateData.status = status; // 'draft' <-> 'published' 변경
+    if (status) updateData.status = status;
     updateData.updatedAt = new Date();
 
     const result = await db.collection('yogiboJPnews').updateOne(
@@ -2431,42 +2431,58 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   }
 });
 
-// 5. [테스트용] 즉시 동기화 API (스케줄러 1시간 기다리기 답답할 때 호출)
+
+// 5. [수동 테스트용] 즉시 동기화 API (스케줄러 기다리기 답답할 때 호출)
 app.get('/api/test/fetch-jp-news', async (req, res) => {
   await fetchAndSaveYogiboJPNews();
   res.json({ success: true, message: '수동 피드 동기화가 실행되었습니다. 서버 로그를 확인하세요.' });
 });
 
 
+// 6. [1회성 청소용] 중복 데이터 자동 삭제 API
+// 동일한 제목이 2개 이상이면 제일 처음 저장된 1개만 남기고 나머지는 자동 삭제합니다.
+app.get('/api/test/cleanup-duplicates', async (req, res) => {
+  try {
+    const collection = db.collection('yogiboJPnews');
+    
+    const duplicates = await collection.aggregate([
+      { $group: { _id: "$title", count: { $sum: 1 }, docs: { $push: "$_id" } } },
+      { $match: { count: { $gt: 1 } } }
+    ]).toArray();
 
-// [추가/수정] 구글 무료 번역 API 라우터 (이미지 엑박 방지 적용)
+    let deletedCount = 0;
+
+    for (const dup of duplicates) {
+      const toDeleteIds = dup.docs.slice(1);
+      const result = await collection.deleteMany({ _id: { $in: toDeleteIds } });
+      deletedCount += result.deletedCount;
+    }
+
+    res.json({ success: true, message: `청소 완료! 총 ${deletedCount}개의 중복 게시글이 삭제되었습니다.` });
+  } catch (error) {
+    console.error('청소 에러:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+// 7. API - 구글 무료 번역 (이미지 태그 엑박 보호 처리 완료)
 app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
-
-    // 1. 제목 번역
     const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
 
-    // ==========================================
-    // 2. 본문 번역 전: <img> 태그 임시 추출 및 마스킹
-    // ==========================================
     const imgTags = [];
-    // 정규식으로 <img ...> 태그를 모두 찾아서 배열에 넣고, 그 자리는 임시 글자로 치환합니다.
     let maskedContent = content.replace(/<img[^>]*>/gi, (match) => {
       imgTags.push(match);
       return `___IMG_PLACEHOLDER_${imgTags.length - 1}___`; 
     });
 
-    // 3. 마스킹된 안전한 본문만 구글 번역기에 돌립니다.
     const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
     let translatedHtml = contentResult.text;
 
-    // ==========================================
-    // 4. 번역 후: 빼두었던 <img> 태그 원상 복구
-    // ==========================================
-    // 구글 번역기가 임의로 띄어쓰기를 넣었을 수 있으므로 유연하게 찾아서 원래 이미지로 덮어씌웁니다.
     translatedHtml = translatedHtml.replace(/___\s*IMG_PLACEHOLDER_\s*(\d+)\s*___/gi, (match, index) => {
       return imgTags[parseInt(index)] || match;
     });
@@ -2478,19 +2494,20 @@ app.post('/api/translate-news', async (req, res) => {
       translatedTitle: titleResult.text,
       translatedContent: translatedHtml
     });
-
   } catch (error) {
     console.error('❌ 번역 에러:', error);
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
   }
 });
+
+
+// 8. API - 썸네일 FTP 업로드 (경로 에러 수정 완료)
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
 
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
-    // 이미지 처리
     const processedBuffer = await sharp(req.file.buffer)
       .resize(800, 500, { fit: 'cover', position: 'center' })
       .webp({ quality: 82 })
@@ -2498,11 +2515,9 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 
     const randomHex = crypto.randomBytes(6).toString('hex');
     const filename = `news-${postId}-${Date.now()}-${randomHex}.webp`;
-    const remotePath = `web/img/news/${filename}`; // 슬래시 제거
 
-    // FTP 업로드 (basic-ftp 사용)
     const client = new ftp.Client();
-    client.ftp.verbose = true; // 디버그 로그 활성화
+    client.ftp.verbose = true;
     try {
       await client.access({
         host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
@@ -2515,24 +2530,17 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
       await client.ensureDir('web/img/news'); 
       console.log('디렉토리 생성 또는 확인 성공');
 
-      // Buffer를 스트림으로 감싸서 업로드
       const stream = Readable.from(processedBuffer);
-      
-      // ❌ 에러가 나던 부분 (경로 중복)
-      // await client.uploadFrom(stream, remotePath); 
-      
-      // ✅ 이렇게 수정: 이미 news 폴더 안이므로 파일명만 전달
+      // ★ 수정됨: 파일명만 전송
       await client.uploadFrom(stream, filename); 
+      console.log('파일 업로드 성공:', filename);
       
-      console.log('파일 업로드 성공:', remotePath);
     } finally {
       client.close();
     }
 
-    // public URL 생성
-    const publicUrl = `https://yogibo.cafe24.com/${remotePath}`;
+    const publicUrl = `https://yogibo.cafe24.com/web/img/news/${filename}`;
 
-    // DB 업데이트
     const result = await db.collection('yogiboJPnews').updateOne(
       { _id: new ObjectId(postId) },
       { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } }
@@ -2549,134 +2557,6 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
-
-
-
-// [추가] 과거 데이터 싹쓸이 크롤링 API (최초 1회만 사용)
-app.get('/api/test/crawl-all-news', async (req, res) => {
-  // 크롤링은 시간이 오래 걸리므로, 브라우저에는 먼저 응답을 보내고 백그라운드에서 실행합니다.
-  res.json({ 
-    success: true, 
-    message: '과거 데이터 전체 크롤링이 백그라운드에서 시작되었습니다. 터미널(콘솔) 로그를 확인해 주세요!' 
-  });
-
-  (async () => {
-    try {
-      console.log('🚀 [과거 데이터 수집] 웹 크롤링을 시작합니다...');
-      const collection = db.collection('yogiboJPnews');
-      let page = 1;
-      let hasNextPage = true;
-      let totalSaved = 0;
-
-      while (hasNextPage && page < 50) { // 무한루프 방지용 (최대 50페이지)
-        console.log(`\n📄 [${page} 페이지] 링크 수집 중...`);
-        const listUrl = `https://yogibo.jp/blogs/life?page=${page}`;
-        
-        const { data: listHtml } = await axios.get(listUrl);
-        const $ = cheerio.load(listHtml);
-        
-        const articleLinks = [];
-        // 요기보 블로그 목록에서 상세 페이지 링크 추출
-        $('a[href^="/blogs/life/"]').each((i, el) => {
-          let link = $(el).attr('href');
-          // 태그, 카테고리 링크 제외하고 순수 게시글 링크만 필터링
-          if (link && link.split('/').length > 3) {
-            link = 'https://yogibo.jp' + link;
-            if (!articleLinks.includes(link)) articleLinks.push(link);
-          }
-        });
-
-        if (articleLinks.length === 0) {
-          console.log("🛑 더 이상 게시글이 없습니다. 크롤링 종료.");
-          hasNextPage = false;
-          break;
-        }
-
-        console.log(`   -> ${articleLinks.length}개의 게시글 발견! 상세 내용 긁어오기 시작...`);
-
-        for (const link of articleLinks) {
-          // 이미 DB에 있는 글(방금 .atom으로 가져온 31개 등)은 건너뜀
-          const exists = await collection.findOne({ guid: link });
-          if (exists) {
-            console.log(`   ⏭️ 이미 수집된 글 (스킵): ${link}`);
-            continue;
-          }
-
-          // 상세 페이지 긁어오기
-          const { data: articleHtml } = await axios.get(link);
-          const $$ = cheerio.load(articleHtml);
-
-          const title = $$('h1').first().text().trim(); 
-          // 쇼피파이 본문 기본 클래스인 .rte 또는 article 안의 내용 추출
-          const content = $$('.rte').html() || 
-                $$('.article-template__content').html() || 
-                $$('.article-content').html() || 
-                $$('.blog-article__content').html() || 
-                $$('.main-content').html() || 
-                $$('article').html() || 
-                '';
-          const pubDateStr = $$('time').attr('datetime') || new Date().toISOString();
-
-          if (title && content) {
-            await collection.insertOne({
-              guid: link,
-              title: title,
-              content: content.trim(),
-              link: link,
-              pubDate: new Date(pubDateStr),
-              status: 'draft', // 무조건 임시저장
-              createdAt: new Date()
-            });
-            totalSaved++;
-            console.log(`   ✅ 수집 완료: ${title}`);
-          }
-
-          // 요기보 서버에 차단당하지 않도록 1건 긁고 0.5초씩 휴식
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        page++;
-      }
-      console.log(`\n🎉 [크롤링 완료] 총 ${totalSaved}개의 과거 게시글을 DB에 추가했습니다!`);
-
-    } catch (error) {
-      console.error('❌ 크롤링 중 에러 발생 (혹은 마지막 페이지 도달):', error.message);
-    }
-  })();
-});
-
-
-// [추가] 중복 데이터 자동 삭제 API (제목이 똑같은 글 중 가장 예전 1개만 남기고 다 지움)
-app.get('/api/test/cleanup-duplicates', async (req, res) => {
-  try {
-    const collection = db.collection('yogiboJPnews');
-    
-    // 제목(title)을 기준으로 그룹화해서 2개 이상인 것들을 찾음
-    const duplicates = await collection.aggregate([
-      { $group: { _id: "$title", count: { $sum: 1 }, docs: { $push: "$_id" } } },
-      { $match: { count: { $gt: 1 } } }
-    ]).toArray();
-
-    let deletedCount = 0;
-
-    for (const dup of duplicates) {
-      // 첫 번째(가장 처음 수집된 것) 1개만 남기고, 나머지 배열(slice(1))은 삭제 목록에 넣음
-      const toDeleteIds = dup.docs.slice(1);
-      
-      const result = await collection.deleteMany({ _id: { $in: toDeleteIds } });
-      deletedCount += result.deletedCount;
-    }
-
-    res.json({ 
-      success: true, 
-      message: `청소 완료! 총 ${deletedCount}개의 중복 게시글이 삭제되었습니다.` 
-    });
-
-  } catch (error) {
-    console.error('청소 에러:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
