@@ -2498,9 +2498,7 @@ app.get('/api/test/cleanup-duplicates', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
-
-// 7. API - 구글 무료 번역 (이미지 태그 엑박 보호 처리 완료)
+// 7. API - 구글 무료 번역 (이미지 및 CSS 스타일 태그 파괴 방지)
 app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
@@ -2508,20 +2506,44 @@ app.post('/api/translate-news', async (req, res) => {
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
     const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
 
-    const imgTags = [];
-    let maskedContent = content.replace(/<img[^>]*>/gi, (match) => {
-      imgTags.push(match);
-      return `___IMG_PLACEHOLDER_${imgTags.length - 1}___`; 
+    // ==========================================
+    // ★ 1. 번역하면 절대 안 되는 코드(style, script, img) 금고에 보관
+    // ==========================================
+    const protectedTags = [];
+    let maskedContent = content;
+
+    // <style> ... </style> 통째로 보호
+    maskedContent = maskedContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (match) => {
+      protectedTags.push(match);
+      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
     });
 
+    // <script> ... </script> 통째로 보호 (만약 있다면)
+    maskedContent = maskedContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+      protectedTags.push(match);
+      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
+    });
+
+    // <img> 태그 보호
+    maskedContent = maskedContent.replace(/<img[^>]*>/gi, (match) => {
+      protectedTags.push(match);
+      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
+    });
+
+    // ==========================================
+    // 2. 안전하게 텍스트만 남은 본문 번역
+    // ==========================================
     const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
     let translatedHtml = contentResult.text;
 
-    translatedHtml = translatedHtml.replace(/___\s*IMG_PLACEHOLDER_\s*(\d+)\s*___/gi, (match, index) => {
-      return imgTags[parseInt(index)] || match;
+    // ==========================================
+    // 3. 번역 후: 금고에 빼두었던 CSS와 이미지 원상 복구
+    // ==========================================
+    translatedHtml = translatedHtml.replace(/___\s*PROTECTED_TAG_\s*(\d+)\s*___/gi, (match, index) => {
+      return protectedTags[parseInt(index)] || match;
     });
 
-    console.log('✅ 번역 완료 (이미지 보호 성공)!');
+    console.log('✅ 번역 완료 (CSS 및 이미지 보호 성공)!');
 
     res.json({
       success: true,
@@ -2533,7 +2555,6 @@ app.post('/api/translate-news', async (req, res) => {
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
   }
 });
-
 
 // 8. API - 썸네일 FTP 업로드 (경로 에러 수정 완료)
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
