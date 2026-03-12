@@ -2623,6 +2623,66 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 
 
 
+//적립금 지급 이벤트 03월12일 3천원지급
+// ========== [추가] 1회성 적립금 지급 이벤트 API ==========
+app.post('/api/event/one-time-reward', async (req, res) => {
+  const { memberId } = req.body;
+
+  // 1. 파라미터 유효성 검사 (비회원 guest_ 필터링)
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
+  }
+
+  const amount = 3000; // 지급할 적립금
+
+  try {
+    const collection = db.collection('event_onetime_rewards');
+
+    // 2. 중복 참여 확인
+    const alreadyParticipated = await collection.findOne({ memberId });
+    if (alreadyParticipated) {
+      return res.status(400).json({ success: false, message: '이미 2,000원 적립 혜택을 받으셨습니다.' });
+    }
+
+    // 3. Cafe24 API로 포인트 적립
+    const payload = {
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id: null,
+        amount: amount,
+        type: 'increase',
+        reason: '이벤트 3,000원 적립금 1회 지급'
+      }
+    };
+
+    await apiRequest(
+      'POST',
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
+      payload
+    );
+
+    // 4. 적립 성공 시 참여 기록 저장 (KST 기준)
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await collection.insertOne({
+      memberId,
+      amount,
+      participatedAt: nowKST
+    });
+
+    return res.json({ success: true, message: '🎉 3,000원 적립금이 지급되었습니다!' });
+
+  } catch (err) {
+    console.error('포인트 지급 오류:', err);
+
+    // Unique Index 충돌 에러 처리 (동시성 방어)
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.' });
+    }
+
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+  }
+});
 
 
 
