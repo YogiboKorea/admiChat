@@ -2641,7 +2641,7 @@ app.post('/api/event/one-time-reward', async (req, res) => {
     // 2. 중복 참여 확인
     const alreadyParticipated = await collection.findOne({ memberId });
     if (alreadyParticipated) {
-      return res.status(400).json({ success: false, message: '이미 2,000원 적립 혜택을 받으셨습니다.' });
+      return res.status(400).json({ success: false, message: '이미 적립 혜택을 받으셨습니다.' });
     }
 
     // 3. Cafe24 API로 포인트 적립
