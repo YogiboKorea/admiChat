@@ -2314,6 +2314,7 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
   }
 });
 
+
 // =================================================================
 // 🇯🇵 요기보 일본 뉴스레터 자동화 모듈 (스케줄러 & API)
 // =================================================================
@@ -2379,10 +2380,9 @@ async function fetchAndSaveYogiboJPNews() {
 
 // 2. 스케줄러 등록 (매일 자정 12시에 1번만 실행되도록 설정)
 // 크론 표현식 '0 0 * * *' = 매일 00:00 (24시간마다 1번)
-cron.schedule('0 0 * * *', () => {
+cron.schedule('0 */6 * * *', () => {
   fetchAndSaveYogiboJPNews();
 });
-
 
 
 // [추가] 순서 변경 저장 API (드래그 앤 드롭)
@@ -2620,6 +2620,10 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
+
+
+
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
