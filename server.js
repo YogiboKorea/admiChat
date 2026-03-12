@@ -2415,23 +2415,6 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-// [추가] 개별 게시글 삭제 API
-app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await db.collection('yogiboJPnews').deleteOne({ _id: new ObjectId(id) });
-    
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ success: false, message: '게시글을 찾을 수 없습니다.' });
-    }
-
-    res.json({ success: true, message: '게시글이 삭제되었습니다.' });
-  } catch (error) {
-    console.error('게시글 삭제 에러:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
 
 // 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
 app.get('/api/yogibo-jp-news', async (req, res) => {
@@ -2513,61 +2496,71 @@ app.get('/api/test/cleanup-duplicates', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-// 7. API - 구글 무료 번역 (이미지 및 CSS 스타일 태그 파괴 방지)
+
+
+// 7. API - 구글 무료 번역 (이미지 및 CSS 스타일 태그 파괴 방지, 증발 버그 수정)
 app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
-    const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
+    
+    // 제목 번역
+    let translatedTitle = title;
+    if (title) {
+        const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
+        translatedTitle = titleResult.text;
+    }
 
-    // ==========================================
-    // ★ 1. 번역하면 절대 안 되는 코드(style, script, img) 금고에 보관
-    // ==========================================
-    const protectedTags = [];
-    let maskedContent = content;
+    let translatedHtml = content || '';
+    
+    // 본문이 있을 경우에만 번역 진행
+    if (content) {
+        const protectedTags = [];
+        let maskedContent = content;
 
-    // <style> ... </style> 통째로 보호
-    maskedContent = maskedContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (match) => {
-      protectedTags.push(match);
-      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
-    });
+        // PROTECTED_TAG 같은 영단어 대신, 번역기가 무시하는 단순 기호(__TG번호__) 사용
+        maskedContent = maskedContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (match) => {
+          protectedTags.push(match);
+          return `__TG${protectedTags.length - 1}__`;
+        });
 
-    // <script> ... </script> 통째로 보호 (만약 있다면)
-    maskedContent = maskedContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, (match) => {
-      protectedTags.push(match);
-      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
-    });
+        maskedContent = maskedContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+          protectedTags.push(match);
+          return `__TG${protectedTags.length - 1}__`;
+        });
 
-    // <img> 태그 보호
-    maskedContent = maskedContent.replace(/<img[^>]*>/gi, (match) => {
-      protectedTags.push(match);
-      return `___PROTECTED_TAG_${protectedTags.length - 1}___`;
-    });
+        maskedContent = maskedContent.replace(/<img[^>]*>/gi, (match) => {
+          protectedTags.push(match);
+          return `__TG${protectedTags.length - 1}__`;
+        });
 
-    // ==========================================
-    // 2. 안전하게 텍스트만 남은 본문 번역
-    // ==========================================
-    const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
-    let translatedHtml = contentResult.text;
+        // 텍스트 번역 수행
+        const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
+        
+        // 번역 API가 알 수 없는 이유로 빈 값을 반환했을 경우 에러 처리 (화면 하얘짐 방지)
+        if (!contentResult || !contentResult.text) {
+            throw new Error("번역 API에서 빈 값을 반환했습니다.");
+        }
+        
+        translatedHtml = contentResult.text;
 
-    // ==========================================
-    // 3. 번역 후: 금고에 빼두었던 CSS와 이미지 원상 복구
-    // ==========================================
-    translatedHtml = translatedHtml.replace(/___\s*PROTECTED_TAG_\s*(\d+)\s*___/gi, (match, index) => {
-      return protectedTags[parseInt(index)] || match;
-    });
+        // 보호했던 태그 원상 복구
+        translatedHtml = translatedHtml.replace(/__\s*TG\s*(\d+)\s*__/gi, (match, index) => {
+          return protectedTags[parseInt(index)] || match;
+        });
+    }
 
-    console.log('✅ 번역 완료 (CSS 및 이미지 보호 성공)!');
+    console.log('✅ 번역 완료 (보호 성공)!');
 
     res.json({
       success: true,
-      translatedTitle: titleResult.text,
+      translatedTitle: translatedTitle,
       translatedContent: translatedHtml
     });
   } catch (error) {
     console.error('❌ 번역 에러:', error);
-    res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다.' });
+    res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다. 본문이 너무 길 수 있습니다.' });
   }
 });
 
