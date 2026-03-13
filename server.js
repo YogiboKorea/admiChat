@@ -2622,38 +2622,7 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 });
 
 
-// ==========================================
-// [추가] 뉴스레터 게시물 조회수 증가 API
-// ==========================================
-app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const collection = db.collection('yogiboJPnews');
 
-    // 하드코딩된 게시물(hardcoded_recovery)을 위한 특별 처리
-    if (id === 'hardcoded_recovery') {
-      await collection.updateOne(
-        { _id: id }, // ObjectId로 감싸지 않고 문자열 그대로 사용
-        { 
-          $inc: { views: 1 },
-          $setOnInsert: { title: '어디서 쉬느냐가 회복의 질을 결정합니다', status: 'published', isHardcoded: true }
-        },
-        { upsert: true } // 문서가 없으면 생성
-      );
-    } else {
-      // 일반 게시물 처리
-      await collection.updateOne(
-        { _id: new ObjectId(id) },
-        { $inc: { views: 1 } }
-      );
-    }
-
-    res.json({ success: true, message: '조회수가 증가했습니다.' });
-  } catch (error) {
-    console.error('조회수 업데이트 에러:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
 //적립금 지급 이벤트 03월12일 3천원지급
 // ========== [추가] 1회성 적립금 지급 이벤트 API ==========
 app.post('/api/event/one-time-reward', async (req, res) => {
@@ -2714,44 +2683,6 @@ app.post('/api/event/one-time-reward', async (req, res) => {
     return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
   }
 });
-
-
-
-
-
-// ==========================================
-// [추가] 뉴스레터 게시물 조회수 증가 API
-// ==========================================
-app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const collection = db.collection('yogiboJPnewsCounterUp');
-
-    // 하드코딩된 게시물(hardcoded_recovery)을 위한 특별 처리
-    if (id === 'hardcoded_recovery') {
-      await collection.updateOne(
-        { _id: id }, // ObjectId로 감싸지 않고 문자열 그대로 사용
-        { 
-          $inc: { views: 1 },
-          $setOnInsert: { title: '어디서 쉬느냐가 회복의 질을 결정합니다', status: 'published', isHardcoded: true }
-        },
-        { upsert: true } // 문서가 없으면 생성
-      );
-    } else {
-      // 일반 게시물 처리
-      await collection.updateOne(
-        { _id: new ObjectId(id) },
-        { $inc: { views: 1 } }
-      );
-    }
-
-    res.json({ success: true, message: '조회수가 증가했습니다.' });
-  } catch (error) {
-    console.error('조회수 업데이트 에러:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
 
 
 
