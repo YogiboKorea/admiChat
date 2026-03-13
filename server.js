@@ -2434,13 +2434,18 @@ app.get('/api/yogibo-jp-news', async (req, res) => {
   }
 });
 
-
 // 4. API - 뉴스레터 내용 수정 및 라이브 상태 변경 (관리자 페이지용)
 app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, status } = req.body;
     
+    // ★ [추가] MongoDB ObjectId 유효성 검증
+    if (!ObjectId.isValid(id)) {
+      console.error(`[뉴스레터 업데이트] 유효하지 않은 ID 값 수신: ${id}`);
+      return res.status(400).json({ success: false, message: '잘못된 게시글 ID 형식입니다.' });
+    }
+
     const updateData = {};
     if (title) updateData.title = title;
     if (content) updateData.content = content;
@@ -2462,7 +2467,6 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
 
 // 5. [수동 테스트용] 즉시 동기화 API (스케줄러 기다리기 답답할 때 호출)
 app.get('/api/test/fetch-jp-news', async (req, res) => {
