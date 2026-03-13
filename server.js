@@ -2688,6 +2688,35 @@ app.post('/api/event/one-time-reward', async (req, res) => {
   }
 });
 
+// API - 뉴스레터 조회수 증가
+app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 전달받은 ID가 MongoDB의 ObjectId 형식인지, 아니면 하드코딩용 일반 문자열인지 판별
+    let queryId;
+    if (ObjectId.isValid(id) && id !== 'hardcoded_recovery') {
+      queryId = new ObjectId(id);
+    } else {
+      queryId = id; // 'hardcoded_recovery' 같은 일반 문자열 처리
+    }
+
+    // $inc 연산자를 사용해 views 필드를 1 증가시킵니다.
+    // 만약 해당 데이터가 없으면 새로 만들어서라도 조회수를 기록하도록 upsert 옵션을 줍니다.
+    await db.collection('yogiboJPnews').updateOne(
+      { _id: queryId },
+      { $inc: { views: 1 } },
+      { upsert: true } 
+    );
+
+    res.json({ success: true, message: '조회수 증가 완료' });
+  } catch (error) {
+    console.error('조회수 업데이트 에러:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
