@@ -3176,7 +3176,16 @@ app.get('/api/track-click', async (req, res) => {
     const { bannerId, deviceType, startDate, endDate } = req.query;
     const query = {};
     if (bannerId) query.bannerId = bannerId;
-    if (deviceType && deviceType !== 'all') query.deviceType = deviceType;
+    
+    // 디바이스 필터: deviceType 필드가 없는 구버전 데이터도 올바르게 처리
+    if (deviceType && deviceType !== 'all') {
+      if (deviceType === 'pc') {
+        // pc 선택 시: deviceType이 'pc'이거나 아예 없는(null/undefined) 기존 데이터 포함
+        query.$or = [{ deviceType: 'pc' }, { deviceType: { $exists: false } }, { deviceType: null }];
+      } else {
+        query.deviceType = deviceType; // mobile 등 명확한 값만 필터
+      }
+    }
     
     // 날짜 기간 필터링
     if (startDate || endDate) {
@@ -3199,8 +3208,15 @@ app.get('/api/track-click/summary', async (req, res) => {
     const { startDate, endDate, deviceType } = req.query;
     const matchStage = {};
     
-    // 디바이스 필터
-    if (deviceType && deviceType !== 'all') matchStage.deviceType = deviceType;
+    // 디바이스 필터: deviceType 필드가 없는 구버전 데이터도 올바르게 처리
+    if (deviceType && deviceType !== 'all') {
+      if (deviceType === 'pc') {
+        // pc 선택 시: deviceType이 'pc'이거나 아예 없는(null/undefined) 기존 데이터 포함
+        matchStage.$or = [{ deviceType: 'pc' }, { deviceType: { $exists: false } }, { deviceType: null }];
+      } else {
+        matchStage.deviceType = deviceType; // mobile 등 명확한 값만 필터
+      }
+    }
     
     // 날짜 필터
     if (startDate || endDate) {
