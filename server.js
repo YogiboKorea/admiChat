@@ -2569,8 +2569,7 @@ app.post('/api/translate-news', async (req, res) => {
     res.status(500).json({ success: false, message: '구글 번역 중 오류가 발생했습니다. 본문이 너무 길 수 있습니다.' });
   }
 });
-
-// 8. API - 썸네일 FTP 업로드 (경로 에러 수정 완료)
+// 8. API - 썸네일 FTP 업로드 (경로 에러 수정 완료 + 하드코딩 ID 예외 처리)
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
 
@@ -2600,7 +2599,6 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
       console.log('디렉토리 생성 또는 확인 성공');
 
       const stream = Readable.from(processedBuffer);
-      // ★ 수정됨: 파일명만 전송
       await client.uploadFrom(stream, filename); 
       console.log('파일 업로드 성공:', filename);
       
@@ -2610,12 +2608,25 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
 
     const publicUrl = `https://yogibo.cafe24.com/web/img/news/${filename}`;
 
+    // ★ [수정됨] 하드코딩 ID 판별 로직 추가
+    let queryId;
+    if (postId === 'hardcoded_recovery') {
+      queryId = postId;
+    } else if (ObjectId.isValid(postId)) {
+      queryId = new ObjectId(postId);
+    } else {
+      return res.status(400).json({ success: false, message: '잘못된 게시글 ID 형식입니다.' });
+    }
+
+    // DB 업데이트
     const result = await db.collection('yogiboJPnews').updateOne(
-      { _id: new ObjectId(postId) },
-      { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } }
+      { _id: queryId },
+      { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } },
+      { upsert: postId === 'hardcoded_recovery' } // 하드코딩 데이터면 없을 때 생성
     );
     
-    if (result.matchedCount === 0) {
+    // upsert가 아닌 일반 수정일 때 매칭된 게 없으면 에러 처리
+    if (result.matchedCount === 0 && postId !== 'hardcoded_recovery') {
       return res.status(404).json({ success: false, message: '게시글 없음' });
     }
 
@@ -2626,7 +2637,6 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
     return res.status(500).json({ success: false, message: err.message || '서버 오류' });
   }
 });
-
 
 
 //적립금 지급 이벤트 03월12일 3천원지급
