@@ -3151,6 +3151,14 @@ app.post('/api/track-click', async (req, res) => {
       return res.status(400).json({ success: false, message: '필수 데이터가 누락되었습니다.' });
     }
 
+    // ===== IP 제외 목록 체크 =====
+    const clientIp = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+    const excluded = await db.collection('ipExcludes').findOne({ ip: clientIp });
+    if (excluded) {
+      return res.status(200).json({ success: true, message: '제외 IP - 데이터 수집 안 함' });
+    }
+    // ============================
+
     const clickData = {
       bannerId,
       url,
@@ -3299,6 +3307,41 @@ app.get('/api/banner-archive', async (req, res) => {
 
 
 
+// ========== [추가] 제외 IP 관리 API ==========
+// GET: 제외 IP 목록 조회
+app.get('/api/ip-exclude', async (req, res) => {
+  try {
+    const list = await db.collection('ipExcludes').find({}).toArray();
+    res.json({ success: true, data: list });
+  } catch(err) { res.status(500).json({ success: false }); }
+});
+
+// POST: IP 제외 등록
+app.post('/api/ip-exclude', async (req, res) => {
+  try {
+    const { ip, label } = req.body;
+    if (!ip) return res.status(400).json({ success: false, message: 'ip 필요' });
+    const exists = await db.collection('ipExcludes').findOne({ ip });
+    if (exists) return res.json({ success: false, message: '이미 등록된 IP입니다.' });
+    await db.collection('ipExcludes').insertOne({ ip, label: label || '', createdAt: new Date() });
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ success: false }); }
+});
+
+// DELETE: IP 제외 해제
+app.delete('/api/ip-exclude/:ip', async (req, res) => {
+  try {
+    const ip = decodeURIComponent(req.params.ip);
+    await db.collection('ipExcludes').deleteOne({ ip });
+    res.json({ success: true });
+  } catch(err) { res.status(500).json({ success: false }); }
+});
+
+// 현재 접속 IP 확인용
+app.get('/api/my-ip', (req, res) => {
+  const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  res.json({ success: true, ip });
+});
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
