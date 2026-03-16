@@ -2999,6 +2999,119 @@ app.post('/api/yogibo-jp-news/upload-image', upload.single('file'), async (req, 
 });
 
 
+// =================================================================
+// 📚 브랜드 지식베이스 관리 API
+// =================================================================
+
+// 카테고리: product-spec(제품), brand-story(브랜드), promotion(프로모션)
+
+// 목록 조회
+app.get('/api/brand-knowledge', async (req, res) => {
+  try {
+    const { category } = req.query;
+    const query = category ? { category } : {};
+    const docs = await db.collection('brandKnowledge')
+      .find(query).sort({ updatedAt: -1 }).toArray();
+    res.json({ success: true, data: docs });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 새 자료 등록
+app.post('/api/brand-knowledge', async (req, res) => {
+  try {
+    const { title, category, content } = req.body;
+    if (!title || !category || !content) {
+      return res.status(400).json({ success: false, message: '제목, 카테고리, 내용은 필수입니다.' });
+    }
+    const doc = {
+      title, category, content,
+      createdAt: new Date(), updatedAt: new Date()
+    };
+    const result = await db.collection('brandKnowledge').insertOne(doc);
+    res.json({ success: true, data: { _id: result.insertedId, ...doc } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 수정
+app.put('/api/brand-knowledge/:id', async (req, res) => {
+  try {
+    const { title, category, content } = req.body;
+    await db.collection('brandKnowledge').updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { title, category, content, updatedAt: new Date() } }
+    );
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 삭제
+app.delete('/api/brand-knowledge/:id', async (req, res) => {
+  try {
+    await db.collection('brandKnowledge').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 파일(이미지/PDF) 업로드 → GPT Vision으로 텍스트 추출
+app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
+
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 필요' });
+    }
+
+    // 이미지를 base64로 변환
+    const base64 = req.file.buffer.toString('base64');
+    const mediaType = req.file.mimetype;
+
+    // GPT-4o Vision으로 텍스트 추출
+    const apiResponse = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: '당신은 문서 분석 전문가입니다. 이미지나 PDF에서 텍스트 내용을 정확하게 추출하여 한국어로 정리해주세요. 브랜드 자료, 제품 정보, 프로모션 내용 등을 구조화하여 반환합니다. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
+              { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요.' }
+            ]
+          }
+        ],
+        max_tokens: 4096,
+        temperature: 0.2,
+      },
+      {
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        timeout: 60000,
+      }
+    );
+
+    const extractedText = apiResponse.data.choices?.[0]?.message?.content || '';
+    console.log('📄 문서 텍스트 추출 완료:', extractedText.substring(0, 100) + '...');
+
+    res.json({ success: true, text: extractedText, filename: req.file.originalname });
+  } catch (e) {
+    console.error('문서 추출 에러:', e.response?.data || e.message);
+    res.status(500).json({ success: false, message: '텍스트 추출 실패: ' + (e.response?.data?.error?.message || e.message) });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
