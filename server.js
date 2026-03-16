@@ -63,7 +63,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // MongoDB 컬렉션명 정의
 const tokenCollectionName = "tokens";
-
+const COLLECTION_COUPON_MAP = "coupon_map";
 // ========== [3] MongoDB 토큰 관리 함수 (전역 db 사용) ==========
 async function getTokensFromDB() {
   try {
