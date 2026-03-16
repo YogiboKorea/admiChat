@@ -2769,9 +2769,9 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
       return res.status(400).json({ success: false, message: '프롬프트를 입력해주세요.' });
     }
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) {
-      return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다.' });
+    const API_KEY = process.env.API_KEY;
+    if (!API_KEY) {
+      return res.status(500).json({ success: false, message: 'API_KEY 환경변수가 설정되지 않았습니다.' });
     }
 
     // 스타일 가이드 매핑
@@ -2842,7 +2842,7 @@ ${selectedStyle}
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${API_KEY}`,
         },
         timeout: 120000,
       }
