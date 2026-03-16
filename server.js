@@ -2384,7 +2384,6 @@ cron.schedule('0 */6 * * *', () => {
   fetchAndSaveYogiboJPNews();
 });
 
-
 // [추가] 순서 변경 저장 API (드래그 앤 드롭)
 app.put('/api/yogibo-jp-news/order', async (req, res) => {
   try {
@@ -2397,13 +2396,25 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
 
     const collection = db.collection('yogiboJPnews');
     
-    // bulkWrite를 사용하면 여러 개의 게시글 순서를 DB 요청 1번 만에 초고속으로 업데이트할 수 있습니다.
-    const bulkOps = order.map(item => ({
-      updateOne: {
-        filter: { _id: new ObjectId(item.id) },
-        update: { $set: { position: item.position } }
+    // bulkWrite를 사용할 때 하드코딩된 ID 예외 처리
+    const bulkOps = order.map(item => {
+      let queryId;
+      
+      if (item.id === 'hardcoded_recovery') {
+        queryId = item.id; // 하드코딩된 일반 문자열은 그대로 통과
+      } else if (ObjectId.isValid(item.id)) {
+        queryId = new ObjectId(item.id); // 정상적인 24자리 Hex는 변환
+      } else {
+        return null; // 알 수 없는 쓰레기값이면 건너뛰기
       }
-    }));
+
+      return {
+        updateOne: {
+          filter: { _id: queryId },
+          update: { $set: { position: item.position } }
+        }
+      };
+    }).filter(op => op !== null); // 위에서 null로 반환된 쓰레기값들은 배열에서 제거
 
     if (bulkOps.length > 0) {
       await collection.bulkWrite(bulkOps);
@@ -2415,6 +2426,7 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
+
 
 // 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
 app.get('/api/yogibo-jp-news', async (req, res) => {
