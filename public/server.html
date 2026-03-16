@@ -3,168 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>배너 클릭 트래킹 (뷰저블 테스트)</title>
+    <title>배너 클릭 히트맵 (관리자 대시보드)</title>
     <style>
         body { 
             font-family: 'Pretendard', sans-serif; 
-            text-align: center; 
-            background: #f8f9fa; 
+            background: #f1f5f9; 
             margin: 0;
-            padding: 0;
+            padding: 20px;
+            color: #334155;
         }
         h1 {
-            color: #1e293b;
-            margin-top: 40px;
+            color: #0f172a;
+            margin-bottom: 5px;
+            text-align: center;
         }
         .desc {
             color: #64748b;
-            margin-bottom: 40px;
-        }
-        .banner-container {
-            margin: 0 auto 50px auto;
-            max-width: 800px;
-            padding: 0 20px;
-        }
-        .banner {
-            width: 100%;
-            height: 300px;
-            background: linear-gradient(135deg, #E8001C, #ff4d64);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            font-weight: 700;
-            cursor: pointer;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(232, 0, 28, 0.2);
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.2s, box-shadow 0.2s;
-            user-select: none;
+            margin-bottom: 30px;
+            text-align: center;
         }
         
-        .banner:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 15px 30px rgba(232, 0, 28, 0.3);
-        }
-
-        .banner:active {
-            transform: translateY(1px);
-        }
-
-        /* 클릭된 지점을 표시하는 링 애니메이션 */
-        .click-dot {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            animation: ripple 0.8s ease-out forwards;
-        }
-
-        @keyframes ripple {
-            0% { 
-                box-shadow: 0 0 0 0 rgba(255,255,255, 0.6); 
-                opacity: 1;
-            }
-            100% { 
-                box-shadow: 0 0 0 40px rgba(255,255,255, 0); 
-                opacity: 0;
-            }
-        }
-        
-        #log-container {
-            max-width: 800px;
-            margin: 0 auto;
-            text-align: left;
+        /* 컨트롤 패널 */
+        .control-panel {
+            max-width: 1200px;
+            margin: 0 auto 20px auto;
             background: white;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: monospace;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-panel select {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 15px;
+            flex-grow: 1;
+            min-width: 200px;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #1e293b; color: white; }
+        .btn-primary:hover { background: #0f172a; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-secondary { background: #e2e8f0; color: #475569; }
+        .btn-secondary:hover { background: #cbd5e1; }
+
+        .stat-badge {
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 700;
             font-size: 14px;
-            color: #334155;
+            display: inline-block;
+        }
+
+        /* 뷰어 영역 */
+        .viewer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        /* 배너 및 히트맵 표시 영역 */
+        .banner-wrapper {
+            position: relative;
+            display: inline-block; /* 이미지 크기에 맞게 wrapper 축소되도록 */
+            max-width: 100%;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px #e2e8f0;
+            background: #f8fafc;
+            min-height: 200px;
+        }
+
+        .banner-wrapper img {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 800px;
+            object-fit: contain;
+        }
+
+        .empty-state {
+            padding: 100px 20px;
+            color: #94a3b8;
+            font-size: 16px;
+        }
+
+        /* 클릭된 지점 (히트맵 닷) */
+        .heatmap-dot {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            /* 중심을 노랗게, 바깥을 붉은색->투명으로 하여 열 감지 형태로 표현 */
+            background: radial-gradient(circle, rgba(255, 235, 59, 0.9) 0%, rgba(255, 87, 34, 0.7) 40%, rgba(255, 0, 0, 0) 80%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: multiply; /* 색상을 겹칠 시 열감 증진 */
         }
     </style>
 </head>
 <body>
 
-    <h1>배너 클릭 히트맵 테스트 (뷰저블)</h1>
-    <p class="desc">배너의 어느 부분을 클릭했는지 추적하여 DB(bannerClicks)에 저장합니다.</p>
+    <h1>배너 클릭 히트맵 (관리자 대시보드)</h1>
+    <p class="desc">실제 웹사이트 방문자가 클릭한 메인 배너(Alt 기준)의 분포도를 확인합니다.</p>
 
-    <div class="banner-container">
-        <!-- 클릭 이벤트를 받을 배너 -->
-        <div class="banner" id="promo-banner-main" data-url="/event/spring" onclick="trackClick(event, this)">
-            🎉 봄맞이 요기보 특별 혜택! (여기를 클릭해보세요)
+    <div class="control-panel">
+        <select id="banner-select">
+            <option value="">불러오는 중...</option>
+        </select>
+        
+        <div class="stat-badge" id="click-count-badge">누적 클릭: 0회</div>
+
+        <button class="btn btn-primary" onclick="loadHeatmapData()">🔥 히트맵 보기</button>
+        <button class="btn btn-secondary" onclick="clearHeatmap()">초기화</button>
+    </div>
+
+    <div class="viewer-container">
+        <div class="banner-wrapper" id="banner-wrapper">
+            <div class="empty-state" id="empty-state">
+                👆 상단에서 메뉴를 선택하고 "히트맵 보기"를 클릭해주세요. <br>
+                (배너 클릭 데이터가 수집되면 Alt 이미지와 함께 위 목록에 표시됩니다.)
+            </div>
+            <!-- 배경 이미지와 히트맵 점(dot)들이 들어갈 자리 -->
         </div>
     </div>
 
-    <div id="log-container">
-        <strong>클릭 전송 로그:</strong><br>
-    </div>
 
     <script>
-        const logContainer = document.getElementById('log-container');
+        // 클라우드 타입 도메인 직접 연결 (로컬 테스트 시 http://localhost:6000 사용 가능)
+        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        let summaryData = [];
 
-        function appendLog(message, data) {
-            const timeString = new Date().toLocaleTimeString();
-            const logLine = document.createElement('div');
-            logLine.innerHTML = `<span style="color:#94a3b8">[${timeString}]</span> <b>${message}</b> <br><span style="color:#0ea5e9">${JSON.stringify(data)}</span>`;
-            logLine.style.marginBottom = '10px';
-            logContainer.appendChild(logLine);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-
-        async function trackClick(event, element) {
-            // 1. 클릭한 좌표 가져오기 (배너 내부 기준 상대 좌표)
-            const rect = element.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
-
-            // 시각적 피드백 (클릭 지점 파문 표시)
-            const dot = document.createElement('div');
-            dot.className = 'click-dot';
-            dot.style.left = `${x}px`;
-            dot.style.top = `${y}px`;
-            element.appendChild(dot);
-            setTimeout(() => dot.remove(), 800);
-
-            // 2. 서버로 전송할 데이터 구성
-            const clickData = {
-                bannerId: element.id,
-                url: element.getAttribute('data-url') || window.location.href,
-                x: Math.round(x),
-                y: Math.round(y),
-                screenWidth: element.offsetWidth,
-                screenHeight: element.offsetHeight
-            };
-
-            appendLog("데이터 전송 중...", clickData);
-
-            // 3. 서버 API 호출
+        // 1. 페이지 로드 시 전체 배너 목록(통계) 가져오기
+        async function fetchSummary() {
+            const selectEl = document.getElementById('banner-select');
             try {
-                const response = await fetch('/api/track-click', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(clickData)
-                });
-                
+                const response = await fetch(`${API_BASE_URL}/api/track-click/summary`);
                 const result = await response.json();
-                if (result.success) {
-                    appendLog("✅ 저장 완료", result.data);
+                
+                if (result.success && result.data.length > 0) {
+                    summaryData = result.data;
+                    selectEl.innerHTML = ''; // 초기화
+                    
+                    summaryData.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item._id;
+                        // 표시명: Alt 이름 (클릭 N건)
+                        option.textContent = `${item._id} (클릭 ${item.clickCount}건)`;
+                        selectEl.appendChild(option);
+                    });
                 } else {
-                    appendLog("❌ 저장 실패", result.message);
+                    selectEl.innerHTML = '<option value="">수집된 데이터가 없습니다.</option>';
                 }
             } catch (error) {
-                appendLog("🔥 네트워크 오류", error.message);
-                console.error("클릭 데이터 전송 실패:", error);
+                console.error("통계 로드 에러:", error);
+                selectEl.innerHTML = '<option value="">통신 오류 발생</option>';
             }
         }
+
+        // 2. 히트맵 데이터 로드 및 그리기
+        async function loadHeatmapData() {
+            const selectEl = document.getElementById('banner-select');
+            const selectedBannerId = selectEl.value;
+            
+            if (!selectedBannerId) {
+                alert("조회할 배너가 없습니다.");
+                return;
+            }
+
+            // 선택된 배너의 통계 정보(이미지 주소 등) 찾기
+            const bannerInfo = summaryData.find(item => item._id === selectedBannerId);
+            const wrapper = document.getElementById('banner-wrapper');
+            const emptyState = document.getElementById('empty-state');
+            const clickBadge = document.getElementById('click-count-badge');
+
+            // 초기화
+            clearHeatmapDots();
+            if (emptyState) emptyState.style.display = 'none';
+            clickBadge.textContent = `누적 클릭: ${bannerInfo ? bannerInfo.clickCount : 0}회`;
+
+            // 배경 이미지 세팅
+            let imgEl = document.getElementById('heatmap-bg-img');
+            if (!imgEl) {
+                imgEl = document.createElement('img');
+                imgEl.id = 'heatmap-bg-img';
+                wrapper.appendChild(imgEl);
+            }
+            // 수집된 이미지 URL이 없으면 회색 배경 역할
+            imgEl.src = bannerInfo && bannerInfo.imageUrl ? bannerInfo.imageUrl : ''; 
+            imgEl.alt = selectedBannerId;
+
+            try {
+                // 클릭 좌표 데이터 상세 조회
+                const response = await fetch(`${API_BASE_URL}/api/track-click?bannerId=${encodeURIComponent(selectedBannerId)}`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    // 이미지가 로드된 후 (크기가 확정된 후) 점을 그려야 위치가 정확함
+                    imgEl.onload = () => drawHeatmap(result.data, imgEl, wrapper);
+                    
+                    // 만약 캐시되어 있거나 src가 없어서 이벤트가 즉시 일어나면 바로 실행
+                    if (imgEl.complete) {
+                        drawHeatmap(result.data, imgEl, wrapper);
+                    }
+                }
+            } catch (error) {
+                console.error("히트맵 로드 오류", error);
+                alert("분포도 데이터를 가져오는 중 오류가 발생했습니다.");
+            }
+        }
+
+        // 3. 사진 위에 히트맵 점 그리기 (해상도 비율 계산)
+        function drawHeatmap(clicks, imgEl, wrapper) {
+            clearHeatmapDots();
+
+            // 현재 화면에 그려진 이미지의 실제 렌더링 사이즈
+            // object-fit 옵션이나 박스 크기에 따라 가로/세로 비율 기준을 다르게 해야 정확합니다.
+            const renderedWidth = imgEl.clientWidth;
+            const renderedHeight = imgEl.clientHeight;
+
+            clicks.forEach(click => {
+                if (!click.coordinates || !click.screenSize) return;
+
+                const { x, y } = click.coordinates;
+                const { width, height } = click.screenSize; // 수집 당시의 화면/이미지 크기
+                
+                // 비율 보정 (수집 당시 가로 크기 기준 대비 클릭 위치 * 현재 화면 가로 크기)
+                const adjustedX = (x / width) * renderedWidth;
+                const adjustedY = (y / height) * renderedHeight;
+
+                const dot = document.createElement('div');
+                dot.className = 'heatmap-dot';
+                dot.style.left = `${adjustedX}px`;
+                dot.style.top = `${adjustedY}px`;
+                
+                // 클라이언트 화면에 여러 점이 겹칠수록 열이 강하게 나타남
+                wrapper.appendChild(dot);
+            });
+        }
+
+        // 화면 지우기 보조 함수
+        function clearHeatmapDots() {
+            const dots = document.querySelectorAll('.heatmap-dot');
+            dots.forEach(d => d.remove());
+        }
+
+        function clearHeatmap() {
+            clearHeatmapDots();
+            const wrapper = document.getElementById('banner-wrapper');
+            const imgEl = document.getElementById('heatmap-bg-img');
+            const emptyState = document.getElementById('empty-state');
+            if (imgEl) imgEl.src = '';
+            if (emptyState) emptyState.style.display = 'block';
+            document.getElementById('click-count-badge').textContent = '누적 클릭: 0회';
+        }
+
+        // 시작 시 데이터 로드
+        window.addEventListener('DOMContentLoaded', fetchSummary);
     </script>
 </body>
 </html>

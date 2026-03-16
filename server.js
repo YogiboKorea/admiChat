@@ -3145,7 +3145,7 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
 // ========== [추가] 뷰저블(배너 클릭 히트맵) 트래킹 API ==========
 app.post('/api/track-click', async (req, res) => {
   try {
-    const { x, y, bannerId, url, screenWidth, screenHeight } = req.body;
+    const { x, y, bannerId, url, screenWidth, screenHeight, imageUrl } = req.body;
 
     if (x === undefined || y === undefined || !bannerId) {
       return res.status(400).json({ success: false, message: '필수 데이터가 누락되었습니다.' });
@@ -3154,6 +3154,7 @@ app.post('/api/track-click', async (req, res) => {
     const clickData = {
       bannerId,
       url,
+      imageUrl: imageUrl || '', // 관리자 화면 표시를 위한 이미지 URL
       coordinates: { x, y },
       screenSize: { width: screenWidth, height: screenHeight },
       timestamp: new Date(),
@@ -3164,6 +3165,44 @@ app.post('/api/track-click', async (req, res) => {
     res.json({ success: true, message: '클릭 데이터가 저장되었습니다.', data: clickData });
   } catch (err) {
     console.error('클릭 트래킹 저장 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// ========== [추가] 뷰저블(배너 클릭 히트맵) 데이터 조회 API ==========
+app.get('/api/track-click', async (req, res) => {
+  try {
+    const { bannerId } = req.query;
+    const query = bannerId ? { bannerId } : {};
+    const clicks = await db.collection('bannerClicks').find(query).toArray();
+
+    res.json({ success: true, data: clicks });
+  } catch (err) {
+    console.error('클릭 트래킹 조회 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// ========== [추가] 뷰저블(배너 히트맵) 배너별 기초 통계 목록 API ==========
+app.get('/api/track-click/summary', async (req, res) => {
+  try {
+    const pipeline = [
+      { $sort: { timestamp: -1 } },
+      { 
+        $group: { 
+          _id: "$bannerId", 
+          imageUrl: { $first: "$imageUrl" }, 
+          screenWidth: { $first: "$screenSize.width" },
+          screenHeight: { $first: "$screenSize.height" },
+          clickCount: { $sum: 1 } 
+        } 
+      },
+      { $sort: { clickCount: -1 } }
+    ];
+    const summary = await db.collection('bannerClicks').aggregate(pipeline).toArray();
+    res.json({ success: true, data: summary });
+  } catch (err) {
+    console.error('히트맵 통계 조회 오류:', err);
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
