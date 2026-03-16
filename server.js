@@ -9,7 +9,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 require("dotenv").config();
 const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
-const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
+//const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
 const cheerio = require('cheerio');
