@@ -17,23 +17,22 @@ const multer = require('multer');
 const sharp = require('sharp');             
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
-
+const pdfParse = require('pdf-parse');
 const crypto = require('crypto');           
  
 // multer 설정 (메모리에 임시 저장)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 최대 5MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB로 확대
   fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('허용되지 않는 파일 형식입니다. (jpg/png/webp/gif만 가능)'));
+      cb(new Error('허용되지 않는 파일 형식입니다. (jpg/png/webp/gif/pdf만 가능)'));
     }
   }
 });
- 
 
 const cron = require('node-cron');
 const parser = new Parser();
@@ -3059,55 +3058,91 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
-
-// 파일(이미지/PDF) 업로드 → GPT Vision으로 텍스트 추출
 app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) {
-      return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 필요' });
+    const isPDF = req.file.mimetype === 'application/pdf';
+    let extractedText = '';
+
+    if (isPDF) {
+      // PDF → pdf-parse로 텍스트 직접 추출 (무료, 빠름)
+      const pdfData = await pdfParse(req.file.buffer);
+      const rawText = pdfData.text || '';
+
+      if (rawText.trim().length < 30) {
+        // 텍스트가 거의 없는 이미지형 PDF → GPT에 안내
+        return res.status(400).json({ 
+          success: false, 
+          message: '이미지 기반 PDF입니다. PDF를 캡처하여 이미지(JPG/PNG)로 업로드해주세요.' 
+        });
+      }
+
+      // GPT로 정리 (선택적 - 바로 rawText 써도 됨)
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      if (OPENAI_API_KEY) {
+        try {
+          const apiResponse = await axios.post(
+            'https://api.openai.com/v1/chat/completions',
+            {
+              model: 'gpt-4o-mini',
+              messages: [
+                { role: 'system', content: '당신은 문서 정리 전문가입니다. 추출된 PDF 텍스트를 깔끔하게 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 핵심 정보를 구조화하여 반환합니다. 마크다운 없이 일반 텍스트로 정리해주세요.' },
+                { role: 'user', content: '다음 PDF에서 추출한 텍스트를 깔끔하게 정리해주세요:\n\n' + rawText.substring(0, 10000) }
+              ],
+              max_tokens: 4096,
+              temperature: 0.2,
+            },
+            {
+              headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+              timeout: 30000,
+            }
+          );
+          extractedText = apiResponse.data.choices?.[0]?.message?.content || rawText;
+        } catch (e) {
+          console.warn('GPT 정리 실패, 원본 텍스트 사용:', e.message);
+          extractedText = rawText;
+        }
+      } else {
+        extractedText = rawText;
+      }
+
+    } else {
+      // 이미지 → GPT Vision으로 추출 (기존 로직)
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      if (!OPENAI_API_KEY) return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 필요' });
+
+      const base64 = req.file.buffer.toString('base64');
+      const mediaType = req.file.mimetype;
+
+      const apiResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: '당신은 문서 분석 전문가입니다. 이미지에서 텍스트를 정확하게 추출하여 한국어로 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.' },
+            { role: 'user', content: [
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
+              { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요.' }
+            ]}
+          ],
+          max_tokens: 4096,
+          temperature: 0.2,
+        },
+        {
+          headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+          timeout: 60000,
+        }
+      );
+      extractedText = apiResponse.data.choices?.[0]?.message?.content || '';
     }
 
-    // 이미지를 base64로 변환
-    const base64 = req.file.buffer.toString('base64');
-    const mediaType = req.file.mimetype;
-
-    // GPT-4o Vision으로 텍스트 추출
-    const apiResponse = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: '당신은 문서 분석 전문가입니다. 이미지나 PDF에서 텍스트 내용을 정확하게 추출하여 한국어로 정리해주세요. 브랜드 자료, 제품 정보, 프로모션 내용 등을 구조화하여 반환합니다. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.'
-          },
-          {
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
-              { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요.' }
-            ]
-          }
-        ],
-        max_tokens: 4096,
-        temperature: 0.2,
-      },
-      {
-        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        timeout: 60000,
-      }
-    );
-
-    const extractedText = apiResponse.data.choices?.[0]?.message?.content || '';
-    console.log('📄 문서 텍스트 추출 완료:', extractedText.substring(0, 100) + '...');
-
+    console.log('📄 텍스트 추출 완료:', extractedText.substring(0, 100) + '...');
     res.json({ success: true, text: extractedText, filename: req.file.originalname });
+
   } catch (e) {
     console.error('문서 추출 에러:', e.response?.data || e.message);
-    res.status(500).json({ success: false, message: '텍스트 추출 실패: ' + (e.response?.data?.error?.message || e.message) });
+    res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
   }
 });
 
