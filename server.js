@@ -2793,18 +2793,32 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
 ## 작성 규칙
 1. 한국어로 작성합니다.
 2. HTML 형식으로 출력합니다. (<html>, <head>, <body> 태그는 제외하고 본문 콘텐츠만)
-3. 인라인 스타일을 사용합니다. (이메일 호환성)
-4. 요기보 브랜드 컬러: 메인 레드(#E8001C), 네이비(#1e293b)
-5. 모바일 친화적인 단일 컬럼 레이아웃 (max-width: 600px)
-6. 이미지가 첨부된 경우, 이미지를 분석하여 콘텐츠에 자연스럽게 반영합니다.
-7. 첨부된 이미지의 URL은 알 수 없으므로, 이미지 위치에 [IMAGE_PLACEHOLDER_1], [IMAGE_PLACEHOLDER_2] 등의 플레이스홀더를 넣어주세요.
+3. 모든 스타일은 인라인 CSS로 작성합니다. (이메일 호환성)
+4. 요기보 브랜드 컬러: 메인 레드(#E8001C), 네이비(#1e293b), 배경 밝은 회색(#f8f9fa)
+5. 모바일 친화적인 단일 컬럼 레이아웃 (max-width: 600px, margin: 0 auto)
+6. 이미지가 첨부된 경우, 해당 이미지를 분석하여 콘텐츠에 자연스럽게 반영합니다.
+
+## 이미지 플레이스홀더 규칙 (매우 중요)
+- 이미지가 들어갈 자리에는 반드시 텍스트로만 {{IMAGE_1}}, {{IMAGE_2}} 형태로 작성합니다.
+- 절대로 <img> 태그로 감싸지 마세요. 텍스트 그대로 넣어야 합니다.
+- 예시: <div>{{IMAGE_1}}</div> (O)
+- 잘못된 예시: <img src="{{IMAGE_1}}"> (X)
+
+## 디자인 가이드
+- 최상위 래퍼: <div style="max-width:600px;margin:0 auto;font-family:'Pretendard',sans-serif;background:#ffffff;">
+- 헤더 영역: 브랜드 컬러 배경, 흰색 텍스트, padding 30px
+- 본문 텍스트: font-size:16px, line-height:1.8, color:#333333, padding:30px
+- 소제목: font-size:20px, font-weight:700, color:#1e293b, margin-bottom:16px
+- CTA 버튼: display:inline-block, background:#E8001C, color:#ffffff, padding:14px 32px, border-radius:8px, font-weight:700, text-decoration:none
+- 구분선: <hr style="border:none;border-top:1px solid #e5e7eb;margin:30px 0;">
+- 푸터: font-size:12px, color:#94a3b8, text-align:center, padding:20px 30px
 
 ## 스타일 가이드
 ${selectedStyle}
 
 ## 응답 형식
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
-{"title": "뉴스레터 제목", "content": "<div>...HTML 본문...</div>"}`
+{"title": "뉴스레터 제목", "content": "<div style='max-width:600px;...'>...HTML 본문...</div>"}`
       }
     ];
 
