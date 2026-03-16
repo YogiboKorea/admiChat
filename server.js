@@ -2760,9 +2760,7 @@ app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
 // .env 파일에 추가: ANTHROPIC_API_KEY=sk-ant-xxxxx
 // =================================================================
 
-
-// ─── 1. AI 뉴스레터 생성 API (axios 직접 호출 - SDK 불필요) ────
-// ⚠️ 이 라우트가 반드시 POST '/api/yogibo-jp-news' 보다 위에 있어야 합니다!
+// ─── AI 뉴스레터 생성 API (OpenAI GPT 사용) ────
 app.post('/api/yogibo-jp-news/generate', async (req, res) => {
   try {
     const { prompt, images, style } = req.body;
@@ -2771,31 +2769,9 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
       return res.status(400).json({ success: false, message: '프롬프트를 입력해주세요.' });
     }
 
-    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.' 
-      });
-    }
-
-    // Claude API 메시지 구성
-    const messageContent = [];
-
-    // 이미지가 있으면 먼저 추가
-    if (images && Array.isArray(images) && images.length > 0) {
-      for (const img of images) {
-        if (img.data) {
-          messageContent.push({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: img.mediaType || 'image/jpeg',
-              data: img.data,
-            }
-          });
-        }
-      }
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다.' });
     }
 
     // 스타일 가이드 매핑
@@ -2808,89 +2784,94 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
     };
     const selectedStyle = styleGuides[style] || '요기보 브랜드 톤에 맞는 따뜻하고 친근한 뉴스레터.';
 
-    // 프롬프트 구성
-    messageContent.push({
-      type: 'text',
-      text: `당신은 요기보(Yogibo) 한국 공식 뉴스레터 에디터입니다.
+    // GPT 메시지 구성
+    const messages = [
+      {
+        role: 'system',
+        content: `당신은 요기보(Yogibo) 한국 공식 뉴스레터 에디터입니다.
 
 ## 작성 규칙
 1. 한국어로 작성합니다.
 2. HTML 형식으로 출력합니다. (<html>, <head>, <body> 태그는 제외하고 본문 콘텐츠만)
 3. 인라인 스타일을 사용합니다. (이메일 호환성)
-4. 이미지가 첨부된 경우, 이미지를 분석하여 콘텐츠에 자연스럽게 반영합니다.
-5. 요기보 브랜드 컬러: 메인 레드(#E8001C), 네이비(#1e293b)
-6. 모바일 친화적인 단일 컬럼 레이아웃 (max-width: 600px)
+4. 요기보 브랜드 컬러: 메인 레드(#E8001C), 네이비(#1e293b)
+5. 모바일 친화적인 단일 컬럼 레이아웃 (max-width: 600px)
+6. 이미지가 첨부된 경우, 이미지를 분석하여 콘텐츠에 자연스럽게 반영합니다.
 7. 첨부된 이미지의 URL은 알 수 없으므로, 이미지 위치에 [IMAGE_PLACEHOLDER_1], [IMAGE_PLACEHOLDER_2] 등의 플레이스홀더를 넣어주세요.
 
 ## 스타일 가이드
 ${selectedStyle}
 
-## 사용자 요청
-${prompt}
-
-위 요청을 바탕으로 뉴스레터 HTML 콘텐츠를 생성해주세요.
+## 응답 형식
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"title": "뉴스레터 제목", "content": "<div>...HTML 본문...</div>"}`
-    });
+      }
+    ];
 
-    console.log('🤖 AI 뉴스레터 생성 요청... (axios 직접 호출)');
+    // 유저 메시지 구성 (이미지 포함 가능)
+    const userContent = [];
 
-    // ★ axios로 Anthropic API 직접 호출 (SDK 불필요)
+    // 이미지가 있으면 GPT Vision으로 전달
+    if (images && Array.isArray(images) && images.length > 0) {
+      for (const img of images) {
+        if (img.data) {
+          userContent.push({
+            type: 'image_url',
+            image_url: {
+              url: `data:${img.mediaType || 'image/jpeg'};base64,${img.data}`,
+              detail: 'low'  // 비용 절약 (high로 바꾸면 더 정밀)
+            }
+          });
+        }
+      }
+    }
+
+    userContent.push({ type: 'text', text: prompt });
+    messages.push({ role: 'user', content: userContent });
+
+    console.log('🤖 AI 뉴스레터 생성 요청... (OpenAI GPT)');
+
     const apiResponse = await axios.post(
-      'https://api.anthropic.com/v1/messages',
+      'https://api.openai.com/v1/chat/completions',
       {
-        model: 'claude-sonnet-4-20250514',
+        model: 'gpt-4o',  // 이미지 분석 + 텍스트 생성 모두 가능
+        messages: messages,
         max_tokens: 4096,
-        messages: [{ role: 'user', content: messageContent }],
+        temperature: 0.7,
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
         },
-        timeout: 120000, // 2분 타임아웃 (AI 생성은 오래 걸릴 수 있음)
+        timeout: 120000,
       }
     );
 
-    // 응답 파싱
-    const responseData = apiResponse.data;
-    const responseText = (responseData.content || [])
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('');
+    const responseText = apiResponse.data.choices?.[0]?.message?.content || '';
 
     // JSON 추출
     let parsed;
     try {
-      // 방법 1: ```json ... ``` 블록 안에 있을 수 있음
       const fenced = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
       const jsonStr = fenced ? fenced[1].trim() : responseText.trim();
-      
-      // 방법 2: { 로 시작하는 JSON 객체 찾기
       const jsonMatch = jsonStr.match(/\{[\s\S]*"title"[\s\S]*"content"[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('JSON 형식 추출 실패');
+        throw new Error('JSON 추출 실패');
       }
     } catch (parseErr) {
-      console.warn('JSON 파싱 실패, 전체 텍스트를 content로 사용:', parseErr.message);
+      console.warn('JSON 파싱 실패, 전체 텍스트 사용:', parseErr.message);
       parsed = { title: '새 뉴스레터', content: responseText };
     }
 
     console.log('✅ AI 뉴스레터 생성 완료:', parsed.title);
-
-    res.json({
-      success: true,
-      title: parsed.title,
-      content: parsed.content,
-    });
+    res.json({ success: true, title: parsed.title, content: parsed.content });
 
   } catch (error) {
     console.error('❌ AI 생성 에러:', error.response?.data || error.message);
-    
-    const errMsg = error.response?.data?.error?.message || error.message || 'AI 콘텐츠 생성 중 오류';
+    const errMsg = error.response?.data?.error?.message || error.message || 'AI 생성 중 오류';
     res.status(500).json({ success: false, message: errMsg });
   }
 });
