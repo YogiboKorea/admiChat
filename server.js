@@ -17,7 +17,7 @@ const multer = require('multer');
 const sharp = require('sharp');             
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
-const pdfParse = require('pdf-parse');
+//const pdfParse = require('pdf-parse');
 const crypto = require('crypto');           
  
 // multer 설정 (메모리에 임시 저장)
