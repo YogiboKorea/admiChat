@@ -3145,7 +3145,7 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
 // ========== [추가] 뷰저블(배너 클릭 히트맵) 트래킹 API ==========
 app.post('/api/track-click', async (req, res) => {
   try {
-    const { x, y, bannerId, url, screenWidth, screenHeight, imageUrl } = req.body;
+    const { x, y, bannerId, url, screenWidth, screenHeight, imageUrl, deviceType } = req.body;
 
     if (x === undefined || y === undefined || !bannerId) {
       return res.status(400).json({ success: false, message: '필수 데이터가 누락되었습니다.' });
@@ -3155,6 +3155,7 @@ app.post('/api/track-click', async (req, res) => {
       bannerId,
       url,
       imageUrl: imageUrl || '', // 관리자 화면 표시를 위한 이미지 URL
+      deviceType: deviceType || 'pc', // pc 또는 mobile 구분 (기본값 pc)
       coordinates: { x, y },
       screenSize: { width: screenWidth, height: screenHeight },
       timestamp: new Date(),
@@ -3172,10 +3173,19 @@ app.post('/api/track-click', async (req, res) => {
 // ========== [추가] 뷰저블(배너 클릭 히트맵) 데이터 조회 API ==========
 app.get('/api/track-click', async (req, res) => {
   try {
-    const { bannerId } = req.query;
-    const query = bannerId ? { bannerId } : {};
-    const clicks = await db.collection('bannerClicks').find(query).toArray();
+    const { bannerId, deviceType, startDate, endDate } = req.query;
+    const query = {};
+    if (bannerId) query.bannerId = bannerId;
+    if (deviceType && deviceType !== 'all') query.deviceType = deviceType;
+    
+    // 날짜 기간 필터링
+    if (startDate || endDate) {
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(`${startDate}T00:00:00.000Z`);
+      if (endDate) query.timestamp.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    }
 
+    const clicks = await db.collection('bannerClicks').find(query).toArray();
     res.json({ success: true, data: clicks });
   } catch (err) {
     console.error('클릭 트래킹 조회 오류:', err);
@@ -3186,11 +3196,28 @@ app.get('/api/track-click', async (req, res) => {
 // ========== [추가] 뷰저블(배너 히트맵) 배너별 기초 통계 목록 API ==========
 app.get('/api/track-click/summary', async (req, res) => {
   try {
-    const pipeline = [
+    const { startDate, endDate, deviceType } = req.query;
+    const matchStage = {};
+    
+    // 디바이스 필터
+    if (deviceType && deviceType !== 'all') matchStage.deviceType = deviceType;
+    
+    // 날짜 필터
+    if (startDate || endDate) {
+      matchStage.timestamp = {};
+      if (startDate) matchStage.timestamp.$gte = new Date(`${startDate}T00:00:00.000Z`);
+      if (endDate) matchStage.timestamp.$lte = new Date(`${endDate}T23:59:59.999Z`);
+    }
+
+    const pipeline = [];
+    if (Object.keys(matchStage).length > 0) pipeline.push({ $match: matchStage });
+
+    pipeline.push(
       { $sort: { timestamp: -1 } },
       { 
         $group: { 
-          _id: "$bannerId", 
+          // 배너ID와 기기별로 각각 그룹화하여 표시합니다
+          _id: { bannerId: "$bannerId", deviceType: "$deviceType" }, 
           imageUrl: { $first: "$imageUrl" }, 
           screenWidth: { $first: "$screenSize.width" },
           screenHeight: { $first: "$screenSize.height" },
@@ -3198,9 +3225,21 @@ app.get('/api/track-click/summary', async (req, res) => {
         } 
       },
       { $sort: { clickCount: -1 } }
-    ];
+    );
+    
     const summary = await db.collection('bannerClicks').aggregate(pipeline).toArray();
-    res.json({ success: true, data: summary });
+    
+    // 프론트엔드에서 쓰기 쉽도록 데이터 평탄화 (Flatten)
+    const formattedSummary = summary.map(item => ({
+      bannerId: item._id.bannerId,
+      deviceType: item._id.deviceType || 'pc',
+      imageUrl: item.imageUrl,
+      screenWidth: item.screenWidth,
+      screenHeight: item.screenHeight,
+      clickCount: item.clickCount
+    }));
+
+    res.json({ success: true, data: formattedSummary });
   } catch (err) {
     console.error('히트맵 통계 조회 오류:', err);
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
