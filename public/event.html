@@ -123,8 +123,9 @@
         .next-btn { color: #bbb; }
         .next-btn.ready { color: var(--primary); }
         .next-btn.ready:hover { transform: translateX(3px); }
-        .progress-track { width: 100%; height: 6px; background: #eee; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background: var(--primary); border-radius: 10px; transition: width 0.4s ease; width: 0%; }
+        .progress-segs { display: flex; gap: 6px; width: 100%; }
+        .progress-seg { flex: 1; height: 6px; border-radius: 10px; background: #eee; transition: background 0.3s ease; }
+        .progress-seg.done { background: var(--primary); }
 
         /* 결과보기 인터스티셜 버튼 */
         .btn-see-result {
@@ -439,7 +440,14 @@
                 <button class="prev-btn" id="prev-btn" onclick="goPrev()">＜ 이전</button>
                 <button class="next-btn" id="next-btn" onclick="goNext()">다음 ＞</button>
             </div>
-            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+            <div class="progress-segs" id="progress-segs">
+                <div class="progress-seg" id="seg-0"></div>
+                <div class="progress-seg" id="seg-1"></div>
+                <div class="progress-seg" id="seg-2"></div>
+                <div class="progress-seg" id="seg-3"></div>
+                <div class="progress-seg" id="seg-4"></div>
+                <div class="progress-seg" id="seg-5"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -538,7 +546,7 @@ function renderQ() {
         wrap.appendChild(btn);
     });
 
-    document.getElementById('progress-fill').style.width = (step / 6 * 100) + '%';
+    updateSegs(step);
     document.getElementById('prev-btn').disabled = step === 0;
     document.getElementById('next-btn').classList.remove('ready');
     document.getElementById('bottom-nav').classList.add('active');
@@ -709,6 +717,13 @@ function showResult() {
     document.getElementById('progress-fill').style.width = '100%';
     document.getElementById('bottom-nav').classList.remove('active');
     showScreen('step-result');
+}
+
+function updateSegs(activeStep) {
+    for (let i = 0; i < 6; i++) {
+        const el = document.getElementById('seg-' + i);
+        if (el) el.classList.toggle('done', i < activeStep + 1);
+    }
 }
 
 /* =========================================
