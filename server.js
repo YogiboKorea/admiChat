@@ -2433,15 +2433,19 @@ app.get('/api/yogibo-jp-news', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
 // 4. API - 뉴스레터 내용 수정 및 라이브 상태 변경 (관리자 페이지용)
 app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, status } = req.body;
     
-    // ★ [추가] MongoDB ObjectId 유효성 검증
-    if (!ObjectId.isValid(id)) {
+    // ★ [수정] 하드코딩 ID 예외 처리 및 ObjectId 변환
+    let queryId;
+    if (id === 'hardcoded_recovery') {
+      queryId = id; // 일반 문자열 그대로 사용
+    } else if (ObjectId.isValid(id)) {
+      queryId = new ObjectId(id);
+    } else {
       console.error(`[뉴스레터 업데이트] 유효하지 않은 ID 값 수신: ${id}`);
       return res.status(400).json({ success: false, message: '잘못된 게시글 ID 형식입니다.' });
     }
@@ -2453,13 +2457,10 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
     updateData.updatedAt = new Date();
 
     const result = await db.collection('yogiboJPnews').updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
+      { _id: queryId },
+      { $set: updateData },
+      { upsert: id === 'hardcoded_recovery' } // 하드코딩 데이터가 DB에 아예 없었다면 새로 생성(upsert)
     );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ success: false, message: '게시글을 찾을 수 없습니다.' });
-    }
 
     res.json({ success: true, message: '게시글이 성공적으로 업데이트되었습니다.' });
   } catch (error) {
@@ -2467,6 +2468,7 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
+
 
 // 5. [수동 테스트용] 즉시 동기화 API (스케줄러 기다리기 답답할 때 호출)
 app.get('/api/test/fetch-jp-news', async (req, res) => {
@@ -2693,14 +2695,14 @@ app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 전달받은 ID가 MongoDB의 ObjectId 형식인지, 아니면 하드코딩용 일반 문자열인지 판별
-    let queryId;
-    if (ObjectId.isValid(id) && id !== 'hardcoded_recovery') {
-      queryId = new ObjectId(id);
-    } else {
-      queryId = id; // 'hardcoded_recovery' 같은 일반 문자열 처리
-    }
+    // 썸네일 업로드 API 내 DB 업데이트 부분 수정
+    let queryId = (postId === 'hardcoded_recovery') ? postId : new ObjectId(postId);
 
+    const result = await db.collection('yogiboJPnews').updateOne(
+      { _id: queryId },
+      { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } },
+      { upsert: postId === 'hardcoded_recovery' } 
+    );
     // $inc 연산자를 사용해 views 필드를 1 증가시킵니다.
     // 만약 해당 데이터가 없으면 새로 만들어서라도 조회수를 기록하도록 upsert 옵션을 줍니다.
     await db.collection('yogiboJPnews').updateOne(
