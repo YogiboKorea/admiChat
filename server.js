@@ -13,13 +13,13 @@ const moment = require('moment-timezone');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
 const cheerio = require('cheerio');
-const multer = require('multer');         
-const sharp = require('sharp');             
+const multer = require('multer');
+const sharp = require('sharp');
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
 //const pdfParse = require('pdf-parse');
-const crypto = require('crypto');           
- 
+const crypto = require('crypto');
+
 // multer 설정 (메모리에 임시 저장)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -40,7 +40,7 @@ const parser = new Parser();
 
 // ========== [1] 환경변수 및 기본 설정 ==========
 // 초기값은 비워두거나 안전하게 처리 (DB에서 로드됨)
-let accessToken = process.env.ACCESS_TOKEN || ''; 
+let accessToken = process.env.ACCESS_TOKEN || '';
 let refreshToken = process.env.REFRESH_TOKEN || '';
 
 const CAFE24_CLIENT_ID = process.env.CAFE24_CLIENT_ID;
@@ -51,13 +51,13 @@ const CAFE24_MALLID = process.env.CAFE24_MALLID;
 const CAFE24_API_VERSION = process.env.CAFE24_API_VERSION || '2025-12-01';
 
 // ★ [핵심] 전역 DB 변수 선언 (모든 API가 공유)
-let db; 
+let db;
 
 // ========== [2] Express 앱 기본 설정 ==========
 const app = express();
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: '50mb' }));                          
+app.use(express.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -69,19 +69,19 @@ async function getTokensFromDB() {
   try {
     const collection = db.collection(tokenCollectionName);
     const tokensDoc = await collection.findOne({});
-    
+
     if (tokensDoc) {
       accessToken = tokensDoc.accessToken;
       refreshToken = tokensDoc.refreshToken;
-      console.log('✅ MongoDB에서 토큰 로드 성공:', { 
+      console.log('✅ MongoDB에서 토큰 로드 성공:', {
         accessToken: accessToken.substring(0, 10) + '...',
-        updatedAt: tokensDoc.updatedAt 
+        updatedAt: tokensDoc.updatedAt
       });
     } else {
       console.log('⚠️ MongoDB에 저장된 토큰이 없습니다. (첫 실행이거나 데이터 없음)');
       // 초기 토큰이 환경변수에 있다면 저장 시도
       if (accessToken && refreshToken) {
-         await saveTokensToDB(accessToken, refreshToken);
+        await saveTokensToDB(accessToken, refreshToken);
       }
     }
   } catch (error) {
@@ -117,49 +117,49 @@ async function refreshAccessToken() {
   console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
   // ▼ [진단용 코드] 변수 값이 제대로 들어오는지 확인
   console.log('DEBUG CHECK:', {
-      CID: process.env.CAFE24_CLIENT_ID, // 이 값이 undefined나 null이면 안됨
-      SECRET: process.env.CAFE24_CLIENT_SECRET ? 'EXIST' : 'MISSING'
+    CID: process.env.CAFE24_CLIENT_ID, // 이 값이 undefined나 null이면 안됨
+    SECRET: process.env.CAFE24_CLIENT_SECRET ? 'EXIST' : 'MISSING'
   });
 
   try {
-      const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
-      const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
-      const mallId = (process.env.CAFE24_MALLID || '').trim();
+    const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
+    const mallId = (process.env.CAFE24_MALLID || '').trim();
 
-      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-      console.log(`[${now}] 🚀 Cafe24 서버로 새 토큰 요청 전송...`);
+    console.log(`[${now}] 🚀 Cafe24 서버로 새 토큰 요청 전송...`);
 
-      const response = await axios.post(
-          `https://${mallId}.cafe24api.com/api/v2/oauth/token`,
-          `grant_type=refresh_token&refresh_token=${refreshToken}`,
-          {
-              headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  'Authorization': `Basic ${basicAuth}`,
-              },
-          }
-      );
+    const response = await axios.post(
+      `https://${mallId}.cafe24api.com/api/v2/oauth/token`,
+      `grant_type=refresh_token&refresh_token=${refreshToken}`,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${basicAuth}`,
+        },
+      }
+    );
 
-      const newAccessToken = response.data.access_token;
-      const newRefreshToken = response.data.refresh_token;
+    const newAccessToken = response.data.access_token;
+    const newRefreshToken = response.data.refresh_token;
 
-      console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
-      console.log(`   - New Access Token: ${newAccessToken.substring(0, 10)}...`);
-      
-      // 메모리 변수 갱신
-      accessToken = newAccessToken;
-      refreshToken = newRefreshToken;
+    console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
+    console.log(`   - New Access Token: ${newAccessToken.substring(0, 10)}...`);
 
-      // DB 저장
-      await saveTokensToDB(newAccessToken, newRefreshToken);
-      console.log(`[${now}] 갱신 프로세스 정상 종료.\n`);
+    // 메모리 변수 갱신
+    accessToken = newAccessToken;
+    refreshToken = newRefreshToken;
 
-      return newAccessToken;
+    // DB 저장
+    await saveTokensToDB(newAccessToken, newRefreshToken);
+    console.log(`[${now}] 갱신 프로세스 정상 종료.\n`);
+
+    return newAccessToken;
 
   } catch (error) {
-      console.error(`[${now}] ❌ 토큰 갱신 실패:`, error.response ? error.response.data : error.message);
-      throw error;
+    console.error(`[${now}] ❌ 토큰 갱신 실패:`, error.response ? error.response.data : error.message);
+    throw error;
   }
 }
 
@@ -168,34 +168,34 @@ async function refreshAccessToken() {
 // 공통 API 요청 함수 (재시도 로직 포함)
 async function apiRequest(method, url, data = {}, params = {}) {
   try {
-      const response = await axios({
-          method, url, data, params,
-          headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'X-Cafe24-Api-Version': CAFE24_API_VERSION
-          },
-      });
-      return response.data;
+    const response = await axios({
+      method, url, data, params,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Cafe24-Api-Version': CAFE24_API_VERSION
+      },
+    });
+    return response.data;
   } catch (error) {
-      // 401 에러 발생 시 토큰 갱신 후 재시도
-      if (error.response && error.response.status === 401) {
-          console.log(`⚠️ [401 에러 감지] 토큰이 만료되었습니다. 갱신을 시도합니다...`);
-          await refreshAccessToken(); 
-          console.log(`🔄 갱신된 토큰으로 API 재요청...`);
-          return apiRequest(method, url, data, params); // 재귀 호출
-        } else {
-          const errorDetails = error.response ? JSON.stringify(error.response.data.error) : '상세 에러 없음';
-          console.error(`❌ API 요청 오류 [${error.response?.status}]:`, error.message);
-          console.error(`📝 카페24 상세 응답:`, errorDetails);
-          throw error;
-      }
+    // 401 에러 발생 시 토큰 갱신 후 재시도
+    if (error.response && error.response.status === 401) {
+      console.log(`⚠️ [401 에러 감지] 토큰이 만료되었습니다. 갱신을 시도합니다...`);
+      await refreshAccessToken();
+      console.log(`🔄 갱신된 토큰으로 API 재요청...`);
+      return apiRequest(method, url, data, params); // 재귀 호출
+    } else {
+      const errorDetails = error.response ? JSON.stringify(error.response.data.error) : '상세 에러 없음';
+      console.error(`❌ API 요청 오류 [${error.response?.status}]:`, error.message);
+      console.error(`📝 카페24 상세 응답:`, errorDetails);
+      throw error;
+    }
   }
 }
 
 // [테스트용] 토큰 강제 만료 API
 app.get('/api/test/expire-token', (req, res) => {
-  accessToken = "INVALID_TOKEN_TEST"; 
+  accessToken = "INVALID_TOKEN_TEST";
   console.log(`\n[TEST] 🧪 현재 AccessToken을 강제로 망가뜨렸습니다: ${accessToken}`);
   res.json({ message: '토큰이 강제로 변조되었습니다. 다음 API 호출 시 갱신이 시도됩니다.' });
 });
@@ -203,13 +203,13 @@ app.get('/api/test/expire-token', (req, res) => {
 // [임시] DB 토큰 강제 업데이트 (현재 메모리 값으로)
 app.get('/force-update-token', async (req, res) => {
   try {
-      await saveTokensToDB(accessToken, refreshToken);
-      res.send(`
+    await saveTokensToDB(accessToken, refreshToken);
+    res.send(`
           <h1>DB 업데이트 완료!</h1>
           <p><b>현재 적용된 토큰:</b> ${accessToken.substring(0, 10)}...</p>
       `);
   } catch (e) {
-      res.send(`에러 발생: ${e.message}`);
+    res.send(`에러 발생: ${e.message}`);
   }
 });
 
@@ -219,7 +219,7 @@ app.get('/force-update-token', async (req, res) => {
 async function getCustomerDataByMemberId(memberId) {
   // 토큰이 없으면 DB에서 로드 시도 (혹시 모를 상황 대비)
   if (!accessToken) await getTokensFromDB();
-  
+
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy`;
   const params = { member_id: memberId };
   try {
@@ -254,21 +254,21 @@ app.post('/api/entry', async (req, res) => {
     if (!customerData || !customerData.customersprivacy) {
       return res.status(404).json({ error: '고객 데이터를 찾을 수 없습니다.' });
     }
-    
+
     let customerPrivacy = customerData.customersprivacy;
     if (Array.isArray(customerPrivacy)) {
       customerPrivacy = customerPrivacy[0];
     }
-    
+
     const { member_id, name, cellphone, email, address1, address2, sms, gender } = customerPrivacy;
-    
+
     const existingEntry = await db.collection('entries').findOne({ memberId: member_id });
     if (existingEntry) {
       return res.status(409).json({ message: '이미 응모하셨습니다.' });
     }
-    
+
     const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    
+
     const newEntry = {
       memberId: member_id,
       name,
@@ -309,7 +309,7 @@ app.get('/api/lucky/download', async (req, res) => {
       { header: 'SNS 수신여부', key: 'sms', width: 15 },
       { header: '성별', key: 'gender', width: 10 },
     ];
-    
+
     entries.forEach(entry => {
       const fullAddress = (entry.address1 || '') + (entry.address2 ? ' ' + entry.address2 : '');
       worksheet.addRow({
@@ -323,7 +323,7 @@ app.get('/api/lucky/download', async (req, res) => {
         gender: entry.gender,
       });
     });
-    
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=luckyEvent.xlsx');
     await workbook.xlsx.write(res);
@@ -344,10 +344,10 @@ app.get('/api/event/status', async (req, res) => {
 
   try {
     const collection = db.collection('event_daily_checkin');
-    
+
     // 1. 우리 DB 조회
     const eventDoc = await collection.findOne({ memberId });
-    
+
     let myCount = 0;
     let isTodayDone = false;
     let isMarketingAgreed = 'F';
@@ -364,54 +364,54 @@ app.get('/api/event/status', async (req, res) => {
 
     // 2. 우리 DB 미동의 상태면 Cafe24 API '조회'
     if (isMarketingAgreed === 'F') {
+      try {
+        let realConsent = false;
+
+        // A. 마케팅 동의(Privacy) 확인
         try {
-            let realConsent = false;
+          const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+          const privacyRes = await apiRequest('GET', privacyUrl, {}, {
+            shop_no: 1, member_id: memberId, consent_type: 'marketing', limit: 1, sort: 'issued_date_desc'
+          });
+          if (privacyRes.privacy_consents?.length > 0 && privacyRes.privacy_consents[0].agree === 'T') {
+            realConsent = true;
+          }
+        } catch (e) { }
 
-            // A. 마케팅 동의(Privacy) 확인
-            try {
-                const privacyUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
-                const privacyRes = await apiRequest('GET', privacyUrl, {}, {
-                    shop_no: 1, member_id: memberId, consent_type: 'marketing', limit: 1, sort: 'issued_date_desc'
-                });
-                if (privacyRes.privacy_consents?.length > 0 && privacyRes.privacy_consents[0].agree === 'T') {
-                    realConsent = true;
-                }
-            } catch (e) {}
-
-            // B. SMS 수신동의 확인 (Fallback)
-            if (!realConsent) {
-                try {
-                    const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
-                    const customerRes = await apiRequest('GET', customerUrl, {}, {
-                        member_id: memberId, fields: 'sms,news_mail'
-                    });
-                    if (customerRes.customers?.length > 0) {
-                        const { sms, news_mail } = customerRes.customers[0];
-                        if (sms === 'T' || news_mail === 'T') realConsent = true;
-                    }
-                } catch (e) {}
+        // B. SMS 수신동의 확인 (Fallback)
+        if (!realConsent) {
+          try {
+            const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+            const customerRes = await apiRequest('GET', customerUrl, {}, {
+              member_id: memberId, fields: 'sms,news_mail'
+            });
+            if (customerRes.customers?.length > 0) {
+              const { sms, news_mail } = customerRes.customers[0];
+              if (sms === 'T' || news_mail === 'T') realConsent = true;
             }
-
-            // ★ [DB저장] 기존 동의자로 확인됨
-            if (realConsent) {
-                console.log(`[Sync] ${memberId} 기존 동의 확인 -> DB 업데이트 (EXISTING)`);
-                await collection.updateOne(
-                    { memberId: memberId },
-                    { 
-                        $set: { 
-                            marketingAgreed: true, 
-                            marketingAgreedAt: new Date(),
-                            consentType: 'EXISTING' 
-                        },
-                        $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
-                    },
-                    { upsert: true }
-                );
-                isMarketingAgreed = 'T';
-            }
-        } catch (e) {
-            // API 오류 시 무시
+          } catch (e) { }
         }
+
+        // ★ [DB저장] 기존 동의자로 확인됨
+        if (realConsent) {
+          console.log(`[Sync] ${memberId} 기존 동의 확인 -> DB 업데이트 (EXISTING)`);
+          await collection.updateOne(
+            { memberId: memberId },
+            {
+              $set: {
+                marketingAgreed: true,
+                marketingAgreedAt: new Date(),
+                consentType: 'EXISTING'
+              },
+              $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
+            },
+            { upsert: true }
+          );
+          isMarketingAgreed = 'T';
+        }
+      } catch (e) {
+        // API 오류 시 무시
+      }
     }
 
     res.json({ success: true, count: myCount, todayDone: isTodayDone, marketing_consent: isMarketingAgreed });
@@ -419,7 +419,7 @@ app.get('/api/event/status', async (req, res) => {
   } catch (err) {
     console.error('Status Error:', err);
     res.status(500).json({ success: false });
-  } 
+  }
 });
 
 // 참여하기
@@ -437,7 +437,7 @@ app.post('/api/event/participate', async (req, res) => {
     if (eventDoc) {
       // 3회 이상이면 차단
       if ((eventDoc.count || 0) >= 3) {
-         return res.json({ success: false, message: '모든 이벤트 참여가 완료되었습니다!' });
+        return res.json({ success: false, message: '모든 이벤트 참여가 완료되었습니다!' });
       }
       // 날짜 중복 체크
       if (eventDoc.lastParticipatedAt) {
@@ -450,7 +450,7 @@ app.post('/api/event/participate', async (req, res) => {
 
     const updateResult = await collection.findOneAndUpdate(
       { memberId: memberId },
-      { 
+      {
         $inc: { count: 1 },
         $set: { lastParticipatedAt: nowKST },
         $push: { history: nowKST },
@@ -468,7 +468,7 @@ app.post('/api/event/participate', async (req, res) => {
   } catch (err) {
     console.error('Participate Error:', err);
     res.status(500).json({ success: false });
-  } 
+  }
 });
 
 // 마케팅 동의
@@ -481,11 +481,11 @@ app.post('/api/event/marketing-consent', async (req, res) => {
 
     await collection.updateOne(
       { memberId: memberId },
-      { 
-        $set: { 
-            marketingAgreed: true, 
-            marketingAgreedAt: new Date(),
-            consentType: 'NEW'
+      {
+        $set: {
+          marketingAgreed: true,
+          marketingAgreedAt: new Date(),
+          consentType: 'NEW'
         },
         $setOnInsert: { count: 0, firstParticipatedAt: new Date() }
       },
@@ -498,7 +498,7 @@ app.post('/api/event/marketing-consent', async (req, res) => {
   } catch (err) {
     console.error('Consent Error:', err);
     res.status(500).json({ error: 'Error' });
-  } 
+  }
 });
 
 // 출석체크 엑셀 다운로드
@@ -513,23 +513,23 @@ app.get('/api/event/download', async (req, res) => {
       { header: 'ID', key: 'memberId', width: 20 },
       { header: '참여횟수', key: 'count', width: 10 },
       { header: '마케팅 수신동의 여부', key: 'marketingAgreed', width: 15 },
-      { header: '동의 구분', key: 'consentType', width: 25 }, 
-      { header: '마지막 참여날짜', key: 'lastParticipatedAt', width: 15 }, 
+      { header: '동의 구분', key: 'consentType', width: 25 },
+      { header: '마지막 참여날짜', key: 'lastParticipatedAt', width: 15 },
       { header: '처음 참여날짜', key: 'firstParticipatedAt', width: 15 }
     ];
 
     entries.forEach(entry => {
       const fmt = (d) => d ? moment(d).tz('Asia/Seoul').format('YYYY-MM-DD') : '-';
-      
+
       let consentLabel = '-';
       if (entry.marketingAgreed) {
-          if (entry.consentType === 'NEW') {
-              consentLabel = '신규 동의 (이벤트)';
-          } else if (entry.consentType === 'EXISTING') {
-              consentLabel = '기존 동의 (SMS/마케팅)';
-          } else {
-              consentLabel = '확인 필요 (기존)';
-          }
+        if (entry.consentType === 'NEW') {
+          consentLabel = '신규 동의 (이벤트)';
+        } else if (entry.consentType === 'EXISTING') {
+          consentLabel = '기존 동의 (SMS/마케팅)';
+        } else {
+          consentLabel = '확인 필요 (기존)';
+        }
       }
 
       worksheet.addRow({
@@ -550,7 +550,7 @@ app.get('/api/event/download', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Excel Error');
-  } 
+  }
 });
 
 
@@ -559,155 +559,155 @@ app.get('/api/event/download', async (req, res) => {
 // 로그 수집
 app.post('/api/trace/log', async (req, res) => {
   try {
-      let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
+    let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (userIp.includes(',')) userIp = userIp.split(',')[0].trim();
 
-      const BLOCKED_IPS = ['127.0.0.1', '61.99.75.10']; 
-      
-      const { isDev } = req.body; 
+    const BLOCKED_IPS = ['127.0.0.1', '61.99.75.10'];
 
-      if (BLOCKED_IPS.includes(userIp) && !isDev) {
-          return res.json({ success: true, msg: 'IP Filtered' });
-      }
+    const { isDev } = req.body;
 
-      let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
+    if (BLOCKED_IPS.includes(userIp) && !isDev) {
+      return res.json({ success: true, msg: 'IP Filtered' });
+    }
 
-      console.log('[LOG] 요청:', { 
-          visitorId, 
-          currentUrl: currentUrl?.substring(0, 50), 
-          userIp,
-          isDev 
-      });
+    let { eventTag, visitorId, currentUrl, prevUrl, utmData, deviceType } = req.body;
 
-      const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
+    console.log('[LOG] 요청:', {
+      visitorId,
+      currentUrl: currentUrl?.substring(0, 50),
+      userIp,
+      isDev
+    });
 
-      if (isRealMember) {
-          const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000);
+    const isRealMember = visitorId && !/guest_/i.test(visitorId) && visitorId !== 'null';
 
-          const mergeResult = await db.collection('visit_logs1Event').updateMany(
-              {
-                  userIp: userIp,
-                  visitorId: { $regex: /^guest_/i },
-                  createdAt: { $gte: mergeTimeLimit }
-              },
-              { $set: { visitorId: visitorId, isMember: true } }
-          );
+    if (isRealMember) {
+      const mergeTimeLimit = new Date(Date.now() - 5 * 60 * 1000);
 
-          if (mergeResult.modifiedCount > 0) {
-              console.log(`[MERGE] ${mergeResult.modifiedCount}건 병합 → ${visitorId}`);
-          }
-          
-          await db.collection('event01ClickData').updateMany(
-              {
-                  ip: userIp,
-                  visitorId: { $regex: /^guest_/i },
-                  createdAt: { $gte: mergeTimeLimit }
-              },
-              { $set: { visitorId: visitorId } }
-          );
-      }
-
-      if (!isRealMember) {
-          const existingGuestLog = await db.collection('visit_logs1Event').findOne(
-              {
-                  userIp: userIp,
-                  visitorId: { $regex: /^guest_/i },
-                  createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
-              },
-              { sort: { createdAt: -1 } }
-          );
-
-          if (existingGuestLog && existingGuestLog.visitorId) {
-              visitorId = existingGuestLog.visitorId;
-          }
-      }
-
-      let isNewSession = true;
-      let skipReason = null;
-      let isRevisit = false; 
-
-      if (visitorId) {
-          const lastLog = await db.collection('visit_logs1Event').findOne(
-              { visitorId: visitorId },
-              { sort: { createdAt: -1 } }
-          );
-
-          if (lastLog) {
-              const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
-              const SESSION_TIMEOUT = 30 * 60 * 1000;
-
-              if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
-                  skipReason = 'Duplicate (same URL within 2min)';
-              }
-
-              if (timeDiff < SESSION_TIMEOUT) {
-                  isNewSession = false;
-                  isRevisit = lastLog.isRevisit || false; 
-                  
-              } else {
-                  isNewSession = true;
-                  const pastLog = await db.collection('visit_logs1Event').findOne({
-                      visitorId: visitorId,
-                      createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
-                  });
-
-                  if (pastLog) {
-                      isRevisit = true;
-                      console.log(`[REVISIT] 재방문 유저 확인: ${visitorId}`);
-                  } else {
-                      isRevisit = false;
-                  }
-              }
-          } else {
-              isRevisit = false;
-          }
-      }
-
-      if (skipReason) {
-          console.log(`[SKIP] ${skipReason}`);
-          return res.json({ success: true, msg: skipReason });
-      }
-
-      const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
-          $or: [ { visitorId: visitorId }, { userIp: userIp } ],
-          currentUrl: { $regex: '1_promotion.html' }
-      });
-
-      if (isNewSession && !hasPromoVisit) {
-          if (currentUrl && !currentUrl.includes('1_promotion.html')) {
-              return res.json({ success: true, msg: 'Not entry point' });
-          }
-      }
-
-      if (currentUrl && currentUrl.includes('skin-skin')) {
-          return res.json({ success: true, msg: 'Skin Ignored' });
-      }
-
-      const log = {
-          visitorId: visitorId,
-          isMember: !!isRealMember,
-          eventTag: eventTag,
-          currentUrl: currentUrl,
-          prevUrl: prevUrl,
-          utmData: utmData || {},
+      const mergeResult = await db.collection('visit_logs1Event').updateMany(
+        {
           userIp: userIp,
-          deviceType: deviceType || 'unknown',
-          duration: 0,
-          isRevisit: isRevisit, 
-          createdAt: new Date()
-      };
+          visitorId: { $regex: /^guest_/i },
+          createdAt: { $gte: mergeTimeLimit }
+        },
+        { $set: { visitorId: visitorId, isMember: true } }
+      );
 
-      const result = await db.collection('visit_logs1Event').insertOne(log);
-      
-      const logStatus = isRevisit ? '[REVISIT]' : '[NEW]';
-      console.log(`[SAVE] ${logStatus} ${visitorId} (Session: ${isNewSession ? 'New' : 'Cont'})`);
-      
-      res.json({ success: true, logId: result.insertedId });
+      if (mergeResult.modifiedCount > 0) {
+        console.log(`[MERGE] ${mergeResult.modifiedCount}건 병합 → ${visitorId}`);
+      }
+
+      await db.collection('event01ClickData').updateMany(
+        {
+          ip: userIp,
+          visitorId: { $regex: /^guest_/i },
+          createdAt: { $gte: mergeTimeLimit }
+        },
+        { $set: { visitorId: visitorId } }
+      );
+    }
+
+    if (!isRealMember) {
+      const existingGuestLog = await db.collection('visit_logs1Event').findOne(
+        {
+          userIp: userIp,
+          visitorId: { $regex: /^guest_/i },
+          createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) }
+        },
+        { sort: { createdAt: -1 } }
+      );
+
+      if (existingGuestLog && existingGuestLog.visitorId) {
+        visitorId = existingGuestLog.visitorId;
+      }
+    }
+
+    let isNewSession = true;
+    let skipReason = null;
+    let isRevisit = false;
+
+    if (visitorId) {
+      const lastLog = await db.collection('visit_logs1Event').findOne(
+        { visitorId: visitorId },
+        { sort: { createdAt: -1 } }
+      );
+
+      if (lastLog) {
+        const timeDiff = Date.now() - new Date(lastLog.createdAt).getTime();
+        const SESSION_TIMEOUT = 30 * 60 * 1000;
+
+        if (timeDiff < 2 * 60 * 1000 && lastLog.currentUrl === currentUrl) {
+          skipReason = 'Duplicate (same URL within 2min)';
+        }
+
+        if (timeDiff < SESSION_TIMEOUT) {
+          isNewSession = false;
+          isRevisit = lastLog.isRevisit || false;
+
+        } else {
+          isNewSession = true;
+          const pastLog = await db.collection('visit_logs1Event').findOne({
+            visitorId: visitorId,
+            createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+          });
+
+          if (pastLog) {
+            isRevisit = true;
+            console.log(`[REVISIT] 재방문 유저 확인: ${visitorId}`);
+          } else {
+            isRevisit = false;
+          }
+        }
+      } else {
+        isRevisit = false;
+      }
+    }
+
+    if (skipReason) {
+      console.log(`[SKIP] ${skipReason}`);
+      return res.json({ success: true, msg: skipReason });
+    }
+
+    const hasPromoVisit = await db.collection('visit_logs1Event').findOne({
+      $or: [{ visitorId: visitorId }, { userIp: userIp }],
+      currentUrl: { $regex: '1_promotion.html' }
+    });
+
+    if (isNewSession && !hasPromoVisit) {
+      if (currentUrl && !currentUrl.includes('1_promotion.html')) {
+        return res.json({ success: true, msg: 'Not entry point' });
+      }
+    }
+
+    if (currentUrl && currentUrl.includes('skin-skin')) {
+      return res.json({ success: true, msg: 'Skin Ignored' });
+    }
+
+    const log = {
+      visitorId: visitorId,
+      isMember: !!isRealMember,
+      eventTag: eventTag,
+      currentUrl: currentUrl,
+      prevUrl: prevUrl,
+      utmData: utmData || {},
+      userIp: userIp,
+      deviceType: deviceType || 'unknown',
+      duration: 0,
+      isRevisit: isRevisit,
+      createdAt: new Date()
+    };
+
+    const result = await db.collection('visit_logs1Event').insertOne(log);
+
+    const logStatus = isRevisit ? '[REVISIT]' : '[NEW]';
+    console.log(`[SAVE] ${logStatus} ${visitorId} (Session: ${isNewSession ? 'New' : 'Cont'})`);
+
+    res.json({ success: true, logId: result.insertedId });
 
   } catch (e) {
-      console.error('[ERROR]', e);
-      res.status(500).json({ success: false, error: e.message });
-  } 
+    console.error('[ERROR]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // 체류 시간 업데이트
@@ -717,14 +717,14 @@ app.post('/api/trace/log/exit', async (req, res) => {
 
   try {
     await db.collection('visit_logs1Event').updateOne(
-      { _id: new ObjectId(logId) }, 
+      { _id: new ObjectId(logId) },
       { $set: { duration: parseInt(duration) } }
     );
     res.send('OK');
   } catch (error) {
     console.error(error);
     res.status(500).send('Error');
-  } 
+  }
 });
 
 // 관리자 대시보드: 요약
@@ -753,63 +753,63 @@ app.get('/api/trace/summary', async (req, res) => {
     res.json({ success: true, data: stats });
   } catch (err) {
     res.status(500).json({ msg: 'Server Error' });
-  } 
+  }
 });
 
 // 방문자 목록 조회
 app.get('/api/trace/visitors', async (req, res) => {
   try {
-      const { date } = req.query;
-      let matchStage = {};
+    const { date } = req.query;
+    let matchStage = {};
 
-      if (date) {
-          matchStage.createdAt = {
-              $gte: new Date(date + "T00:00:00.000Z"),
-              $lte: new Date(date + "T23:59:59.999Z")
-          };
-      }
+    if (date) {
+      matchStage.createdAt = {
+        $gte: new Date(date + "T00:00:00.000Z"),
+        $lte: new Date(date + "T23:59:59.999Z")
+      };
+    }
 
-      const visitors = await db.collection('visit_logs1Event').aggregate([
-          { $match: matchStage },
-          { $sort: { createdAt: -1 } },
-          {
-              $group: {
-                  _id: {
-                      $cond: [
-                          { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
-                          "$userIp",
-                          "$visitorId"
-                      ]
-                  },
-                  visitorId: { $first: "$visitorId" },
-                  isMember: { $first: "$isMember" },
-                  eventTag: { $first: "$eventTag" },
-                  lastAction: { $first: "$createdAt" },
-                  count: { $sum: 1 },
-                  userIp: { $first: "$userIp" },
-                  hasVisitedEvent: {
-                      $max: {
-                          $cond: [
-                              { $regexMatch: { input: "$currentUrl", regex: "1_promotion.html" } }, 1, 0
-                          ]
-                      }
-                  }
-              }
+    const visitors = await db.collection('visit_logs1Event').aggregate([
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
+              "$userIp",
+              "$visitorId"
+            ]
           },
-          {
-              $addFields: {
-                  searchId: "$_id" 
-              }
-          },
-          { $sort: { lastAction: -1 } },
-          { $limit: 150 }
-      ], { allowDiskUse: true }).toArray();
+          visitorId: { $first: "$visitorId" },
+          isMember: { $first: "$isMember" },
+          eventTag: { $first: "$eventTag" },
+          lastAction: { $first: "$createdAt" },
+          count: { $sum: 1 },
+          userIp: { $first: "$userIp" },
+          hasVisitedEvent: {
+            $max: {
+              $cond: [
+                { $regexMatch: { input: "$currentUrl", regex: "1_promotion.html" } }, 1, 0
+              ]
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          searchId: "$_id"
+        }
+      },
+      { $sort: { lastAction: -1 } },
+      { $limit: 150 }
+    ], { allowDiskUse: true }).toArray();
 
-      res.json({ success: true, visitors });
+    res.json({ success: true, visitors });
   } catch (err) {
-      console.error(err);
-      res.status(500).json({ msg: 'Server Error' });
-  } 
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
 });
 
 // Journey
@@ -820,336 +820,336 @@ app.get('/api/trace/journey/:visitorId', async (req, res) => {
   console.log('[Journey] 요청:', { visitorId, startDate, endDate });
 
   try {
-      let dateFilter = null;
-      
-      if (startDate) {
-          const start = new Date(startDate + 'T00:00:00.000Z');
-          const end = endDate 
-              ? new Date(endDate + 'T23:59:59.999Z') 
-              : new Date(startDate + 'T23:59:59.999Z');
-          
-          dateFilter = { $gte: start, $lte: end };
+    let dateFilter = null;
+
+    if (startDate) {
+      const start = new Date(startDate + 'T00:00:00.000Z');
+      const end = endDate
+        ? new Date(endDate + 'T23:59:59.999Z')
+        : new Date(startDate + 'T23:59:59.999Z');
+
+      dateFilter = { $gte: start, $lte: end };
+    }
+
+    const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || visitorId.includes(':');
+    const isGuestId = visitorId.toLowerCase().startsWith('guest_');
+    const isMemberId = !isIpFormat && !isGuestId;
+
+    let baseQuery = {};
+    let clickQuery = {};
+
+    if (isMemberId) {
+      baseQuery = { visitorId: visitorId };
+      clickQuery = { visitorId: visitorId };
+    }
+    else if (isIpFormat) {
+      baseQuery = {
+        userIp: visitorId,
+        visitorId: { $regex: /^guest_/i }
+      };
+      clickQuery = {
+        ip: visitorId,
+        visitorId: { $regex: /^guest_/i }
+      };
+    }
+    else if (isGuestId) {
+      const guestLog = await db.collection('visit_logs1Event').findOne(
+        { visitorId: visitorId },
+        { projection: { userIp: 1 } }
+      );
+
+      if (guestLog && guestLog.userIp) {
+        baseQuery = {
+          userIp: guestLog.userIp,
+          visitorId: { $regex: /^guest_/i }
+        };
+        clickQuery = {
+          ip: guestLog.userIp,
+          visitorId: { $regex: /^guest_/i }
+        };
+      } else {
+        baseQuery = { visitorId: visitorId };
+        clickQuery = { visitorId: visitorId };
       }
+    }
 
-      const isIpFormat = /^(\d{1,3}\.){3}\d{1,3}$/.test(visitorId) || visitorId.includes(':');
-      const isGuestId = visitorId.toLowerCase().startsWith('guest_');
-      const isMemberId = !isIpFormat && !isGuestId;
+    if (dateFilter) {
+      baseQuery = { $and: [baseQuery, { createdAt: dateFilter }] };
+      clickQuery = { $and: [clickQuery, { createdAt: dateFilter }] };
+    }
 
-      let baseQuery = {};
-      let clickQuery = {};
-      
-      if (isMemberId) {
-          baseQuery = { visitorId: visitorId };
-          clickQuery = { visitorId: visitorId };
-      } 
-      else if (isIpFormat) {
-          baseQuery = { 
-              userIp: visitorId,
-              visitorId: { $regex: /^guest_/i } 
-          };
-          clickQuery = { 
-              ip: visitorId,
-              visitorId: { $regex: /^guest_/i }
-          };
-      }
-      else if (isGuestId) {
-          const guestLog = await db.collection('visit_logs1Event').findOne(
-              { visitorId: visitorId },
-              { projection: { userIp: 1 } }
-          );
-          
-          if (guestLog && guestLog.userIp) {
-              baseQuery = {
-                  userIp: guestLog.userIp,
-                  visitorId: { $regex: /^guest_/i }
-              };
-              clickQuery = {
-                  ip: guestLog.userIp,
-                  visitorId: { $regex: /^guest_/i }
-              };
-          } else {
-              baseQuery = { visitorId: visitorId };
-              clickQuery = { visitorId: visitorId };
-          }
-      }
+    const views = await db.collection('visit_logs1Event')
+      .find(baseQuery)
+      .sort({ createdAt: 1 })
+      .project({ currentUrl: 1, createdAt: 1, visitorId: 1, _id: 0 })
+      .toArray();
 
-      if (dateFilter) {
-          baseQuery = { $and: [baseQuery, { createdAt: dateFilter }] };
-          clickQuery = { $and: [clickQuery, { createdAt: dateFilter }] };
-      }
+    const formattedViews = views.map(v => ({
+      type: 'VIEW',
+      title: v.currentUrl,
+      url: v.currentUrl,
+      timestamp: v.createdAt
+    }));
 
-      const views = await db.collection('visit_logs1Event')
-          .find(baseQuery)
-          .sort({ createdAt: 1 })
-          .project({ currentUrl: 1, createdAt: 1, visitorId: 1, _id: 0 })
-          .toArray();
+    const clicks = await db.collection('event01ClickData')
+      .find(clickQuery)
+      .sort({ createdAt: 1 })
+      .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
+      .toArray();
 
-      const formattedViews = views.map(v => ({
-          type: 'VIEW',
-          title: v.currentUrl,
-          url: v.currentUrl,
-          timestamp: v.createdAt
-      }));
+    const formattedClicks = clicks.map(c => ({
+      type: 'CLICK',
+      title: `👉 [클릭] ${c.sectionName}`,
+      url: '',
+      timestamp: c.createdAt
+    }));
 
-      const clicks = await db.collection('event01ClickData')
-          .find(clickQuery)
-          .sort({ createdAt: 1 })
-          .project({ sectionName: 1, sectionId: 1, createdAt: 1, _id: 0 })
-          .toArray();
+    const journey = [...formattedViews, ...formattedClicks];
+    journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-      const formattedClicks = clicks.map(c => ({
-          type: 'CLICK',
-          title: `👉 [클릭] ${c.sectionName}`,
-          url: '',
-          timestamp: c.createdAt
-      }));
-
-      const journey = [...formattedViews, ...formattedClicks];
-      journey.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-      res.json({ success: true, journey });
+    res.json({ success: true, journey });
 
   } catch (error) {
-      console.error('[Journey Error]', error);
-      res.status(500).json({ msg: 'Server Error', error: error.message });
-  } 
+    console.error('[Journey Error]', error);
+    res.status(500).json({ msg: 'Server Error', error: error.message });
+  }
 });
 
 // 퍼널 분석
 app.get('/api/trace/funnel', async (req, res) => {
   try {
-      const { startDate, endDate } = req.query;
+    const { startDate, endDate } = req.query;
 
-      let dateFilter = {};
-      if (startDate || endDate) {
-          dateFilter = {};
-          if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
-          if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
-      }
+    let dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter = {};
+      if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00.000Z");
+      if (endDate) dateFilter.$lte = new Date(endDate + "T23:59:59.999Z");
+    }
 
-      const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
+    const validVisitors = await db.collection('visit_logs1Event').distinct('visitorId', {
+      createdAt: dateFilter,
+      currentUrl: { $regex: '1_promotion.html|index.html|store.html' }
+    });
+
+    if (validVisitors.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const pipeline = [
+      {
+        $match: {
           createdAt: dateFilter,
-          currentUrl: { $regex: '1_promotion.html|index.html|store.html' } 
-      });
+          visitorId: { $in: validVisitors }
+        }
+      },
+      {
+        $project: {
+          visitorId: 1,
+          userIp: 1,
+          currentUrl: 1,
+          uniqueId: {
+            $cond: [
+              { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
+              "$userIp",
+              "$visitorId"
+            ]
+          },
+          channelName: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$utmData.campaign", "home_main"] }, then: "브검 : 홈페이지 메인" },
+                { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브검 : 1월 말할 수 없는 편안함(서브2)_20%" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
+                { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
+                { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
+                { case: { $eq: ["$utmData.content", "areading_group1"] }, then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
+                { case: { $eq: ["$utmData.content", "areading_group2"] }, then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
+                { case: { $eq: ["$utmData.content", "special_price1"] }, then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
+                { case: { $eq: ["$utmData.content", "special_price2"] }, then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
+                { case: { $eq: ["$utmData.content", "horse"] }, then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
+                { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
+                { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
+                { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
+                { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
+                { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
+              ],
+              default: "직접/기타 방문"
+            }
+          }
+        }
+      },
+      {
+        $group: {
+          _id: "$channelName",
+          step1_visitors: { $addToSet: "$uniqueId" },
+          step2_visitors: {
+            $addToSet: {
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$uniqueId", "$$REMOVE"]
+            }
+          },
+          step3_visitors: {
+            $addToSet: {
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$uniqueId", "$$REMOVE"]
+            }
+          },
+          step4_visitors: {
+            $addToSet: {
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$uniqueId", "$$REMOVE"]
+            }
+          },
+          step5_visitors: {
+            $addToSet: {
+              $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$uniqueId", "$$REMOVE"]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          channelName: "$_id",
+          count_total: { $size: "$step1_visitors" },
+          count_detail: { $size: "$step2_visitors" },
+          count_cart: { $size: "$step3_visitors" },
+          count_order: { $size: "$step4_visitors" },
+          count_purchase: { $size: "$step5_visitors" }
+        }
+      },
+      { $sort: { count_total: -1 } }
+    ];
 
-      if (validVisitors.length === 0) {
-          return res.json({ success: true, data: [] });
-      }
-
-      const pipeline = [
-          {
-              $match: {
-                  createdAt: dateFilter,
-                  visitorId: { $in: validVisitors }
-              }
-          },
-          {
-              $project: {
-                  visitorId: 1,
-                  userIp: 1,
-                  currentUrl: 1,
-                  uniqueId: {
-                      $cond: [
-                          { $regexMatch: { input: "$visitorId", regex: /^guest_/i } },
-                          "$userIp",
-                          "$visitorId"
-                      ]
-                  },
-                  channelName: {
-                      $switch: {
-                          branches: [
-                              { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
-                              { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
-                              { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
-                              { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브검 : 1월 말할 수 없는 편안함(서브2)_20%" },
-                              { case: { $eq: ["$utmData.campaign", "naver_sub3"] }, then: "브검 : 1월 말할 수 없는 편안함(서브3)_갓생" },
-                              { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
-                              { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
-                              { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
-                              { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
-                              { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
-                              { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
-                              { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
-                              { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
-                              { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
-                              { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
-                              { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
-                              { case: { $eq: ["$utmData.campaign", "message_sub3"] }, then: "플친 : 1월 말할 수 없는 편안함(지원이벤트)" },
-                              { case: { $eq: ["$utmData.campaign", "message_sub4"] }, then: "플친 : 1월 말할 수 없는 편안함(무료배송)" }
-                          ],
-                          default: "직접/기타 방문"
-                      }
-                  }
-              }
-          },
-          {
-              $group: {
-                  _id: "$channelName",
-                  step1_visitors: { $addToSet: "$uniqueId" },
-                  step2_visitors: {
-                      $addToSet: {
-                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "product|detail.html" } }, "$uniqueId", "$$REMOVE"]
-                      }
-                  },
-                  step3_visitors: {
-                      $addToSet: {
-                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "basket.html" } }, "$uniqueId", "$$REMOVE"]
-                      }
-                  },
-                  step4_visitors: {
-                      $addToSet: {
-                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "orderform.html" } }, "$uniqueId", "$$REMOVE"]
-                      }
-                  },
-                  step5_visitors: {
-                      $addToSet: {
-                          $cond: [{ $regexMatch: { input: "$currentUrl", regex: "order_result.html" } }, "$uniqueId", "$$REMOVE"]
-                      }
-                  }
-              }
-          },
-          {
-              $project: {
-                  _id: 0,
-                  channelName: "$_id",
-                  count_total: { $size: "$step1_visitors" },
-                  count_detail: { $size: "$step2_visitors" },
-                  count_cart: { $size: "$step3_visitors" },
-                  count_order: { $size: "$step4_visitors" },
-                  count_purchase: { $size: "$step5_visitors" }
-              }
-          },
-          { $sort: { count_total: -1 } }
-      ];
-
-      const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
-      res.json({ success: true, data: funnelData });
+    const funnelData = await db.collection('visit_logs1Event').aggregate(pipeline).toArray();
+    res.json({ success: true, data: funnelData });
 
   } catch (err) {
-      console.error(err);
-      res.status(500).json({ msg: 'Server Error' });
-  } 
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
 });
 
 // 섹션 클릭 로그
 app.post('/api/trace/click', async (req, res) => {
   try {
-      let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      if (userIp.includes(',')) {
-          userIp = userIp.split(',')[0].trim();
-      }
+    let userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (userIp.includes(',')) {
+      userIp = userIp.split(',')[0].trim();
+    }
 
-      const BLOCKED_IPS = ['127.0.0.1', '::1'];
-      if (BLOCKED_IPS.includes(userIp)) {
-          return res.json({ success: true, msg: 'IP Filtered' });
-      }
+    const BLOCKED_IPS = ['127.0.0.1', '::1'];
+    if (BLOCKED_IPS.includes(userIp)) {
+      return res.json({ success: true, msg: 'IP Filtered' });
+    }
 
-      const { sectionId, sectionName, visitorId } = req.body;
+    const { sectionId, sectionName, visitorId } = req.body;
 
-      if (!sectionId || !sectionName) {
-          return res.status(400).json({ success: false, msg: 'Missing Data' });
-      }
+    if (!sectionId || !sectionName) {
+      return res.status(400).json({ success: false, msg: 'Missing Data' });
+    }
 
-      const clickLog = {
-          sectionId,
-          sectionName,
-          visitorId: visitorId || 'guest', 
-          ip: userIp,
-          createdAt: new Date()
-      };
+    const clickLog = {
+      sectionId,
+      sectionName,
+      visitorId: visitorId || 'guest',
+      ip: userIp,
+      createdAt: new Date()
+    };
 
-      await db.collection('event01ClickData').insertOne(clickLog);
-      
-      res.json({ success: true });
+    await db.collection('event01ClickData').insertOne(clickLog);
+
+    res.json({ success: true });
 
   } catch (e) {
-      console.error(e);
-      res.status(500).json({ success: false });
-  } 
+    console.error(e);
+    res.status(500).json({ success: false });
+  }
 });
 
 // 섹션 클릭 통계
 app.get('/api/trace/clicks/stats', async (req, res) => {
   try {
-      const { startDate, endDate } = req.query;
-      
-      let matchStage = {};
-      if (startDate || endDate) {
-          matchStage.createdAt = {};
-          if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-          if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
-      }
+    const { startDate, endDate } = req.query;
 
-      const stats = await db.collection('event01ClickData').aggregate([
-          { $match: matchStage }, 
-          {
-              $group: {
-                  _id: "$sectionId",                
-                  name: { $first: "$sectionName" }, 
-                  count: { $sum: 1 }                
-              }
-          },
-          { $sort: { count: -1 } }    
-      ]).toArray();
+    let matchStage = {};
+    if (startDate || endDate) {
+      matchStage.createdAt = {};
+      if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+      if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+    }
 
-      const formattedData = stats.map(item => ({
-          id: item._id,
-          name: item.name,
-          count: item.count
-      }));
+    const stats = await db.collection('event01ClickData').aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$sectionId",
+          name: { $first: "$sectionName" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]).toArray();
 
-      res.json({ success: true, data: formattedData });
+    const formattedData = stats.map(item => ({
+      id: item._id,
+      name: item.name,
+      count: item.count
+    }));
+
+    res.json({ success: true, data: formattedData });
 
   } catch (err) {
-      console.error(err);
-      res.status(500).json({ msg: 'Server Error' });
-  } 
+    console.error(err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
 });
 
 // 클릭 상세 조회
 app.get('/api/trace/visitors/by-click', async (req, res) => {
   try {
-      const { sectionId, startDate, endDate } = req.query;
-      
-      const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
-      const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+    const { sectionId, startDate, endDate } = req.query;
 
-      const clickLogs = await db.collection('event01ClickData').find({
-          sectionId: sectionId,
-          createdAt: { $gte: start, $lte: end }
-      }).sort({ createdAt: -1 }).toArray(); 
+    const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(0);
+    const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
 
-      if (clickLogs.length === 0) {
-          return res.json({ success: true, visitors: [], msg: '클릭 기록 없음' });
+    const clickLogs = await db.collection('event01ClickData').find({
+      sectionId: sectionId,
+      createdAt: { $gte: start, $lte: end }
+    }).sort({ createdAt: -1 }).toArray();
+
+    if (clickLogs.length === 0) {
+      return res.json({ success: true, visitors: [], msg: '클릭 기록 없음' });
+    }
+
+    const uniqueVisitors = {};
+
+    for (const log of clickLogs) {
+      const vid = log.visitorId || log.ip || 'Unknown';
+
+      if (!uniqueVisitors[vid]) {
+        uniqueVisitors[vid] = {
+          _id: vid,
+          lastAction: log.createdAt,
+          isMember: (vid && !vid.startsWith('guest_') && vid !== 'null' && vid !== 'guest'),
+          currentUrl: '',
+          userIp: log.ip,
+          count: 1
+        };
+      } else {
+        uniqueVisitors[vid].count++;
       }
+    }
 
-      const uniqueVisitors = {};
-      
-      for (const log of clickLogs) {
-          const vid = log.visitorId || log.ip || 'Unknown'; 
-          
-          if (!uniqueVisitors[vid]) {
-              uniqueVisitors[vid] = {
-                  _id: vid,
-                  lastAction: log.createdAt,
-                  isMember: (vid && !vid.startsWith('guest_') && vid !== 'null' && vid !== 'guest'),
-                  currentUrl: '', 
-                  userIp: log.ip,
-                  count: 1 
-              };
-          } else {
-              uniqueVisitors[vid].count++; 
-          }
-      }
+    const visitors = Object.values(uniqueVisitors);
 
-      const visitors = Object.values(uniqueVisitors);
-
-      res.json({ success: true, visitors: visitors });
+    res.json({ success: true, visitors: visitors });
 
   } catch (error) {
-      console.error('클릭 방문자 조회 실패:', error);
-      res.status(500).json({ success: false, message: '서버 오류' });
-  } 
+    console.error('클릭 방문자 조회 실패:', error);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
 });
 
 // 인기 페이지 조회
@@ -1159,30 +1159,30 @@ app.get('/api/trace/stats/pages', async (req, res) => {
     let matchStage = {};
 
     if (startDate || endDate) {
-        matchStage.createdAt = {};
-        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+      matchStage.createdAt = {};
+      if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+      if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
     const pipeline = [
       { $match: matchStage },
       {
         $group: {
-          _id: "$currentUrl", 
-          count: { $sum: 1 }, 
-          visitors: { $addToSet: "$visitorId" } 
+          _id: "$currentUrl",
+          count: { $sum: 1 },
+          visitors: { $addToSet: "$visitorId" }
         }
       },
-      { 
+      {
         $project: {
-            url: "$_id",
-            count: 1,
-            visitors: 1,
-            visitorCount: { $size: "$visitors" } 
+          url: "$_id",
+          count: 1,
+          visitors: 1,
+          visitorCount: { $size: "$visitors" }
         }
       },
-      { $sort: { count: -1 } }, 
-      { $limit: 100 } 
+      { $sort: { count: -1 } },
+      { $limit: 100 }
     ];
 
     const data = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
@@ -1191,26 +1191,26 @@ app.get('/api/trace/stats/pages', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
-  } 
+  }
 });
 
 // 흐름 분석
 app.get('/api/trace/stats/flow', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     let matchStage = {
-        prevUrl: { $regex: 'category|list.html' },
-        $and: [
-            { currentUrl: { $regex: 'product|detail.html' } },
-            { currentUrl: { $not: { $regex: 'list.html' } } } 
-        ]
+      prevUrl: { $regex: 'category|list.html' },
+      $and: [
+        { currentUrl: { $regex: 'product|detail.html' } },
+        { currentUrl: { $not: { $regex: 'list.html' } } }
+      ]
     };
 
     if (startDate || endDate) {
-        matchStage.createdAt = {};
-        if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
-        if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+      matchStage.createdAt = {};
+      if (startDate) matchStage.createdAt.$gte = new Date(startDate + "T00:00:00.000Z");
+      if (endDate) matchStage.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
     }
 
     const pipeline = [
@@ -1227,17 +1227,17 @@ app.get('/api/trace/stats/flow', async (req, res) => {
         $group: {
           _id: "$_id.category",
           totalCount: { $sum: "$count" },
-          topProducts: { 
-            $push: { 
-                productUrl: "$_id.product", 
-                count: "$count",
-                visitors: "$visitors" 
-            } 
+          topProducts: {
+            $push: {
+              productUrl: "$_id.product",
+              count: "$count",
+              visitors: "$visitors"
+            }
           }
         }
       },
       { $sort: { totalCount: -1 } },
-      { $limit: 30 } 
+      { $limit: 30 }
     ];
 
     const data = await db.collection('visit_logs1Event').aggregate(pipeline, { allowDiskUse: true }).toArray();
@@ -1246,7 +1246,7 @@ app.get('/api/trace/stats/flow', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Server Error' });
-  } 
+  }
 });
 
 // 채널별 방문자
@@ -1277,7 +1277,7 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
     const channelNameExpr = {
       $switch: {
         branches: [
-          { case: { $eq: ["$utmData.campaign", "home_main"] },  then: "브검 : 홈페이지 메인" },
+          { case: { $eq: ["$utmData.campaign", "home_main"] }, then: "브검 : 홈페이지 메인" },
           { case: { $eq: ["$utmData.campaign", "naver_main"] }, then: "브검 : 1월 말할 수 없는 편안함(메인)" },
           { case: { $eq: ["$utmData.campaign", "naver_sub1"] }, then: "브검 : 1월 말할 수 없는 편안함(서브1)_10%" },
           { case: { $eq: ["$utmData.campaign", "naver_sub2"] }, then: "브검 : 1월 말할 수 없는 편안함(서브2)_20%" },
@@ -1285,11 +1285,11 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
           { case: { $eq: ["$utmData.campaign", "naver_sub4"] }, then: "브검 : 1월 말할 수 없는 편안함(서브4)_무료배송" },
           { case: { $eq: ["$utmData.campaign", "naver_sub5"] }, then: "브검 : 1월 말할 수 없는 편안함(서브5)_가까운매장" },
           { case: { $eq: ["$utmData.content", "employee_discount"] }, then: "메타 : 1월 말할 수 없는 편안함(직원 할인 찬스)" },
-          { case: { $eq: ["$utmData.content", "areading_group1"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
-          { case: { $eq: ["$utmData.content", "areading_group2"] },   then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
-          { case: { $eq: ["$utmData.content", "special_price1"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
-          { case: { $eq: ["$utmData.content", "special_price2"] },    then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
-          { case: { $eq: ["$utmData.content", "horse"] },             then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
+          { case: { $eq: ["$utmData.content", "areading_group1"] }, then: "메타 : 1월 말할 수 없는 편안함(sky독서소파)" },
+          { case: { $eq: ["$utmData.content", "areading_group2"] }, then: "메타 : 1월 말할 수 없는 편안함(sky독서소파2)" },
+          { case: { $eq: ["$utmData.content", "special_price1"] }, then: "메타 : 1월 말할 수 없는 편안함(신년특가1)" },
+          { case: { $eq: ["$utmData.content", "special_price2"] }, then: "메타 : 1월 말할 수 없는 편안함(신년특가2)" },
+          { case: { $eq: ["$utmData.content", "horse"] }, then: "메타 : 1월 말할 수 없는 편안함(말 ai아님)" },
           { case: { $eq: ["$utmData.campaign", "message_main"] }, then: "플친 : 1월 말할 수 없는 편안함(메인)" },
           { case: { $eq: ["$utmData.campaign", "message_sub1"] }, then: "플친 : 1월 말할 수 없는 편안함(10%)" },
           { case: { $eq: ["$utmData.campaign", "message_sub2"] }, then: "플친 : 1월 말할 수 없는 편안함(20%)" },
@@ -1362,7 +1362,7 @@ app.get('/api/trace/visitors/by-channel', async (req, res) => {
   } catch (err) {
     console.error('API 11 Error:', err);
     return res.status(500).json({ msg: 'Server Error', error: err.toString() });
-  } 
+  }
 });
 
 
@@ -1374,129 +1374,129 @@ const SALLYFELLTOKEN = process.env.SALLYFELLTOKEN;
 // 카테고리 조회
 app.get('/api/meta/categories', async (req, res) => {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`;
-  
+
   try {
-      let allCategories = [];
-      let offset = 0;
-      let hasMore = true;
-      const LIMIT = 100;
+    let allCategories = [];
+    let offset = 0;
+    let hasMore = true;
+    const LIMIT = 100;
 
-      console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
+    console.log(`[Category] 카테고리 전체 데이터 수집 시작...`);
 
-      while (hasMore) {
-          const response = await axios.get(url, {
-              headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              },
-              params: { 
-                  shop_no: 1,
-                  limit: LIMIT,     
-                  offset: offset,   
-                  fields: 'category_no,category_name' 
-              }
-          });
-
-          const cats = response.data.categories;
-          
-          if (cats && cats.length > 0) {
-              allCategories = allCategories.concat(cats);
-              
-              if (cats.length < LIMIT) {
-                  hasMore = false; 
-              } else {
-                  offset += LIMIT; 
-              }
-          } else {
-              hasMore = false;
-          }
-      }
-
-      const categoryMap = {};
-      allCategories.forEach(cat => {
-          categoryMap[cat.category_no] = cat.category_name;
+    while (hasMore) {
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': CAFE24_API_VERSION
+        },
+        params: {
+          shop_no: 1,
+          limit: LIMIT,
+          offset: offset,
+          fields: 'category_no,category_name'
+        }
       });
 
-      console.log(`[Category] 총 ${allCategories.length}개의 카테고리 로드 완료`);
-      res.json({ success: true, data: categoryMap });
+      const cats = response.data.categories;
+
+      if (cats && cats.length > 0) {
+        allCategories = allCategories.concat(cats);
+
+        if (cats.length < LIMIT) {
+          hasMore = false;
+        } else {
+          offset += LIMIT;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const categoryMap = {};
+    allCategories.forEach(cat => {
+      categoryMap[cat.category_no] = cat.category_name;
+    });
+
+    console.log(`[Category] 총 ${allCategories.length}개의 카테고리 로드 완료`);
+    res.json({ success: true, data: categoryMap });
 
   } catch (error) {
-      if (error.response && error.response.status === 401) {
-          try {
-              console.log('Token expired. Refreshing...');
-              await refreshAccessToken();
-              return res.redirect(req.originalUrl); 
-          } catch (e) {
-              return res.status(401).json({ error: "Token refresh failed" });
-          }
+    if (error.response && error.response.status === 401) {
+      try {
+        console.log('Token expired. Refreshing...');
+        await refreshAccessToken();
+        return res.redirect(req.originalUrl);
+      } catch (e) {
+        return res.status(401).json({ error: "Token refresh failed" });
       }
-      console.error("카테고리 전체 조회 실패:", error.message);
-      res.status(500).json({ success: false, message: 'Server Error' });
+    }
+    console.error("카테고리 전체 조회 실패:", error.message);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
 // 상품 조회
 app.get('/api/meta/products', async (req, res) => {
   const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`;
-  
+
   try {
-      let allProducts = [];
-      let offset = 0;
-      let hasMore = true;
-      const LIMIT = 100;
+    let allProducts = [];
+    let offset = 0;
+    let hasMore = true;
+    const LIMIT = 100;
 
-      console.log(`[Product] 상품 전체 데이터 수집 시작...`);
+    console.log(`[Product] 상품 전체 데이터 수집 시작...`);
 
-      while (hasMore) {
-          const response = await axios.get(url, {
-              headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              },
-              params: { 
-                  shop_no: 1,
-                  limit: LIMIT,     
-                  offset: offset,
-                  fields: 'product_no,product_name' 
-              }
-          });
-
-          const products = response.data.products;
-          
-          if (products && products.length > 0) {
-              allProducts = allProducts.concat(products);
-              
-              if (products.length < LIMIT) {
-                  hasMore = false; 
-              } else {
-                  offset += LIMIT;
-              }
-          } else {
-              hasMore = false;
-          }
-      }
-
-      const productMap = {};
-      allProducts.forEach(prod => {
-          productMap[prod.product_no] = prod.product_name;
+    while (hasMore) {
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': CAFE24_API_VERSION
+        },
+        params: {
+          shop_no: 1,
+          limit: LIMIT,
+          offset: offset,
+          fields: 'product_no,product_name'
+        }
       });
 
-      console.log(`[Product] 총 ${allProducts.length}개의 상품 정보 로드 완료`);
-      res.json({ success: true, data: productMap });
+      const products = response.data.products;
+
+      if (products && products.length > 0) {
+        allProducts = allProducts.concat(products);
+
+        if (products.length < LIMIT) {
+          hasMore = false;
+        } else {
+          offset += LIMIT;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const productMap = {};
+    allProducts.forEach(prod => {
+      productMap[prod.product_no] = prod.product_name;
+    });
+
+    console.log(`[Product] 총 ${allProducts.length}개의 상품 정보 로드 완료`);
+    res.json({ success: true, data: productMap });
 
   } catch (error) {
-      if (error.response && error.response.status === 401) {
-          try {
-              await refreshAccessToken();
-              return res.redirect(req.originalUrl); 
-          } catch (e) {
-              return res.status(401).json({ error: "Token refresh failed" });
-          }
+    if (error.response && error.response.status === 401) {
+      try {
+        await refreshAccessToken();
+        return res.redirect(req.originalUrl);
+      } catch (e) {
+        return res.status(401).json({ error: "Token refresh failed" });
       }
-      console.error("상품 전체 조회 실패:", error.message);
-      res.status(500).json({ success: false, message: 'Server Error' });
+    }
+    console.error("상품 전체 조회 실패:", error.message);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
@@ -1507,10 +1507,10 @@ app.get("/api/instagramFeed", async (req, res) => {
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${INSTAGRAM_TOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
     const feedData = response.data;
-    
+
     // DB 저장 (비동기)
     saveInstagramFeedData(feedData);
-    
+
     res.json(feedData);
   } catch (error) {
     console.error("Error fetching Instagram feed:", error.message);
@@ -1525,9 +1525,9 @@ app.get("/api/instagramSallyFeed", async (req, res) => {
     const url = `https://graph.instagram.com/v22.0/me/media?access_token=${SALLYFELLTOKEN}&fields=id,caption,media_url,permalink,media_type,timestamp&limit=${pageLimit}`;
     const response = await axios.get(url);
     const feedData = response.data;
-    
+
     saveInstagramFeedData(feedData);
-    
+
     res.json(feedData);
   } catch (error) {
     console.error("Error fetching Instagram feed:", error.message);
@@ -1602,7 +1602,7 @@ app.get('/api/getClickCount', async (req, res) => {
     const collection = db.collection('instaClickdata');
     const doc = await collection.findOne({ postId: postId });
     const clickCount = doc && doc.counter ? doc.counter : 0;
-    
+
     res.status(200).json({ clickCount });
   } catch (error) {
     console.error("Error fetching click count:", error);
@@ -1624,57 +1624,57 @@ app.get('/api/getClickCount', async (req, res) => {
 // ==========================================
 app.get('/api/cafe24/categories', async (req, res) => {
   try {
-      let allCategories = [];
-      let offset = 0;
-      const limit = 100; // 카페24가 허용하는 최대 개수
-      let hasMore = true;
-      let loopCount = 0;
+    let allCategories = [];
+    let offset = 0;
+    const limit = 100; // 카페24가 허용하는 최대 개수
+    let hasMore = true;
+    let loopCount = 0;
 
-      // 데이터가 안 끊기고 다 나올 때까지 반복해서 긁어옵니다 (무한루프 방지: 최대 10번 = 1000개)
-      while (hasMore && loopCount < 10) {
-          const fetchFromCafe24 = async (retry = false) => {
-              try {
-                  return await axios.get(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`,
-                      {
-                          params: { 
-                              shop_no: 1, 
-                              limit: limit,
-                              offset: offset 
-                          },
-                          headers: { 
-                              Authorization: `Bearer ${accessToken}`, 
-                              'Content-Type': 'application/json', 
-                              'X-Cafe24-Api-Version': CAFE24_API_VERSION 
-                          }
-                      }
-                  );
-              } catch (err) {
-                  if (err.response && err.response.status === 401 && !retry) {
-                      await refreshAccessToken();
-                      return await fetchFromCafe24(true);
-                  }
-                  throw err;
+    // 데이터가 안 끊기고 다 나올 때까지 반복해서 긁어옵니다 (무한루프 방지: 최대 10번 = 1000개)
+    while (hasMore && loopCount < 10) {
+      const fetchFromCafe24 = async (retry = false) => {
+        try {
+          return await axios.get(
+            `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/categories`,
+            {
+              params: {
+                shop_no: 1,
+                limit: limit,
+                offset: offset
+              },
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'X-Cafe24-Api-Version': CAFE24_API_VERSION
               }
-          };
-
-          const response = await fetchFromCafe24();
-          const cats = response.data.categories || [];
-          allCategories = allCategories.concat(cats);
-
-          // 불러온 개수가 100개보다 적으면 뒤에 더 이상 데이터가 없는 것이므로 종료
-          if (cats.length < limit) {
-              hasMore = false;
-          } else {
-              offset += limit; // 다음 100개를 가져오기 위해 오프셋 증가
+            }
+          );
+        } catch (err) {
+          if (err.response && err.response.status === 401 && !retry) {
+            await refreshAccessToken();
+            return await fetchFromCafe24(true);
           }
-          loopCount++;
-      }
+          throw err;
+        }
+      };
 
-      res.json({ success: true, data: allCategories });
+      const response = await fetchFromCafe24();
+      const cats = response.data.categories || [];
+      allCategories = allCategories.concat(cats);
+
+      // 불러온 개수가 100개보다 적으면 뒤에 더 이상 데이터가 없는 것이므로 종료
+      if (cats.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit; // 다음 100개를 가져오기 위해 오프셋 증가
+      }
+      loopCount++;
+    }
+
+    res.json({ success: true, data: allCategories });
   } catch (error) {
-      console.error("🔥 Cafe24 카테고리 목록 조회 에러:", error.message);
-      res.status(500).json({ success: false, message: "Cafe24 API Error" });
+    console.error("🔥 Cafe24 카테고리 목록 조회 에러:", error.message);
+    res.status(500).json({ success: false, message: "Cafe24 API Error" });
   }
 });
 // ==========================================
@@ -1682,128 +1682,128 @@ app.get('/api/cafe24/categories', async (req, res) => {
 // ==========================================
 app.get('/api/cafe24/categories/:categoryNo/products', async (req, res) => {
   try {
-      const { categoryNo } = req.params;
-      const fetchFromCafe24 = async (retry = false) => {
-          try {
-              return await axios.get(
-                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
-                  {
-                      params: { 
-                          shop_no: 1, 
-                          category: categoryNo, 
-                          display: 'T', 
-                          selling: 'T', 
-                          embed: 'options,images', 
-                          limit: 100 
-                      },
-                      headers: { 
-                          Authorization: `Bearer ${accessToken}`, 
-                          'Content-Type': 'application/json', 
-                          'X-Cafe24-Api-Version': CAFE24_API_VERSION 
-                      }
-                  }
-              );
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) {
-                  await refreshAccessToken();
-                  return await fetchFromCafe24(true);
-              }
-              throw err;
+    const { categoryNo } = req.params;
+    const fetchFromCafe24 = async (retry = false) => {
+      try {
+        return await axios.get(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+          {
+            params: {
+              shop_no: 1,
+              category: categoryNo,
+              display: 'T',
+              selling: 'T',
+              embed: 'options,images',
+              limit: 100
+            },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'X-Cafe24-Api-Version': CAFE24_API_VERSION
+            }
           }
-      };
+        );
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(true);
+        }
+        throw err;
+      }
+    };
 
-      const response = await fetchFromCafe24();
-      res.json({ success: true, data: response.data.products });
+    const response = await fetchFromCafe24();
+    res.json({ success: true, data: response.data.products });
   } catch (error) {
-      console.error("🔥 Cafe24 카테고리별 상품 조회 에러:", error.message);
-      res.status(500).json({ success: false, message: "Cafe24 API Error" });
+    console.error("🔥 Cafe24 카테고리별 상품 조회 에러:", error.message);
+    res.status(500).json({ success: false, message: "Cafe24 API Error" });
   }
 });
 
 app.get('/api/cafe24/products', async (req, res) => {
   try {
-      const { keyword } = req.query;
-      if (!keyword) return res.json({ success: true, count: 0, data: [] });
+    const { keyword } = req.query;
+    if (!keyword) return res.json({ success: true, count: 0, data: [] });
 
-      const fetchFromCafe24 = async (retry = false) => {
-          try {
-              return await axios.get(
-                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
-                  {
-                      params: { shop_no: 1, product_name: keyword, display: 'T', selling: 'T', embed: 'options,images', limit: 100, sort: 'created_date', order: 'asc' },
-                      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
-                  }
-              );
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) {
-                  await refreshAccessToken();
-                  return await fetchFromCafe24(true);
-              }
-              throw err;
+    const fetchFromCafe24 = async (retry = false) => {
+      try {
+        return await axios.get(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+          {
+            params: { shop_no: 1, product_name: keyword, display: 'T', selling: 'T', embed: 'options,images', limit: 100, sort: 'created_date', order: 'asc' },
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
           }
+        );
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(true);
+        }
+        throw err;
+      }
+    };
+
+    const response = await fetchFromCafe24();
+    const products = response.data.products || [];
+    const cleanData = products.map(item => {
+      let myOptions = [];
+      let rawOptionList = item.options ? (Array.isArray(item.options) ? item.options : item.options.options) : [];
+
+      if (rawOptionList.length > 0) {
+        let targetOption = rawOptionList.find(opt => {
+          const name = (opt.option_name || opt.name || "").toLowerCase();
+          return name.includes('색상') || name.includes('color');
+        }) || rawOptionList[0];
+        if (targetOption && targetOption.option_value) {
+          myOptions = targetOption.option_value.map(val => ({
+            option_code: val.value_no || val.value_code || val.value,
+            option_name: val.value_name || val.option_text || val.name
+          }));
+        }
+      }
+      let img = item.detail_image || item.list_image || item.small_image || (item.images && item.images[0] && item.images[0].big);
+      return {
+        product_no: item.product_no, product_name: item.product_name,
+        price: Math.floor(Number(item.price)), options: myOptions,
+        detail_image: img
       };
-
-      const response = await fetchFromCafe24();
-      const products = response.data.products || [];
-      const cleanData = products.map(item => {
-          let myOptions = [];
-          let rawOptionList = item.options ? (Array.isArray(item.options) ? item.options : item.options.options) : [];
-          
-          if (rawOptionList.length > 0) {
-              let targetOption = rawOptionList.find(opt => {
-                  const name = (opt.option_name || opt.name || "").toLowerCase();
-                  return name.includes('색상') || name.includes('color');
-              }) || rawOptionList[0];
-              if (targetOption && targetOption.option_value) {
-                  myOptions = targetOption.option_value.map(val => ({
-                      option_code: val.value_no || val.value_code || val.value,
-                      option_name: val.value_name || val.option_text || val.name
-                  }));
-              }
-          }
-          let img = item.detail_image || item.list_image || item.small_image || (item.images && item.images[0] && item.images[0].big);
-          return {
-              product_no: item.product_no, product_name: item.product_name,
-              price: Math.floor(Number(item.price)), options: myOptions,
-              detail_image: img
-          };
-      });
-      res.json({ success: true, count: cleanData.length, data: cleanData });
+    });
+    res.json({ success: true, count: cleanData.length, data: cleanData });
   } catch (error) { res.status(500).json({ success: false, message: "Cafe24 API Error" }); }
 });
 
 app.get('/api/cafe24/products/:productNo/options', async (req, res) => {
   try {
-      const { productNo } = req.params;
-      const fetchFromCafe24 = async (retry = false) => {
-          try {
-              return await axios.get(
-                  `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${productNo}`,
-                  { params: { shop_no: 1, embed: 'options' }, headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION } }
-              );
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) { await refreshAccessToken(); return await fetchFromCafe24(true); }
-              throw err;
-          }
-      };
-      const response = await fetchFromCafe24();
-      const product = response.data.product;
-      let myOptions = [];
-      let rawOptionList = Array.isArray(product.options) ? product.options : (product.options && product.options.options ? product.options.options : []);
-      
-      if (rawOptionList.length > 0) {
-          let targetOption = rawOptionList.find(opt => {
-              const name = (opt.option_name || opt.name || "").toLowerCase();
-              return name.includes('색상') || name.includes('color');
-          }) || rawOptionList[0];
-          if (targetOption && targetOption.option_value) {
-              myOptions = targetOption.option_value.map(val => ({
-                  option_code: val.value_no || val.value_code || val.value,
-                  option_name: val.value_name || val.option_text || val.name
-              }));
-          }
+    const { productNo } = req.params;
+    const fetchFromCafe24 = async (retry = false) => {
+      try {
+        return await axios.get(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${productNo}`,
+          { params: { shop_no: 1, embed: 'options' }, headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION } }
+        );
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) { await refreshAccessToken(); return await fetchFromCafe24(true); }
+        throw err;
       }
-      res.json({ success: true, product_no: product.product_no, product_name: product.product_name, options: myOptions });
+    };
+    const response = await fetchFromCafe24();
+    const product = response.data.product;
+    let myOptions = [];
+    let rawOptionList = Array.isArray(product.options) ? product.options : (product.options && product.options.options ? product.options.options : []);
+
+    if (rawOptionList.length > 0) {
+      let targetOption = rawOptionList.find(opt => {
+        const name = (opt.option_name || opt.name || "").toLowerCase();
+        return name.includes('색상') || name.includes('color');
+      }) || rawOptionList[0];
+      if (targetOption && targetOption.option_value) {
+        myOptions = targetOption.option_value.map(val => ({
+          option_code: val.value_no || val.value_code || val.value,
+          option_name: val.value_name || val.option_text || val.name
+        }));
+      }
+    }
+    res.json({ success: true, product_no: product.product_no, product_name: product.product_name, options: myOptions });
   } catch (error) { res.status(500).json({ success: false, message: "Cafe24 API Error" }); }
 });
 
@@ -1812,165 +1812,165 @@ app.get('/api/cafe24/products/:productNo/options', async (req, res) => {
 // ==========================================
 app.get('/api/cafe24/coupons', async (req, res) => {
   try {
-      const fetchFromCafe24 = async (url, params, retry = false) => {
-          try {
-              return await axios.get(url, {
-                  params,
-                  headers: {
-                      Authorization: `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                      'X-Cafe24-Api-Version': CAFE24_API_VERSION
-                  }
-              });
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) {
-                  await refreshAccessToken();
-                  return await fetchFromCafe24(url, params, true);
-              }
-              throw err;
+    const fetchFromCafe24 = async (url, params, retry = false) => {
+      try {
+        return await axios.get(url, {
+          params,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': CAFE24_API_VERSION
           }
+        });
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(url, params, true);
+        }
+        throw err;
+      }
+    };
+
+    const listRes = await fetchFromCafe24(
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`,
+      { shop_no: 1, limit: 100, issue_type: 'D' }
+    );
+    const coupons = listRes.data.coupons || [];
+
+    const now = new Date();
+    const activeCoupons = coupons.filter(c => {
+      if (c.deleted === 'T') return false;
+      if (c.is_stopped_issued_coupon === 'T') return false;
+      if (c.issue_type !== 'D') return false;
+      if (c.issue_start_date && new Date(c.issue_start_date) > now) return false;
+      if (c.issue_end_date && new Date(c.issue_end_date) < now) return false;
+      if (c.available_period_type === 'F') {
+        if (c.available_start_datetime && new Date(c.available_start_datetime) > now) return false;
+        if (c.available_end_datetime && new Date(c.available_end_datetime) < now) return false;
+      }
+      return true;
+    });
+
+    const detailResults = await Promise.allSettled(
+      activeCoupons.map(c => fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons/${c.coupon_no}`, { shop_no: 1 }))
+    );
+
+    const enriched = activeCoupons.map((c, idx) => {
+      let availableProducts = [];
+      let availableProductType = c.available_product_type || 'A';
+      const detail = detailResults[idx];
+
+      if (detail.status === 'fulfilled' && detail.value.data.coupon) {
+        const dc = detail.value.data.coupon;
+        availableProductType = dc.available_product_type || availableProductType;
+        const raw = dc.available_product;
+        if (Array.isArray(raw)) {
+          availableProducts = raw.map(p => (typeof p === 'object' && p !== null && p.product_no) ? Number(p.product_no) : Number(p)).filter(n => !isNaN(n));
+        } else if (typeof raw === 'number') {
+          availableProducts = [raw];
+        } else if (typeof raw === 'string' && raw) {
+          availableProducts = raw.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+        }
+      }
+
+      return {
+        coupon_no: c.coupon_no,
+        coupon_name: c.coupon_name,
+        benefit_type: c.benefit_type,
+        benefit_percentage: c.benefit_percentage ? parseFloat(c.benefit_percentage) : null,
+        benefit_price: c.benefit_price ? Math.floor(parseFloat(c.benefit_price)) : null,
+        available_date: c.available_date || '',
+        available_product_type: availableProductType,
+        available_product: availableProducts
       };
+    });
 
-      const listRes = await fetchFromCafe24(
-          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`,
-          { shop_no: 1, limit: 100, issue_type: 'D' }
-      );
-      const coupons = listRes.data.coupons || [];
-
-      const now = new Date();
-      const activeCoupons = coupons.filter(c => {
-          if (c.deleted === 'T') return false;
-          if (c.is_stopped_issued_coupon === 'T') return false;
-          if (c.issue_type !== 'D') return false;
-          if (c.issue_start_date && new Date(c.issue_start_date) > now) return false;
-          if (c.issue_end_date && new Date(c.issue_end_date) < now) return false;
-          if (c.available_period_type === 'F') {
-              if (c.available_start_datetime && new Date(c.available_start_datetime) > now) return false;
-              if (c.available_end_datetime && new Date(c.available_end_datetime) < now) return false;
-          }
-          return true;
-      });
-
-      const detailResults = await Promise.allSettled(
-          activeCoupons.map(c => fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons/${c.coupon_no}`, { shop_no: 1 }))
-      );
-
-      const enriched = activeCoupons.map((c, idx) => {
-          let availableProducts = [];
-          let availableProductType = c.available_product_type || 'A';
-          const detail = detailResults[idx];
-          
-          if (detail.status === 'fulfilled' && detail.value.data.coupon) {
-              const dc = detail.value.data.coupon;
-              availableProductType = dc.available_product_type || availableProductType;
-              const raw = dc.available_product;
-              if (Array.isArray(raw)) {
-                  availableProducts = raw.map(p => (typeof p === 'object' && p !== null && p.product_no) ? Number(p.product_no) : Number(p)).filter(n => !isNaN(n));
-              } else if (typeof raw === 'number') {
-                  availableProducts = [raw];
-              } else if (typeof raw === 'string' && raw) {
-                  availableProducts = raw.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
-              }
-          }
-
-          return {
-              coupon_no: c.coupon_no,
-              coupon_name: c.coupon_name,
-              benefit_type: c.benefit_type,
-              benefit_percentage: c.benefit_percentage ? parseFloat(c.benefit_percentage) : null,
-              benefit_price: c.benefit_price ? Math.floor(parseFloat(c.benefit_price)) : null,
-              available_date: c.available_date || '',
-              available_product_type: availableProductType,
-              available_product: availableProducts
-          };
-      });
-
-      res.json({ success: true, count: enriched.length, data: enriched });
+    res.json({ success: true, count: enriched.length, data: enriched });
   } catch (error) { res.status(500).json({ success: false, message: 'Cafe24 Coupon API Error' }); }
 });
 
 app.get('/api/cafe24/coupons/:couponNo', async (req, res) => {
   try {
-      const { couponNo } = req.params;
-      const fetchFromCafe24 = async (url, params, retry = false) => {
-          try {
-              return await axios.get(url, {
-                  params,
-                  headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
-              });
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) {
-                  await refreshAccessToken(); return await fetchFromCafe24(url, params, true);
-              }
-              throw err;
-          }
-      };
-
-      const couponRes = await fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`, { shop_no: 1, coupon_no: couponNo });
-      const coupon = (couponRes.data.coupons || [])[0];
-      if (!coupon) return res.status(404).json({ success: false, message: '쿠폰 없음' });
-
-      const productNos = coupon.available_product_list || [];
-      let productDetails = [];
-      
-      if (productNos.length > 0) {
-          try {
-              const chunkSize = 100;
-              for (let i = 0; i < productNos.length; i += chunkSize) {
-                  const chunk = productNos.slice(i, i + chunkSize);
-                  const productRes = await fetchFromCafe24(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
-                      { shop_no: 1, product_no: chunk.join(','), fields: 'product_no,product_name,price,detail_image,list_image,small_image', limit: 100 }
-                  );
-                  const chunkDetails = (productRes.data.products || []).map(p => ({
-                      product_no: p.product_no, product_name: p.product_name, price: Math.floor(Number(p.price)), image: p.detail_image || p.list_image || p.small_image || ''
-                  }));
-                  productDetails = productDetails.concat(chunkDetails);
-              }
-          } catch (e) {
-              productDetails = productNos.map(no => ({ product_no: no, product_name: `상품 #${no}`, price: 0, image: '' }));
-          }
+    const { couponNo } = req.params;
+    const fetchFromCafe24 = async (url, params, retry = false) => {
+      try {
+        return await axios.get(url, {
+          params,
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION }
+        });
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken(); return await fetchFromCafe24(url, params, true);
+        }
+        throw err;
       }
+    };
 
-      res.json({
-          success: true, 
-          data: {
-              coupon_no: coupon.coupon_no, coupon_name: coupon.coupon_name, benefit_type: coupon.benefit_type,
-              benefit_percentage: coupon.benefit_percentage ? parseFloat(coupon.benefit_percentage) : null,
-              benefit_price: coupon.benefit_price ? Math.floor(parseFloat(coupon.benefit_price)) : null,
-              available_product_type: coupon.available_product || 'A', available_product_list: productNos, products: productDetails
-          }
-      });
+    const couponRes = await fetchFromCafe24(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons`, { shop_no: 1, coupon_no: couponNo });
+    const coupon = (couponRes.data.coupons || [])[0];
+    if (!coupon) return res.status(404).json({ success: false, message: '쿠폰 없음' });
+
+    const productNos = coupon.available_product_list || [];
+    let productDetails = [];
+
+    if (productNos.length > 0) {
+      try {
+        const chunkSize = 100;
+        for (let i = 0; i < productNos.length; i += chunkSize) {
+          const chunk = productNos.slice(i, i + chunkSize);
+          const productRes = await fetchFromCafe24(
+            `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+            { shop_no: 1, product_no: chunk.join(','), fields: 'product_no,product_name,price,detail_image,list_image,small_image', limit: 100 }
+          );
+          const chunkDetails = (productRes.data.products || []).map(p => ({
+            product_no: p.product_no, product_name: p.product_name, price: Math.floor(Number(p.price)), image: p.detail_image || p.list_image || p.small_image || ''
+          }));
+          productDetails = productDetails.concat(chunkDetails);
+        }
+      } catch (e) {
+        productDetails = productNos.map(no => ({ product_no: no, product_name: `상품 #${no}`, price: 0, image: '' }));
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        coupon_no: coupon.coupon_no, coupon_name: coupon.coupon_name, benefit_type: coupon.benefit_type,
+        benefit_percentage: coupon.benefit_percentage ? parseFloat(coupon.benefit_percentage) : null,
+        benefit_price: coupon.benefit_price ? Math.floor(parseFloat(coupon.benefit_price)) : null,
+        available_product_type: coupon.available_product || 'A', available_product_list: productNos, products: productDetails
+      }
+    });
   } catch (error) { res.status(500).json({ success: false, message: 'Cafe24 Coupon API Error' }); }
 });
 
 app.post('/api/coupon-map', async (req, res) => {
   try {
-      const { coupon_no, coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products } = req.body;
-      if (!coupon_no) return res.status(400).json({ success: false });
+    const { coupon_no, coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products } = req.body;
+    if (!coupon_no) return res.status(400).json({ success: false });
 
-      await db.collection(COLLECTION_COUPON_MAP).updateOne(
-          { coupon_no: String(coupon_no) },
-          { $set: { coupon_no: String(coupon_no), coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products, updated_at: new Date() } },
-          { upsert: true }
-      );
-      res.json({ success: true });
+    await db.collection(COLLECTION_COUPON_MAP).updateOne(
+      { coupon_no: String(coupon_no) },
+      { $set: { coupon_no: String(coupon_no), coupon_name, benefit_type, benefit_percentage, benefit_price, start_date, end_date, products, updated_at: new Date() } },
+      { upsert: true }
+    );
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
 app.get('/api/coupon-map', async (req, res) => {
   try {
-      const mappings = await db.collection(COLLECTION_COUPON_MAP).find({}).toArray();
-      const today = new Date().toISOString().slice(0, 10);
-      const active = mappings.filter(m => !m.end_date || m.end_date >= today);
-      res.json({ success: true, data: active });
+    const mappings = await db.collection(COLLECTION_COUPON_MAP).find({}).toArray();
+    const today = new Date().toISOString().slice(0, 10);
+    const active = mappings.filter(m => !m.end_date || m.end_date >= today);
+    res.json({ success: true, data: active });
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
 app.delete('/api/coupon-map/:couponNo', async (req, res) => {
   try {
-      await db.collection(COLLECTION_COUPON_MAP).deleteOne({ coupon_no: String(req.params.couponNo) });
-      res.json({ success: true });
+    await db.collection(COLLECTION_COUPON_MAP).deleteOne({ coupon_no: String(req.params.couponNo) });
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false }); }
 });
 
@@ -1983,239 +1983,239 @@ app.delete('/api/coupon-map/:couponNo', async (req, res) => {
 // ==========================================
 app.get('/api/online/homepage-stats', async (req, res) => {
   try {
-      const { startDate, endDate } = req.query; 
-      
-      if (!startDate || !endDate) {
-          return res.status(400).json({ success: false, message: '시작일과 종료일 정보가 필요합니다.' });
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: '시작일과 종료일 정보가 필요합니다.' });
+    }
+
+    const fetchFromCafe24 = async (url, params, retry = false) => {
+      try {
+        return await axios.get(url, {
+          params,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Cafe24-Api-Version': CAFE24_API_VERSION
+          }
+        });
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(url, params, true);
+        }
+        throw err;
+      }
+    };
+
+    // 날짜 범위 생성
+    const getDatesInRange = (start, end) => {
+      const dates = [];
+      let current = new Date(start);
+      const endDate = new Date(end);
+      while (current <= endDate) {
+        dates.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+      return dates;
+    };
+
+    const dateRange = getDatesInRange(startDate, endDate);
+
+    // ── 1. 방문자 데이터 (일별) ──
+    const getVisitorsByDate = async (sDate, eDate) => {
+      const visitorMap = {};
+
+      try {
+        const visitorRes = await axios.get(
+          `https://ca-api.cafe24data.com/visitors/view`,
+          {
+            params: {
+              mall_id: 'yogibo',
+              shop_no: 1,
+              start_date: sDate,
+              end_date: eDate
+            },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        const data = visitorRes.data;
+        if (data.view && Array.isArray(data.view)) {
+          data.view.forEach(v => {
+            const date = v.date.split('T')[0];
+            visitorMap[date] = {
+              visitors: Number(v.visit_count || 0),
+              firstVisit: Number(v.first_visit_count || 0),
+              reVisit: Number(v.re_visit_count || 0)
+            };
+          });
+        }
+      } catch (err) {
+        console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
       }
 
-      const fetchFromCafe24 = async (url, params, retry = false) => {
-          try {
-              return await axios.get(url, {
-                  params,
-                  headers: {
-                      Authorization: `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                      'X-Cafe24-Api-Version': CAFE24_API_VERSION
-                  }
-              });
-          } catch (err) {
-              if (err.response && err.response.status === 401 && !retry) {
-                  await refreshAccessToken();
-                  return await fetchFromCafe24(url, params, true);
+      return visitorMap;
+    };
+
+    // ── 2. 주문 데이터 (일별 집계) ──
+    const getOrdersByDate = async (sDate, eDate) => {
+      const orderMap = {};
+      const detailMap = {
+        newMemberList: [],
+        existMemberList: [],
+        guestList: []
+      };
+
+      try {
+        let orderHasMore = true;
+        let orderOffset = 0;
+
+        while (orderHasMore && orderOffset < 5000) {
+          const orderRes = await fetchFromCafe24(
+            `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+            {
+              shop_no: 1,
+              start_date: sDate,
+              end_date: eDate,
+              date_type: 'pay_date',
+              limit: 100,
+              offset: orderOffset,
+              embed: 'items'
+            }
+          );
+
+          const orders = orderRes.data.orders || [];
+
+          orders
+            .filter(o => !['C', 'R', 'E'].includes(o.order_status))
+            .forEach(o => {
+              const date = o.payment_date ? o.payment_date.split('T')[0] : o.order_date.split('T')[0];
+
+              if (!orderMap[date]) {
+                orderMap[date] = {
+                  totalAmt: 0,
+                  ordCount: 0,
+                  newMemberBuy: 0,
+                  existMemberBuy: 0,
+                  guestBuy: 0
+                };
               }
-              throw err;
-          }
-      };
 
-      // 날짜 범위 생성
-      const getDatesInRange = (start, end) => {
-          const dates = [];
-          let current = new Date(start);
-          const endDate = new Date(end);
-          while (current <= endDate) {
-              dates.push(current.toISOString().split('T')[0]);
-              current.setDate(current.getDate() + 1);
-          }
-          return dates;
-      };
+              const amt = Number(o.payment_amount) || 0;
+              orderMap[date].totalAmt += amt;
+              orderMap[date].ordCount++;
 
-      const dateRange = getDatesInRange(startDate, endDate);
+              // 상세 정보
+              const orderDetail = {
+                orderNo: o.order_id,
+                orderDate: o.order_date,
+                buyerName: o.billing_name || '비공개',
+                buyerEmail: o.member_email || '-',
+                memberId: o.member_id || null,
+                paymentAmount: amt,
+                items: (o.items || []).map(item => ({
+                  productName: item.product_name,
+                  quantity: item.quantity,
+                  price: Number(item.product_price) || 0,
+                  optionValue: item.option_value || ''
+                }))
+              };
 
-      // ── 1. 방문자 데이터 (일별) ──
-      const getVisitorsByDate = async (sDate, eDate) => {
-          const visitorMap = {};
-          
-          try {
-              const visitorRes = await axios.get(
-                  `https://ca-api.cafe24data.com/visitors/view`,
-                  {
-                      params: {
-                          mall_id: 'yogibo',
-                          shop_no: 1,
-                          start_date: sDate,
-                          end_date: eDate
-                      },
-                      headers: {
-                          Authorization: `Bearer ${accessToken}`,
-                          'Content-Type': 'application/json'
-                      }
-                  }
-              );
-              
-              const data = visitorRes.data;
-              if (data.view && Array.isArray(data.view)) {
-                  data.view.forEach(v => {
-                      const date = v.date.split('T')[0];
-                      visitorMap[date] = {
-                          visitors: Number(v.visit_count || 0),
-                          firstVisit: Number(v.first_visit_count || 0),
-                          reVisit: Number(v.re_visit_count || 0)
-                      };
-                  });
+              if (o.member_id) {
+                if (o.first_order === 'T') {
+                  orderMap[date].newMemberBuy++;
+                  detailMap.newMemberList.push({ ...orderDetail, date });
+                } else {
+                  orderMap[date].existMemberBuy++;
+                  detailMap.existMemberList.push({ ...orderDetail, date });
+                }
+              } else {
+                orderMap[date].guestBuy++;
+                detailMap.guestList.push({ ...orderDetail, date });
               }
-          } catch (err) {
-              console.log('⚠️ 방문자 데이터 조회 실패:', err.message);
-          }
-          
-          return visitorMap;
+            });
+
+          if (orders.length < 100) orderHasMore = false;
+          else orderOffset += 100;
+        }
+
+      } catch (err) {
+        console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
+      }
+
+      return { orderMap, detailMap };
+    };
+
+    // 병렬 조회
+    const [visitorMap, orderData] = await Promise.all([
+      getVisitorsByDate(startDate, endDate),
+      getOrdersByDate(startDate, endDate)
+    ]);
+
+    const { orderMap, detailMap } = orderData;
+
+    // 일별 데이터 조합
+    const dailyData = dateRange.map(date => {
+      const visitor = visitorMap[date] || { visitors: 0, firstVisit: 0, reVisit: 0 };
+      const order = orderMap[date] || { totalAmt: 0, ordCount: 0, newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0 };
+
+      const purchaseRate = visitor.visitors > 0
+        ? ((order.ordCount / visitor.visitors) * 100).toFixed(2)
+        : '0.00';
+      const visitAvg = visitor.visitors > 0 ? Math.floor(order.totalAmt / visitor.visitors) : 0;
+      const orderAvg = order.ordCount > 0 ? Math.floor(order.totalAmt / order.ordCount) : 0;
+
+      return {
+        date,
+        ...visitor,
+        ...order,
+        purchaseRate,
+        visitAvg,
+        orderAvg
       };
+    });
 
-      // ── 2. 주문 데이터 (일별 집계) ──
-      const getOrdersByDate = async (sDate, eDate) => {
-          const orderMap = {};
-          const detailMap = {
-              newMemberList: [],
-              existMemberList: [],
-              guestList: []
-          };
+    // 합계 계산
+    const totals = dailyData.reduce((acc, d) => {
+      acc.visitors += d.visitors;
+      acc.firstVisit += d.firstVisit;
+      acc.reVisit += d.reVisit;
+      acc.totalAmt += d.totalAmt;
+      acc.ordCount += d.ordCount;
+      acc.newMemberBuy += d.newMemberBuy;
+      acc.existMemberBuy += d.existMemberBuy;
+      acc.guestBuy += d.guestBuy;
+      return acc;
+    }, {
+      visitors: 0, firstVisit: 0, reVisit: 0,
+      totalAmt: 0, ordCount: 0,
+      newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0
+    });
 
-          try {
-              let orderHasMore = true;
-              let orderOffset = 0;
-              
-              while (orderHasMore && orderOffset < 5000) {
-                  const orderRes = await fetchFromCafe24(
-                      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-                      { 
-                          shop_no: 1, 
-                          start_date: sDate, 
-                          end_date: eDate, 
-                          date_type: 'pay_date', 
-                          limit: 100, 
-                          offset: orderOffset,
-                          embed: 'items'
-                      }
-                  );
-                  
-                  const orders = orderRes.data.orders || [];
-                  
-                  orders
-                      .filter(o => !['C', 'R', 'E'].includes(o.order_status))
-                      .forEach(o => {
-                          const date = o.payment_date ? o.payment_date.split('T')[0] : o.order_date.split('T')[0];
-                          
-                          if (!orderMap[date]) {
-                              orderMap[date] = {
-                                  totalAmt: 0,
-                                  ordCount: 0,
-                                  newMemberBuy: 0,
-                                  existMemberBuy: 0,
-                                  guestBuy: 0
-                              };
-                          }
-                          
-                          const amt = Number(o.payment_amount) || 0;
-                          orderMap[date].totalAmt += amt;
-                          orderMap[date].ordCount++;
-                          
-                          // 상세 정보
-                          const orderDetail = {
-                              orderNo: o.order_id,
-                              orderDate: o.order_date,
-                              buyerName: o.billing_name || '비공개',
-                              buyerEmail: o.member_email || '-',
-                              memberId: o.member_id || null,
-                              paymentAmount: amt,
-                              items: (o.items || []).map(item => ({
-                                  productName: item.product_name,
-                                  quantity: item.quantity,
-                                  price: Number(item.product_price) || 0,
-                                  optionValue: item.option_value || ''
-                              }))
-                          };
-                          
-                          if (o.member_id) {
-                              if (o.first_order === 'T') {
-                                  orderMap[date].newMemberBuy++;
-                                  detailMap.newMemberList.push({ ...orderDetail, date });
-                              } else {
-                                  orderMap[date].existMemberBuy++;
-                                  detailMap.existMemberList.push({ ...orderDetail, date });
-                              }
-                          } else {
-                              orderMap[date].guestBuy++;
-                              detailMap.guestList.push({ ...orderDetail, date });
-                          }
-                      });
-                      
-                  if (orders.length < 100) orderHasMore = false; 
-                  else orderOffset += 100;
-              }
-              
-          } catch (err) { 
-              console.log(`⚠️ 주문 정보 가져오기 실패:`, err.message);
-          }
+    totals.purchaseRate = totals.visitors > 0
+      ? ((totals.ordCount / totals.visitors) * 100).toFixed(2)
+      : '0.00';
+    totals.visitAvg = totals.visitors > 0 ? Math.floor(totals.totalAmt / totals.visitors) : 0;
+    totals.orderAvg = totals.ordCount > 0 ? Math.floor(totals.totalAmt / totals.ordCount) : 0;
 
-          return { orderMap, detailMap };
-      };
+    console.log(`✅ ${startDate}~${endDate} 일별 데이터 ${dailyData.length}일, 총 주문 ${totals.ordCount}건`);
 
-      // 병렬 조회
-      const [visitorMap, orderData] = await Promise.all([
-          getVisitorsByDate(startDate, endDate),
-          getOrdersByDate(startDate, endDate)
-      ]);
-
-      const { orderMap, detailMap } = orderData;
-
-      // 일별 데이터 조합
-      const dailyData = dateRange.map(date => {
-          const visitor = visitorMap[date] || { visitors: 0, firstVisit: 0, reVisit: 0 };
-          const order = orderMap[date] || { totalAmt: 0, ordCount: 0, newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0 };
-          
-          const purchaseRate = visitor.visitors > 0 
-              ? ((order.ordCount / visitor.visitors) * 100).toFixed(2)
-              : '0.00';
-          const visitAvg = visitor.visitors > 0 ? Math.floor(order.totalAmt / visitor.visitors) : 0;
-          const orderAvg = order.ordCount > 0 ? Math.floor(order.totalAmt / order.ordCount) : 0;
-          
-          return {
-              date,
-              ...visitor,
-              ...order,
-              purchaseRate,
-              visitAvg,
-              orderAvg
-          };
-      });
-
-      // 합계 계산
-      const totals = dailyData.reduce((acc, d) => {
-          acc.visitors += d.visitors;
-          acc.firstVisit += d.firstVisit;
-          acc.reVisit += d.reVisit;
-          acc.totalAmt += d.totalAmt;
-          acc.ordCount += d.ordCount;
-          acc.newMemberBuy += d.newMemberBuy;
-          acc.existMemberBuy += d.existMemberBuy;
-          acc.guestBuy += d.guestBuy;
-          return acc;
-      }, {
-          visitors: 0, firstVisit: 0, reVisit: 0,
-          totalAmt: 0, ordCount: 0,
-          newMemberBuy: 0, existMemberBuy: 0, guestBuy: 0
-      });
-
-      totals.purchaseRate = totals.visitors > 0 
-          ? ((totals.ordCount / totals.visitors) * 100).toFixed(2)
-          : '0.00';
-      totals.visitAvg = totals.visitors > 0 ? Math.floor(totals.totalAmt / totals.visitors) : 0;
-      totals.orderAvg = totals.ordCount > 0 ? Math.floor(totals.totalAmt / totals.ordCount) : 0;
-
-      console.log(`✅ ${startDate}~${endDate} 일별 데이터 ${dailyData.length}일, 총 주문 ${totals.ordCount}건`);
-
-      res.json({
-          success: true,
-          startDate,
-          endDate,
-          daily: dailyData,
-          totals,
-          details: detailMap
-      });
+    res.json({
+      success: true,
+      startDate,
+      endDate,
+      daily: dailyData,
+      totals,
+      details: detailMap
+    });
 
   } catch (error) {
-      console.error("🔥 홈페이지 통계 API 에러:", error);
-      res.status(500).json({ success: false, error: error.message });
+    console.error("🔥 홈페이지 통계 API 에러:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2230,7 +2230,7 @@ app.get('/api/online/homepage-stats', async (req, res) => {
 app.post('/api/yogibo/test-result', async (req, res) => {
   try {
     const { visitorId, answers, journey, recommendedName, recommendedDesc } = req.body;
-    
+
     // 한국 시간(KST)으로 저장
     const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 
@@ -2245,7 +2245,7 @@ app.post('/api/yogibo/test-result', async (req, res) => {
 
     // 'yogibo_test_results' 컬렉션에 데이터 저장
     const result = await db.collection('yogibo_test_results').insertOne(newResult);
-    
+
     console.log(`[Yogibo Test] 테스트 결과 저장 완료: ${visitorId} -> 추천: ${recommendedName}`);
     res.json({ success: true, insertedId: result.insertedId });
   } catch (error) {
@@ -2261,9 +2261,9 @@ app.post('/api/yogibo/test-result', async (req, res) => {
 app.get('/api/yogibo/test-result/download', async (req, res) => {
   try {
     const results = await db.collection('yogibo_test_results')
-                            .find({})
-                            .sort({ createdAt: -1 })
-                            .toArray();
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Test Results');
@@ -2281,12 +2281,12 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
       { header: 'Q5 (사용용도)', key: 'q5', width: 15 },
       { header: '여정 (클릭 순서)', key: 'journey', width: 30 }
     ];
-    
+
     results.forEach(item => {
       // 시간 포맷팅
-      const fmtDate = item.createdAt 
-                      ? moment(item.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') 
-                      : '-';
+      const fmtDate = item.createdAt
+        ? moment(item.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss')
+        : '-';
 
       worksheet.addRow({
         createdAt: fmtDate,
@@ -2301,11 +2301,11 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
         journey: (item.journey || []).join(' > ') // 예: q1 > q5 > result
       });
     });
-    
+
     // 헤더 및 파일명 설정 후 응답
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=yogibo_test_results.xlsx');
-    
+
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
@@ -2328,7 +2328,7 @@ async function fetchAndSaveYogiboJPNews() {
 
   try {
     console.log('🇯🇵 [Yogibo JP] 일본 뉴스레터 정기 업데이트 확인 중...');
-    
+
     const feed = await parser.parseURL('https://yogibo.jp/blogs/life.atom');
     const collection = db.collection('yogiboJPnews');
     let newCount = 0;
@@ -2336,12 +2336,12 @@ async function fetchAndSaveYogiboJPNews() {
     for (const item of feed.items) {
       // URL 뒤에 붙는 ? 쿼리파라미터나 / 슬래시를 제거하여 순수 주소만 추출 (중복 수집 1차 방어)
       let cleanLink = item.link || '';
-      if (cleanLink.includes('?')) cleanLink = cleanLink.split('?')[0]; 
+      if (cleanLink.includes('?')) cleanLink = cleanLink.split('?')[0];
       if (cleanLink.endsWith('/')) cleanLink = cleanLink.slice(0, -1);
 
       // 제목이 완전히 똑같은 글이 있는지 먼저 확인 (중복 수집 2차 방어)
       const existingPost = await collection.findOne({ title: item.title });
-      
+
       if (!existingPost) {
         // DB에 같은 제목이 없을 때만 새로 추가
         const result = await collection.updateOne(
@@ -2350,8 +2350,8 @@ async function fetchAndSaveYogiboJPNews() {
             $setOnInsert: {
               guid: cleanLink,
               title: item.title,
-              content: item.content, 
-              link: cleanLink, 
+              content: item.content,
+              link: cleanLink,
               pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
               status: 'draft', // 무조건 '임시저장' 상태로 대기
               createdAt: new Date()
@@ -2387,19 +2387,19 @@ cron.schedule('0 */6 * * *', () => {
 // [추가] 순서 변경 저장 API (드래그 앤 드롭)
 app.put('/api/yogibo-jp-news/order', async (req, res) => {
   try {
-    const { order } = req.body; 
+    const { order } = req.body;
     // order 형태 예시: [{ id: '...', position: 100 }, { id: '...', position: 200 }]
-    
+
     if (!order || !Array.isArray(order)) {
       return res.status(400).json({ success: false, message: '잘못된 데이터 형식입니다.' });
     }
 
     const collection = db.collection('yogiboJPnews');
-    
+
     // bulkWrite를 사용할 때 하드코딩된 ID 예외 처리
     const bulkOps = order.map(item => {
       let queryId;
-      
+
       if (item.id === 'hardcoded_recovery') {
         queryId = item.id; // 하드코딩된 일반 문자열은 그대로 통과
       } else if (ObjectId.isValid(item.id)) {
@@ -2431,7 +2431,7 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
 // 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
 app.get('/api/yogibo-jp-news', async (req, res) => {
   try {
-    const { status } = req.query; 
+    const { status } = req.query;
     const query = status ? { status } : {};
 
     const newsList = await db.collection('yogiboJPnews')
@@ -2450,7 +2450,7 @@ app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, status } = req.body;
-    
+
     // ★ [수정] 하드코딩 ID 예외 처리 및 ObjectId 변환
     let queryId;
     if (id === 'hardcoded_recovery') {
@@ -2494,7 +2494,7 @@ app.get('/api/test/fetch-jp-news', async (req, res) => {
 app.get('/api/test/cleanup-duplicates', async (req, res) => {
   try {
     const collection = db.collection('yogiboJPnews');
-    
+
     const duplicates = await collection.aggregate([
       { $group: { _id: "$title", count: { $sum: 1 }, docs: { $push: "$_id" } } },
       { $match: { count: { $gt: 1 } } }
@@ -2523,51 +2523,51 @@ app.post('/api/translate-news', async (req, res) => {
   try {
     const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
-    
+
     // 제목 번역
     let translatedTitle = title;
     if (title) {
-        const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
-        translatedTitle = titleResult.text;
+      const titleResult = await googleTranslate(title, { from: 'ja', to: 'ko' });
+      translatedTitle = titleResult.text;
     }
 
     let translatedHtml = content || '';
-    
+
     // 본문이 있을 경우에만 번역 진행
     if (content) {
-        const protectedTags = [];
-        let maskedContent = content;
+      const protectedTags = [];
+      let maskedContent = content;
 
-        // PROTECTED_TAG 같은 영단어 대신, 번역기가 무시하는 단순 기호(__TG번호__) 사용
-        maskedContent = maskedContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (match) => {
-          protectedTags.push(match);
-          return `__TG${protectedTags.length - 1}__`;
-        });
+      // PROTECTED_TAG 같은 영단어 대신, 번역기가 무시하는 단순 기호(__TG번호__) 사용
+      maskedContent = maskedContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (match) => {
+        protectedTags.push(match);
+        return `__TG${protectedTags.length - 1}__`;
+      });
 
-        maskedContent = maskedContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, (match) => {
-          protectedTags.push(match);
-          return `__TG${protectedTags.length - 1}__`;
-        });
+      maskedContent = maskedContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+        protectedTags.push(match);
+        return `__TG${protectedTags.length - 1}__`;
+      });
 
-        maskedContent = maskedContent.replace(/<img[^>]*>/gi, (match) => {
-          protectedTags.push(match);
-          return `__TG${protectedTags.length - 1}__`;
-        });
+      maskedContent = maskedContent.replace(/<img[^>]*>/gi, (match) => {
+        protectedTags.push(match);
+        return `__TG${protectedTags.length - 1}__`;
+      });
 
-        // 텍스트 번역 수행
-        const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
-        
-        // 번역 API가 알 수 없는 이유로 빈 값을 반환했을 경우 에러 처리 (화면 하얘짐 방지)
-        if (!contentResult || !contentResult.text) {
-            throw new Error("번역 API에서 빈 값을 반환했습니다.");
-        }
-        
-        translatedHtml = contentResult.text;
+      // 텍스트 번역 수행
+      const contentResult = await googleTranslate(maskedContent, { from: 'ja', to: 'ko' });
 
-        // 보호했던 태그 원상 복구
-        translatedHtml = translatedHtml.replace(/__\s*TG\s*(\d+)\s*__/gi, (match, index) => {
-          return protectedTags[parseInt(index)] || match;
-        });
+      // 번역 API가 알 수 없는 이유로 빈 값을 반환했을 경우 에러 처리 (화면 하얘짐 방지)
+      if (!contentResult || !contentResult.text) {
+        throw new Error("번역 API에서 빈 값을 반환했습니다.");
+      }
+
+      translatedHtml = contentResult.text;
+
+      // 보호했던 태그 원상 복구
+      translatedHtml = translatedHtml.replace(/__\s*TG\s*(\d+)\s*__/gi, (match, index) => {
+        return protectedTags[parseInt(index)] || match;
+      });
     }
 
     console.log('✅ 번역 완료 (보호 성공)!');
@@ -2608,13 +2608,13 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
         secure: 'explicit',
       });
 
-      await client.ensureDir('web/img/news'); 
+      await client.ensureDir('web/img/news');
       console.log('디렉토리 생성 또는 확인 성공');
 
       const stream = Readable.from(processedBuffer);
-      await client.uploadFrom(stream, filename); 
+      await client.uploadFrom(stream, filename);
       console.log('파일 업로드 성공:', filename);
-      
+
     } finally {
       client.close();
     }
@@ -2637,7 +2637,7 @@ app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), asyn
       { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } },
       { upsert: postId === 'hardcoded_recovery' } // 하드코딩 데이터면 없을 때 생성
     );
-    
+
     // upsert가 아닌 일반 수정일 때 매칭된 게 없으면 에러 처리
     if (result.matchedCount === 0 && postId !== 'hardcoded_recovery') {
       return res.status(404).json({ success: false, message: '게시글 없음' });
@@ -2910,8 +2910,8 @@ app.post('/api/yogibo-jp-news', async (req, res) => {
 
     const result = await collection.insertOne(newPost);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: '새 게시글이 생성되었습니다.',
       data: { _id: result.insertedId, ...newPost }
     });
@@ -3066,9 +3066,9 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
 
       if (rawText.trim().length < 30) {
         // 텍스트가 거의 없는 이미지형 PDF → GPT에 안내
-        return res.status(400).json({ 
-          success: false, 
-          message: '이미지 기반 PDF입니다. PDF를 캡처하여 이미지(JPG/PNG)로 업로드해주세요.' 
+        return res.status(400).json({
+          success: false,
+          message: '이미지 기반 PDF입니다. PDF를 캡처하여 이미지(JPG/PNG)로 업로드해주세요.'
         });
       }
 
@@ -3115,10 +3115,12 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
           model: 'gpt-4o',
           messages: [
             { role: 'system', content: '당신은 문서 분석 전문가입니다. 이미지에서 텍스트를 정확하게 추출하여 한국어로 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.' },
-            { role: 'user', content: [
-              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
-              { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요.' }
-            ]}
+            {
+              role: 'user', content: [
+                { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
+                { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요.' }
+              ]
+            }
           ],
           max_tokens: 4096,
           temperature: 0.2,
@@ -3140,20 +3142,45 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
   }
 });
 
-// ... (위쪽 기존 코드들) ...
+// ========== [추가] 뷰저블(배너 클릭 히트맵) 트래킹 API ==========
+app.post('/api/track-click', async (req, res) => {
+  try {
+    const { x, y, bannerId, url, screenWidth, screenHeight } = req.body;
+
+    if (x === undefined || y === undefined || !bannerId) {
+      return res.status(400).json({ success: false, message: '필수 데이터가 누락되었습니다.' });
+    }
+
+    const clickData = {
+      bannerId,
+      url,
+      coordinates: { x, y },
+      screenSize: { width: screenWidth, height: screenHeight },
+      timestamp: new Date(),
+    };
+
+    const result = await db.collection('bannerClicks').insertOne(clickData);
+
+    res.json({ success: true, message: '클릭 데이터가 저장되었습니다.', data: clickData });
+  } catch (err) {
+    console.error('클릭 트래킹 저장 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
-  
+
   try {
     // 1. 서버 시작 전 DB 연결 (싱글톤)
     await client.connect();
-    db = client.db(DB_NAME); 
+    db = client.db(DB_NAME);
     console.log("✅ MongoDB Connected (Single Connection)");
 
     // 2. 토큰 로드
-    await getTokensFromDB(); 
+    await getTokensFromDB();
 
     // 3. 서버 리스닝
     const PORT = process.env.PORT || 6000;
@@ -3166,4 +3193,3 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
   }
 })();
 
-// 🚨 주의: 이 아래에 있는 <!DOCTYPE html> ... </html> 코드는 싹 다 지워야 합니다!
