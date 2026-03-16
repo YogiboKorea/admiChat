@@ -38,9 +38,7 @@
         }
         @media (max-width: 500px) { .container { border-radius: 0; min-height: 100vh; } }
 
-        .logo-wrap {
-            position: absolute; top: 28px; left: 24px; z-index: 10;
-        }
+        .logo-wrap { position: absolute; top: 28px; left: 24px; z-index: 10; }
         .logo-wrap img { max-width: 100px; height: auto; display: block; }
 
         .wrap {
@@ -61,25 +59,15 @@
         }
 
         /* ===== 메이트 캐릭터 ===== */
-        .mate-wrap {
-            margin-bottom: 20px; position: relative;
-            display: flex; justify-content: center;
-        }
-        .mate-img {
-            max-width: 110px; height: auto; display: block;
-            animation: float 3s ease-in-out infinite;
-        }
+        .mate-wrap { margin-bottom: 20px; position: relative; display: flex; justify-content: center; }
+        .mate-img { max-width: 110px; height: auto; display: block; animation: float 3s ease-in-out infinite; }
         .mate-shadow {
-            position: absolute; bottom: -6px; left: 50%;
-            transform: translateX(-50%);
+            position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
             width: 55px; height: 10px;
             background: rgba(0,0,0,0.06); border-radius: 50%; filter: blur(2px);
             animation: shadowAnim 3s ease-in-out infinite;
         }
-        @keyframes float {
-            0%,100% { transform: translateY(0); }
-            50%      { transform: translateY(-10px); }
-        }
+        @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         @keyframes shadowAnim {
             0%,100% { transform: translateX(-50%) scale(1); opacity: 1; }
             50%      { transform: translateX(-50%) scale(0.8); opacity: 0.5; }
@@ -93,20 +81,14 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         }
         .q-box::before {
-            content: ''; position: absolute; top: -11px; left: 50%;
-            transform: translateX(-50%);
+            content: ''; position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
             border: 10px solid transparent; border-bottom-color: var(--border);
         }
         .q-box::after {
-            content: ''; position: absolute; top: -10px; left: 50%;
-            transform: translateX(-50%);
+            content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
             border: 10px solid transparent; border-bottom-color: #fff;
         }
-        .q-text {
-            font-size: clamp(17px, 5vw, 21px);
-            font-weight: 500; line-height: 1.5;
-            letter-spacing: -0.03em; word-break: keep-all;
-        }
+        .q-text { font-size: clamp(17px,5vw,21px); font-weight: 500; line-height: 1.5; letter-spacing: -0.03em; word-break: keep-all; }
         .q-sub { font-size: 13px; color: var(--sub); margin-top: 8px; font-weight: 400; }
 
         /* ===== 선택 버튼 ===== */
@@ -129,14 +111,11 @@
         }
         .opts-wrap { width: 100%; }
 
-        /* ===== 시작 화면 START 버튼 ===== */
+        /* ===== 시작 화면 ===== */
         .start-card {
-            width: 100%; min-height: 280px;
-            background: var(--primary);
-            border-radius: 20px;
-            display: flex; align-items: center; justify-content: center;
-            position: relative; cursor: pointer; overflow: hidden;
-            transition: filter 0.2s;
+            width: 100%; min-height: 280px; background: var(--primary);
+            border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            position: relative; cursor: pointer; overflow: hidden; transition: filter 0.2s;
         }
         .start-card:hover { filter: brightness(0.96); }
         .start-text { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: 5px; z-index: 2; }
@@ -145,117 +124,129 @@
         .start-desc { font-size: 14px; color: var(--sub); line-height: 1.7; margin-bottom: 20px; text-align: center; }
 
         /* ===== 하단 네비 ===== */
-        .bottom-nav {
-            margin-top: auto; padding-top: 28px;
-            display: none; flex-direction: column; width: 100%;
-        }
+        .bottom-nav { margin-top: auto; padding-top: 24px; display: none; flex-direction: column; width: 100%; }
         .bottom-nav.active { display: flex; }
+        .nav-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .prev-btn {
+            background: none; border: none; color: #bbb;
+            font-size: 15px; font-weight: 600; padding: 8px 0; cursor: pointer;
+            transition: color 0.2s; font-family: 'Pretendard', sans-serif;
+        }
+        .prev-btn:hover { color: var(--text); }
         .next-btn {
-            background: none; border: none;
-            color: #bbb; font-size: 15px; font-weight: 600;
-            letter-spacing: -0.02em; text-align: right;
-            padding: 8px 0; cursor: pointer; margin-right: 4px; margin-bottom: 12px;
+            background: none; border: none; color: #bbb;
+            font-size: 15px; font-weight: 600; padding: 8px 0; cursor: pointer;
             transition: all 0.2s; font-family: 'Pretendard', sans-serif;
         }
         .next-btn.ready { color: var(--primary); }
         .next-btn.ready:hover { transform: translateX(3px); }
-        .prev-btn {
-            background: none; border: none; color: #bbb;
-            font-size: 15px; font-weight: 600; text-align: left;
-            padding: 8px 0; cursor: pointer; transition: all 0.2s;
-            font-family: 'Pretendard', sans-serif;
-        }
-        .nav-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .progress-bar {
-            display: flex; gap: 6px; width: 100%;
-        }
-        .seg { height: 6px; flex: 1; background: #eee; border-radius: 10px; overflow: hidden; position: relative; }
-        .seg-fill {
-            position: absolute; top: 0; left: 0; height: 100%;
-            width: 0%; background: var(--primary); border-radius: 10px;
-            transition: width 0.4s ease;
-        }
 
-        /* ===== 경로 확인 화면 ===== */
-        .path-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; text-align: center; }
-        .path-sub { font-size: 13px; color: var(--sub); margin-bottom: 24px; text-align: center; }
-        .path-item {
-            display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; width: 100%;
-        }
-        .path-num {
-            width: 30px; height: 30px; border-radius: 50%;
-            background: var(--primary); color: #fff;
-            font-size: 12px; font-weight: 800;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        }
-        .path-qlbl { font-size: 11px; color: #bbb; font-weight: 700; margin-bottom: 3px; }
-        .path-atxt { font-size: 15px; font-weight: 700; }
-        .btn-confirm {
+        /* 단일 연속 진행바 */
+        .progress-track { width: 100%; height: 6px; background: #eee; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); border-radius: 10px; transition: width 0.4s ease; width: 0%; }
+
+        /* ===== 결과보기 인터스티셜 ===== */
+        .btn-see-result {
             width: 100%; margin-top: 8px;
-            padding: 18px; border: none; border-radius: 50px;
+            padding: 20px; border: none; border-radius: 50px;
             background: var(--primary); color: #fff;
-            font-size: 17px; font-weight: 700; cursor: pointer;
+            font-size: 18px; font-weight: 700; cursor: pointer;
             font-family: 'Pretendard', sans-serif;
-            box-shadow: 0 5px 15px rgba(85,181,201,0.35);
-            transition: all 0.2s;
+            box-shadow: 0 5px 20px rgba(85,181,201,0.4);
+            transition: all 0.2s; letter-spacing: -0.03em;
         }
-        .btn-confirm:hover { background: var(--primary-dark); }
+        .btn-see-result:hover { background: var(--primary-dark); transform: translateY(-2px); }
 
-        /* ===== 결과 화면 ===== */
-        .result-step { margin-top: 55px; }
-        .result-greeting {
-            font-size: clamp(16px,5vw,19px); font-weight: 700;
-            text-align: center; line-height: 1.6; margin-bottom: 20px;
-            color: var(--text);
-        }
-        .result-product-area {
-            width: 100%; background: var(--bg);
-            border-radius: 20px; padding: 22px;
-            margin-bottom: 20px;
-        }
-        .result-tag { font-size: 11px; color: var(--sub); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
-        .result-name { font-size: 26px; font-weight: 900; color: var(--text); margin-bottom: 16px; letter-spacing: -0.5px; }
-        .result-features { display: flex; flex-direction: column; gap: 10px; }
-        .result-feature { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #333; line-height: 1.5; }
-        .feat-check {
-            width: 22px; height: 22px; border-radius: 50%;
-            background: var(--primary); color: #fff;
-            font-size: 11px; font-weight: 800;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
-        }
-        .color-area { width: 100%; margin-bottom: 20px; }
-        .color-label { font-size: 12px; font-weight: 700; color: #aaa; margin-bottom: 10px; }
-        .color-row { display: flex; align-items: center; gap: 8px; }
-        .color-circle { width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
-        .color-name { font-size: 14px; font-weight: 700; color: var(--text); }
-        .color-desc { font-size: 12px; color: var(--sub); margin-top: 4px; }
+        /* ===== 결과 화면 공통 래퍼 ===== */
+        /* 각 결과 div는 display:none / display:block 으로 JS가 전환 */
+        #step-result { width: 100%; }
+
+        /* 결과 div 공통 스타일 (내용은 사용자가 채움) */
+        .result-content { display: none; width: 100%; }
+        .result-content.active { display: block; }
+
+        /* 결과 하단 버튼 (공통) */
+        .result-footer { margin-top: 28px; width: 100%; }
         .btn-store {
-            width: 100%; padding: 18px;
+            display: block; width: 100%; padding: 18px;
             border: none; border-radius: 50px;
             font-size: 17px; font-weight: 700;
             background: var(--text); color: #fff;
             cursor: pointer; margin-bottom: 12px;
             font-family: 'Pretendard', sans-serif;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.15);
+            transition: all 0.2s; text-align: center;
         }
+        .btn-store:hover { background: #333; }
         .btn-retry {
-            width: 100%; padding: 16px;
+            display: block; width: 100%; padding: 16px;
             border: 1px solid var(--border); border-radius: 50px;
             font-size: 15px; font-weight: 600; color: var(--sub);
-            background: #fff; cursor: pointer;
-            font-family: 'Pretendard', sans-serif;
+            background: #fff; cursor: pointer; text-align: center;
+            font-family: 'Pretendard', sans-serif; transition: all 0.2s;
         }
         .btn-retry:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* ======================================================
+           결과 내용 CSS 가이드 (사용자가 각 result-* div 안에 쓸 때)
+           ======================================================
+           .result-img       → 결과 배너 이미지 영역
+           .result-product   → 제품 카드 영역 (배경색 #f7f9fa)
+           .result-tag       → 작은 라벨 (예: "추천 제품")
+           .result-name      → 큰 제품명
+           .result-features  → 체크리스트 ul
+           .result-feature   → 각 li (체크 아이콘 자동 적용)
+           .result-colors    → 컬러칩/이미지 추천 영역
+        */
+        .result-img {
+            width: 100%; border-radius: 16px; overflow: hidden;
+            margin-bottom: 16px; background: var(--bg);
+        }
+        .result-img img { width: 100%; height: auto; display: block; }
+
+        .result-product {
+            background: var(--bg); border-radius: 20px;
+            padding: 20px 22px; margin-bottom: 16px;
+        }
+        .result-tag { font-size: 11px; color: var(--sub); font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+        .result-name { font-size: 26px; font-weight: 900; color: var(--text); margin-bottom: 16px; letter-spacing: -0.5px; line-height: 1.25; }
+        .result-features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .result-features li {
+            display: flex; gap: 10px; align-items: flex-start;
+            font-size: 14px; color: #333; line-height: 1.5;
+        }
+        .result-features li::before {
+            content: '✓';
+            display: flex; align-items: center; justify-content: center;
+            width: 22px; height: 22px; border-radius: 50%;
+            background: var(--primary); color: #fff;
+            font-size: 11px; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+        }
+
+        .result-colors {
+            margin-bottom: 16px;
+        }
+        .result-colors-label { font-size: 12px; font-weight: 700; color: #aaa; margin-bottom: 10px; }
+        .result-colors-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        /* 컬러칩: HEX → style="background:#xxx" / 이미지 → <img src="..."> */
+        .color-chip {
+            width: 28px; height: 28px; border-radius: 50%;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15); display: inline-block; flex-shrink: 0;
+        }
+        .color-chip img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+        .color-name { font-size: 14px; font-weight: 700; color: var(--text); }
+        .color-sub  { font-size: 12px; color: var(--sub); margin-top: 4px; }
     </style>
 </head>
 <body>
-<div class="container" id="app">
+<div class="container">
     <div class="logo-wrap">
         <img src="/web/img/icon/logo3_on.png" alt="Yogibo">
     </div>
     <div class="wrap">
 
-        <!-- 시작 화면 -->
-        <div class="step active" id="step-start" style="margin-top:55px">
+        <!-- ①  시작 화면 -->
+        <div class="step active" id="step-start">
             <div class="start-title">나에게 꼭 맞는 요기보 찾기 TEST</div>
             <div class="start-desc">테스트 문항을 순서대로 눌러보세요.<br>고객님께 가장 잘 맞는 요기보를 추천해드릴게요!</div>
             <div class="start-card" onclick="startQuiz()">
@@ -264,7 +255,7 @@
             </div>
         </div>
 
-        <!-- 퀴즈 화면 -->
+        <!-- ②  퀴즈 화면 -->
         <div class="step" id="step-quiz">
             <div class="mate-wrap">
                 <img class="mate-img" id="quiz-mate" src="/web/img/marketing/mate_icon_02.png" alt="">
@@ -277,43 +268,281 @@
             <div class="opts-wrap" id="opts-wrap"></div>
         </div>
 
-        <!-- 경로 확인 화면 -->
-        <div class="step" id="step-path" style="width:100%">
+        <!-- ③  결과보기 인터스티셜 -->
+        <div class="step" id="step-ready">
             <div class="mate-wrap">
-                <img class="mate-img" src="/web/img/marketing/mate_icon_05.png" alt="">
-                <div class="mate-shadow"></div>
+                <img class="mate-img" src="/web/img/marketing/mate_icon_01.png" alt="" style="max-width:130px">
+                <div class="mate-shadow" style="width:70px"></div>
             </div>
             <div class="q-box">
-                <p class="q-text" style="font-weight:400">지금까지 선택한<br>경로를 확인해 보세요!</p>
+                <p class="q-text" style="font-weight:400;text-align:center">
+                    아래의 버튼을 눌러<br>결과를 확인해주세요!
+                </p>
             </div>
-            <div class="opts-wrap" id="path-list"></div>
-            <button class="btn-confirm" onclick="showResult()">결과 확인하기 →</button>
+            <button class="btn-see-result" onclick="showResult()">결과보기</button>
+            <button class="prev-btn" style="margin-top:20px;align-self:flex-start" onclick="goReadyBack()">＜ 이전</button>
         </div>
 
-        <!-- 결과 화면 -->
-        <div class="step result-step" id="step-result" style="width:100%">
-            <div class="result-greeting">고객님의 라이프스타일과<br>가장 잘 어울리는 요기보를 알려드려요!</div>
-            <div class="result-product-area">
-                <div class="result-tag" id="r-tag">추천 제품</div>
-                <div class="result-name" id="r-name">요기보 넥스</div>
-                <div class="result-features" id="r-features"></div>
+        <!-- ④  결과 화면 -->
+        <div class="step" id="step-result">
+
+            <!-- ========================
+                 결과별 div (내용은 직접 채워주세요)
+                 id 목록:
+                   result-DOLL_KID         → 인형 (아이용)
+                   result-DOLL_SQUISHIBO   → 스퀴시보
+                   result-DOLL_ADE         → 에이드 인형
+                   result-ACC_HOME         → 액세서리 (홈)
+                   result-ACC_TRAVEL       → 액세서리 (이동)
+                   result-ACC_LONG         → 액세서리 (장시간)
+                   result-ACC_FREQ         → 액세서리 (자주)
+                   result-ACC_KID          → 액세서리 (아이)
+                   result-BODY_SUPPORT     → 바디 서포트
+                   result-BODY_FLEX        → 바디 플렉스
+                   result-BEAN             → 빈백 (동적 조합, JS가 r-bean-name 등을 채움)
+                 ======================== -->
+
+            <div id="result-DOLL_KID" class="result-content">
+                <!-- 예시 구조 ↓ -->
+                <div class="result-img">
+                    <img src="" alt="요기보 키즈 인형"><!-- 이미지 URL -->
+                </div>
+                <div class="result-product">
+                    <div class="result-tag">인형 추천 결과</div>
+                    <div class="result-name">요기보 키즈 인형</div>
+                    <ul class="result-features">
+                        <li>부드럽고 안전한 소재로 안심하고 선물하세요.</li>
+                        <li>아이들이 안고 놀기에 딱 좋은 크기예요.</li>
+                        <li>안전인증 통과 소재로 제작되었어요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <!-- HEX: <div class="color-chip" style="background:#f9c74f"></div> -->
+                        <!-- 이미지: <div class="color-chip"><img src="URL"></div> -->
+                        <div class="color-chip" style="background:#f9c74f"></div>
+                        <div class="color-chip" style="background:#90be6d"></div>
+                        <span class="color-name">다양한 컬러</span>
+                    </div>
+                    <div class="color-sub">아이가 좋아하는 컬러로 골라보세요!</div>
+                </div>
             </div>
-            <div class="color-area" id="color-area" style="display:none">
-                <div class="color-label">추천 컬러 &amp; 소재</div>
-                <div class="color-row" id="color-chips"></div>
-                <div class="color-desc" id="color-desc"></div>
+
+            <div id="result-DOLL_SQUISHIBO" class="result-content">
+                <div class="result-img"><img src="" alt="스퀴시보"></div>
+                <div class="result-product">
+                    <div class="result-tag">인형 추천 결과</div>
+                    <div class="result-name">스퀴시보</div>
+                    <ul class="result-features">
+                        <li>잡으면 기분이 좋아지는 독특한 말랑 촉감!</li>
+                        <li>요기보 시그니처 인형으로 인기 만점이에요.</li>
+                        <li>인테리어 소품으로도 완벽해요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#55b5c9"></div>
+                        <div class="color-chip" style="background:#3e8fa0"></div>
+                        <span class="color-name">줄라 (Zoola)</span>
+                    </div>
+                    <div class="color-sub">어디서나 눈에 띄는 세련된 컬러예요.</div>
+                </div>
             </div>
-            <button class="btn-store">매장에서 직접 체험해보세요 🛋️</button>
-            <button class="btn-retry" onclick="restartQuiz()">테스트 다시 하기</button>
+
+            <div id="result-DOLL_ADE" class="result-content">
+                <div class="result-img"><img src="" alt="에이드 인형"></div>
+                <div class="result-product">
+                    <div class="result-tag">인형 추천 결과</div>
+                    <div class="result-name">에이드 인형</div>
+                    <ul class="result-features">
+                        <li>개성 넘치는 디자인으로 컬렉터들의 사랑을 받아요.</li>
+                        <li>유니크한 요기보만의 인형 시리즈예요.</li>
+                        <li>선물용으로도 최고예요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#e76f51"></div>
+                        <div class="color-chip" style="background:#264653"></div>
+                        <span class="color-name">다양한 컬러</span>
+                    </div>
+                    <div class="color-sub">개성 있는 컬러로 나만의 스타일을!</div>
+                </div>
+            </div>
+
+            <div id="result-ACC_HOME" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 서포트"></div>
+                <div class="result-product">
+                    <div class="result-tag">액세서리 추천 결과</div>
+                    <div class="result-name">요기보 서포트</div>
+                    <ul class="result-features">
+                        <li>집에서 편하게 기대기 좋은 서포트 시리즈!</li>
+                        <li>빈백과 함께 사용하면 완벽한 자세 완성.</li>
+                        <li>다양한 크기로 취향껏 선택하세요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#55b5c9"></div>
+                        <span class="color-name">줄라 (Zoola)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-ACC_TRAVEL" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 이동형"></div>
+                <div class="result-product">
+                    <div class="result-tag">액세서리 추천 결과</div>
+                    <div class="result-name">요기보 숄더백 / 이동형</div>
+                    <ul class="result-features">
+                        <li>야외 활동과 이동에 최적화된 액세서리!</li>
+                        <li>가볍고 실용적으로 어디서나 요기보 라이프.</li>
+                        <li>내구성 좋은 소재로 오래 사용 가능해요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#555"></div>
+                        <div class="color-chip" style="background:#aaa"></div>
+                        <span class="color-name">무채색 계열</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-ACC_LONG" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 트레이닉스"></div>
+                <div class="result-product">
+                    <div class="result-tag">액세서리 추천 결과</div>
+                    <div class="result-name">요기보 트레이닉스</div>
+                    <ul class="result-features">
+                        <li>장시간 앉아 있을 때 필수 아이템!</li>
+                        <li>노트북, 책, 음료를 올려두기 편한 트레이.</li>
+                        <li>다양한 용도로 활용 가능해요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#a07850"></div>
+                        <span class="color-name">우드 계열</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-ACC_FREQ" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 맥스 커버"></div>
+                <div class="result-product">
+                    <div class="result-tag">액세서리 추천 결과</div>
+                    <div class="result-name">요기보 맥스 커버</div>
+                    <ul class="result-features">
+                        <li>매일 사용해도 끄떡없는 내구성!</li>
+                        <li>세탁이 간편해 항상 청결하게 유지.</li>
+                        <li>풍부한 컬러 라인업으로 취향 저격.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#55b5c9"></div>
+                        <span class="color-name">줄라 (Zoola)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-ACC_KID" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 키즈 액세서리"></div>
+                <div class="result-product">
+                    <div class="result-tag">액세서리 추천 결과</div>
+                    <div class="result-name">요기보 키즈 액세서리 세트</div>
+                    <ul class="result-features">
+                        <li>아이와 함께 사용하기 좋은 안전한 소재.</li>
+                        <li>컬러풀한 디자인으로 아이들이 좋아해요.</li>
+                        <li>청소하기 쉬운 소재라 부모님도 편안해요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#f0a0b0"></div>
+                        <span class="color-name">선셋 핑크</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-BODY_SUPPORT" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 서포트 롤 맥스"></div>
+                <div class="result-product">
+                    <div class="result-tag">바디 서포터 추천 결과</div>
+                    <div class="result-name">요기보 서포트 / 롤 맥스</div>
+                    <ul class="result-features">
+                        <li>조용한 휴식을 위한 최적의 바디 서포터.</li>
+                        <li>독서, 업무, 명상 시 완벽한 자세 유지.</li>
+                        <li>척추 건강을 위한 인체공학 설계.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#55b5c9"></div>
+                        <span class="color-name">줄라 (Zoola)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result-BODY_FLEX" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 플렉스"></div>
+                <div class="result-product">
+                    <div class="result-tag">바디 서포터 추천 결과</div>
+                    <div class="result-name">요기보 플렉스</div>
+                    <ul class="result-features">
+                        <li>운동과 스트레칭에 특화된 액티브 라인.</li>
+                        <li>유연한 소재로 다양한 자세를 지지.</li>
+                        <li>역동적인 라이프스타일에 최적화됐어요.</li>
+                    </ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 컬러 &amp; 소재</div>
+                    <div class="result-colors-row">
+                        <div class="color-chip" style="background:#90be6d"></div>
+                        <span class="color-name">라임 그린</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 빈백: JS가 r-bean-* 요소를 자동으로 채워줍니다 -->
+            <div id="result-BEAN" class="result-content">
+                <div class="result-img"><img src="" alt="요기보 빈백" id="r-bean-img"></div>
+                <div class="result-product">
+                    <div class="result-tag">빈백 추천 결과</div>
+                    <div class="result-name" id="r-bean-name">요기보 넥스</div>
+                    <ul class="result-features" id="r-bean-features"></ul>
+                </div>
+                <div class="result-colors">
+                    <div class="result-colors-label">추천 커버 &amp; 부속품</div>
+                    <div class="result-colors-row" id="r-bean-colors"></div>
+                    <div class="color-sub" id="r-bean-colorsub"></div>
+                </div>
+            </div>
+
+            <!-- 공통 하단 버튼 (모든 결과에 공유) -->
+            <div class="result-footer">
+                <button class="btn-store">매장에서 직접 체험해보세요 🛋️</button>
+                <button class="btn-retry" onclick="restartQuiz()">테스트 다시 하기</button>
+            </div>
         </div>
 
-        <!-- 하단 네비 -->
+        <!-- 하단 네비 (퀴즈 화면에서만 표시) -->
         <div class="bottom-nav" id="bottom-nav">
             <div class="nav-row">
                 <button class="prev-btn" id="prev-btn" onclick="goPrev()">＜ 이전</button>
                 <button class="next-btn" id="next-btn" onclick="goNext()">다음 ＞</button>
             </div>
-            <div class="progress-bar" id="progress-bar"></div>
+            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
         </div>
 
     </div>
@@ -321,197 +550,88 @@
 
 <script>
 const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-
-// =============================================
-// 메이트 이미지 풀
-// =============================================
 const MATE_POOL = ['02','03','04','06','07','08','09','10','11','13'];
 let mateIdx = 0;
 function nextMate() {
-    const n = MATE_POOL[mateIdx % MATE_POOL.length];
-    mateIdx++;
-    return `/web/img/marketing/mate_icon_${n}.png`;
+    return `/web/img/marketing/mate_icon_${MATE_POOL[mateIdx++ % MATE_POOL.length]}.png`;
 }
 
-// =============================================
-// 퀴즈 정의
-// =============================================
+/* ======= 퀴즈 정의 ======= */
 const Q = {
-    q1: {
-        id: 'Q1_관심제품', text: '어떤 요기보 제품에\n관심이 있으신가요?',
-        opts: [
-            { text: '🧸 캐릭터 인형', next: 'q_doll_1' },
-            { text: '🎒 액세서리', next: 'q_acc' },
-            { text: '💆 바디 서포터', next: 'q_body' },
-            { text: '🛋️ 빈백 소파', next: 'q_bean_user' },
-        ]
-    },
-    // 인형
-    q_doll_1: {
-        id: 'Q2_인형_사용자', text: '누구를 위한 인형인가요?',
-        opts: [
-            { text: '성인 / 청소년', next: 'q_doll_2' },
-            { text: '아이 (유아)', next: 'RESULT_DOLL_KID' },
-        ]
-    },
-    q_doll_2: {
-        id: 'Q3_인형_스타일', text: '어떤 스타일을 선호하시나요?',
-        opts: [
-            { text: '귀엽고 말랑말랑한 스타일', next: 'RESULT_DOLL_SQUISHIBO' },
-            { text: '개성 있고 유니크한 스타일', next: 'RESULT_DOLL_ADE' },
-        ]
-    },
-    // 액세서리
-    q_acc: {
-        id: 'Q5_액세서리_상황', text: '주로 어떤 상황에서 사용하시나요?',
-        opts: [
-            { text: '집에서 혼자 편하게', next: 'RESULT_ACC_HOME' },
-            { text: '이동 시 / 야외에서', next: 'RESULT_ACC_TRAVEL' },
-            { text: '장시간 앉아 있을 때', next: 'RESULT_ACC_LONG' },
-            { text: '수시로 자주 사용', next: 'RESULT_ACC_FREQ' },
-            { text: '아이와 함께 사용', next: 'RESULT_ACC_KID' },
-        ]
-    },
-    // 바디
-    q_body: {
-        id: 'Q5_바디_활용', text: '주로 어떻게 활용하실 건가요?',
-        opts: [
-            { text: '조용하게 휴식 / 독서 / 업무', next: 'RESULT_BODY_SUPPORT' },
-            { text: '스트레칭 / 운동 / 활동적으로', next: 'RESULT_BODY_FLEX' },
-        ]
-    },
-    // 빈백
-    q_bean_user: {
-        id: 'Q2_빈백_사용자', text: '빈백을 주로 사용할 분은 누구인가요?',
-        opts: [
-            { text: '어린이 / 청소년', next: 'q_bean_usage' },
-            { text: '성인', next: 'q_bean_usage' },
-            { text: '온 가족 함께', next: 'q_bean_usage' },
-        ]
-    },
-    q_bean_usage: {
-        id: 'Q5_빈백_사용상황', text: '주로 어떤 상황에서 사용하실 건가요?',
-        opts: [
-            { text: 'TV / 영상 시청', beanFirst: 'NEXS', next: 'q_bean_back' },
-            { text: '스마트폰 / 게임', beanFirst: 'MINI', next: 'q_bean_back' },
-            { text: '독서 / 공부', beanFirst: 'PYRAMID', next: 'q_bean_back' },
-            { text: '낮잠 / 휴식', beanFirst: 'NEXS', next: 'q_bean_back' },
-            { text: '아이 놀이용', beanFirst: 'MINI_NEXS', next: 'q_bean_back' },
-            { text: '허리 / 체형 관리', beanFirst: 'NEXS', next: 'q_bean_back' },
-        ]
-    },
-    q_bean_back: {
-        id: 'Q4_빈백_허리불편', text: '허리나 자세가\n자주 불편하신가요?',
-        opts: [
-            { text: '네, 허리가 자주 불편해요', beanAdjust: true, next: 'q_bean_outdoor' },
-            { text: '아니요, 괜찮아요', next: 'q_bean_outdoor' },
-        ]
-    },
-    q_bean_outdoor: {
-        id: 'Q3_빈백_야외사용', text: '야외에서도 사용하실 계획인가요?',
-        opts: [
-            { text: '네, 야외에서도 쓸 거예요', beanCover: '슬링 커버', next: 'q_bean_time' },
-            { text: '아니요, 주로 실내에서만요', beanCover: '기본 커버', next: 'q_bean_time' },
-        ]
-    },
-    q_bean_time: {
-        id: 'Q6_빈백_사용시간', text: '하루에 얼마나 오래\n사용하실 건가요?',
-        opts: [
-            { text: '하루 종일 / 거의 항상', beanExtra: '포치이영 플러스', next: 'RESULT_BEAN' },
-            { text: '2~3시간 이내', next: 'q_bean_carry' },
-        ]
-    },
-    q_bean_carry: {
-        id: 'Q4_빈백_이동', text: '집 안에서 빈백을\n자주 옮기실 건가요?',
-        opts: [
-            { text: '네, 자주 이동할 거예요', beanExtra: '포치이영', next: 'RESULT_BEAN' },
-            { text: '아니요, 한 자리에 고정', beanExtra: '스탠다드', next: 'RESULT_BEAN' },
-        ]
-    },
+    q1: { id:'Q1_관심제품', text:'어떤 요기보 제품에\n관심이 있으신가요?', opts:[
+        { text:'🧸 캐릭터 인형', next:'q_doll_1' },
+        { text:'🎒 액세서리',    next:'q_acc' },
+        { text:'💆 바디 서포터', next:'q_body' },
+        { text:'🛋️ 빈백 소파',  next:'q_bean_user' },
+    ]},
+    q_doll_1: { id:'Q2_인형_사용자', text:'누구를 위한 인형인가요?', opts:[
+        { text:'성인 / 청소년',  next:'q_doll_2' },
+        { text:'아이 (유아)',    next:'RESULT_DOLL_KID' },
+    ]},
+    q_doll_2: { id:'Q3_인형_스타일', text:'어떤 스타일을 선호하시나요?', opts:[
+        { text:'귀엽고 말랑말랑한 스타일', next:'RESULT_DOLL_SQUISHIBO' },
+        { text:'개성 있고 유니크한 스타일', next:'RESULT_DOLL_ADE' },
+    ]},
+    q_acc: { id:'Q5_액세서리_상황', text:'주로 어떤 상황에서 사용하시나요?', opts:[
+        { text:'집에서 혼자 편하게',      next:'RESULT_ACC_HOME' },
+        { text:'이동 시 / 야외에서',      next:'RESULT_ACC_TRAVEL' },
+        { text:'장시간 앉아 있을 때',     next:'RESULT_ACC_LONG' },
+        { text:'수시로 자주 사용',        next:'RESULT_ACC_FREQ' },
+        { text:'아이와 함께 사용',        next:'RESULT_ACC_KID' },
+    ]},
+    q_body: { id:'Q5_바디_활용', text:'주로 어떻게 활용하실 건가요?', opts:[
+        { text:'조용하게 휴식 / 독서 / 업무',  next:'RESULT_BODY_SUPPORT' },
+        { text:'스트레칭 / 운동 / 활동적으로', next:'RESULT_BODY_FLEX' },
+    ]},
+    q_bean_user: { id:'Q2_빈백_사용자', text:'빈백을 주로 사용할 분은 누구인가요?', opts:[
+        { text:'어린이 / 청소년',  next:'q_bean_usage' },
+        { text:'성인',             next:'q_bean_usage' },
+        { text:'온 가족 함께',     next:'q_bean_usage' },
+    ]},
+    q_bean_usage: { id:'Q5_빈백_사용상황', text:'주로 어떤 상황에서 사용하실 건가요?', opts:[
+        { text:'TV / 영상 시청',    beanFirst:'NEXS',     next:'q_bean_back' },
+        { text:'스마트폰 / 게임',   beanFirst:'MINI',     next:'q_bean_back' },
+        { text:'독서 / 공부',       beanFirst:'PYRAMID',  next:'q_bean_back' },
+        { text:'낮잠 / 휴식',       beanFirst:'NEXS',     next:'q_bean_back' },
+        { text:'아이 놀이용',       beanFirst:'MINI_NEXS',next:'q_bean_back' },
+        { text:'허리 / 체형 관리',  beanFirst:'NEXS',     next:'q_bean_back' },
+    ]},
+    q_bean_back: { id:'Q4_빈백_허리', text:'허리나 자세가\n자주 불편하신가요?', opts:[
+        { text:'네, 허리가 자주 불편해요', beanAdjust:true, next:'q_bean_outdoor' },
+        { text:'아니요, 괜찮아요',                          next:'q_bean_outdoor' },
+    ]},
+    q_bean_outdoor: { id:'Q3_빈백_야외', text:'야외에서도 사용하실 계획인가요?', opts:[
+        { text:'네, 야외에서도 쓸 거예요',    beanCover:'슬링 커버', next:'q_bean_time' },
+        { text:'아니요, 주로 실내에서만요',   beanCover:'기본 커버', next:'q_bean_time' },
+    ]},
+    q_bean_time: { id:'Q6_빈백_시간', text:'하루에 얼마나 오래\n사용하실 건가요?', opts:[
+        { text:'하루 종일 / 거의 항상', beanExtra:'포치이영 플러스', next:'RESULT_BEAN' },
+        { text:'2~3시간 이내',                                        next:'q_bean_carry' },
+    ]},
+    q_bean_carry: { id:'Q4_빈백_이동', text:'집 안에서 빈백을\n자주 옮기실 건가요?', opts:[
+        { text:'네, 자주 이동할 거예요',    beanExtra:'포치이영', next:'RESULT_BEAN' },
+        { text:'아니요, 한 자리에 고정',    beanExtra:'스탠다드', next:'RESULT_BEAN' },
+    ]},
 };
 
-const RESULTS = {
-    RESULT_DOLL_KID: {
-        tag: '인형 추천 결과', name: '요기보 키즈 인형',
-        features: ['부드럽고 안전한 소재, 안심하고 선물하세요.','아이들이 안고 놀기에 딱 좋은 크기예요.','안전인증 통과 소재로 제작되었어요.'],
-        colorName: '다양한 컬러', colorHex: ['#f9c74f','#90be6d','#43aa8b'],
-        colorDesc: '아이가 좋아하는 컬러로 골라보세요!'
-    },
-    RESULT_DOLL_SQUISHIBO: {
-        tag: '인형 추천 결과', name: '스퀴시보',
-        features: ['잡으면 기분이 좋아지는 독특한 말랑 촉감!','요기보 시그니처 인형으로 인기 만점이에요.','인테리어 소품으로도 완벽해요.'],
-        colorName: '줄라 (Zoola)', colorHex: ['#55b5c9','#3e8fa0'],
-        colorDesc: '어디서나 눈에 띄는 세련된 컬러예요.'
-    },
-    RESULT_DOLL_ADE: {
-        tag: '인형 추천 결과', name: '에이드 인형',
-        features: ['개성 넘치는 디자인으로 컬렉터들의 사랑을 받아요.','유니크한 요기보만의 인형 시리즈예요.','선물용으로도 최고예요.'],
-        colorName: '다양한 컬러', colorHex: ['#e76f51','#264653'],
-        colorDesc: '개성 있는 컬러로 나만의 스타일을!'
-    },
-    RESULT_ACC_HOME: {
-        tag: '액세서리 추천 결과', name: '요기보 서포트',
-        features: ['집에서 편하게 기대기 좋은 서포트 시리즈!','빈백과 함께 사용하면 완벽한 자세 완성.','다양한 크기로 취향껏 선택하세요.'],
-        colorName: '줄라 (Zoola)', colorHex: ['#55b5c9','#3e8fa0'],
-        colorDesc: '실내에서 잘 어울리는 차분한 블루 계열 추천!'
-    },
-    RESULT_ACC_TRAVEL: {
-        tag: '액세서리 추천 결과', name: '요기보 숄더백 / 이동형',
-        features: ['야외 활동과 이동에 최적화된 액세서리!','가볍고 실용적으로 어디서나 요기보 라이프.','내구성 좋은 소재로 오래 사용 가능해요.'],
-        colorName: '무채색 계열', colorHex: ['#555','#aaa'],
-        colorDesc: '어디서든 잘 어울리는 뉴트럴 컬러 추천!'
-    },
-    RESULT_ACC_LONG: {
-        tag: '액세서리 추천 결과', name: '요기보 트레이닉스',
-        features: ['장시간 앉아 있을 때 필수 아이템!','노트북, 책, 음료를 올려두기 편한 트레이.','다양한 용도로 활용 가능해요.'],
-        colorName: '우드 계열', colorHex: ['#a07850','#c8a882'],
-        colorDesc: '인테리어에 잘 녹아드는 우드 톤 추천!'
-    },
-    RESULT_ACC_FREQ: {
-        tag: '액세서리 추천 결과', name: '요기보 맥스 커버',
-        features: ['매일 사용해도 끄떡없는 내구성!','세탁이 간편해 항상 청결하게 유지.','풍부한 컬러 라인업으로 취향 저격.'],
-        colorName: '줄라 (Zoola)', colorHex: ['#55b5c9','#3e8fa0'],
-        colorDesc: '세탁 후에도 색이 선명하게 유지돼요!'
-    },
-    RESULT_ACC_KID: {
-        tag: '액세서리 추천 결과', name: '요기보 키즈 액세서리 세트',
-        features: ['아이와 함께 사용하기 좋은 안전한 소재.','컬러풀한 디자인으로 아이들이 좋아해요.','청소하기 쉬운 소재라 부모님도 편안해요.'],
-        colorName: '선셋 핑크', colorHex: ['#f0a0b0','#d45070'],
-        colorDesc: '밝고 발랄한 핑크 계열 추천!'
-    },
-    RESULT_BODY_SUPPORT: {
-        tag: '바디 서포터 추천 결과', name: '요기보 서포트 / 롤 맥스',
-        features: ['조용한 휴식을 위한 최적의 바디 서포터.','독서, 업무, 명상 시 완벽한 자세 유지.','척추 건강을 위한 인체공학 설계.'],
-        colorName: '줄라 (Zoola)', colorHex: ['#55b5c9','#3e8fa0'],
-        colorDesc: '마음이 편안해지는 블루 계열 추천!'
-    },
-    RESULT_BODY_FLEX: {
-        tag: '바디 서포터 추천 결과', name: '요기보 플렉스',
-        features: ['운동과 스트레칭에 특화된 액티브 라인.','유연한 소재로 다양한 자세를 지지.','역동적인 라이프스타일에 최적화됐어요.'],
-        colorName: '라임 그린', colorHex: ['#90be6d','#52b788'],
-        colorDesc: '활동적인 느낌의 그린 계열 추천!'
-    },
-    RESULT_BEAN: null, // 동적 생성
-};
+/* 최대 예상 단계 (진행바 계산용) */
+const MAX_STEPS = 7;
 
-// =============================================
-// 상태
-// =============================================
+/* ======= 상태 ======= */
 let sessionId = null;
-let history = []; // { qKey, answer, optData }
+let history = [];
 let beanFirst = null, beanAdjust = false, beanCover = '기본 커버', beanExtra = '';
-let totalSteps = 0;
+let currentOpt = null;
+let pendingResult = null;
 
-// =============================================
-// 시작
-// =============================================
+/* ======= 퀴즈 시작 ======= */
 async function startQuiz() {
-    history = []; beanFirst = null; beanAdjust = false; beanCover = '기본 커버'; beanExtra = '';
+    history = []; beanFirst = null; beanAdjust = false; beanCover = '기본 커버'; beanExtra = ''; currentOpt = null;
     try {
         const vid = localStorage.getItem('_yg_vid') || ('g_' + Date.now());
         localStorage.setItem('_yg_vid', vid);
         const r = await fetch(`${API}/api/event/session`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({ visitorId: vid, userAgent: navigator.userAgent }), keepalive: true
         });
         const j = await r.json();
@@ -520,184 +640,100 @@ async function startQuiz() {
     renderQ('q1');
 }
 
-// =============================================
-// 질문 렌더링
-// =============================================
+/* ======= 질문 렌더링 ======= */
 function renderQ(qKey) {
-    const q = Q[qKey];
-    if (!q) return;
-
-    // 현재 qKey를 history의 마지막에 표시
-    const currentHistoryEntry = history[history.length - 1];
-    if (currentHistoryEntry) currentHistoryEntry._nextQKey = qKey;
-
-    // 메이트 이미지 교체
+    const q = Q[qKey]; if (!q) return;
+    currentOpt = null;
     document.getElementById('quiz-mate').src = nextMate();
-
-    // 질문/서브텍스트
-    document.getElementById('q-text').innerHTML = q.text.replace(/\n/g, '<br>');
+    document.getElementById('q-text').innerHTML = q.text.replace(/\n/g,'<br>');
     document.getElementById('q-sub').textContent = q.sub || '';
 
-    // 선택지
     const wrap = document.getElementById('opts-wrap');
     wrap.innerHTML = '';
     q.opts.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'opt';
         btn.textContent = opt.text;
-        btn.onclick = () => selectOpt(btn, q, qKey, opt, wrap);
+        btn.onclick = () => {
+            wrap.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            currentOpt = { qKey, opt };
+            document.getElementById('next-btn').classList.add('ready');
+        };
         wrap.appendChild(btn);
     });
 
-    // 진행바 계산
-    calcTotalSteps(qKey);
-    const stepNum = history.length + 1;
-    updateProgress(stepNum);
+    // 진행바: 답변 수 / MAX_STEPS * 100%  (전진만)
+    const pct = Math.min((history.length / MAX_STEPS) * 100, 95);
+    document.getElementById('progress-fill').style.width = pct + '%';
 
-    showScreen('step-quiz');
-    document.getElementById('next-btn').classList.remove('ready');
-    document.getElementById('next-btn').textContent = '다음 >';
     document.getElementById('prev-btn').disabled = history.length === 0;
+    document.getElementById('next-btn').classList.remove('ready');
     document.getElementById('bottom-nav').classList.add('active');
-
-    // qKey 임시 저장
     document.getElementById('step-quiz').dataset.currentQ = qKey;
-}
-
-function calcTotalSteps(qKey) {
-    // 최소 단계 계산: 질문별 깊이 근사치
-    const depths = {
-        q1: 1, q_doll_1: 2, q_doll_2: 3,
-        q_acc: 2, q_body: 2,
-        q_bean_user: 2, q_bean_usage: 3, q_bean_back: 4, q_bean_outdoor: 5, q_bean_time: 6, q_bean_carry: 7
-    };
-    const maxDepth = Math.max(...Object.values(depths));
-    totalSteps = maxDepth;
-}
-
-function updateProgress(step) {
-    const bar = document.getElementById('progress-bar');
-    bar.innerHTML = '';
-    const total = Math.max(totalSteps, step + 1);
-    for (let i = 1; i <= total; i++) {
-        const seg = document.createElement('div');
-        seg.className = 'seg';
-        const fill = document.createElement('div');
-        fill.className = 'seg-fill';
-        fill.style.width = i <= step ? '100%' : '0%';
-        seg.appendChild(fill);
-        bar.appendChild(seg);
-    }
-}
-
-// =============================================
-// 선택 처리
-// =============================================
-let currentOpt = null;
-let currentQ = null;
-
-function selectOpt(btn, q, qKey, opt, wrap) {
-    wrap.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    currentOpt = { q, qKey, opt };
-    currentQ = qKey;
-    document.getElementById('next-btn').classList.add('ready');
+    showScreen('step-quiz');
 }
 
 function goNext() {
     if (!currentOpt) return;
-    const { q, qKey, opt } = currentOpt;
-    applyOpt(qKey, opt.text, opt);
-}
+    const { qKey, opt } = currentOpt;
 
-function applyOpt(qKey, answer, opt) {
-    // 빈백 특수 상태 저장
     if (opt.beanFirst) beanFirst = opt.beanFirst;
     if (opt.beanAdjust) beanAdjust = true;
     if (opt.beanCover) beanCover = opt.beanCover;
     if (opt.beanExtra) beanExtra = opt.beanExtra;
 
-    history.push({ qKey, answer });
-    recordStep(Q[qKey].id, answer);
+    history.push({ qKey, answer: opt.text });
+    recordStep(Q[qKey].id, opt.text);
     currentOpt = null;
+    document.getElementById('bottom-nav').classList.remove('active');
 
     if (opt.next && opt.next.startsWith('RESULT_')) {
-        showPathScreen(opt.next);
-    } else if (opt.next) {
+        pendingResult = opt.next.replace('RESULT_', '');
+        showScreen('step-ready');
+    } else {
         renderQ(opt.next);
     }
 }
 
 function goPrev() {
-    if (history.length === 0) return;
+    if (!history.length) return;
     const last = history.pop();
-    currentOpt = null;
-    if (last.qKey) renderQ(last.qKey);
-    else showScreen('step-start');
+    renderQ(last.qKey);
 }
 
-// =============================================
-// 경로 확인 화면
-// =============================================
-let pendingResult = null;
-function showPathScreen(resultKey) {
-    pendingResult = resultKey;
-    const list = document.getElementById('path-list');
-    list.innerHTML = history.map((h, i) => {
-        const qLabel = Q[h.qKey] ? Q[h.qKey].id : '';
-        return `<div class="path-item">
-            <div class="path-num">${i + 1}</div>
-            <div>
-                <div class="path-qlbl">${qLabel.replace('Q', '질문 ').replace(/_/g, ' ')}</div>
-                <div class="path-atxt">${h.answer}</div>
-            </div>
-        </div>`;
-    }).join('');
-    showScreen('step-path');
-    document.getElementById('bottom-nav').classList.remove('active');
+function goReadyBack() {
+    if (!history.length) return;
+    const last = history.pop();
+    renderQ(last.qKey);
 }
 
-// =============================================
-// 결과 화면
-// =============================================
+/* ======= 결과 표시 ======= */
 function showResult() {
-    let r;
-    if (pendingResult === 'RESULT_BEAN') {
+    // 모든 result-content 숨기기
+    document.querySelectorAll('.result-content').forEach(el => el.classList.remove('active'));
+
+    if (pendingResult === 'BEAN') {
+        // 빈백 동적 조합
         const baseMap = {
-            NEXS: { name: '요기보 넥스', features: ['요기보 라인업 중 가장 편안하고 인기 있는 빈백이에요.', '독서·영상·업무 어디에도 어울리는 올라운더예요.', '가장 높은 누적 판매량의 시그니처 제품이에요.'] },
-            MINI: { name: '요기보 미니', features: ['아담한 사이즈로 어디서나 활용도 만점!', '밝고 다양한 컬러로 방 꾸미기에도 완벽해요.', '가볍고 이동하기 편해 어디서든 사용 가능해요.'] },
-            PYRAMID: { name: '요기보 피라미드', features: ['집중력을 높이는 안정적인 착석감이에요.', '독서·공부에 최적화된 자세 지지력을 제공해요.', '콤팩트한 디자인으로 공간을 넓게 활용해요.'] },
-            MINI_NEXS: { name: '요기보 미니 + 넥스', features: ['아이와 함께 사용하기 딱 좋은 조합이에요.', '미니는 아이용, 넥스는 어른용으로 활용하세요.', '두 가지 크기로 온 가족이 즐길 수 있어요.'] },
+            NEXS:     { name:'요기보 넥스',         features:['요기보 라인업 중 가장 편안하고 인기 있는 빈백이에요.','독서·영상·업무 어디에도 어울리는 올라운더예요.','가장 높은 누적 판매량의 시그니처 제품이에요.'] },
+            MINI:     { name:'요기보 미니',          features:['아담한 사이즈로 어디서나 활용도 만점!','밝고 다양한 컬러로 방 꾸미기에도 완벽해요.','가볍고 이동하기 편해 어디서든 사용 가능해요.'] },
+            PYRAMID:  { name:'요기보 피라미드',      features:['집중력을 높이는 안정적인 착석감이에요.','독서·공부에 최적화된 자세 지지력을 제공해요.','콤팩트한 디자인으로 공간을 넓게 활용해요.'] },
+            MINI_NEXS:{ name:'요기보 미니 + 넥스',   features:['아이와 함께 사용하기 딱 좋은 조합이에요.','미니는 아이용, 넥스는 어른용으로 활용하세요.','두 가지 크기로 온 가족이 즐길 수 있어요.'] },
         };
         const base = baseMap[beanFirst] || baseMap.NEXS;
-        const adjustNote = beanAdjust ? ' (허리 지지 강화형)' : '';
-        const extraNote = beanExtra ? ` + ${beanExtra}` : '';
-        r = {
-            tag: '빈백 추천 결과',
-            name: base.name + adjustNote,
-            features: [...base.features, `커버: ${beanCover}${extraNote ? ' / 부속품: ' + extraNote : ''}`],
-            colorName: '줄라 (Zoola)',
-            colorHex: ['#55b5c9','#3e8fa0'],
-            colorDesc: '아이도 어른도 함께 사용하기 좋아요!'
-        };
-    } else {
-        r = RESULTS[pendingResult] || RESULTS.RESULT_BODY_SUPPORT;
+        const adjNote = beanAdjust ? ' (허리 지지 강화형)' : '';
+        document.getElementById('r-bean-name').textContent = base.name + adjNote;
+        document.getElementById('r-bean-features').innerHTML = base.features.map(f => `<li>${f}</li>`).join('');
+        const coverText = beanCover + (beanExtra ? ' + ' + beanExtra : '');
+        document.getElementById('r-bean-colors').innerHTML = `<span class="color-name">${coverText}</span>`;
+        document.getElementById('r-bean-colorsub').textContent = '라이프스타일에 맞춘 최적 구성이에요!';
     }
 
-    document.getElementById('r-tag').textContent = r.tag;
-    document.getElementById('r-name').textContent = r.name;
-    document.getElementById('r-features').innerHTML = r.features.map(f =>
-        `<div class="result-feature"><div class="feat-check">✓</div><span>${f}</span></div>`
-    ).join('');
+    const target = document.getElementById(`result-${pendingResult}`);
+    if (target) target.classList.add('active');
 
-    if (r.colorName) {
-        document.getElementById('color-area').style.display = 'block';
-        document.getElementById('color-chips').innerHTML =
-            r.colorHex.map(h => `<div class="color-circle" style="background:${h}"></div>`).join('') +
-            `<span class="color-name">&nbsp;${r.colorName}</span>`;
-        document.getElementById('color-desc').textContent = r.colorDesc || '';
-    }
-
+    document.getElementById('progress-fill').style.width = '100%';
     showScreen('step-result');
     document.getElementById('bottom-nav').classList.remove('active');
 }
@@ -710,16 +746,17 @@ function showScreen(id) {
 
 function restartQuiz() {
     history = []; beanFirst = null; beanAdjust = false; beanCover = '기본 커버'; beanExtra = '';
+    document.getElementById('progress-fill').style.width = '0%';
     document.getElementById('bottom-nav').classList.remove('active');
     showScreen('step-start');
 }
 
-function recordStep(question, answer) {
+function recordStep(q, a) {
     if (!sessionId) return;
     fetch(`${API}/api/event/session/${sessionId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, answer }), keepalive: true
-    }).catch(() => {});
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ question: q, answer: a }), keepalive: true
+    }).catch(()=>{});
 }
 </script>
 </body>
