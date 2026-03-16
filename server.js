@@ -2521,6 +2521,7 @@ app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
+    const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
     
     // 제목 번역
