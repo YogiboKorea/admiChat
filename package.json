@@ -9,7 +9,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.7.9",
     "basic-ftp": "^5.2.0",
