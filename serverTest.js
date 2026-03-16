@@ -9,7 +9,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 require("dotenv").config();
 const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
-const { translate: googleTranslate } = require('@vitalets/google-translate-api');
+//const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
 const cheerio = require('cheerio');
@@ -63,7 +63,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // MongoDB 컬렉션명 정의
 const tokenCollectionName = "tokens";
-
+const COLLECTION_COUPON_MAP = "coupon_map";
 // ========== [3] MongoDB 토큰 관리 함수 (전역 db 사용) ==========
 async function getTokensFromDB() {
   try {
@@ -2521,6 +2521,7 @@ app.post('/api/translate-news', async (req, res) => {
   const { title, content } = req.body;
 
   try {
+    const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
     console.log('🔄 구글 번역기로 한글 초벌 번역 중...');
     
     // 제목 번역
@@ -2711,26 +2712,19 @@ app.post('/api/event/one-time-reward', async (req, res) => {
     return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
   }
 });
-
 // API - 뉴스레터 조회수 증가
 app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 썸네일 업로드 API 내 DB 업데이트 부분 수정
-    let queryId = (postId === 'hardcoded_recovery') ? postId : new ObjectId(postId);
+    // postId 대신 id를 사용하도록 수정
+    let queryId = (id === 'hardcoded_recovery') ? id : new ObjectId(id);
 
-    const result = await db.collection('yogiboJPnews').updateOne(
-      { _id: queryId },
-      { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } },
-      { upsert: postId === 'hardcoded_recovery' } 
-    );
-    // $inc 연산자를 사용해 views 필드를 1 증가시킵니다.
-    // 만약 해당 데이터가 없으면 새로 만들어서라도 조회수를 기록하도록 upsert 옵션을 줍니다.
+    // 썸네일 관련 로직은 지우고, 깔끔하게 조회수(views)만 1 올립니다.
     await db.collection('yogiboJPnews').updateOne(
       { _id: queryId },
       { $inc: { views: 1 } },
-      { upsert: true } 
+      { upsert: true }
     );
 
     res.json({ success: true, message: '조회수 증가 완료' });
@@ -3058,94 +3052,93 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
-// app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
-//   try {
-//     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
+    const isPDF = req.file.mimetype === 'application/pdf';
+    let extractedText = '';
 
-//     const isPDF = req.file.mimetype === 'application/pdf';
-//     let extractedText = '';
+    if (isPDF) {
+      // PDF → pdf-parse로 텍스트 직접 추출 (무료, 빠름)
+      const pdfData = await pdfParse(req.file.buffer);
+      const rawText = pdfData.text || '';
 
-//     if (isPDF) {
-//       // PDF → pdf-parse로 텍스트 직접 추출 (무료, 빠름)
-//       const pdfData = await pdfParse(req.file.buffer);
-//       const rawText = pdfData.text || '';
+      if (rawText.trim().length < 30) {
+        // 텍스트가 거의 없는 이미지형 PDF → GPT에 안내
+        return res.status(400).json({ 
+          success: false, 
+          message: '이미지 기반 PDF입니다. PDF를 캡처하여 이미지(JPG/PNG)로 업로드해주세요.' 
+        });
+      }
 
-//       if (rawText.trim().length < 30) {
-//         // 텍스트가 거의 없는 이미지형 PDF → GPT에 안내
-//         return res.status(400).json({ 
-//           success: false, 
-//           message: '이미지 기반 PDF입니다. PDF를 캡처하여 이미지(JPG/PNG)로 업로드해주세요.' 
-//         });
-//       }
+      // GPT로 정리 (선택적 - 바로 rawText 써도 됨)
+      const API_KEY = process.env.API_KEY;
+      if (API_KEY) {
+        try {
+          const apiResponse = await axios.post(
+            'https://api.openai.com/v1/chat/completions',
+            {
+              model: 'gpt-4o-mini',
+              messages: [
+                { role: 'system', content: '당신은 문서 정리 전문가입니다. 추출된 PDF 텍스트를 깔끔하게 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 핵심 정보를 구조화하여 반환합니다. 마크다운 없이 일반 텍스트로 정리해주세요.' },
+                { role: 'user', content: '다음 PDF에서 추출한 텍스트를 깔끔하게 정리해주세요:\n\n' + rawText.substring(0, 10000) }
+              ],
+              max_tokens: 4096,
+              temperature: 0.2,
+            },
+            {
+              headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+              timeout: 30000,
+            }
+          );
+          extractedText = apiResponse.data.choices?.[0]?.message?.content || rawText;
+        } catch (e) {
+          console.warn('GPT 정리 실패, 원본 텍스트 사용:', e.message);
+          extractedText = rawText;
+        }
+      } else {
+        extractedText = rawText;
+      }
 
-//       // GPT로 정리 (선택적 - 바로 rawText 써도 됨)
-//       const API_KEY = process.env.API_KEY;
-//       if (API_KEY) {
-//         try {
-//           const apiResponse = await axios.post(
-//             'https://api.openai.com/v1/chat/completions',
-//             {
-//               model: 'gpt-4o-mini',
-//               messages: [
-//                 { role: 'system', content: '당신은 문서 정리 전문가입니다. 추출된 PDF 텍스트를 깔끔하게 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 핵심 정보를 구조화하여 반환합니다. 마크다운 없이 일반 텍스트로 정리해주세요.' },
-//                 { role: 'user', content: '다음 PDF에서 추출한 텍스트를 깔끔하게 정리해주세요:\n\n' + rawText.substring(0, 10000) }
-//               ],
-//               max_tokens: 4096,
-//               temperature: 0.2,
-//             },
-//             {
-//               headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-//               timeout: 30000,
-//             }
-//           );
-//           extractedText = apiResponse.data.choices?.[0]?.message?.content || rawText;
-//         } catch (e) {
-//           console.warn('GPT 정리 실패, 원본 텍스트 사용:', e.message);
-//           extractedText = rawText;
-//         }
-//       } else {
-//         extractedText = rawText;
-//       }
+    } else {
+      // 이미지 → GPT Vision으로 추출 (기존 로직)
+      const API_KEY = process.env.API_KEY;
+      if (!API_KEY) return res.status(500).json({ success: false, message: 'API_KEY 필요' });
 
-//     } else {
-//       // 이미지 → GPT Vision으로 추출 (기존 로직)
-//       const API_KEY = process.env.API_KEY;
-//       if (!API_KEY) return res.status(500).json({ success: false, message: 'API_KEY 필요' });
+      const base64 = req.file.buffer.toString('base64');
+      const mediaType = req.file.mimetype;
 
-//       const base64 = req.file.buffer.toString('base64');
-//       const mediaType = req.file.mimetype;
+      const apiResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: '당신은 문서 분석 전문가입니다. 이미지에서 텍스트를 정확하게 추출하여 한국어로 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.' },
+            { role: 'user', content: [
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
+              { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요.' }
+            ]}
+          ],
+          max_tokens: 4096,
+          temperature: 0.2,
+        },
+        {
+          headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+          timeout: 60000,
+        }
+      );
+      extractedText = apiResponse.data.choices?.[0]?.message?.content || '';
+    }
 
-//       const apiResponse = await axios.post(
-//         'https://api.openai.com/v1/chat/completions',
-//         {
-//           model: 'gpt-4o',
-//           messages: [
-//             { role: 'system', content: '당신은 문서 분석 전문가입니다. 이미지에서 텍스트를 정확하게 추출하여 한국어로 정리해주세요. 제품명, 가격, 특징, 소재, 사이즈 등 모든 정보를 포함해주세요. 마크다운 없이 일반 텍스트로 깔끔하게 정리해주세요.' },
-//             { role: 'user', content: [
-//               { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'high' } },
-//               { type: 'text', text: '이 문서/이미지의 내용을 빠짐없이 텍스트로 추출해주세요.' }
-//             ]}
-//           ],
-//           max_tokens: 4096,
-//           temperature: 0.2,
-//         },
-//         {
-//           headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-//           timeout: 60000,
-//         }
-//       );
-//       extractedText = apiResponse.data.choices?.[0]?.message?.content || '';
-//     }
+    console.log('📄 텍스트 추출 완료:', extractedText.substring(0, 100) + '...');
+    res.json({ success: true, text: extractedText, filename: req.file.originalname });
 
-//     console.log('📄 텍스트 추출 완료:', extractedText.substring(0, 100) + '...');
-//     res.json({ success: true, text: extractedText, filename: req.file.originalname });
-
-//   } catch (e) {
-//     console.error('문서 추출 에러:', e.response?.data || e.message);
-//     res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
-//   }
-// });
+  } catch (e) {
+    console.error('문서 추출 에러:', e.response?.data || e.message);
+    res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
+  }
+});
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
