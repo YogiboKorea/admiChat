@@ -3079,8 +3079,8 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
       }
 
       // GPT로 정리 (선택적 - 바로 rawText 써도 됨)
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (OPENAI_API_KEY) {
+      const API_KEY = process.env.API_KEY;
+      if (API_KEY) {
         try {
           const apiResponse = await axios.post(
             'https://api.openai.com/v1/chat/completions',
@@ -3094,7 +3094,7 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
               temperature: 0.2,
             },
             {
-              headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+              headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
               timeout: 30000,
             }
           );
@@ -3109,8 +3109,8 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
 
     } else {
       // 이미지 → GPT Vision으로 추출 (기존 로직)
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (!OPENAI_API_KEY) return res.status(500).json({ success: false, message: 'OPENAI_API_KEY 필요' });
+      const API_KEY = process.env.API_KEY;
+      if (!API_KEY) return res.status(500).json({ success: false, message: 'API_KEY 필요' });
 
       const base64 = req.file.buffer.toString('base64');
       const mediaType = req.file.mimetype;
@@ -3130,7 +3130,7 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
           temperature: 0.2,
         },
         {
-          headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
           timeout: 60000,
         }
       );
