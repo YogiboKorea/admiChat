@@ -2743,77 +2743,38 @@ app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
 
 
 
-
 // =================================================================
-// 🆕 뉴스레터 직접 작성 & AI 생성 기능 추가 모듈
+// 🆕 뉴스레터 직접 작성 & AI 생성 기능 (axios 기반 - SDK 불필요)
 // =================================================================
-// 기존 server.js에 아래 코드를 추가하세요.
-// 필요 패키지: npm install anthropic (또는 기존 fetch 사용)
-
-// ─── 환경변수 ────────────────────────────────────────────
-// .env 파일에 추가:
-// ANTHROPIC_API_KEY=sk-ant-xxxxx
-
-const Anthropic = require('@anthropic-ai/sdk'); // 또는 fetch로 직접 호출
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-
-// ─── 1. 새 게시글 생성 API ──────────────────────────────
-// POST /api/yogibo-jp-news
-app.post('/api/yogibo-jp-news', async (req, res) => {
-  try {
-    const { title, content, status, thumbnail } = req.body;
-
-    if (!title || !content) {
-      return res.status(400).json({ 
-        success: false, 
-        message: '제목과 내용은 필수입니다.' 
-      });
-    }
-
-    const collection = db.collection('yogiboJPnews');
-
-    const newPost = {
-      title,
-      content,
-      status: status || 'draft',
-      thumbnail: thumbnail || null,
-      pubDate: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      views: 0,
-      source: 'manual', // 수동 작성 구분용 (RSS 동기화 = 'rss')
-    };
-
-    const result = await collection.insertOne(newPost);
-
-    res.json({ 
-      success: true, 
-      message: '새 게시글이 생성되었습니다.',
-      data: { 
-        _id: result.insertedId, 
-        ...newPost 
-      }
-    });
-
-  } catch (error) {
-    console.error('게시글 생성 에러:', error);
-    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
-  }
-});
+// ⚠️ 기존 server.js에서 아래 두 줄을 삭제하세요:
+//   const Anthropic = require('@anthropic-ai/sdk');
+//   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+//
+// 그리고 기존의 아래 3개 라우트를 삭제한 뒤, 이 파일 내용으로 교체하세요:
+//   app.post('/api/yogibo-jp-news', ...)
+//   app.post('/api/yogibo-jp-news/generate', ...)
+//   app.delete('/api/yogibo-jp-news/:id', ...)
+//
+// ⚠️ 중요: generate 라우트가 반드시 POST '/api/yogibo-jp-news' 보다 위에 위치해야 합니다.
+// .env 파일에 추가: ANTHROPIC_API_KEY=sk-ant-xxxxx
+// =================================================================
 
 
-// ─── 2. AI 뉴스레터 생성 API ────────────────────────────
-// POST /api/yogibo-jp-news/generate
-// body: { prompt, images (base64 배열), style }
+// ─── 1. AI 뉴스레터 생성 API (axios 직접 호출 - SDK 불필요) ────
+// ⚠️ 이 라우트가 반드시 POST '/api/yogibo-jp-news' 보다 위에 있어야 합니다!
 app.post('/api/yogibo-jp-news/generate', async (req, res) => {
   try {
     const { prompt, images, style } = req.body;
 
     if (!prompt) {
-      return res.status(400).json({ 
+      return res.status(400).json({ success: false, message: '프롬프트를 입력해주세요.' });
+    }
+
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) {
+      return res.status(500).json({ 
         success: false, 
-        message: '프롬프트를 입력해주세요.' 
+        message: 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.' 
       });
     }
 
@@ -2821,16 +2782,18 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
     const messageContent = [];
 
     // 이미지가 있으면 먼저 추가
-    if (images && images.length > 0) {
+    if (images && Array.isArray(images) && images.length > 0) {
       for (const img of images) {
-        messageContent.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: img.mediaType || 'image/jpeg',
-            data: img.data, // base64 문자열 (data:image/... 프리픽스 제거된 순수 base64)
-          }
-        });
+        if (img.data) {
+          messageContent.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: img.mediaType || 'image/jpeg',
+              data: img.data,
+            }
+          });
+        }
       }
     }
 
@@ -2842,7 +2805,6 @@ app.post('/api/yogibo-jp-news/generate', async (req, res) => {
       'collab': '콜라보/한정판 소식 톤. 희소성과 특별함을 강조하며, 팬심을 자극.',
       'tips-guide': '생활 팁/가이드 톤. 실용적이고 친근하며, 요기보 제품 활용법을 자연스럽게 연결.',
     };
-
     const selectedStyle = styleGuides[style] || '요기보 브랜드 톤에 맞는 따뜻하고 친근한 뉴스레터.';
 
     // 프롬프트 구성
@@ -2866,40 +2828,54 @@ ${selectedStyle}
 ${prompt}
 
 위 요청을 바탕으로 뉴스레터 HTML 콘텐츠를 생성해주세요.
-제목(title)과 본문(content)을 JSON 형식으로 반환해주세요:
+반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"title": "뉴스레터 제목", "content": "<div>...HTML 본문...</div>"}`
     });
 
-    console.log('🤖 AI 뉴스레터 생성 요청...');
+    console.log('🤖 AI 뉴스레터 생성 요청... (axios 직접 호출)');
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: messageContent }],
-    });
+    // ★ axios로 Anthropic API 직접 호출 (SDK 불필요)
+    const apiResponse = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: messageContent }],
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        timeout: 120000, // 2분 타임아웃 (AI 생성은 오래 걸릴 수 있음)
+      }
+    );
 
     // 응답 파싱
-    const responseText = response.content
+    const responseData = apiResponse.data;
+    const responseText = (responseData.content || [])
       .filter(block => block.type === 'text')
       .map(block => block.text)
       .join('');
 
-    // JSON 추출 (```json ... ``` 감싸져 있을 수 있음)
+    // JSON 추출
     let parsed;
     try {
-      const jsonMatch = responseText.match(/\{[\s\S]*"title"[\s\S]*"content"[\s\S]*\}/);
+      // 방법 1: ```json ... ``` 블록 안에 있을 수 있음
+      const fenced = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = fenced ? fenced[1].trim() : responseText.trim();
+      
+      // 방법 2: { 로 시작하는 JSON 객체 찾기
+      const jsonMatch = jsonStr.match(/\{[\s\S]*"title"[\s\S]*"content"[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
       } else {
         throw new Error('JSON 형식 추출 실패');
       }
     } catch (parseErr) {
-      // JSON 파싱 실패 시 전체 텍스트를 content로 사용
-      console.warn('JSON 파싱 실패, 전체 텍스트 사용:', parseErr.message);
-      parsed = {
-        title: '새 뉴스레터',
-        content: responseText
-      };
+      console.warn('JSON 파싱 실패, 전체 텍스트를 content로 사용:', parseErr.message);
+      parsed = { title: '새 뉴스레터', content: responseText };
     }
 
     console.log('✅ AI 뉴스레터 생성 완료:', parsed.title);
@@ -2911,26 +2887,53 @@ ${prompt}
     });
 
   } catch (error) {
-    console.error('❌ AI 생성 에러:', error);
+    console.error('❌ AI 생성 에러:', error.response?.data || error.message);
     
-    // API 키 미설정 에러
-    if (error.message?.includes('API key')) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'AI API 키가 설정되지 않았습니다. 서버 환경변수를 확인하세요.' 
-      });
-    }
-
-    res.status(500).json({ 
-      success: false, 
-      message: 'AI 콘텐츠 생성 중 오류가 발생했습니다.' 
-    });
+    const errMsg = error.response?.data?.error?.message || error.message || 'AI 콘텐츠 생성 중 오류';
+    res.status(500).json({ success: false, message: errMsg });
   }
 });
 
 
-// ─── 3. 게시글 삭제 API (직접 작성한 글 삭제용) ─────────
-// DELETE /api/yogibo-jp-news/:id
+// ─── 2. 새 게시글 생성 API (직접 작성 + AI 작성 공용) ───
+app.post('/api/yogibo-jp-news', async (req, res) => {
+  try {
+    const { title, content, status, thumbnail } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ success: false, message: '제목과 내용은 필수입니다.' });
+    }
+
+    const collection = db.collection('yogiboJPnews');
+
+    const newPost = {
+      title,
+      content,
+      status: status || 'draft',
+      thumbnail: thumbnail || null,
+      pubDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      views: 0,
+      source: 'manual',
+    };
+
+    const result = await collection.insertOne(newPost);
+
+    res.json({ 
+      success: true, 
+      message: '새 게시글이 생성되었습니다.',
+      data: { _id: result.insertedId, ...newPost }
+    });
+
+  } catch (error) {
+    console.error('게시글 생성 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+
+// ─── 3. 게시글 삭제 API ─────────────────────────────────
 app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2956,8 +2959,6 @@ app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
-
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
