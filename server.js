@@ -9,7 +9,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 require("dotenv").config();
 const ExcelJS = require('exceljs');
 const moment = require('moment-timezone');
-const { translate: googleTranslate } = require('@vitalets/google-translate-api');
+const { translate: googleTranslate } = await import('@vitalets/google-translate-api');
 // ========== [추가] 일본 요기보 뉴스레터 연동 (RSS/Atom) ==========
 const Parser = require('rss-parser');
 const cheerio = require('cheerio');
@@ -2711,26 +2711,19 @@ app.post('/api/event/one-time-reward', async (req, res) => {
     return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
   }
 });
-
 // API - 뉴스레터 조회수 증가
 app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 썸네일 업로드 API 내 DB 업데이트 부분 수정
-    let queryId = (postId === 'hardcoded_recovery') ? postId : new ObjectId(postId);
+    // postId 대신 id를 사용하도록 수정
+    let queryId = (id === 'hardcoded_recovery') ? id : new ObjectId(id);
 
-    const result = await db.collection('yogiboJPnews').updateOne(
-      { _id: queryId },
-      { $set: { thumbnail: publicUrl, thumbnailUpdatedAt: new Date() } },
-      { upsert: postId === 'hardcoded_recovery' } 
-    );
-    // $inc 연산자를 사용해 views 필드를 1 증가시킵니다.
-    // 만약 해당 데이터가 없으면 새로 만들어서라도 조회수를 기록하도록 upsert 옵션을 줍니다.
+    // 썸네일 관련 로직은 지우고, 깔끔하게 조회수(views)만 1 올립니다.
     await db.collection('yogiboJPnews').updateOne(
       { _id: queryId },
       { $inc: { views: 1 } },
-      { upsert: true } 
+      { upsert: true }
     );
 
     res.json({ success: true, message: '조회수 증가 완료' });
