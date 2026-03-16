@@ -8,368 +8,177 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-            background: #f5f5f5;
+            background: #fff;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-
-        /* ===== 공통 앱 래퍼 ===== */
         .app {
             width: 100%;
-            max-width: 480px;
+            max-width: 600px;
             min-height: 100vh;
             background: #fff;
             display: flex;
             flex-direction: column;
-            position: relative;
         }
-
-        /* ===== 상단 헤더 ===== */
-        .header {
-            padding: 14px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .hamburger {
-            position: absolute;
-            left: 16px;
-            font-size: 20px;
-            cursor: pointer;
-            color: #333;
-            background: none;
-            border: none;
-            line-height: 1;
-        }
-        .header-logo {
-            color: #222;
-            font-size: 22px;
-            font-style: italic;
-            font-weight: 700;
-            letter-spacing: -1px;
-        }
-
-        /* ===== 화면 전환 ===== */
         .screen { display: none; flex: 1; flex-direction: column; }
         .screen.active { display: flex; }
 
         /* ===== 시작 화면 ===== */
-        #screen-start {
-            background: #fff;
-            align-items: center;
-        }
+        #screen-start { align-items: center; }
         .start-top {
-            padding: 24px 20px 16px;
+            padding: 28px 20px 16px;
             text-align: center;
-            width: 100%;
         }
         .start-title {
-            font-size: 18px;
-            font-weight: 800;
-            color: #1a1a1a;
-            margin-bottom: 10px;
+            font-size: 20px; font-weight: 800; color: #1a1a1a; margin-bottom: 10px;
         }
-        .start-desc {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.7;
-        }
+        .start-desc { font-size: 14px; color: #666; line-height: 1.7; }
         .start-card-wrap {
-            flex: 1;
-            width: 100%;
-            padding: 0 20px 20px;
-            position: relative;
+            flex: 1; width: 100%; padding: 0 20px 24px; position: relative;
         }
         .start-card {
-            width: 100%;
-            height: 100%;
-            min-height: 300px;
+            width: 100%; min-height: 320px;
             background: #6bc5c8;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            cursor: pointer;
-            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; cursor: pointer; overflow: hidden;
         }
-        .start-card:hover { filter: brightness(0.97); }
+        .start-card:active { filter: brightness(0.95); }
         .start-btn-text {
-            font-size: 24px;
-            font-weight: 700;
-            color: #fff;
-            letter-spacing: 4px;
-            z-index: 2;
+            font-size: 28px; font-weight: 700; color: #fff; letter-spacing: 5px; z-index: 2;
         }
         .dino-char {
-            position: absolute;
-            bottom: 0;
-            right: -8px;
-            width: 130px;
-            pointer-events: none;
-            z-index: 3;
+            position: absolute; bottom: 0; right: 0;
+            width: 140px; pointer-events: none; z-index: 3;
         }
 
         /* ===== 퀴즈 화면 ===== */
-        #screen-quiz {
-            flex-direction: column;
+        #screen-quiz { flex-direction: column; }
+        .quiz-body { flex: 1; padding: 24px 20px 0; display: flex; flex-direction: column; }
+        .quiz-main-title {
+            font-size: 17px; font-weight: 800; color: #1a1a1a; text-align: center;
+            margin-bottom: 6px;
         }
-        .quiz-body {
-            flex: 1;
-            padding: 20px 20px 0;
-            display: flex;
-            flex-direction: column;
+        .quiz-question {
+            font-size: 15px; color: #444; text-align: center;
+            line-height: 1.6; margin-bottom: 24px; min-height: 44px;
         }
-        .quiz-top-title {
-            font-size: 16px;
-            font-weight: 800;
-            color: #1a1a1a;
-            text-align: center;
-            margin-bottom: 20px;
-            line-height: 1.5;
-        }
-        .quiz-top-title small {
-            display: block;
-            font-size: 12px;
-            font-weight: 400;
-            color: #999;
-            margin-top: 4px;
-        }
-        .choices-wrap {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+        .quiz-question small { display: block; font-size: 12px; color: #aaa; margin-top: 4px; }
+        .choices-wrap { flex: 1; display: flex; flex-direction: column; gap: 10px; }
         .choice-item {
-            display: flex;
-            align-items: center;
-            gap: 0;
-            cursor: pointer;
-            border-radius: 3px;
-            overflow: hidden;
-            transition: all 0.15s;
+            display: flex; align-items: stretch;
+            cursor: pointer; overflow: hidden;
+            border: 2px solid transparent; transition: border-color 0.15s;
         }
+        .choice-item.selected { border-color: #1a1a1a; }
         .choice-color {
-            width: 54px;
-            min-height: 52px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
+            width: 52px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; min-height: 52px;
         }
         .choice-label {
-            flex: 1;
-            padding: 14px 16px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-            background: #f2f2f2;
-            min-height: 52px;
-            display: flex;
-            align-items: center;
-            line-height: 1.4;
+            flex: 1; padding: 14px 16px;
+            font-size: 14px; font-weight: 600; color: #333;
+            background: #f2f2f2; display: flex; align-items: center; line-height: 1.4;
             transition: background 0.15s;
         }
-        .choice-item:hover .choice-label,
-        .choice-item.selected .choice-label {
-            background: #e0e0e0;
-        }
-        .choice-item.selected .choice-color {
-            outline: 3px solid #1a1a1a;
-            outline-offset: -3px;
-        }
+        .choice-item.selected .choice-label { background: #e0e0e0; }
+        .choice-item:hover .choice-label { background: #e8e8e8; }
+        /* 컬러 클래스 */
+        .c0 { background: #e04848; } .c1 { background: #5a8a3c; }
+        .c2 { background: #3a70b8; } .c3 { background: #9a9a9a; }
+        .c4 { background: #d4804a; } .c5 { background: #8a54b8; }
 
-        /* 선택지 색상 팔레트 */
-        .color-0 { background: #e04848; }
-        .color-1 { background: #5a8a3c; }
-        .color-2 { background: #3a70b8; }
-        .color-3 { background: #b0a090; }
-        .color-4 { background: #d4804a; }
-        .color-5 { background: #8054b8; }
-        .color-selected-bg { background: #3a70b8 !important; }
-
-        /* 하단 네비게이션 */
         .quiz-nav {
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-top: 1px solid #f0f0f0;
+            padding: 16px 20px 20px;
+            display: flex; align-items: center; justify-content: space-between;
         }
         .nav-btn {
-            font-size: 14px;
-            color: #888;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px 12px;
-            font-family: inherit;
-            font-weight: 600;
+            font-size: 14px; color: #aaa; background: none; border: none;
+            cursor: pointer; padding: 8px 4px; font-family: inherit; font-weight: 700;
         }
-        .nav-btn.next { color: #333; }
-        .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-        /* 진행 점 */
-        .progress-dots {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: #ddd; transition: all 0.2s;
-        }
-        .dot.active { background: #3a70b8; width: 20px; border-radius: 4px; }
+        .nav-btn.next-btn { color: #333; }
+        .nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+        .progress-dots { display: flex; gap: 7px; align-items: center; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; transition: all 0.25s; }
+        .dot.active { background: #3a70b8; width: 22px; border-radius: 4px; }
 
         /* ===== 이동경로 화면 ===== */
-        #screen-path {
-            flex-direction: column;
-        }
-        .path-body {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        .path-intro {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-        .path-intro h2 { font-size: 17px; font-weight: 800; color: #1a1a1a; margin-bottom: 6px; }
-        .path-intro p { font-size: 13px; color: #888; }
-        .path-timeline { display: flex; flex-direction: column; gap: 1px; }
-        .path-entry {
-            display: flex; align-items: stretch; gap: 0;
-            position: relative;
-        }
-        .path-entry-left {
-            display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0;
-        }
+        #screen-path { flex-direction: column; }
+        .path-body { flex: 1; padding: 28px 20px 0; }
+        .path-title { font-size: 17px; font-weight: 800; color: #1a1a1a; text-align: center; margin-bottom: 6px; }
+        .path-sub { font-size: 13px; color: #999; text-align: center; margin-bottom: 28px; }
+        .path-timeline { display: flex; flex-direction: column; }
+        .path-entry { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px; }
         .path-circle {
-            width: 28px; height: 28px; border-radius: 50%;
-            background: #3a70b8; color: #fff; font-size: 11px; font-weight: 800;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+            width: 30px; height: 30px; border-radius: 50%;
+            background: #3a70b8; color: #fff; font-size: 12px; font-weight: 800;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
         }
-        .path-line { flex: 1; width: 2px; background: #e8e8e8; margin: 2px 0; }
-        .path-content { flex: 1; padding: 4px 0 20px 8px; }
-        .path-q-label { font-size: 11px; color: #aaa; font-weight: 600; margin-bottom: 3px; }
-        .path-a-text { font-size: 15px; font-weight: 700; color: #1a1a1a; }
-
+        .path-info {}
+        .path-q-lbl { font-size: 11px; color: #bbb; font-weight: 700; margin-bottom: 3px; }
+        .path-a-txt { font-size: 15px; font-weight: 700; color: #1a1a1a; }
         .btn-confirm {
-            display: block; width: calc(100% - 40px); margin: 0 20px 20px;
+            display: block; margin: 0 20px 24px;
             background: #3a70b8; color: #fff;
             font-size: 15px; font-weight: 700;
-            padding: 16px; border-radius: 4px; border: none; cursor: pointer;
-            font-family: inherit;
+            padding: 16px; border: none; cursor: pointer; font-family: inherit; letter-spacing: -0.3px;
         }
         .btn-confirm:hover { background: #2f5e9e; }
 
         /* ===== 결과 화면 ===== */
-        #screen-result {
-            flex-direction: column;
-            overflow-y: auto;
-        }
-        .result-body { flex: 1; padding: 24px 20px; }
-        .result-intro {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-        .result-intro h2 {
-            font-size: 16px; font-weight: 800; color: #1a1a1a; line-height: 1.5;
-        }
-        .result-product-tag {
-            display: inline-block; margin: 12px auto 6px;
-            font-size: 11px; font-weight: 700; color: #888;
-            text-transform: uppercase; letter-spacing: 0.1em;
-        }
-        .result-product-name {
-            font-size: 26px; font-weight: 900; color: #1a1a1a;
-            margin-bottom: 20px; text-align: center;
-        }
-        .result-features { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
-        .result-feature {
-            display: flex; align-items: flex-start; gap: 10px;
-            font-size: 13px; color: #444; line-height: 1.5;
-        }
-        .feature-check {
-            width: 20px; height: 20px; border-radius: 50%;
-            background: #3a70b8; color: #fff; font-size: 11px;
+        #screen-result { flex-direction: column; overflow-y: auto; }
+        .result-body { flex: 1; padding: 28px 20px; }
+        .result-greeting { font-size: 16px; font-weight: 800; color: #1a1a1a; text-align: center; line-height: 1.6; margin-bottom: 20px; }
+        .result-tag { text-align: center; font-size: 11px; color: #aaa; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+        .result-name { text-align: center; font-size: 28px; font-weight: 900; color: #1a1a1a; margin-bottom: 24px; }
+        .result-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .result-feature { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #444; line-height: 1.5; }
+        .check-circle {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: #3a70b8; color: #fff; font-size: 11px; font-weight: 800;
             display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
         }
-        .color-rec {
-            background: #f8f8f8; border-radius: 8px; padding: 16px;
-            margin-bottom: 24px;
-        }
-        .color-rec-title { font-size: 12px; font-weight: 700; color: #aaa; margin-bottom: 10px; }
+        .color-rec { background: #f7f7f7; padding: 16px; margin-bottom: 24px; }
+        .color-rec-lbl { font-size: 11px; color: #aaa; font-weight: 700; margin-bottom: 10px; }
         .color-chips { display: flex; gap: 8px; align-items: center; }
-        .color-chip {
-            width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-        }
-        .color-chip-label { font-size: 13px; font-weight: 700; color: #333; }
-
-        .btn-store {
-            display: block; width: 100%; margin-bottom: 16px;
-            background: #1a1a1a; color: #fff;
-            font-size: 15px; font-weight: 700;
-            padding: 16px; text-align: center; border-radius: 4px; border: none; cursor: pointer;
-            font-family: inherit; letter-spacing: -0.3px;
-        }
-        .result-nav {
-            padding: 0 20px 24px;
-            display: flex; gap: 10px;
-        }
-        .btn-retry {
-            flex: 1; background: #f0f0f0; color: #555;
-            font-size: 14px; font-weight: 600;
-            padding: 14px; border-radius: 4px; border: none; cursor: pointer;
-            font-family: inherit;
-        }
-
-        /* ===== 응모 폼 ===== */
-        .apply-form {
-            background: #f8f8f8; border-radius: 8px;
-            padding: 20px; margin-bottom: 20px;
-        }
-        .apply-form h3 { font-size: 15px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
-        .apply-form p { font-size: 12px; color: #999; margin-bottom: 16px; }
-        .apply-form input {
+        .color-chip { width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+        .chip-name { font-size: 13px; font-weight: 700; color: #333; }
+        .apply-box { background: #f7f7f7; padding: 20px; margin-bottom: 16px; }
+        .apply-box h3 { font-size: 15px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
+        .apply-box p { font-size: 12px; color: #999; margin-bottom: 14px; }
+        .apply-box input {
             display: block; width: 100%; margin-bottom: 10px;
-            border: 1px solid #ddd; border-radius: 4px;
-            padding: 12px 14px; font-size: 14px; font-family: inherit;
-            background: #fff;
+            border: 1px solid #ddd; padding: 12px 14px;
+            font-size: 14px; font-family: inherit;
         }
-        .apply-form input:focus { outline: none; border-color: #3a70b8; }
+        .apply-box input:focus { outline: none; border-color: #3a70b8; }
         .btn-apply {
             display: block; width: 100%;
-            background: #3a70b8; color: #fff;
-            font-size: 14px; font-weight: 700;
-            padding: 14px; border-radius: 4px; border: none; cursor: pointer;
-            font-family: inherit;
+            background: #3a70b8; color: #fff; font-size: 14px; font-weight: 700;
+            padding: 14px; border: none; cursor: pointer; font-family: inherit;
         }
-        .applied-done {
-            text-align: center; padding: 20px;
-            background: #f0fdf4; border-radius: 8px;
-            color: #16a34a; font-weight: 700; font-size: 15px;
-            margin-bottom: 20px;
+        .applied-ok {
+            text-align: center; padding: 20px; background: #f0fdf4;
+            color: #16a34a; font-weight: 700; font-size: 15px; margin-bottom: 16px;
+        }
+        .btn-store {
+            display: block; width: 100%; margin-bottom: 12px;
+            background: #1a1a1a; color: #fff; font-size: 15px; font-weight: 700;
+            padding: 16px; border: none; cursor: pointer; text-align: center; font-family: inherit;
+        }
+        .btn-retry {
+            display: block; width: 100%; background: #f2f2f2; color: #888;
+            font-size: 14px; font-weight: 600; padding: 14px;
+            border: none; cursor: pointer; font-family: inherit;
         }
     </style>
 </head>
 <body>
 <div class="app">
 
-    <!-- ===== 공통 헤더 ===== -->
-    <div class="header">
-        <button class="hamburger">☰</button>
-        <div class="header-logo">yogibo</div>
-    </div>
-
-    <!-- ===== 시작 화면 ===== -->
+    <!-- 시작 화면 -->
     <div class="screen active" id="screen-start">
         <div class="start-top">
             <div class="start-title">나에게 꼭 맞는 요기보 찾기 TEST</div>
@@ -378,55 +187,47 @@
         <div class="start-card-wrap">
             <div class="start-card" onclick="startQuiz()">
                 <div class="start-btn-text">START</div>
-                <img class="dino-char" src="/web/img/marketing/mate_icon_01.png" alt="요기보 캐릭터">
+                <img class="dino-char" src="/web/img/marketing/mate_icon_01.png" alt="">
             </div>
         </div>
     </div>
 
-    <!-- ===== 퀴즈 화면 ===== -->
+    <!-- 퀴즈 화면 -->
     <div class="screen" id="screen-quiz">
         <div class="quiz-body">
-            <div class="quiz-top-title">
-                나에게 꼭 맞는 요기보 찾기 TEST
-                <small id="quiz-sub-text"></small>
-            </div>
+            <div class="quiz-main-title">나에게 꼭 맞는 요기보 찾기 TEST</div>
+            <div class="quiz-question" id="quiz-question"></div>
             <div class="choices-wrap" id="choices-wrap"></div>
         </div>
         <div class="quiz-nav">
             <button class="nav-btn" id="btn-prev" onclick="goPrev()">＜ 이전</button>
             <div class="progress-dots" id="progress-dots"></div>
-            <button class="nav-btn next" id="btn-next" onclick="goNext()">다음 ＞</button>
+            <button class="nav-btn next-btn" id="btn-next" onclick="goNext()">다음 ＞</button>
         </div>
     </div>
 
-    <!-- ===== 이동경로 확인 화면 ===== -->
+    <!-- 이동경로 확인 -->
     <div class="screen" id="screen-path">
         <div class="path-body">
-            <div class="path-intro">
-                <h2>나에게 꼭 맞는 요기보 찾기 TEST</h2>
-                <p>지금까지 선택한 경로를 확인해 보세요.</p>
-            </div>
+            <div class="path-title">나에게 꼭 맞는 요기보 찾기 TEST</div>
+            <div class="path-sub">선택하신 경로를 확인해 보세요.</div>
             <div class="path-timeline" id="path-timeline"></div>
         </div>
         <button class="btn-confirm" onclick="showResult()">결과 확인하기 →</button>
     </div>
 
-    <!-- ===== 결과 화면 ===== -->
+    <!-- 결과 화면 -->
     <div class="screen" id="screen-result">
         <div class="result-body">
-            <div class="result-intro">
-                <h2>고객님의 라이프스타일과<br>가장 잘 어울리는 요기보를 알려드려요!</h2>
-            </div>
-            <div style="text-align:center">
-                <div class="result-product-tag" id="result-tag">추천 제품</div>
-                <div class="result-product-name" id="result-name">요기보 넥스</div>
-            </div>
+            <div class="result-greeting">고객님의 라이프스타일과<br>가장 잘 어울리는 요기보를 알려드려요!</div>
+            <div class="result-tag" id="result-tag"></div>
+            <div class="result-name" id="result-name"></div>
             <div class="result-features" id="result-features"></div>
             <div class="color-rec" id="color-rec" style="display:none">
-                <div class="color-rec-title">추천 컬러 & 소재</div>
+                <div class="color-rec-lbl">주요 컬러 & 소재</div>
                 <div class="color-chips" id="color-chips"></div>
             </div>
-            <div class="apply-form" id="apply-section">
+            <div class="apply-box" id="apply-box">
                 <h3>🎁 경품 이벤트 응모</h3>
                 <p>정보를 입력하고 경품 추첨에 참여하세요!</p>
                 <input type="text" id="inp-name" placeholder="이름">
@@ -434,88 +235,71 @@
                 <button class="btn-apply" onclick="submitApply()">응모하기</button>
             </div>
             <button class="btn-store">매장에서 직접 체험해보세요 🛋️</button>
-        </div>
-        <div class="result-nav">
             <button class="btn-retry" onclick="restartQuiz()">↺ 테스트 다시 하기</button>
         </div>
     </div>
 
 </div>
-
 <script>
 const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
 
-// =============================================
-// 퀴즈 데이터
-// =============================================
 const STEPS = [
     {
-        id: 'Q1_관심제품',
+        id: 'Q1_선호컬러',
         question: '고객님께서\n선호하시는 컬러를 골라주세요!',
         choices: [
-            { text: '레드 계열', colorClass: 'color-0' },
-            { text: '그린 계열', colorClass: 'color-1' },
-            { text: '블루 계열', colorClass: 'color-2' },
-            { text: '블랙소재', colorClass: 'color-3' },
-        ],
-        nextMap: {
-            '레드 계열': 1, '그린 계열': 1, '블루 계열': 1, '블랙소재': 1
-        }
+            { text: '레드 계열', color: 'c0' },
+            { text: '그린 계열', color: 'c1' },
+            { text: '블루 계열', color: 'c2' },
+            { text: '블랙 / 뉴트럴', color: 'c3' },
+        ]
     },
     {
-        id: 'Q2_빈백타입',
+        id: 'Q2_중요한점',
         question: '요기보와 함께하는 일상을 상상해보세요.\n어떤 점이 중요하신가요?',
-        subText: '(최대 3개까지 가능)',
-        choices: [
-            { text: '나 혼자만 쓸 수 있는 편안함' },
-            { text: '금세 차지하고 고\n오래 사용할 수 있는 내구성' },
-            { text: '우리집 인테리어에 어울리는\n예쁘고 감각적인 디자인' },
-            { text: '가족 모두가 편안하게 쓸 수 있는\n넉넉한 크기' },
-            { text: '이동하기 쉬운 가벼움과 실용성' },
-        ],
+        subText: '(최대 3개 선택 가능)',
         multi: true,
-        next: 2
+        choices: [
+            { text: '나 혼자만 쓸 수 있는 편안함', color: 'c2' },
+            { text: '오래 사용할 수 있는 내구성', color: 'c2' },
+            { text: '인테리어에 어울리는 예쁜 디자인', color: 'c2' },
+            { text: '가족 모두 쓸 수 있는 넉넉한 크기', color: 'c2' },
+            { text: '이동하기 쉬운 가벼움과 실용성', color: 'c2' },
+        ]
     },
     {
         id: 'Q3_사용용도',
         question: '고객님,\n어떤 용도로 요기보를 사용하고 싶으신가요?',
         choices: [
-            { text: 'TV를 보거나 30분 이상 독서' },
-            { text: '낮잠 / 잠깐의 휴식' },
-            { text: '아이/반려동물과 노는 용도' },
-            { text: '공부나 업무를 위해서' },
-            { text: '전신을 편안하게 눕기 위해서' },
-        ],
-        nextMap: {
-            'TV를 보거나 30분 이상 독서': 3,
-            '낮잠 / 잠깐의 휴식': 3,
-            '아이/반려동물과 노는 용도': 3,
-            '공부나 업무를 위해서': 3,
-            '전신을 편안하게 눕기 위해서': 3,
-        }
+            { text: 'TV를 보거나 30분 이상 독서', color: 'c2' },
+            { text: '낮잠 / 잠깐의 휴식', color: 'c2' },
+            { text: '아이 / 반려동물과 함께', color: 'c2' },
+            { text: '공부나 업무를 위해서', color: 'c2' },
+            { text: '전신을 편안하게 눕기 위해', color: 'c2' },
+        ]
     },
     {
-        id: 'Q4_나이대',
+        id: 'Q4_사용연령',
         question: '고객님,\n어떤 연령대를 사용하실 건가요?',
         choices: [
-            { text: '10대 이하' },
-            { text: '20대' },
-            { text: '30대' },
-            { text: '40대' },
-            { text: '50대 이상' },
+            { text: '10대 이하', color: 'c2' },
+            { text: '20대', color: 'c2' },
+            { text: '30대', color: 'c2' },
+            { text: '40대', color: 'c2' },
+            { text: '50대 이상', color: 'c2' },
         ],
-        nextMap: {
-            '10대 이하': 'RESULT_MINI',
-            '20대': 'RESULT_NEXS',
-            '30대': 'RESULT_NEXS',
-            '40대': 'RESULT_NEXS_SUPPORT',
-            '50대 이상': 'RESULT_NEXS_SUPPORT',
+        resultMap: {
+            '10대 이하': 'MINI',
+            '20대': 'NEXS',
+            '30대': 'NEXS',
+            '40대': 'NEXS_SUPPORT',
+            '50대 이상': 'NEXS_SUPPORT',
         }
     },
 ];
 
 const RESULTS = {
-    RESULT_NEXS: {
+    NEXS: {
         tag: '나에게 딱 맞는 빈백 BEST',
         name: '요기보 넥스',
         features: [
@@ -523,21 +307,19 @@ const RESULTS = {
             '독서, 영상 시청, 업무 어디에도 어울리는 밸런스형이에요.',
             '가장 높은 누적 판매량을 기록한 시그니처 제품이에요.',
         ],
-        colorName: '줄라 (Zoola)',
-        colorHex: ['#5b8fa0', '#3e6b85'],
+        colorName: '줄라 (Zoola)', colorHex: ['#5b8fa0', '#3e6b85'],
     },
-    RESULT_NEXS_SUPPORT: {
+    NEXS_SUPPORT: {
         tag: '나에게 딱 맞는 빈백 BEST',
         name: '피라미드 프리미엄 플러스',
         features: [
-            '요기보 빈백BEST 아이템이에요.',
+            '요기보 빈백 BEST 아이템이에요.',
             '직각 모서리도 편안하게 사용할 수 있는 완벽한 허리받침 제공해요.',
-            '가장 높은 내구성과 인체공학적으로 설계되어 오래 앉아서 사용해도 편안해요.',
+            '인체공학적으로 설계되어 오래 앉아도 편안해요.',
         ],
-        colorName: '줄라 (Zoola)',
-        colorHex: ['#5b8fa0', '#3e6b85'],
+        colorName: '줄라 (Zoola)', colorHex: ['#5b8fa0', '#3e6b85'],
     },
-    RESULT_MINI: {
+    MINI: {
         tag: '나에게 딱 맞는 빈백 BEST',
         name: '요기보 미니',
         features: [
@@ -545,239 +327,141 @@ const RESULTS = {
             '밝고 다양한 컬러로 방 꾸미기에도 완벽해요.',
             '가볍고 이동하기 편해서 어디서든 사용하기 좋아요.',
         ],
-        colorName: '선셋 핑크',
-        colorHex: ['#f0a0b0', '#d45070'],
+        colorName: '선셋 핑크', colorHex: ['#f0a0b0', '#d45070'],
     },
 };
 
-// =============================================
-// 상태 변수
-// =============================================
-let sessionId = null;
-let currentStepIdx = 0;
-let stepHistory = []; // 방문한 step 인덱스 히스토리
-let answers = []; // { stepId, answer } 배열
-let selectedChoices = []; // 현재 단계 선택된 텍스트 배열
-let pendingResultKey = null;
+let sessionId = null, answers = [], stepHistory = [], selectedChoices = [], pendingResult = null;
 
-// =============================================
-// 퀴즈 시작
-// =============================================
 async function startQuiz() {
-    answers = [];
-    stepHistory = [];
-    currentStepIdx = 0;
-    pendingResultKey = null;
-
+    answers = []; stepHistory = []; selectedChoices = []; pendingResult = null;
     try {
-        const vid = localStorage.getItem('_yg_vid') || ('guest_' + Date.now());
+        const vid = localStorage.getItem('_yg_vid') || ('g_' + Date.now());
         localStorage.setItem('_yg_vid', vid);
         const r = await fetch(`${API}/api/event/session`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ visitorId: vid, userAgent: navigator.userAgent }), keepalive: true
         });
         const j = await r.json();
-        if (j.success) sessionId = j.sessionId;
-    } catch(e) { sessionId = 'local_' + Date.now(); }
-
+        sessionId = j.success ? j.sessionId : ('l_' + Date.now());
+    } catch(e) { sessionId = 'l_' + Date.now(); }
     showScreen('screen-quiz');
     renderStep(0);
 }
 
-// =============================================
-// 퀴즈 단계 렌더링
-// =============================================
 function renderStep(idx) {
-    currentStepIdx = idx;
-    selectedChoices = [];
     const step = STEPS[idx];
     if (!step) { showPathScreen(); return; }
+    selectedChoices = [];
 
-    // 서브 텍스트
-    document.getElementById('quiz-sub-text').textContent = step.subText || '';
+    const qEl = document.getElementById('quiz-question');
+    qEl.innerHTML = step.question.replace(/\n/g, '<br>') + (step.subText ? `<small>${step.subText}</small>` : '');
 
-    // 질문 (줄바꿈 처리)
-    document.querySelector('.quiz-top-title').innerHTML =
-        '나에게 꼭 맞는 요기보 찾기 TEST' +
-        `<small>${step.question.replace(/\n/g, '<br>')}</small>`;
-
-    // 선택지 렌더
     const wrap = document.getElementById('choices-wrap');
     wrap.innerHTML = '';
     step.choices.forEach((c, ci) => {
-        const item = document.createElement('div');
-        item.className = 'choice-item';
-        const colorClass = c.colorClass || `color-${ci % 6}`;
-        item.innerHTML = `
-            <div class="choice-color ${colorClass}">${c.emoji || ''}</div>
-            <div class="choice-label">${c.text.replace(/\n/g, '<br>')}</div>`;
-        item.onclick = () => toggleChoice(item, c.text, step);
-        wrap.appendChild(item);
+        const el = document.createElement('div');
+        el.className = 'choice-item';
+        el.innerHTML = `<div class="choice-color ${c.color || 'c' + ci}"></div><div class="choice-label">${c.text}</div>`;
+        el.onclick = () => pick(el, c.text, step);
+        wrap.appendChild(el);
     });
 
-    // 진행 점
     const dots = document.getElementById('progress-dots');
-    dots.innerHTML = '';
-    STEPS.forEach((_, i) => {
-        const d = document.createElement('div');
-        d.className = 'dot' + (i === idx ? ' active' : '');
-        dots.appendChild(d);
-    });
+    dots.innerHTML = STEPS.map((_, i) => `<div class="dot${i === idx ? ' active' : ''}"></div>`).join('');
 
-    // 이전 버튼
     document.getElementById('btn-prev').disabled = idx === 0 && stepHistory.length === 0;
     document.getElementById('btn-next').disabled = true;
 }
 
-function toggleChoice(el, text, step) {
+function pick(el, text, step) {
     if (step.multi) {
         el.classList.toggle('selected');
-        if (el.classList.contains('selected')) {
-            selectedChoices.push(text);
-        } else {
-            selectedChoices = selectedChoices.filter(t => t !== text);
-        }
-        document.getElementById('btn-next').disabled = selectedChoices.length === 0;
+        selectedChoices = [...document.querySelectorAll('.choice-item.selected')].map(e => e.querySelector('.choice-label').textContent);
     } else {
-        // 단일 선택
         document.querySelectorAll('.choice-item').forEach(i => i.classList.remove('selected'));
         el.classList.add('selected');
         selectedChoices = [text];
-        document.getElementById('btn-next').disabled = false;
     }
+    document.getElementById('btn-next').disabled = selectedChoices.length === 0;
 }
 
 function goNext() {
-    if (selectedChoices.length === 0) return;
-    const step = STEPS[currentStepIdx];
-    const answerText = selectedChoices.join(', ');
+    if (!selectedChoices.length) return;
+    const idx = STEPS.length - answers.length - 1 < 0 ? STEPS.length - 1 : answers.length;
+    const step = STEPS[idx];
+    const ans = selectedChoices.join(', ');
+    answers.push({ stepId: step.id, answer: ans });
+    stepHistory.push(idx);
+    recordStep(step.id, ans);
 
-    // 기록
-    answers.push({ stepId: step.id, answer: answerText });
-    stepHistory.push(currentStepIdx);
-    recordStep(step.id, answerText);
-
-    // 다음 결정
-    let next;
-    if (step.nextMap) {
-        next = step.nextMap[selectedChoices[0]];
-    } else if (step.next !== undefined) {
-        next = step.next;
-    }
-
-    if (typeof next === 'number') {
-        renderStep(next);
-    } else if (typeof next === 'string' && next.startsWith('RESULT_')) {
-        pendingResultKey = next;
+    if (step.resultMap) {
+        pendingResult = step.resultMap[selectedChoices[0]] || 'NEXS';
         showPathScreen();
+    } else if (idx + 1 < STEPS.length) {
+        renderStep(idx + 1);
     } else {
-        // 마지막 문항이면 경우에 따라 처리
-        if (currentStepIdx + 1 < STEPS.length) {
-            renderStep(currentStepIdx + 1);
-        } else {
-            // 답변 기반 결과 결정 (단순 예시)
-            pendingResultKey = decideResult();
-            showPathScreen();
-        }
+        pendingResult = 'NEXS';
+        showPathScreen();
     }
 }
 
 function goPrev() {
-    if (stepHistory.length > 0) {
-        const prevIdx = stepHistory.pop();
-        answers.pop();
-        renderStep(prevIdx);
-    }
+    if (!stepHistory.length) return;
+    answers.pop();
+    renderStep(stepHistory.pop());
 }
 
-function decideResult() {
-    // 마지막 답변 기반으로 결과 결정
-    const lastAnswer = answers[answers.length - 1];
-    if (!lastAnswer) return 'RESULT_NEXS';
-    const a = lastAnswer.answer;
-    if (a.includes('10대')) return 'RESULT_MINI';
-    if (a.includes('40대') || a.includes('50대')) return 'RESULT_NEXS_SUPPORT';
-    return 'RESULT_NEXS';
-}
-
-// =============================================
-// 경로 화면
-// =============================================
 function showPathScreen() {
-    const tl = document.getElementById('path-timeline');
-    tl.innerHTML = answers.map((a, i) => `
-        <div class="path-entry">
-            <div class="path-entry-left">
-                <div class="path-circle">${i + 1}</div>
-                ${i < answers.length - 1 ? '<div class="path-line"></div>' : ''}
-            </div>
-            <div class="path-content">
-                <div class="path-q-label">${a.stepId.replace('Q', '질문 ').replace('_', ' ')}</div>
-                <div class="path-a-text">${a.answer}</div>
+    document.getElementById('path-timeline').innerHTML = answers.map((a, i) =>
+        `<div class="path-entry">
+            <div class="path-circle">${i + 1}</div>
+            <div class="path-info">
+                <div class="path-q-lbl">${a.stepId.replace('Q', '질문 ').replace('_', ' ')}</div>
+                <div class="path-a-txt">${a.answer}</div>
             </div>
         </div>`).join('');
     showScreen('screen-path');
 }
 
-// =============================================
-// 결과 화면
-// =============================================
 function showResult() {
-    const key = pendingResultKey || 'RESULT_NEXS';
-    const r = RESULTS[key] || RESULTS.RESULT_NEXS;
-
+    const r = RESULTS[pendingResult] || RESULTS.NEXS;
     document.getElementById('result-tag').textContent = r.tag;
     document.getElementById('result-name').textContent = r.name;
     document.getElementById('result-features').innerHTML = r.features.map(f =>
-        `<div class="result-feature">
-            <div class="feature-check">✓</div>
-            <span>${f}</span>
-        </div>`).join('');
-
+        `<div class="result-feature"><div class="check-circle">✓</div><span>${f}</span></div>`).join('');
     if (r.colorName) {
         document.getElementById('color-rec').style.display = 'block';
         document.getElementById('color-chips').innerHTML =
             r.colorHex.map(h => `<div class="color-chip" style="background:${h}"></div>`).join('') +
-            `<span class="color-chip-label">${r.colorName}</span>`;
+            `<span class="chip-name">${r.colorName}</span>`;
     }
-
     showScreen('screen-result');
 }
 
-// =============================================
-// 응모 제출
-// =============================================
 async function submitApply() {
     const name = document.getElementById('inp-name').value.trim();
     const phone = document.getElementById('inp-phone').value.trim();
     if (!name || !phone) { alert('이름과 연락처를 모두 입력해 주세요.'); return; }
     try {
         await fetch(`${API}/api/event/session/${sessionId}/complete`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                finalResult: document.getElementById('result-name').textContent,
-                applicantName: name, applicantPhone: phone
-            }), keepalive: true
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ finalResult: document.getElementById('result-name').textContent, applicantName: name, applicantPhone: phone }),
+            keepalive: true
         });
     } catch(e) {}
-    document.getElementById('apply-section').outerHTML =
-        `<div class="applied-done">🎉 응모 완료!<br><span style="font-size:13px;font-weight:400">${name}님, 당첨을 기대해 주세요!</span></div>`;
+    document.getElementById('apply-box').outerHTML =
+        `<div class="applied-ok">🎉 응모 완료!<br><span style="font-size:13px;font-weight:400">${name}님, 당첨을 기대해 주세요!</span></div>`;
 }
 
-// =============================================
-// 서버 경로 기록
-// =============================================
-function recordStep(question, answer) {
+function recordStep(q, a) {
     if (!sessionId) return;
     fetch(`${API}/api/event/session/${sessionId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, answer }), keepalive: true
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ question: q, answer: a }), keepalive: true
     }).catch(() => {});
 }
 
-// =============================================
-// 화면 전환
-// =============================================
 function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
