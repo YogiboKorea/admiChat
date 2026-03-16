@@ -221,28 +221,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // 백엔드 API 주소 (환경에 맞게 변경)
     const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
 
-    // PC와 모바일 배너 영역의 공통 부모나 각각의 클래스를 모두 선택
-    const visualWrappers = document.querySelectorAll('.visual-wrapper');
-    if (visualWrappers.length === 0) return;
+    const visualArea = document.querySelector('.visual-area');
+    if (!visualArea) return;
 
-    visualWrappers.forEach(function(wrapper) {
-        wrapper.addEventListener('click', async function(e) {
-            const slide = e.target.closest('.swiper-slide');
-            if (!slide) return;
-            
-            const img = slide.querySelector('img');
-            if (!img) return;
+    visualArea.addEventListener('click', async function(e) {
+        const slide = e.target.closest('.swiper-slide');
+        if (!slide) return;
+        
+        const img = slide.querySelector('img');
+        if (!img) return;
 
-            // PC/모바일 영역 구분 (반응형 화면 대응)
+        // PC/모바일 영역 구분 (반응형 화면 대응)
         let deviceType = 'pc';
-        // 1순위: 화면 폭이 768px 이하면 무조건 모바일로 간주
-        if (window.innerWidth <= 768) {
+        // 1순위: 클릭된 노드가 모바일 래퍼(#visual_m) 안에 있으면 모바일
+        if (e.target.closest('#visual_m') !== null) {
             deviceType = 'mobile';
-        } else {
-            // 2순위: 클릭된 노드가 명시적으로 모바일 래퍼(#visual_m) 안에 있으면 모바일로 간주
-            if (e.target.closest('#visual_m') !== null) {
-                deviceType = 'mobile';
-            }
+        } else if (window.innerWidth <= 1200) {
+            // 2순위: 사용자 CSS 분기점(1200px) 기준 모바일로 간주
+            deviceType = 'mobile';
         }
 
         const rect = img.getBoundingClientRect();
