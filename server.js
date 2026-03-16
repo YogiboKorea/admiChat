@@ -3262,6 +3262,43 @@ app.get('/api/track-click/summary', async (req, res) => {
   }
 });
 
+// ========== [추가] 배너 비노출(아카이브) 토글 API ==========
+// POST /api/banner-archive  body: { bannerId, deviceType }
+app.post('/api/banner-archive', async (req, res) => {
+  try {
+    const { bannerId, deviceType } = req.body;
+    if (!bannerId) return res.status(400).json({ success: false, message: 'bannerId 필요' });
+
+    const col = db.collection('bannerArchive');
+    const existing = await col.findOne({ bannerId, deviceType: deviceType || 'pc' });
+
+    if (existing) {
+      // 이미 아카이브된 경우 → 복원
+      await col.deleteOne({ _id: existing._id });
+      res.json({ success: true, archived: false });
+    } else {
+      // 새로 아카이브
+      await col.insertOne({ bannerId, deviceType: deviceType || 'pc', archivedAt: new Date() });
+      res.json({ success: true, archived: true });
+    }
+  } catch (err) {
+    console.error('배너 아카이브 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// GET /api/banner-archive - 아카이브된 배너 목록 조회
+app.get('/api/banner-archive', async (req, res) => {
+  try {
+    const archived = await db.collection('bannerArchive').find({}).toArray();
+    res.json({ success: true, data: archived });
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
+
+
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
