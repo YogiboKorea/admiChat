@@ -3,446 +3,468 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>배너 클릭 히트맵 (관리자 대시보드)</title>
+    <title>배너 클릭 히트맵 대시보드</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
-            background: #f1f5f9; 
-            margin: 0;
-            padding: 20px;
-            color: #334155;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
         }
-        h1 {
-            color: #0f172a;
-            margin-bottom: 5px;
-            text-align: center;
-        }
-        .desc {
-            color: #64748b;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        /* 컨트롤 패널 */
-        .control-panel {
-            max-width: 1200px;
-            margin: 0 auto 20px auto;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+
+        /* 헤더 */
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid #1e3a5f;
+            padding: 20px 30px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
             gap: 15px;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1 span { color: #38bdf8; }
+
+        /* 필터 바 */
+        .filter-bar {
+            background: #1e293b;
+            border-bottom: 1px solid #1e3a5f;
+            padding: 14px 30px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
             flex-wrap: wrap;
         }
-
-        .input-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .input-group label {
-            font-size: 14px;
-            font-weight: 600;
-            color: #475569;
-        }
-
-        .control-panel select, .control-panel input[type="date"] {
-            padding: 10px 15px;
+        .filter-bar label { font-size: 13px; color: #94a3b8; font-weight: 500; }
+        .filter-bar select, .filter-bar input[type="date"] {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 7px 12px;
             border-radius: 8px;
-            border: 1px solid #cbd5e1;
-            font-size: 15px;
-            color: #1e293b;
-            font-weight: 500;
+            font-size: 13px;
+            font-family: inherit;
         }
-        
-        #banner-select {
-            flex-grow: 1;
-            min-width: 250px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
+        .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: #38bdf8; }
+        .divider { width: 1px; height: 28px; background: #334155; }
+        .btn-reset {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 7px 14px;
             border-radius: 8px;
             cursor: pointer;
-            font-weight: bold;
-            font-size: 15px;
+            font-size: 13px;
+            font-family: inherit;
             transition: all 0.2s;
-            white-space: nowrap;
+        }
+        .btn-reset:hover { border-color: #38bdf8; color: #38bdf8; }
+
+        /* 메인 레이아웃 */
+        .main {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            height: calc(100vh - 120px);
+            overflow: hidden;
         }
 
-        .btn-primary { background: #1e293b; color: white; }
-        .btn-primary:hover { background: #0f172a; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .btn-secondary { background: #e2e8f0; color: #475569; }
-        .btn-secondary:hover { background: #cbd5e1; }
-
-        .stat-badge {
-            background: #eff6ff;
-            color: #2563eb;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 14px;
-            display: inline-flex;
+        /* 좌측 패널 - 배너 통계 */
+        .sidebar {
+            background: #1e293b;
+            border-right: 1px solid #1e3a5f;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 16px 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid #1e3a5f;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 6px;
+        }
+        .total-badge {
+            background: #0f172a;
+            color: #38bdf8;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid #1e3a5f;
+        }
+
+        /* 배너 아이템 카드 */
+        .banner-item {
+            padding: 14px 20px;
+            border-bottom: 1px solid #1e3a5f;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .banner-item:hover { background: #243552; }
+        .banner-item.active { background: #1e3a5f; border-left: 3px solid #38bdf8; }
+
+        .banner-item .item-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .banner-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e2e8f0;
+            flex: 1;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
+        .device-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 20px;
+            flex-shrink: 0;
+        }
+        .device-tag.pc { background: #1e3a5f; color: #38bdf8; }
+        .device-tag.mobile { background: #2d1b4e; color: #a78bfa; }
 
-        /* 뷰어 영역 */
-        .viewer-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        .click-count-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .click-bar-bg {
+            flex: 1;
+            height: 5px;
+            background: #0f172a;
+            border-radius: 99px;
+            overflow: hidden;
+        }
+        .click-bar-fill {
+            height: 100%;
+            border-radius: 99px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            transition: width 0.5s ease;
+        }
+        .click-count-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #38bdf8;
+            min-width: 45px;
+            text-align: right;
+        }
+        .loading-text {
+            padding: 40px 20px;
             text-align: center;
-            min-height: 400px;
+            color: #475569;
+            font-size: 14px;
         }
 
-        /* 배너 및 히트맵 표시 영역 */
+        /* 우측 패널 - 히트맵 뷰어 */
+        .viewer {
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .viewer-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #1e3a5f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .viewer-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .viewer-title strong { color: #f1f5f9; }
+        .btn-clear {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #64748b;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-clear:hover { border-color: #ef4444; color: #ef4444; }
+
+        .viewer-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 24px;
+        }
         .banner-wrapper {
             position: relative;
-            display: inline-block; /* 이미지 크기에 맞게 wrapper 축소되도록 */
+            display: inline-block;
             max-width: 100%;
-            overflow: hidden;
-            border-radius: 8px;
-            box-shadow: 0 0 0 1px #e2e8f0;
-            background: #f8fafc;
-            min-height: 200px;
+            max-height: 100%;
         }
-
         .banner-wrapper img {
             display: block;
-            width: 100%;
-            height: auto;
-            max-height: 800px;
+            max-width: 100%;
+            max-height: calc(100vh - 240px);
             object-fit: contain;
+            border-radius: 8px;
         }
-
         .empty-state {
-            padding: 100px 20px;
-            color: #94a3b8;
-            font-size: 16px;
+            text-align: center;
+            color: #475569;
         }
+        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 14px; }
 
-        /* 클릭된 지점 (히트맵 닷) */
+        /* 히트맵 닷 */
         .heatmap-dot {
             position: absolute;
-            width: 25px;
-            height: 25px;
-            background: radial-gradient(circle, rgba(255, 235, 59, 0.9) 0%, rgba(255, 87, 34, 0.7) 40%, rgba(255, 0, 0, 0) 80%);
+            width: 28px;
+            height: 28px;
+            background: radial-gradient(circle, rgba(255, 220, 50, 0.95) 0%, rgba(255, 80, 20, 0.75) 40%, rgba(255, 0, 0, 0) 80%);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 10;
-            mix-blend-mode: multiply;
+            mix-blend-mode: screen;
         }
-        
-        .script-guide {
-            max-width: 1200px;
-            margin: 30px auto;
-            background: #1e293b;
-            color: #f8fafc;
-            padding: 20px;
-            border-radius: 12px;
-            overflow-x: auto;
-            font-size: 14px;
-        }
-        .script-guide summary {
-            font-weight: bold;
-            cursor: pointer;
-            outline: none;
-            font-size: 16px;
+
+        /* 스크롤바 커스텀 */
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        @media (max-width: 900px) {
+            .main { grid-template-columns: 1fr; grid-template-rows: 300px 1fr; height: auto; }
+            .sidebar { height: 300px; }
         }
     </style>
 </head>
 <body>
 
-    <h1>배너 클릭 히트맵 (관리자 대시보드)</h1>
-    <p class="desc">실제 웹사이트 방문자가 클릭한 메인 배너(Alt 기준)의 분포도를 기간/기기별로 확인합니다.</p>
+<div class="header">
+    <h1>🔥 배너 클릭 <span>히트맵</span> 대시보드</h1>
+    <div style="font-size:12px; color:#475569;">실시간 클릭 분포도 분석</div>
+</div>
 
-    <!-- 필터 컨트롤 패널 -->
-    <div class="control-panel">
-        <div class="input-group">
-            <label for="filter-device">기기</label>
-            <select id="filter-device" onchange="fetchSummary()">
-                <option value="all">전체 (PC+Mobile)</option>
-                <option value="pc">PC (웹)</option>
-                <option value="mobile">Mobile (모바일)</option>
-            </select>
-        </div>
-        
-        <div class="input-group">
-            <label for="filter-start-date">조회 기간</label>
-            <input type="date" id="filter-start-date" onchange="fetchSummary()">
-            <span>~</span>
-            <input type="date" id="filter-end-date" onchange="fetchSummary()">
-        </div>
+<div class="filter-bar">
+    <label>기기</label>
+    <select id="filter-device" onchange="fetchSummary()">
+        <option value="all">전체</option>
+        <option value="pc">💻 PC</option>
+        <option value="mobile">📱 모바일</option>
+    </select>
+    <div class="divider"></div>
+    <label>기간</label>
+    <input type="date" id="filter-start" onchange="fetchSummary()">
+    <span style="color:#475569; font-size:13px;">~</span>
+    <input type="date" id="filter-end" onchange="fetchSummary()">
+    <div class="divider"></div>
+    <button class="btn-reset" onclick="resetFilters()">초기화</button>
+</div>
 
-        <button class="btn btn-secondary" onclick="resetFilters()">필터 초기화</button>
+<div class="main">
+    <!-- 좌측: 배너 통계 목록 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            배너별 클릭 통계
+            <span class="total-badge" id="total-badge">총 0건</span>
+        </div>
+        <div id="banner-list">
+            <div class="loading-text">데이터를 불러오는 중...</div>
+        </div>
     </div>
 
-    <!-- 데이터 선택 및 조회 패널 -->
-    <div class="control-panel">
-        <select id="banner-select" onchange="loadHeatmapData()">
-            <option value="">배너 데이터를 불러오는 중...</option>
-        </select>
-        
-        <div class="stat-badge" id="click-count-badge">
-            <span id="badge-device-icon">💻📱</span>
-            누적 클릭: 0회
+    <!-- 우측: 히트맵 뷰어 -->
+    <div class="viewer">
+        <div class="viewer-header">
+            <div class="viewer-title" id="viewer-title">← 좌측에서 배너를 선택하세요</div>
+            <button class="btn-clear" onclick="clearHeatmap()">히트맵 지우기</button>
         </div>
-
-        <button class="btn btn-primary" onclick="loadHeatmapData()">🔥 히트맵 보기</button>
-        <button class="btn btn-secondary" onclick="clearHeatmap()">화면 지우기</button>
-    </div>
-
-    <!-- 화면 표출부 -->
-    <div class="viewer-container">
-        <div class="banner-wrapper" id="banner-wrapper">
-            <div class="empty-state" id="empty-state">
-                👆 상단에서 메뉴를 선택하고 "히트맵 보기"를 클릭해주세요. <br>
-                (배너 클릭 데이터가 수집되면 위 목록에 즉시 표시됩니다.)
+        <div class="viewer-body">
+            <div class="banner-wrapper" id="banner-wrapper">
+                <div class="empty-state">
+                    <div class="icon">🎯</div>
+                    <p>배너를 선택하면 클릭 분포도가 표시됩니다.</p>
+                </div>
             </div>
         </div>
     </div>
-    
-    <!-- 카페24 연동 스크립트 안내 (숨김 기본) -->
-    <details class="script-guide">
-        <summary>👉 카페24 쇼핑몰 연동 스크립트 보기 (클릭)</summary>
-        <pre><code>
-&lt;script&gt;
-document.addEventListener('DOMContentLoaded', function() {
-    // 백엔드 API 주소 (환경에 맞게 변경)
+</div>
+
+<script>
     const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    let summaryData = [];
+    let selectedIndex = -1;
 
-    const visualArea = document.querySelector('.visual-area');
-    if (!visualArea) return;
+    function resetFilters() {
+        document.getElementById('filter-device').value = 'all';
+        document.getElementById('filter-start').value = '';
+        document.getElementById('filter-end').value = '';
+        fetchSummary();
+    }
 
-    visualArea.addEventListener('click', async function(e) {
-        const slide = e.target.closest('.swiper-slide');
-        if (!slide) return;
-        
-        const img = slide.querySelector('img');
-        if (!img) return;
+    async function fetchSummary() {
+        const listEl = document.getElementById('banner-list');
+        listEl.innerHTML = '<div class="loading-text">불러오는 중...</div>';
 
-        // PC/모바일 영역 구분 (반응형 화면 대응)
-        let deviceType = 'pc';
-        // 1순위: 클릭된 노드가 모바일 래퍼(#visual_m) 안에 있으면 모바일
-        if (e.target.closest('#visual_m') !== null) {
-            deviceType = 'mobile';
-        } else if (window.innerWidth <= 1200) {
-            // 2순위: 사용자 CSS 분기점(1200px) 기준 모바일로 간주
-            deviceType = 'mobile';
-        }
-
-        const rect = img.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-
-        const bannerAlt = img.getAttribute('alt') || '이름_없는_배너';
-        let imageUrl = img.getAttribute('src') || '';
-        if (imageUrl.startsWith('/')) {
-            imageUrl = window.location.origin + imageUrl; // 상대 경로를 절대 경로로 변경 (어드민 볼 때 엑스박스 방지)
-        }
-        
-        const linkElem = slide.querySelector('a');
-        const linkUrl = linkElem ? linkElem.getAttribute('href') : window.location.href;
-
-        const clickData = {
-            bannerId: bannerAlt,       
-            imageUrl: imageUrl,        
-            url: linkUrl,
-            deviceType: deviceType,
-            x: Math.round(x),
-            y: Math.round(y),
-            screenWidth: rect.width,
-            screenHeight: rect.height
-        };
+        const params = new URLSearchParams();
+        const dev = document.getElementById('filter-device').value;
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        if (dev !== 'all') params.append('deviceType', dev);
+        if (start) params.append('startDate', start);
+        if (end) params.append('endDate', end);
 
         try {
-            fetch(`${API_BASE_URL}/api/track-click`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(clickData)
+            const res = await fetch(`${API_BASE_URL}/api/track-click/summary?${params}`);
+            const json = await res.json();
+
+            if (!json.success || json.data.length === 0) {
+                listEl.innerHTML = '<div class="loading-text">조건에 맞는 데이터가 없습니다.</div>';
+                document.getElementById('total-badge').textContent = '총 0건';
+                summaryData = [];
+                return;
+            }
+
+            summaryData = json.data;
+            const totalClicks = summaryData.reduce((s, i) => s + i.clickCount, 0);
+            const maxClicks = Math.max(...summaryData.map(i => i.clickCount));
+            document.getElementById('total-badge').textContent = `총 ${totalClicks.toLocaleString()}건`;
+
+            listEl.innerHTML = '';
+            summaryData.forEach((item, idx) => {
+                let name = item.bannerId || item._id || '알 수 없음';
+                try { name = decodeURIComponent(name); } catch(e) {}
+                const devType = item.deviceType || 'pc';
+                const pct = maxClicks > 0 ? Math.round((item.clickCount / maxClicks) * 100) : 0;
+
+                const div = document.createElement('div');
+                div.className = 'banner-item';
+                div.dataset.index = idx;
+                div.innerHTML = `
+                    <div class="item-header">
+                        <span class="banner-name" title="${name}">${name}</span>
+                        <span class="device-tag ${devType}">${devType === 'mobile' ? '📱 모바일' : '💻 PC'}</span>
+                    </div>
+                    <div class="click-count-row">
+                        <div class="click-bar-bg">
+                            <div class="click-bar-fill" style="width:${pct}%"></div>
+                        </div>
+                        <span class="click-count-label">${item.clickCount.toLocaleString()}회</span>
+                    </div>`;
+                div.addEventListener('click', () => selectBanner(idx));
+                listEl.appendChild(div);
             });
-        } catch(err) { console.error('히트맵 통신 오류', err); }
+
+            // 첫 번째 자동 선택
+            if (summaryData.length > 0) selectBanner(0);
+
+        } catch(err) {
+            listEl.innerHTML = '<div class="loading-text">통신 오류가 발생했습니다.</div>';
+        }
+    }
+
+    function selectBanner(idx) {
+        // 이전 선택 해제
+        document.querySelectorAll('.banner-item').forEach(el => el.classList.remove('active'));
+        const el = document.querySelector(`.banner-item[data-index="${idx}"]`);
+        if (el) el.classList.add('active');
+        selectedIndex = idx;
+        loadHeatmap(idx);
+    }
+
+    async function loadHeatmap(idx) {
+        const item = summaryData[idx];
+        if (!item) return;
+
+        const bannerId = item.bannerId || item._id;
+        const devType = item.deviceType || 'pc';
+        let name = bannerId;
+        try { name = decodeURIComponent(bannerId); } catch(e) {}
+
+        // 제목 업데이트
+        document.getElementById('viewer-title').innerHTML =
+            `<strong>${name}</strong> · ${devType === 'mobile' ? '📱 모바일' : '💻 PC'} · <span style="color:#38bdf8">${item.clickCount}회 클릭</span>`;
+
+        // 이미지 세팅
+        const wrapper = document.getElementById('banner-wrapper');
+        clearHeatmapDots();
+        wrapper.innerHTML = ''; // 초기화
+
+        const imgEl = document.createElement('img');
+        imgEl.src = item.imageUrl || '';
+        imgEl.alt = name;
+        imgEl.onerror = () => { imgEl.style.display='none'; };
+        wrapper.appendChild(imgEl);
+
+        // 좌표 데이터 로드
+        const params = new URLSearchParams({ bannerId, deviceType: devType });
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        if (start) params.append('startDate', start);
+        if (end) params.append('endDate', end);
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/track-click?${params}`);
+            const json = await res.json();
+            if (json.success && json.data.length > 0) {
+                imgEl.onload = () => drawDots(json.data, imgEl, wrapper);
+                if (imgEl.complete) drawDots(json.data, imgEl, wrapper);
+            }
+        } catch(e) {}
+    }
+
+    function drawDots(clicks, imgEl, wrapper) {
+        clearHeatmapDots();
+        const W = imgEl.clientWidth;
+        const H = imgEl.clientHeight;
+        clicks.forEach(c => {
+            if (!c.coordinates || !c.screenSize) return;
+            const x = (c.coordinates.x / c.screenSize.width) * W;
+            const y = (c.coordinates.y / c.screenSize.height) * H;
+            const dot = document.createElement('div');
+            dot.className = 'heatmap-dot';
+            dot.style.left = `${x}px`;
+            dot.style.top = `${y}px`;
+            wrapper.appendChild(dot);
         });
-    });
-});
-&lt;/script&gt;
-        </code></pre>
-    </details>
+    }
 
-    <script>
-        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-        let summaryData = [];
+    function clearHeatmapDots() {
+        document.querySelectorAll('.heatmap-dot').forEach(d => d.remove());
+    }
 
-        // 필터 초기화
-        function resetFilters() {
-            document.getElementById('filter-device').value = 'all';
-            document.getElementById('filter-start-date').value = '';
-            document.getElementById('filter-end-date').value = '';
-            fetchSummary();
-        }
+    function clearHeatmap() {
+        clearHeatmapDots();
+        const wrapper = document.getElementById('banner-wrapper');
+        const img = wrapper.querySelector('img');
+        if (img) img.src = '';
+    }
 
-        // 1. 페이지 로드 시 & 필터 변경 시 목록 가져오기
-        async function fetchSummary() {
-            const selectEl = document.getElementById('banner-select');
-            
-            // 필터 파라미터 수집
-            const deviceType = document.getElementById('filter-device').value;
-            const startDate = document.getElementById('filter-start-date').value;
-            const endDate = document.getElementById('filter-end-date').value;
-            
-            let queryParams = new URLSearchParams();
-            if (deviceType !== 'all') queryParams.append('deviceType', deviceType);
-            if (startDate) queryParams.append('startDate', startDate);
-            if (endDate) queryParams.append('endDate', endDate);
-
-            selectEl.innerHTML = '<option value="">데이터 불러오는 중...</option>';
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/track-click/summary?${queryParams.toString()}`);
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    summaryData = result.data;
-                    selectEl.innerHTML = ''; 
-                    
-                    summaryData.forEach((item, index) => {
-                        const option = document.createElement('option');
-                        // 값으로 인덱스를 사용하여 bannerId와 deviceType 쌍을 쉽게 찾도록 함
-                        option.value = index; 
-                        
-                        let actualBannerId = item.bannerId || item._id; // 신/구버전 API 호환
-                        let displayName = actualBannerId;
-                        try { displayName = decodeURIComponent(actualBannerId); } catch(e) {}
-                        
-                        const typeLabel = item.deviceType === 'mobile' ? '📱 모바일' : '💻 PC';
-                        option.textContent = `[${typeLabel}] ${displayName} (클릭 ${item.clickCount}건)`;
-                        selectEl.appendChild(option);
-                    });
-
-                    // 데이터가 로드되면 가장 첫 번째 배너를 자동으로 그려줌
-                    if(summaryData.length > 0) {
-                        loadHeatmapData(); 
-                    }
-
-                } else {
-                    selectEl.innerHTML = '<option value="">조건에 맞는 배너 데이터가 없습니다.</option>';
-                    clearHeatmap();
-                }
-            } catch (error) {
-                console.error("통계 로드 에러:", error);
-                selectEl.innerHTML = '<option value="">통신 오류 발생</option>';
-            }
-        }
-
-        // 2. 히트맵 데이터 로드 및 그리기
-        async function loadHeatmapData() {
-            const selectEl = document.getElementById('banner-select');
-            const dataIndex = selectEl.value;
-            
-            if (dataIndex === "") return;
-
-            const bannerInfo = summaryData[dataIndex];
-            if (!bannerInfo) return;
-
-            const wrapper = document.getElementById('banner-wrapper');
-            const emptyState = document.getElementById('empty-state');
-            const clickBadge = document.getElementById('click-count-badge');
-
-            clearHeatmapDots();
-            if (emptyState) emptyState.style.display = 'none';
-            
-            const icon = bannerInfo.deviceType === 'mobile' ? '📱' : '💻';
-            document.getElementById('badge-device-icon').textContent = icon;
-            clickBadge.lastChild.textContent = ` 누적 클릭: ${bannerInfo.clickCount}회`;
-
-            // 배경 이미지 세팅
-            let imgEl = document.getElementById('heatmap-bg-img');
-            if (!imgEl) {
-                imgEl = document.createElement('img');
-                imgEl.id = 'heatmap-bg-img';
-                wrapper.appendChild(imgEl);
-            }
-            imgEl.src = bannerInfo.imageUrl || ''; 
-            imgEl.alt = bannerInfo.bannerId;
-
-            // 상세 데이터 조회를 위한 파라미터 (디바이스, 날짜 필터 유지)
-            let queryParams = new URLSearchParams();
-            queryParams.append('bannerId', bannerInfo.bannerId);
-            queryParams.append('deviceType', bannerInfo.deviceType);
-            
-            const startDate = document.getElementById('filter-start-date').value;
-            const endDate = document.getElementById('filter-end-date').value;
-            if (startDate) queryParams.append('startDate', startDate);
-            if (endDate) queryParams.append('endDate', endDate);
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/track-click?${queryParams.toString()}`);
-                const result = await response.json();
-                
-                if (result.success && result.data) {
-                    imgEl.onload = () => drawHeatmap(result.data, imgEl, wrapper);
-                    if (imgEl.complete) {
-                        drawHeatmap(result.data, imgEl, wrapper);
-                    }
-                }
-            } catch (error) {
-                console.error("히트맵 로드 오류", error);
-            }
-        }
-
-        function drawHeatmap(clicks, imgEl, wrapper) {
-            clearHeatmapDots();
-            const renderedWidth = imgEl.clientWidth;
-            const renderedHeight = imgEl.clientHeight;
-
-            clicks.forEach(click => {
-                if (!click.coordinates || !click.screenSize) return;
-
-                const { x, y } = click.coordinates;
-                const { width, height } = click.screenSize; 
-                
-                const adjustedX = (x / width) * renderedWidth;
-                const adjustedY = (y / height) * renderedHeight;
-
-                const dot = document.createElement('div');
-                dot.className = 'heatmap-dot';
-                dot.style.left = `${adjustedX}px`;
-                dot.style.top = `${adjustedY}px`;
-                wrapper.appendChild(dot);
-            });
-        }
-
-        function clearHeatmapDots() {
-            const dots = document.querySelectorAll('.heatmap-dot');
-            dots.forEach(d => d.remove());
-        }
-
-        function clearHeatmap() {
-            clearHeatmapDots();
-            const wrapper = document.getElementById('banner-wrapper');
-            const imgEl = document.getElementById('heatmap-bg-img');
-            const emptyState = document.getElementById('empty-state');
-            if (imgEl) imgEl.src = '';
-            if (emptyState) emptyState.style.display = 'block';
-            document.getElementById('click-count-badge').lastChild.textContent = ' 누적 클릭: 0회';
-        }
-
-        // 초기 실행: 페이지 열릴 때 데이터 로드
-        window.addEventListener('DOMContentLoaded', () => {
-            fetchSummary();
-        });
-    </script>
+    window.addEventListener('DOMContentLoaded', fetchSummary);
+</script>
 </body>
 </html>
