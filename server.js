@@ -2898,6 +2898,7 @@ ${prompt}
 // ─── 2. 새 게시글 생성 API (직접 작성 + AI 작성 공용) ───
 app.post('/api/yogibo-jp-news', async (req, res) => {
   try {
+    console.log('📥 [새 게시글] req.body:', JSON.stringify(req.body).substring(0, 200));
     const { title, content, status, thumbnail } = req.body;
 
     if (!title || !content) {
