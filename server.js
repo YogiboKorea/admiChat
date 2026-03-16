@@ -2743,6 +2743,222 @@ app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
 
 
 
+
+// =================================================================
+// 🆕 뉴스레터 직접 작성 & AI 생성 기능 추가 모듈
+// =================================================================
+// 기존 server.js에 아래 코드를 추가하세요.
+// 필요 패키지: npm install anthropic (또는 기존 fetch 사용)
+
+// ─── 환경변수 ────────────────────────────────────────────
+// .env 파일에 추가:
+// ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+const Anthropic = require('@anthropic-ai/sdk'); // 또는 fetch로 직접 호출
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+
+// ─── 1. 새 게시글 생성 API ──────────────────────────────
+// POST /api/yogibo-jp-news
+app.post('/api/yogibo-jp-news', async (req, res) => {
+  try {
+    const { title, content, status, thumbnail } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '제목과 내용은 필수입니다.' 
+      });
+    }
+
+    const collection = db.collection('yogiboJPnews');
+
+    const newPost = {
+      title,
+      content,
+      status: status || 'draft',
+      thumbnail: thumbnail || null,
+      pubDate: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      views: 0,
+      source: 'manual', // 수동 작성 구분용 (RSS 동기화 = 'rss')
+    };
+
+    const result = await collection.insertOne(newPost);
+
+    res.json({ 
+      success: true, 
+      message: '새 게시글이 생성되었습니다.',
+      data: { 
+        _id: result.insertedId, 
+        ...newPost 
+      }
+    });
+
+  } catch (error) {
+    console.error('게시글 생성 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+
+// ─── 2. AI 뉴스레터 생성 API ────────────────────────────
+// POST /api/yogibo-jp-news/generate
+// body: { prompt, images (base64 배열), style }
+app.post('/api/yogibo-jp-news/generate', async (req, res) => {
+  try {
+    const { prompt, images, style } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '프롬프트를 입력해주세요.' 
+      });
+    }
+
+    // Claude API 메시지 구성
+    const messageContent = [];
+
+    // 이미지가 있으면 먼저 추가
+    if (images && images.length > 0) {
+      for (const img of images) {
+        messageContent.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mediaType || 'image/jpeg',
+            data: img.data, // base64 문자열 (data:image/... 프리픽스 제거된 순수 base64)
+          }
+        });
+      }
+    }
+
+    // 스타일 가이드 매핑
+    const styleGuides = {
+      'product-launch': '신제품 출시 소식을 전하는 톤. 기대감과 혜택을 강조하며, 구매 전환을 유도하는 CTA를 포함.',
+      'event-promo': '이벤트/프로모션 안내 톤. 긴급성과 혜택을 부각하며, 참여 방법을 명확히 안내.',
+      'brand-story': '브랜드 스토리텔링 톤. 감성적이고 공감을 유도하며, 요기보의 라이프스타일 가치를 전달.',
+      'collab': '콜라보/한정판 소식 톤. 희소성과 특별함을 강조하며, 팬심을 자극.',
+      'tips-guide': '생활 팁/가이드 톤. 실용적이고 친근하며, 요기보 제품 활용법을 자연스럽게 연결.',
+    };
+
+    const selectedStyle = styleGuides[style] || '요기보 브랜드 톤에 맞는 따뜻하고 친근한 뉴스레터.';
+
+    // 프롬프트 구성
+    messageContent.push({
+      type: 'text',
+      text: `당신은 요기보(Yogibo) 한국 공식 뉴스레터 에디터입니다.
+
+## 작성 규칙
+1. 한국어로 작성합니다.
+2. HTML 형식으로 출력합니다. (<html>, <head>, <body> 태그는 제외하고 본문 콘텐츠만)
+3. 인라인 스타일을 사용합니다. (이메일 호환성)
+4. 이미지가 첨부된 경우, 이미지를 분석하여 콘텐츠에 자연스럽게 반영합니다.
+5. 요기보 브랜드 컬러: 메인 레드(#E8001C), 네이비(#1e293b)
+6. 모바일 친화적인 단일 컬럼 레이아웃 (max-width: 600px)
+7. 첨부된 이미지의 URL은 알 수 없으므로, 이미지 위치에 [IMAGE_PLACEHOLDER_1], [IMAGE_PLACEHOLDER_2] 등의 플레이스홀더를 넣어주세요.
+
+## 스타일 가이드
+${selectedStyle}
+
+## 사용자 요청
+${prompt}
+
+위 요청을 바탕으로 뉴스레터 HTML 콘텐츠를 생성해주세요.
+제목(title)과 본문(content)을 JSON 형식으로 반환해주세요:
+{"title": "뉴스레터 제목", "content": "<div>...HTML 본문...</div>"}`
+    });
+
+    console.log('🤖 AI 뉴스레터 생성 요청...');
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: messageContent }],
+    });
+
+    // 응답 파싱
+    const responseText = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
+
+    // JSON 추출 (```json ... ``` 감싸져 있을 수 있음)
+    let parsed;
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*"title"[\s\S]*"content"[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('JSON 형식 추출 실패');
+      }
+    } catch (parseErr) {
+      // JSON 파싱 실패 시 전체 텍스트를 content로 사용
+      console.warn('JSON 파싱 실패, 전체 텍스트 사용:', parseErr.message);
+      parsed = {
+        title: '새 뉴스레터',
+        content: responseText
+      };
+    }
+
+    console.log('✅ AI 뉴스레터 생성 완료:', parsed.title);
+
+    res.json({
+      success: true,
+      title: parsed.title,
+      content: parsed.content,
+    });
+
+  } catch (error) {
+    console.error('❌ AI 생성 에러:', error);
+    
+    // API 키 미설정 에러
+    if (error.message?.includes('API key')) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'AI API 키가 설정되지 않았습니다. 서버 환경변수를 확인하세요.' 
+      });
+    }
+
+    res.status(500).json({ 
+      success: false, 
+      message: 'AI 콘텐츠 생성 중 오류가 발생했습니다.' 
+    });
+  }
+});
+
+
+// ─── 3. 게시글 삭제 API (직접 작성한 글 삭제용) ─────────
+// DELETE /api/yogibo-jp-news/:id
+app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let queryId;
+    if (ObjectId.isValid(id)) {
+      queryId = new ObjectId(id);
+    } else {
+      return res.status(400).json({ success: false, message: '잘못된 ID 형식입니다.' });
+    }
+
+    const collection = db.collection('yogiboJPnews');
+    const result = await collection.deleteOne({ _id: queryId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: '게시글을 찾을 수 없습니다.' });
+    }
+
+    res.json({ success: true, message: '게시글이 삭제되었습니다.' });
+
+  } catch (error) {
+    console.error('게시글 삭제 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
