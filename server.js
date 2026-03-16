@@ -2943,6 +2943,48 @@ app.delete('/api/yogibo-jp-news/:id', async (req, res) => {
   }
 });
 
+
+// ─── 뉴스레터 본문 이미지 FTP 업로드 ─────────────────
+app.post('/api/yogibo-jp-news/upload-image', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
+
+    const processedBuffer = await sharp(req.file.buffer)
+      .resize(800, null, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const randomHex = crypto.randomBytes(6).toString('hex');
+    const filename = `newsletter-${Date.now()}-${randomHex}.webp`;
+
+    const client = new ftp.Client();
+    client.ftp.verbose = false;
+    try {
+      await client.access({
+        host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
+        port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
+        user: process.env.FTP_USER,
+        password: process.env.FTP_PASS,
+        secure: 'explicit',
+      });
+      await client.ensureDir('web/img/news');
+      const stream = Readable.from(processedBuffer);
+      await client.uploadFrom(stream, filename);
+      console.log('📸 뉴스레터 이미지 업로드 성공:', filename);
+    } finally {
+      client.close();
+    }
+
+    const publicUrl = `https://yogibo.cafe24.com/web/img/news/${filename}`;
+    return res.json({ success: true, url: publicUrl });
+
+  } catch (err) {
+    console.error('[Image Upload Error]', err);
+    return res.status(500).json({ success: false, message: err.message || '이미지 업로드 실패' });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
