@@ -233,9 +233,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const img = slide.querySelector('img');
             if (!img) return;
 
-            // PC/모바일 영역 구분 (wrapper의 id로 판별)
-            const isDesktop = wrapper.id === 'visual_w';
-            const deviceType = isDesktop ? 'pc' : 'mobile';
+            // PC/모바일 영역 구분 (반응형 화면 대응)
+        let deviceType = 'pc';
+        // 1순위: 화면 폭이 768px 이하면 무조건 모바일로 간주
+        if (window.innerWidth <= 768) {
+            deviceType = 'mobile';
+        } else {
+            // 2순위: 클릭된 노드가 명시적으로 모바일 래퍼(#visual_m) 안에 있으면 모바일로 간주
+            if (e.target.closest('#visual_m') !== null) {
+                deviceType = 'mobile';
+            }
+        }
 
         const rect = img.getBoundingClientRect();
         const x = e.clientX - rect.left;
