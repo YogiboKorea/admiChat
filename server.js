@@ -3184,7 +3184,7 @@ app.get('/api/track-click', async (req, res) => {
     const { bannerId, deviceType, startDate, endDate } = req.query;
     const query = {};
     if (bannerId) query.bannerId = bannerId;
-    
+
     // 디바이스 필터: deviceType 필드가 없는 구버전 데이터도 올바르게 처리
     if (deviceType && deviceType !== 'all') {
       if (deviceType === 'pc') {
@@ -3194,7 +3194,7 @@ app.get('/api/track-click', async (req, res) => {
         query.deviceType = deviceType; // mobile 등 명확한 값만 필터
       }
     }
-    
+
     // 날짜 기간 필터링
     if (startDate || endDate) {
       query.timestamp = {};
@@ -3215,7 +3215,7 @@ app.get('/api/track-click/summary', async (req, res) => {
   try {
     const { startDate, endDate, deviceType } = req.query;
     const matchStage = {};
-    
+
     // 디바이스 필터: deviceType 필드가 없는 구버전 데이터도 올바르게 처리
     if (deviceType && deviceType !== 'all') {
       if (deviceType === 'pc') {
@@ -3225,7 +3225,7 @@ app.get('/api/track-click/summary', async (req, res) => {
         matchStage.deviceType = deviceType; // mobile 등 명확한 값만 필터
       }
     }
-    
+
     // 날짜 필터
     if (startDate || endDate) {
       matchStage.timestamp = {};
@@ -3238,21 +3238,21 @@ app.get('/api/track-click/summary', async (req, res) => {
 
     pipeline.push(
       { $sort: { timestamp: -1 } },
-      { 
-        $group: { 
+      {
+        $group: {
           // 배너ID와 기기별로 각각 그룹화하여 표시합니다
-          _id: { bannerId: "$bannerId", deviceType: "$deviceType" }, 
-          imageUrl: { $first: "$imageUrl" }, 
+          _id: { bannerId: "$bannerId", deviceType: "$deviceType" },
+          imageUrl: { $first: "$imageUrl" },
           screenWidth: { $first: "$screenSize.width" },
           screenHeight: { $first: "$screenSize.height" },
-          clickCount: { $sum: 1 } 
-        } 
+          clickCount: { $sum: 1 }
+        }
       },
       { $sort: { clickCount: -1 } }
     );
-    
+
     const summary = await db.collection('bannerClicks').aggregate(pipeline).toArray();
-    
+
     // 프론트엔드에서 쓰기 쉽도록 데이터 평탄화 (Flatten)
     const formattedSummary = summary.map(item => ({
       bannerId: item._id.bannerId,
@@ -3313,7 +3313,7 @@ app.get('/api/ip-exclude', async (req, res) => {
   try {
     const list = await db.collection('ipExcludes').find({}).toArray();
     res.json({ success: true, data: list });
-  } catch(err) { res.status(500).json({ success: false }); }
+  } catch (err) { res.status(500).json({ success: false }); }
 });
 
 // POST: IP 제외 등록
@@ -3325,7 +3325,7 @@ app.post('/api/ip-exclude', async (req, res) => {
     if (exists) return res.json({ success: false, message: '이미 등록된 IP입니다.' });
     await db.collection('ipExcludes').insertOne({ ip, label: label || '', createdAt: new Date() });
     res.json({ success: true });
-  } catch(err) { res.status(500).json({ success: false }); }
+  } catch (err) { res.status(500).json({ success: false }); }
 });
 
 // DELETE: IP 제외 해제
@@ -3334,13 +3334,76 @@ app.delete('/api/ip-exclude/:ip', async (req, res) => {
     const ip = decodeURIComponent(req.params.ip);
     await db.collection('ipExcludes').deleteOne({ ip });
     res.json({ success: true });
-  } catch(err) { res.status(500).json({ success: false }); }
+  } catch (err) { res.status(500).json({ success: false }); }
 });
 
 // 현재 접속 IP 확인용
 app.get('/api/my-ip', (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
   res.json({ success: true, ip });
+});
+
+
+
+
+
+// ========== [추가] 이벤트 퀴즈 세션 API ==========
+const { v4: uuidv4 } = require('uuid');
+
+// POST /api/event/session - 새 세션 시작
+app.post('/api/event/session', async (req, res) => {
+  try {
+    const { visitorId, userAgent } = req.body;
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+    const sessionId = uuidv4();
+    await db.collection('eventSessions').insertOne({
+      sessionId, visitorId: visitorId || 'unknown', ip, userAgent: userAgent || '',
+      path: [], finalResult: null, applicantName: null, applicantPhone: null,
+      startedAt: new Date(), completedAt: null
+    });
+    res.json({ success: true, sessionId });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// PATCH /api/event/session/:id - 경로(답변) 추가
+app.patch('/api/event/session/:id', async (req, res) => {
+  try {
+    const { question, answer } = req.body;
+    await db.collection('eventSessions').updateOne(
+      { sessionId: req.params.id },
+      { $push: { path: { question, answer, timestamp: new Date() } } }
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// POST /api/event/session/:id/complete - 최종결과 + 응모정보 저장
+app.post('/api/event/session/:id/complete', async (req, res) => {
+  try {
+    const { finalResult, applicantName, applicantPhone } = req.body;
+    await db.collection('eventSessions').updateOne(
+      { sessionId: req.params.id },
+      { $set: { finalResult, applicantName: applicantName || '', applicantPhone: applicantPhone || '', completedAt: new Date() } }
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// GET /api/event/session/:id - 단일 세션 조회
+app.get('/api/event/session/:id', async (req, res) => {
+  try {
+    const session = await db.collection('eventSessions').findOne({ sessionId: req.params.id });
+    if (!session) return res.status(404).json({ success: false });
+    res.json({ success: true, data: session });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// GET /api/event/sessions - 전체 세션 목록 (관리자)
+app.get('/api/event/sessions', async (req, res) => {
+  try {
+    const list = await db.collection('eventSessions').find({}).sort({ startedAt: -1 }).limit(200).toArray();
+    res.json({ success: true, data: list });
+  } catch (err) { res.status(500).json({ success: false }); }
 });
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
