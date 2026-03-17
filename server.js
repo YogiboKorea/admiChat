@@ -2328,35 +2328,38 @@ app.get('/api/ping', (req, res) => {
 let newsCache = null;
 let newsCacheTime = 0;
 const NEWS_CACHE_TTL = 5 * 60 * 1000; // 5분 유지
-
-// 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
+// 3. API - 뉴스레터 목록 불러오기 (페이징 및 서버 필터링 적용)
 app.get('/api/yogibo-jp-news', async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, source, limit, offset } = req.query;
+    const query = {};
 
-    // 프론트엔드에서 '발행됨(published)' 상태만 요청했을 때 서버 메모리 캐시 적극 활용
-    if (status === 'published') {
-      if (newsCache && (Date.now() - newsCacheTime < NEWS_CACHE_TTL)) {
-        console.log('⚡ 서버 메모리 캐시에서 뉴스레터 즉시 반환 (DB 패스)');
-        return res.json({ success: true, data: newsCache });
-      }
-    }
+    // 탭 필터링 조건 설정
+    if (status && status !== 'all') query.status = status;
+    if (source === 'rss') query.source = { $ne: 'manual' };
+    if (source === 'manual') query.source = 'manual';
 
-    const query = status ? { status } : {};
-    
-    // DB에서 최신 데이터 조회
-    const newsList = await db.collection('yogiboJPnews')
-      .find(query)
-      .sort({ pubDate: -1 }) // 최신 발행일 순
-      .toArray();
+    const collection = db.collection('yogiboJPnews');
 
-    // published 데이터를 요청한 경우 5분간 서버 RAM에 기억시킴
-    if (status === 'published') {
-      newsCache = newsList;
-      newsCacheTime = Date.now();
-    }
+    // 현재 탭에 해당하는 전체 게시물 수
+    const totalCount = await collection.countDocuments(query);
 
-    res.json({ success: true, data: newsList });
+    // 데이터 조회 (limit과 offset으로 잘라서 가져오기)
+    let cursor = collection.find(query).sort({ position: 1, pubDate: -1 });
+    if (offset) cursor = cursor.skip(Number(offset));
+    if (limit) cursor = cursor.limit(Number(limit));
+    const newsList = await cursor.toArray();
+
+    // 관리자 화면 좌측 뱃지를 위한 전체 요약 카운트
+    const counts = {
+      all: await collection.countDocuments(),
+      published: await collection.countDocuments({ status: 'published' }),
+      draft: await collection.countDocuments({ status: 'draft' }),
+      rss: await collection.countDocuments({ source: { $ne: 'manual' } }),
+      manual: await collection.countDocuments({ source: 'manual' })
+    };
+
+    res.json({ success: true, data: newsList, totalCount, counts });
   } catch (error) {
     console.error('뉴스레터 조회 에러:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
