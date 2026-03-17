@@ -2319,6 +2319,50 @@ app.get('/api/yogibo/test-result/download', async (req, res) => {
 // 🇯🇵 요기보 일본 뉴스레터 자동화 모듈 (스케줄러 & API)
 // =================================================================
 
+// ========== [추가] 서버 수면(Sleep) 방지용 Ping 라우터 ==========
+app.get('/api/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
+// ========== [추가] 노드 서버 메모리 캐시 변수 ==========
+let newsCache = null;
+let newsCacheTime = 0;
+const NEWS_CACHE_TTL = 5 * 60 * 1000; // 5분 유지
+
+// 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
+app.get('/api/yogibo-jp-news', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // 프론트엔드에서 '발행됨(published)' 상태만 요청했을 때 서버 메모리 캐시 적극 활용
+    if (status === 'published') {
+      if (newsCache && (Date.now() - newsCacheTime < NEWS_CACHE_TTL)) {
+        console.log('⚡ 서버 메모리 캐시에서 뉴스레터 즉시 반환 (DB 패스)');
+        return res.json({ success: true, data: newsCache });
+      }
+    }
+
+    const query = status ? { status } : {};
+    
+    // DB에서 최신 데이터 조회
+    const newsList = await db.collection('yogiboJPnews')
+      .find(query)
+      .sort({ pubDate: -1 }) // 최신 발행일 순
+      .toArray();
+
+    // published 데이터를 요청한 경우 5분간 서버 RAM에 기억시킴
+    if (status === 'published') {
+      newsCache = newsList;
+      newsCacheTime = Date.now();
+    }
+
+    res.json({ success: true, data: newsList });
+  } catch (error) {
+    console.error('뉴스레터 조회 에러:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
 // 1. 피드 파싱 및 DB 자동 저장 로직 (Upsert 방식 - 중복 방지 완벽 적용)
 async function fetchAndSaveYogiboJPNews() {
   if (!db) {
