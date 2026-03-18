@@ -2355,9 +2355,12 @@ app.get('/api/yogibo-jp-news', async (req, res) => {
       all: await collection.countDocuments(),
       published: await collection.countDocuments({ status: 'published' }),
       draft: await collection.countDocuments({ status: 'draft' }),
+      raw: await collection.countDocuments({ status: 'raw' }), // ⭐️ 이 줄을 추가하세요! (JP원본 갯수)
       rss: await collection.countDocuments({ source: { $ne: 'manual' } }),
       manual: await collection.countDocuments({ source: 'manual' })
     };
+
+    res.json({ success: true, data: newsList, totalCount, counts });
 
     res.json({ success: true, data: newsList, totalCount, counts });
   } catch (error) {
@@ -2400,7 +2403,7 @@ async function fetchAndSaveYogiboJPNews() {
               content: item.content,
               link: cleanLink,
               pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-              status: 'draft', // 무조건 '임시저장' 상태로 대기
+              status: 'raw', // ⭐️ 기존 'draft'를 'raw'로 수정 (JP원본 대기 상태)
               createdAt: new Date()
             }
           },
