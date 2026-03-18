@@ -2353,8 +2353,9 @@ app.get('/api/yogibo-jp-news', async (req, res) => {
     // 관리자 화면 좌측 뱃지를 위한 전체 요약 카운트
     const counts = {
       all: await collection.countDocuments(),
-      published: await collection.countDocuments({ status: 'published' }),
-      draft: await collection.countDocuments({ status: 'draft' }),
+      original: await collection.countDocuments({ status: 'draft' }),     // 원본 (draft)
+      pending: await collection.countDocuments({ status: 'pending' }),    // 게시물대기 (pending)
+      published: await collection.countDocuments({ status: 'published' }),// 라이브 (published)
       rss: await collection.countDocuments({ source: { $ne: 'manual' } }),
       manual: await collection.countDocuments({ source: 'manual' })
     };
@@ -3188,6 +3189,16 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
     res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
   }
 });
+
+
+
+
+
+
+
+
+
+
 
 // ========== [추가] 뷰저블(배너 클릭 히트맵) 트래킹 API ==========
 app.post('/api/track-click', async (req, res) => {
