@@ -3042,6 +3042,23 @@ app.post('/api/yogibo-jp-news/upload-image', upload.single('file'), async (req, 
 });
 
 
+// [1회성 마이그레이션] 기존 draft 상태의 RSS 데이터를 raw로 일괄 변경
+app.get('/api/test/migrate-to-raw', async (req, res) => {
+  try {
+    const result = await db.collection('yogiboJPnews').updateMany(
+      { status: 'draft', source: { $ne: 'manual' } }, // 수동 작성(manual)이 아닌 기존 임시저장 데이터 전부
+      { $set: { status: 'raw' } }
+    );
+    res.json({ 
+      success: true, 
+      message: `마이그레이션 완료! 총 ${result.modifiedCount}개의 데이터가 JP원본(raw)으로 이동되었습니다.` 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
 // =================================================================
 // 📚 브랜드 지식베이스 관리 API
 // =================================================================
