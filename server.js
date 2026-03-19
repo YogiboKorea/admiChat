@@ -18,7 +18,7 @@ const sharp = require('sharp');
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
 const os = require('os');
-const PDFExtract = require('pdfjs-extract').PDFExtract;
+const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
 const crypto = require('crypto');
 
