@@ -3622,31 +3622,33 @@ async function aggregateAwesomeSalesData() {
       }, {});
 
       const executedAtKST = moment().tz('Asia/Seoul').toDate();
+      
+      // 🌟 [핵심 수정] 총매출의 1%를 적립금으로 계산 (소수점 버림)
+      const rewardAmount = Math.floor(grandTotalAmount * 0.01);
 
-      // 🌟 [핵심] 컬렉션명 asSomeDtat 반영 & updateOne으로 단일 문서 덮어쓰기
+      // 🌟 컬렉션명 asSomeDtat 반영 & updateOne으로 단일 문서 덮어쓰기
       const collection = db.collection('asSomeDtat');
       await collection.updateOne(
-          { docType: 'awesome_daily_summary' }, // 고유 식별자 지정 (데이터가 쌓이지 않게 방지)
+          { docType: 'awesome_daily_summary' },
           {
               $set: {
                   totalQuantity: grandTotalQty,
-                  totalAmount: grandTotalAmount,
+                  totalAmount: grandTotalAmount, // 원본 매출액 보관
+                  rewardAmount: rewardAmount,    // 👈 1% 적립금 필드 추가
                   productDetails: productSummary,
                   period: `${startDateStr} ~ ${moment(executedAtKST).format('YYYY-MM-DD')}`,
                   updatedAt: executedAtKST,
                   status: 'calculated_at_1010'
               }
           },
-          { upsert: true } // 문서가 없으면 생성, 있으면 덮어쓰기
+          { upsert: true }
       );
-
       console.log(`✅ [Awesome People] 집계 및 asSomeDtat 덮어쓰기 완료! (총 수량: ${grandTotalQty}, 총 매출: ${grandTotalAmount}원)`);
 
   } catch (error) {
       console.error('❌ [Awesome People] 매출 집계 스케줄러 에러:', error);
   }
 }
-
 // 3. 🌟 [신규] 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
 cron.schedule('0 0 * * *', async () => {
   if (!db) return;
@@ -3658,9 +3660,10 @@ cron.schedule('0 0 * * *', async () => {
               $set: {
                   totalQuantity: 0,
                   totalAmount: 0,
-                  productDetails: {}, // 상세 내역도 비움
+                  rewardAmount: 0, // 👈 1% 적립금도 0으로 초기화
+                  productDetails: {},
                   updatedAt: moment().tz('Asia/Seoul').toDate(),
-                  status: 'initialized_at_midnight' // 0시 초기화 상태 마킹
+                  status: 'initialized_at_midnight'
               }
           },
           { upsert: true }
@@ -3687,15 +3690,15 @@ app.get('/api/awesome-people/manual-sync', async (req, res) => {
   await aggregateAwesomeSalesData();
   res.json({ success: true, message: '어썸 피플 데이터 수동 집계 및 덮어쓰기가 완료되었습니다.' });
 });
-
-
 // 프론트엔드 데이터 제공용 GET API
 app.get('/api/awesome-people/summary', async (req, res) => {
   try {
       const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
       res.json({
           success: true,
-          totalAmount: data ? data.totalAmount : 0,
+          // 👈 프론트엔드에는 1% 금액(rewardAmount)을 totalAmount라는 이름으로 넘겨줌
+          totalAmount: data ? (data.rewardAmount || 0) : 0, 
+          originalTotalAmount: data ? data.totalAmount : 0, // (참고용) 실제 총매출
           updatedAt: data ? data.updatedAt : null
       });
   } catch (error) {
