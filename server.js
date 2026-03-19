@@ -19,6 +19,7 @@ const ftp = require('basic-ftp');
 const { Readable } = require('stream');
 const os = require('os');
 const PDFExtract = require('pdfjs-extract').PDFExtract;
+const pdfExtract = new PDFExtract();
 const crypto = require('crypto');
 
 
@@ -3121,9 +3122,6 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
 
 // 1. server.js 최상단 (모듈 불러오는 곳)에 아래 두 줄을 추가/수정해주세요.
 // 기존 const pdfParse = require('pdf-parse'); 부분은 삭제합니다.
-const PDFExtract = require('pdfjs-extract').PDFExtract;
-const pdfExtract = new PDFExtract();
-
 
 // 2. 문서 추출 라우터 교체
 app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
