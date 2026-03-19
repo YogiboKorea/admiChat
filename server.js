@@ -3487,6 +3487,187 @@ app.get('/api/event/sessions', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false }); }
 });
 
+
+
+
+//어썸 피플 관련 데이터 축척 관련 MONGOD DB 결과 값변경작업 진행하기
+
+
+
+
+// =================================================================
+// 🌟 어썸 피플 관련 데이터 (0시 초기화 및 10시 10분 덮어쓰기 스케줄러)
+// =================================================================
+
+// 1. 타겟 제품 및 정규화 로직
+const AWESOME_TARGET_PRODUCTS = [
+  "요기보 피라미드", "요기보 피라미드 프리미엄", "요기보 피라미드 프리미엄 플러스",
+  "요기보 드롭", "요기보 드롭 프리미엄", "요기보 드롭 프리미엄 플러스",
+  "요기보 슬림", "요기보 슬림 프리미엄", "요기보 슬림 프리미엄 플러스",
+  "요기보 카카오프렌즈 피라미드", "요기보 카카오프렌즈 피라미드 프리미엄", "요기보 카카오프렌즈 피라미드 프리미엄 플러스",
+  "요기보 카카오프렌즈 드롭", "요기보 카카오프렌즈 드롭 프리미엄", "요기보 카카오프렌즈 드롭 프리미엄 플러스",
+  "요기보 카카오프렌즈 슬림", "요기보 카카오프렌즈 슬림 프리미엄", "요기보 카카오프렌즈 슬림 프리미엄 플러스",
+  "솔리드 스퀴지보", "스퀴지보 하트", "스퀴지보 애니멀",
+  "요기보 메이트", "요기보 플랜트 메이트",
+  "요기보 메가 메이트 팍스", "요기보 메가 메이트 티렉스", "요기보 메가 메이트 유니콘",
+  "요기보 메이트 나르왈", "요기보 메이트 우파루파", "요기보 메이트 라쿤",
+  "요기보 메이트 드래곤", "요기보 메이트 티렉스", "요기보 메이트 샤크",
+  "요기보 메이트 헤지호그", "요기보 메이트 디노", "요기보 메이트 도그",
+  "요기보 메이트 코알라", "요기보 메이트 판다", "요기보 메이트 펭귄",
+  "요기보 메이트 옥토푸스", "요기보 메이트 엘리펀트", "요기보 메이트 팍스",
+  "요기보 메이트 돌핀", "요기보 메이트 지라프", "요기보 메이트 써니",
+  "요기보 메이트 아로", "요기보 메이트 스트라우프"
+];
+
+const normalizeAwesome = (str) => str.replace(/요기보/g, '').replace(/[^가-힣a-zA-Z0-9]/g, '').toLowerCase();
+
+const awesomeSearchTargets = AWESOME_TARGET_PRODUCTS.map(name => ({
+  originalName: name,
+  searchKey: normalizeAwesome(name)
+})).sort((a, b) => b.searchKey.length - a.searchKey.length);
+
+const AWESOME_EXCLUDE_KEYWORDS = ["플랜트 스퀴지보", "비즈", "커버"].map(name => normalizeAwesome(name));
+
+// 2. 10시 10분 데이터 페치 및 DB 덮어쓰기 핵심 로직
+async function aggregateAwesomeSalesData() {
+  if (!db) {
+      console.error('[Awesome People] DB 연결이 되어있지 않아 작업을 중단합니다.');
+      return;
+  }
+
+  try {
+      console.log('🔄 [Awesome People] 10:10 온/오프라인 매출 집계 및 덮어쓰기 시작...');
+
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      const startDateStr = `${currentYear}-03-10`; 
+
+      const offlineBase = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders';
+      const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
+
+      const fetchPromises = [];
+
+      // 3월부터 현재 월까지 병렬 호출
+      for (let m = 3; m <= currentMonth; m++) {
+          const monthParam = `${currentYear}-${String(m).padStart(2, '0')}`;
+          fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all`));
+          fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all`));
+      }
+
+      const responses = await Promise.allSettled(fetchPromises);
+      
+      const allOrders = responses.reduce((acc, res) => {
+          if (res.status === 'fulfilled' && res.value.data && res.value.data.success && res.value.data.orders) {
+              return acc.concat(res.value.data.orders);
+          }
+          return acc;
+      }, []);
+
+      let grandTotalQty = 0;
+      let grandTotalAmount = 0;
+
+      const productSummary = allOrders.reduce((acc, cur) => {
+          if (cur.date < startDateStr) return acc;
+
+          const rawProductName = (cur.productName || "");
+          const normalizedRawName = normalizeAwesome(rawProductName);
+
+          const isExcluded = AWESOME_EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord));
+          if (isExcluded) return acc; 
+
+          const matchedObj = awesomeSearchTargets.find(target => normalizedRawName.includes(target.searchKey));
+          if (!matchedObj) return acc;
+
+          const displayTargetName = matchedObj.originalName;
+          const qty = Number(cur.qty) || 0;
+          const amount = Number(cur.amount) || 0;
+
+          if (!acc[displayTargetName]) {
+              acc[displayTargetName] = { qty: 0, amount: 0 };
+          }
+          
+          acc[displayTargetName].qty += qty;
+          acc[displayTargetName].amount += amount;
+
+          grandTotalQty += qty;
+          grandTotalAmount += amount;
+
+          return acc;
+      }, {});
+
+      const executedAtKST = moment().tz('Asia/Seoul').toDate();
+
+      // 🌟 [핵심] 컬렉션명 asSomeDtat 반영 & updateOne으로 단일 문서 덮어쓰기
+      const collection = db.collection('asSomeDtat');
+      await collection.updateOne(
+          { docType: 'awesome_daily_summary' }, // 고유 식별자 지정 (데이터가 쌓이지 않게 방지)
+          {
+              $set: {
+                  totalQuantity: grandTotalQty,
+                  totalAmount: grandTotalAmount,
+                  productDetails: productSummary,
+                  period: `${startDateStr} ~ ${moment(executedAtKST).format('YYYY-MM-DD')}`,
+                  updatedAt: executedAtKST,
+                  status: 'calculated_at_1010'
+              }
+          },
+          { upsert: true } // 문서가 없으면 생성, 있으면 덮어쓰기
+      );
+
+      console.log(`✅ [Awesome People] 집계 및 asSomeDtat 덮어쓰기 완료! (총 수량: ${grandTotalQty}, 총 매출: ${grandTotalAmount}원)`);
+
+  } catch (error) {
+      console.error('❌ [Awesome People] 매출 집계 스케줄러 에러:', error);
+  }
+}
+
+// 3. 🌟 [신규] 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
+cron.schedule('0 0 * * *', async () => {
+  if (!db) return;
+  try {
+      const collection = db.collection('asSomeDtat');
+      await collection.updateOne(
+          { docType: 'awesome_daily_summary' },
+          {
+              $set: {
+                  totalQuantity: 0,
+                  totalAmount: 0,
+                  productDetails: {}, // 상세 내역도 비움
+                  updatedAt: moment().tz('Asia/Seoul').toDate(),
+                  status: 'initialized_at_midnight' // 0시 초기화 상태 마킹
+              }
+          },
+          { upsert: true }
+      );
+      console.log('🔄 [Awesome People] 자정(00:00) asSomeDtat 데이터 0으로 초기화 완료');
+  } catch (error) {
+      console.error('❌ [Awesome People] 초기화 에러:', error);
+  }
+}, {
+  scheduled: true,
+  timezone: "Asia/Seoul"
+});
+
+// 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
+cron.schedule('10 10 * * *', () => {
+  aggregateAwesomeSalesData();
+}, {
+  scheduled: true,
+  timezone: "Asia/Seoul"
+});
+
+// 5. [선택 API] 테스트용 수동 동기화 라우터
+app.get('/api/awesome-people/manual-sync', async (req, res) => {
+  await aggregateAwesomeSalesData();
+  res.json({ success: true, message: '어썸 피플 데이터 수동 집계 및 덮어쓰기가 완료되었습니다.' });
+});
+
+
+
+
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
