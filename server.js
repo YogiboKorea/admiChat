@@ -17,12 +17,22 @@ const multer = require('multer');
 const sharp = require('sharp');
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
-//const pdfParse = require('pdf-parse');
+const os = require('os');
+const pdfParse = require('pdf-parse');
 const crypto = require('crypto');
 
-// multer 설정 (메모리에 임시 저장)
+
+// multer 설정 (임시 디스크에 저장하여 메모리 폭발 방지)
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, os.tmpdir()); // OS 기본 임시 폴더 사용
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix); 
+    }
+  }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB로 확대
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
@@ -33,6 +43,7 @@ const upload = multer({
     }
   }
 });
+
 
 const cron = require('node-cron');
 const parser = new Parser();
@@ -2631,16 +2642,21 @@ app.post('/api/translate-news', async (req, res) => {
   }
 });
 // 8. API - 썸네일 FTP 업로드 (경로 에러 수정 완료 + 하드코딩 ID 예외 처리)
+
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
 
-  try {
+try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
-    const processedBuffer = await sharp(req.file.buffer)
+    // buffer 대신 path 사용
+    const processedBuffer = await sharp(req.file.path)
       .resize(800, 500, { fit: 'cover', position: 'center' })
       .webp({ quality: 82 })
       .toBuffer();
+
+    // 임시 파일 삭제 (매우 중요: 안 지우면 디스크 꽉 참)
+    fs.unlinkSync(req.file.path);
 
     const randomHex = crypto.randomBytes(6).toString('hex');
     const filename = `news-${postId}-${Date.now()}-${randomHex}.webp`;
@@ -2781,8 +2797,6 @@ app.post('/api/yogibo-jp-news/:id/view', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
-
 
 
 // =================================================================
@@ -3004,10 +3018,14 @@ app.post('/api/yogibo-jp-news/upload-image', upload.single('file'), async (req, 
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
-    const processedBuffer = await sharp(req.file.buffer)
+    // buffer 대신 path 사용
+    const processedBuffer = await sharp(req.file.path)
       .resize(800, null, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
+
+    // 임시 파일 삭제
+    fs.unlinkSync(req.file.path);
 
     const randomHex = crypto.randomBytes(6).toString('hex');
     const filename = `newsletter-${Date.now()}-${randomHex}.webp`;
@@ -3107,9 +3125,13 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
     const isPDF = req.file.mimetype === 'application/pdf';
     let extractedText = '';
 
+    // 디스크에 저장된 파일을 버퍼로 읽어오고 원본은 즉시 삭제
+    const fileBuffer = fs.readFileSync(req.file.path);
+    fs.unlinkSync(req.file.path);
+
     if (isPDF) {
       // PDF → pdf-parse로 텍스트 직접 추출 (무료, 빠름)
-      const pdfData = await pdfParse(req.file.buffer);
+      const pdfData = await pdfParse(fileBuffer);
       const rawText = pdfData.text || '';
 
       if (rawText.trim().length < 30) {
@@ -3154,7 +3176,8 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
       const API_KEY = process.env.API_KEY;
       if (!API_KEY) return res.status(500).json({ success: false, message: 'API_KEY 필요' });
 
-      const base64 = req.file.buffer.toString('base64');
+      // req.file.buffer 대신 위에서 만들어둔 fileBuffer 사용
+      const base64 = fileBuffer.toString('base64');
       const mediaType = req.file.mimetype;
 
       const apiResponse = await axios.post(
