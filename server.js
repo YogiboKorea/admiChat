@@ -18,7 +18,7 @@ const sharp = require('sharp');
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
 const os = require('os');
-const pdfParse = require('pdf-parse');
+const PDFExtract = require('pdfjs-extract').PDFExtract;
 const crypto = require('crypto');
 
 
@@ -3118,21 +3118,53 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+
+
+// 1. server.js 최상단 (모듈 불러오는 곳)에 아래 두 줄을 추가/수정해주세요.
+// 기존 const pdfParse = require('pdf-parse'); 부분은 삭제합니다.
+const PDFExtract = require('pdfjs-extract').PDFExtract;
+const pdfExtract = new PDFExtract();
+
+
+// 2. 문서 추출 라우터 교체
 app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
+    // 파일 타입 확인
     const isPDF = req.file.mimetype === 'application/pdf';
     let extractedText = '';
 
-    // 디스크에 저장된 파일을 버퍼로 읽어오고 원본은 즉시 삭제
+    // 디스크에 저장된 파일을 버퍼로 먼저 읽어오고 원본은 즉시 삭제
     const fileBuffer = fs.readFileSync(req.file.path);
     fs.unlinkSync(req.file.path);
 
     if (isPDF) {
-      // PDF → pdf-parse로 텍스트 직접 추출 (무료, 빠름)
-      const pdfData = await pdfParse(fileBuffer);
-      const rawText = pdfData.text || '';
+      // 🌟 PDF → pdfjs-extract로 텍스트 추출 (안정적인 방식)
+      let rawText = '';
+      try {
+        const data = await new Promise((resolve, reject) => {
+          pdfExtract.extractBuffer(fileBuffer, {}, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+
+        // 각 페이지의 텍스트를 모아서 하나의 문자열로 결합
+        if (data.pages && data.pages.length > 0) {
+          data.pages.forEach(page => {
+            if (page.content && page.content.length > 0) {
+              page.content.forEach(item => {
+                rawText += item.str + ' ';
+              });
+              rawText += '\n'; // 페이지 구분을 위해 줄바꿈 추가
+            }
+          });
+        }
+      } catch (pdfErr) {
+        console.error("PDF 추출 중 에러 발생:", pdfErr);
+        return res.status(500).json({ success: false, message: 'PDF 텍스트 추출에 실패했습니다.' });
+      }
 
       if (rawText.trim().length < 30) {
         // 텍스트가 거의 없는 이미지형 PDF → GPT에 안내
@@ -3172,11 +3204,10 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
       }
 
     } else {
-      // 이미지 → GPT Vision으로 추출 (기존 로직)
+      // 🌟 이미지 → GPT Vision으로 추출 (기존 로직 유지)
       const API_KEY = process.env.API_KEY;
       if (!API_KEY) return res.status(500).json({ success: false, message: 'API_KEY 필요' });
 
-      // req.file.buffer 대신 위에서 만들어둔 fileBuffer 사용
       const base64 = fileBuffer.toString('base64');
       const mediaType = req.file.mimetype;
 
@@ -3212,7 +3243,6 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
     res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
   }
 });
-
 
 
 
