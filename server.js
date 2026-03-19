@@ -3664,6 +3664,21 @@ app.get('/api/awesome-people/manual-sync', async (req, res) => {
 });
 
 
+// 프론트엔드 데이터 제공용 GET API
+app.get('/api/awesome-people/summary', async (req, res) => {
+  try {
+      const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
+      res.json({
+          success: true,
+          totalAmount: data ? data.totalAmount : 0,
+          updatedAt: data ? data.updatedAt : null
+      });
+  } catch (error) {
+      console.error('데이터 조회 에러:', error);
+      res.status(500).json({ success: false, totalAmount: 0 });
+  }
+});
+
 
 
 
