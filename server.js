@@ -3119,7 +3119,6 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
   }
 });
 
-
 // 1. server.js 최상단 (모듈 불러오는 곳)에 아래 두 줄을 추가/수정해주세요.
 // 기존 const pdfParse = require('pdf-parse'); 부분은 삭제합니다.
 const PDFExtract = require('pdfjs-extract').PDFExtract;
@@ -3243,8 +3242,6 @@ app.post('/api/brand-knowledge/extract', upload.single('file'), async (req, res)
     res.status(500).json({ success: false, message: e.response?.data?.error?.message || e.message });
   }
 });
-
-
 
 
 
