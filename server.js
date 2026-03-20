@@ -3,6 +3,19 @@ const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
+const corsOptions = {
+  origin: [
+      'https://yogibo.kr', 
+      'https://www.yogibo.kr', 
+      'http://yogibo.kr', 
+      'http://www.yogibo.kr',
+      // 현재 사용 중인 스킨 도메인들도 추가해주세요
+      'https://skin-skin1.yogibo.cafe24.com' 
+  ],
+  credentials: true, // 크로스 도메인 요청 시 인증/쿠키 허용
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+app.use(cors(corsOptions));
 const compression = require("compression");
 const axios = require("axios");
 const { MongoClient, ObjectId } = require("mongodb");
