@@ -3,19 +3,6 @@ const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
-const corsOptions = {
-  origin: [
-      'https://yogibo.kr', 
-      'https://www.yogibo.kr', 
-      'http://yogibo.kr', 
-      'http://www.yogibo.kr',
-      // 현재 사용 중인 스킨 도메인들도 추가해주세요
-      'https://skin-skin1.yogibo.cafe24.com' 
-  ],
-  credentials: true, // 크로스 도메인 요청 시 인증/쿠키 허용
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-};
-app.use(cors(corsOptions));
 const compression = require("compression");
 const axios = require("axios");
 const { MongoClient, ObjectId } = require("mongodb");
@@ -85,6 +72,20 @@ app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
+const corsOptions = {
+  origin: [
+      'https://yogibo.kr', 
+      'https://www.yogibo.kr', 
+      'http://yogibo.kr', 
+      'http://www.yogibo.kr',
+      'https://skin-skin123.yogibo.cafe24.com' // 사용 중인 스킨 도메인
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+app.use(cors(corsOptions)); // 명시적 CORS 적용
+
+
 
 // MongoDB 컬렉션명 정의
 const tokenCollectionName = "tokens";
@@ -2500,24 +2501,6 @@ app.put('/api/yogibo-jp-news/order', async (req, res) => {
   }
 });
 
-
-// 3. API - 뉴스레터 목록 불러오기 (프론트/관리자 페이지용)
-app.get('/api/yogibo-jp-news', async (req, res) => {
-  try {
-    const { status } = req.query;
-    const query = status ? { status } : {};
-
-    const newsList = await db.collection('yogiboJPnews')
-      .find(query)
-      .sort({ pubDate: -1 }) // 최신 발행일 순
-      .toArray();
-
-    res.json({ success: true, data: newsList });
-  } catch (error) {
-    console.error('뉴스레터 조회 에러:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
 // 4. API - 뉴스레터 내용 수정 및 라이브 상태 변경 (관리자 페이지용)
 app.put('/api/yogibo-jp-news/:id', async (req, res) => {
   try {
