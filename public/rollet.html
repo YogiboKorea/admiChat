@@ -1,0 +1,680 @@
+<!--@layout(/layout/basic/layout.html)-->
+<style>
+  .page-wrap {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+  }
+
+  /* ── 비주얼 / 푸터 ── */
+  .visual,
+  .footer_rollet {
+    width: 100%;
+    line-height: 0;
+    font-size: 0;
+  }
+
+  .visual img,
+  .footer_rollet img {
+    width: 100%;
+    display: block;
+  }
+
+  /* ── 룰렛 영역 ── */
+  .roulette-section {
+    width: 100%;
+    line-height: 0;
+    font-size: 0;
+    display: flex;
+    justify-content: center;
+    position: relative;
+  }
+
+  .roulette-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  /* rollet on/off */
+  .rollet {
+    width: 100%;
+    display: block;
+  }
+
+  .rollet-off {
+    animation: blink-off 0.85s steps(1) infinite;
+  }
+
+  .rollet-on {
+    position: absolute;
+    top: 0;
+    left: 0;
+    animation: blink-on 0.85s steps(1) infinite;
+  }
+
+  @keyframes blink-off {
+
+    0%,
+    49% {
+      opacity: 1;
+    }
+
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes blink-on {
+
+    0%,
+    49% {
+      opacity: 0;
+    }
+
+    50%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .inner-disk {
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    width: 74%;
+    height: 70%;
+    transform: translate(-50%, -50%) rotate(0deg);
+    object-fit: contain;
+    will-change: transform;
+  }
+
+  .icon-arrow {
+    position: absolute;
+    top: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8%;
+    z-index: 20;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+
+  .btn-start {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22%;
+    max-width: 130px;
+    cursor: pointer;
+    z-index: 20;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+  }
+
+  .btn-start:active {
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+
+  /* ── 오버레이 (비로그인 & 참여완료 dim) ── */
+  .login-overlay {
+    display: none;
+    position: absolute;
+    top: 47%;
+    left: 50%;
+    width: 82%;
+    height: 0;
+    padding-bottom: 82%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    background: #000000BF;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+
+  .login-overlay-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .login-overlay.active {
+    display: block;
+  }
+
+  .login-overlay-text {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    text-align: center;
+    line-height: 1.4;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .login-overlay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 32px;
+    background: #FC6C98;
+    color: #fff;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    letter-spacing: -0.2px;
+    transition: opacity 0.15s;
+    box-shadow: 0 4px 12px rgba(252, 108, 152, 0.4);
+  }
+
+  .login-overlay-btn:hover {
+    opacity: 0.9;
+  }
+
+  .login-overlay-btn:active {
+    opacity: 0.8;
+  }
+
+  .login-overlay-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+  }
+
+  /* ── 벚꽃 떨어지는 연출 ── */
+  .petal {
+    position: absolute;
+    top: -60px;
+    z-index: 30;
+    pointer-events: none;
+    opacity: 0;
+    animation: petalFall linear infinite;
+  }
+
+  @keyframes petalFall {
+    0% {
+      opacity: 0;
+      transform: translateY(0) rotate(0deg) translateX(0);
+    }
+
+    5% {
+      opacity: 0.9;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translateY(110vh) rotate(360deg) translateX(80px);
+    }
+  }
+
+  /* ── 당첨 팝업 ── */
+  .popup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .popup-overlay.active {
+    display: flex;
+  }
+
+  .popup-box {
+    background: #fff;
+    border-radius: 50px;
+    width: min(88vw, 400px);
+    padding: 36px 28px 28px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    animation: popupIn 0.35s ease;
+  }
+
+  @keyframes popupIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.85) translateY(20px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .popup-deco {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .popup-deco .leap {
+    width: 40px;
+    height: auto;
+  }
+
+  .popup-deco .leap:first-child {
+    transform: rotate(-15deg);
+    opacity: 0.7;
+  }
+
+  .popup-deco .box-icon {
+    width: 72px;
+    height: auto;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+  }
+
+  .popup-deco .leap:last-child {
+    transform: rotate(20deg) scaleX(-1);
+    opacity: 0.6;
+  }
+
+  .popup-box h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #222;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+
+  .popup-box h2 .prize-name {
+    color: #e84887;
+  }
+
+  .popup-box p {
+    font-size: 16px;
+    color: #000;
+    line-height: 1.4;
+    margin-bottom: 24px;
+  }
+
+  .popup-box p .highlight {
+    color: #fff;
+    background: #FC6C98;
+    font-weight: 500;
+    text-decoration: underline;
+  }
+
+  .popup-btn {
+    display: block;
+    width: 75%;
+    margin: 0 auto;
+    padding: 15px 0;
+    background: #FC6C98;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 25px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: opacity 0.15s;
+  }
+
+  .popup-btn:active {
+    opacity: 0.85;
+  }
+</style>
+
+<div class="page-wrap" id="pageWrap">
+  <div class="visual">
+    <img src="https://yogibo.kr//web/img/event/0318/header.jpg" alt="요기보 봄꽃룰렛">
+  </div>
+
+  <div class="roulette-section">
+    <div class="roulette-wrap">
+      <img class="rollet rollet-off" src="https://yogibo.kr//web/img/event/0318/rollet_off.jpg" alt="">
+      <img class="rollet rollet-on" src="https://yogibo.kr//web/img/event/0318/rollet_on.jpg" alt="">
+      <img class="inner-disk" id="innerDisk" src="https://yogibo.kr//web/img/event/0318/inner.png" alt="룰렛 디스크">
+      <img class="icon-arrow" src="https://yogibo.kr//web/img/event/0318/icon_arrow.png" alt="포인터">
+      <img class="btn-start" id="btnStart" src="https://yogibo.kr//web/img/event/0318/btn_Start.png" alt="START"
+        onclick="spinRoulette()">
+
+      <div class="login-overlay" id="loginOverlay">
+        <div class="login-overlay-inner">
+          <span class="login-overlay-text" id="overlayText">회원가입 후 룰렛 이벤트 참여!</span>
+          <a class="login-overlay-btn" id="overlayBtn" href="/member/join.html">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 12c2.7 0 4.8-2.2 4.8-4.8S14.7 2.4 12 2.4 7.2 4.6 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+            </svg>
+            요기보 회원가입 →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer_rollet">
+    <img src="https://yogibo.kr//web/img/event/0318/footer.jpg" alt="푸터">
+  </div>
+</div>
+
+<div class="popup-overlay" id="popupOverlay">
+  <div class="popup-box">
+    <div class="popup-deco">
+      <img class="leap" src="https://yogibo.kr//web/img/event/0318/leap_01.png" alt="">
+      <img class="box-icon" src="https://yogibo.kr//web/img/event/0318/box.png" alt="선물">
+      <img class="leap" src="https://yogibo.kr//web/img/event/0318/leap_02.png" alt="">
+    </div>
+    <h2>축하합니다! <span class="prize-name" id="popupPrize">[경품명]</span> 당첨!</h2>
+    <p>요기보 부스 <span class="highlight">경품 수령존</span>에서<br>스태프에게 이 화면을 보여주세요.</p>
+    <button class="popup-btn" onclick="closePopup()">확인 완료</button>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // [1] 환경 변수 설정
+  // ==========================================
+  const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+  const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+  const LOGIN_BASE = '/member/login.html';
+
+  var memberId = null;
+  var memberIdRetryCount = 0;
+  var maxRetryLimit = 5;
+  var isParticipated = false;
+  let isTrackingCooldown = false;
+
+  function getLoginUrlWithReturn() {
+    const fullPath = window.location.pathname + window.location.search + window.location.hash;
+    const cleanPath = fullPath.replace(/([?&])hmac=[^&]*(&?)/g, (_, p1, p2) => p2 ? p1 : '');
+    return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(cleanPath);
+  }
+
+  // ==========================================
+  // [2] 초기화
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function () {
+    createPetals();
+    initializeAndGetMemberId();
+    sendVisitLog();
+    initClickTracking();
+  });
+
+  function initializeAndGetMemberId() {
+    if (typeof CAFE24API === 'undefined') {
+      setTimeout(initializeAndGetMemberId, 500);
+      return;
+    }
+    try {
+      CAFE24API.init(CAFE24_APP_KEY);
+      CAFE24API.getMemberID(function (res) {
+        if (res) {
+          memberId = res;
+          checkParticipationHistory(memberId);
+        } else {
+          if (memberIdRetryCount < maxRetryLimit) {
+            memberIdRetryCount++;
+            setTimeout(initializeAndGetMemberId, 500);
+          } else {
+            memberId = null;
+            showOverlayUI('login');
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Cafe24 API Error:', err);
+    }
+  }
+
+  function checkParticipationHistory(id) {
+    fetch(API_BASE_URL + '/api/raffle/status?userId=' + id)
+      .then(response => response.json())
+      .then(res => {
+        if (res.isEntered === true) {
+          isParticipated = true;
+          showOverlayUI('participated');
+        } else {
+          hideOverlayUI();
+        }
+      })
+      .catch(err => {
+        console.error('이력 체크 실패:', err);
+        hideOverlayUI();
+      });
+  }
+
+  function showOverlayUI(type) {
+    var overlay = document.getElementById('loginOverlay');
+    var btnStart = document.getElementById('btnStart');
+    var textEl = document.getElementById('overlayText');
+    var btnEl = document.getElementById('overlayBtn');
+
+    overlay.classList.add('active');
+    btnStart.style.display = 'none';
+
+    if (type === 'login') {
+      textEl.innerHTML = '회원가입 후 룰렛 이벤트 참여!';
+      btnEl.style.display = 'inline-flex';
+      btnEl.href = getLoginUrlWithReturn();
+      btnEl.innerHTML = '요기보 로그인/가입 →';
+    } else if (type === 'participated') {
+      textEl.innerHTML = '이미 이벤트에<br>참여하셨습니다!';
+      btnEl.style.display = 'none';
+    }
+  }
+
+  function hideOverlayUI() {
+    var overlay = document.getElementById('loginOverlay');
+    var btnStart = document.getElementById('btnStart');
+    overlay.classList.remove('active');
+    btnStart.style.display = 'block';
+  }
+
+  // ==========================================
+  // [3] 확률 기반 룰렛 로직 (✨ 완벽 매칭 완료)
+  // ==========================================
+  var isSpinning = false;
+  var totalRotation = 0;
+
+  // 🎯 1등이 맨 위에 있는 원본 이미지 기준의 정확한 각도 (이제 절대 안 엇갈립니다!)
+  var prizes = [
+    { label: '1등', deg: 360, weight: 5 },  // 5% 확률
+    { label: '2등', deg: 120, weight: 25 },  // 25% 확률
+    { label: '3등', deg: 240, weight: 70 },  // 70% 확률
+  ];
+
+  function getWeightedRandomPrize() {
+    var totalWeight = prizes.reduce(function (sum, prize) { return sum + prize.weight; }, 0);
+    var randomNum = Math.random() * totalWeight;
+    var weightSum = 0;
+
+    for (var i = 0; i < prizes.length; i++) {
+      weightSum += prizes[i].weight;
+      if (randomNum <= weightSum) {
+        return prizes[i];
+      }
+    }
+    return prizes[prizes.length - 1];
+  }
+
+  function spinRoulette() {
+    if (!memberId) {
+      alert('로그인이 필요한 서비스입니다.');
+      location.href = getLoginUrlWithReturn();
+      return;
+    }
+    if (isParticipated) {
+      alert('이미 응모가 완료되었습니다.');
+      showOverlayUI('participated');
+      return;
+    }
+
+    if (isSpinning) return;
+    isSpinning = true;
+
+    var disk = document.getElementById('innerDisk');
+    var btn = document.getElementById('btnStart');
+    btn.style.pointerEvents = 'none';
+    btn.style.opacity = '0.5';
+
+    var picked = getWeightedRandomPrize();
+
+    // 바늘에 너무 선이 걸리지 않도록 오차값을 줍니다 (+- 40도 정도)
+    var jitter = (Math.random() - 0.5) * 40;
+
+    // 여러 번 돌려도 각도가 꼬이지 않는 누적 계산 로직
+    var spins = (6 + Math.floor(Math.random() * 3)) * 360;
+    var currentMod = totalRotation % 360;
+    var targetDeg = picked.deg + jitter;
+
+    var diff = targetDeg - currentMod;
+    if (diff < 0) diff += 360;
+
+    totalRotation += (spins + diff);
+
+    disk.style.transition = 'transform 4.5s cubic-bezier(0.2, 0.8, 0.3, 1.0)';
+    disk.style.transform = 'translate(-50%, -50%) rotate(' + totalRotation + 'deg)';
+
+    setTimeout(function () {
+      isSpinning = false;
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
+
+      submitRaffleEntry(picked.label);
+    }, 4600);
+  }
+
+  function submitRaffleEntry(prizeName) {
+    fetch(API_BASE_URL + '/api/raffle/entryEvents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: memberId,
+        optionName: prizeName
+      })
+    })
+      .then(response => response.json())
+      .then(res => {
+        showPopup(prizeName);
+        isParticipated = true;
+        showOverlayUI('participated');
+      })
+      .catch(err => {
+        console.error('응모 통신 에러:', err);
+        showPopup(prizeName);
+      });
+  }
+
+  // ==========================================
+  // [4] 기타 UI 렌더링 및 트래킹
+  // ==========================================
+  function showPopup(prizeName) {
+    document.getElementById('popupPrize').textContent = prizeName;
+    document.getElementById('popupOverlay').classList.add('active');
+  }
+  function closePopup() {
+    document.getElementById('popupOverlay').classList.remove('active');
+  }
+
+  function createPetals() {
+    var wrap = document.getElementById('pageWrap');
+    var imgs = [
+      'https://yogibo.kr//web/img/event/0318/leap_01.png',
+      'https://yogibo.kr//web/img/event/0318/leap_02.png'
+    ];
+    for (var i = 0; i < 14; i++) {
+      var el = document.createElement('img');
+      el.src = imgs[i % 2];
+      el.className = 'petal';
+      var size = 18 + Math.random() * 24;
+      el.style.width = size + 'px';
+      el.style.height = 'auto';
+      el.style.left = Math.random() * 100 + '%';
+      el.style.animationDuration = (5 + Math.random() * 6) + 's';
+      el.style.animationDelay = (Math.random() * 8) + 's';
+      wrap.appendChild(el);
+    }
+  }
+
+  function getFinalId() {
+    if (typeof memberId !== 'undefined' && memberId && memberId !== 'GUEST') return memberId;
+    let vid = localStorage.getItem('site_visitor_id');
+    if (!vid) {
+      vid = 'guest_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+      localStorage.setItem('site_visitor_id', vid);
+    }
+    return vid;
+  }
+
+  function getUtmParams() {
+    const params = new URLSearchParams(window.location.search);
+    let currentUtm = {
+      source: params.get('utm_source'), medium: params.get('utm_medium'),
+      campaign: params.get('utm_campaign'), term: params.get('utm_term'),
+      content: params.get('utm_content')
+    };
+    if (currentUtm.source || currentUtm.campaign || currentUtm.term) {
+      localStorage.setItem('stored_utm_data', JSON.stringify(currentUtm));
+      return currentUtm;
+    } else {
+      const storedData = localStorage.getItem('stored_utm_data');
+      if (storedData) return JSON.parse(storedData);
+    }
+    return currentUtm;
+  }
+
+  function sendVisitLog() {
+    setTimeout(() => {
+      fetch(`${API_BASE_URL}/api/trace/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventTag: '이벤트_봄꽃룰렛',
+          visitorId: getFinalId(),
+          currentUrl: window.location.href,
+          prevUrl: document.referrer,
+          utmData: getUtmParams()
+        })
+      }).catch(err => console.error('방문 전송 실패:', err));
+    }, 800);
+  }
+
+  function initClickTracking() {
+    const trackerMap = {
+      'btnStart': '룰렛_스타트_버튼',
+    };
+    document.body.addEventListener('click', function (e) {
+      const target = e.target.closest('[id^="clickData"], [id^="section"], .tab-btn, #btnStart');
+      if (target && target.id) {
+        const id = target.id;
+        const name = trackerMap[id] || id;
+
+        if (isTrackingCooldown) return;
+        isTrackingCooldown = true;
+        setTimeout(() => { isTrackingCooldown = false; }, 500);
+
+        fetch(`${API_BASE_URL}/api/trace/click`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sectionId: id,
+            sectionName: name,
+            visitorId: getFinalId()
+          }),
+          keepalive: true
+        }).catch(err => console.error('클릭 전송 실패:', err));
+      }
+    }, true);
+  }
+</script>

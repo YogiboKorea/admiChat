@@ -31,7 +31,7 @@ const upload = multer({
     },
     filename: function (req, file, cb) {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, file.fieldname + '-' + uniqueSuffix); 
+      cb(null, file.fieldname + '-' + uniqueSuffix);
     }
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB로 확대
@@ -74,11 +74,11 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 const corsOptions = {
   origin: [
-      'https://yogibo.kr', 
-      'https://www.yogibo.kr', 
-      'http://yogibo.kr', 
-      'http://www.yogibo.kr',
-      'https://skin-skin123.yogibo.cafe24.com' // 사용 중인 스킨 도메인
+    'https://yogibo.kr',
+    'https://www.yogibo.kr',
+    'http://yogibo.kr',
+    'http://www.yogibo.kr',
+    'https://skin-skin123.yogibo.cafe24.com' // 사용 중인 스킨 도메인
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -2643,7 +2643,7 @@ app.post('/api/translate-news', async (req, res) => {
 app.post('/api/yogibo-jp-news/:id/thumbnail-upload', upload.single('file'), async (req, res) => {
   const postId = req.params.id;
 
-try {
+  try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일 없음' });
 
     // buffer 대신 path 사용
@@ -3546,141 +3546,141 @@ const AWESOME_EXCLUDE_KEYWORDS = ["플랜트 스퀴지보", "비즈", "커버"].
 
 // 🌟 [추가] 이름 마스킹 헬퍼 (비회원용)
 const maskName = (name) => {
-    if (!name || name.length < 2) return '어썸피플';
-    if (name.length === 2) return name[0] + '*';
-    return name[0] + '*'.repeat(name.length - 2) + name[name.length - 1];
+  if (!name || name.length < 2) return '어썸피플';
+  if (name.length === 2) return name[0] + '*';
+  return name[0] + '*'.repeat(name.length - 2) + name[name.length - 1];
 };
 
 // 🌟 [추가] 회원 ID 마스킹 헬퍼 (예: yogibo123 -> yog***)
 const maskMemberId = (id) => {
-    if (!id || id.length < 2) return id;
-    if (id.length <= 3) return id.substring(0, 1) + '**';
-    return id.substring(0, 3) + '*'.repeat(id.length - 3); 
+  if (!id || id.length < 2) return id;
+  if (id.length <= 3) return id.substring(0, 1) + '**';
+  return id.substring(0, 3) + '*'.repeat(id.length - 3);
 };
 
 
 // 2. 10시 10분 매출 집계 & 구매자 리스트 추출 통합 로직
 async function aggregateAwesomeSalesData() {
   if (!db) {
-      console.error('❌ [Awesome People] DB 연결이 되어있지 않아 작업을 중단합니다.');
-      return { success: false, message: 'DB 연결 오류' };
+    console.error('❌ [Awesome People] DB 연결이 되어있지 않아 작업을 중단합니다.');
+    return { success: false, message: 'DB 연결 오류' };
   }
 
   try {
-      console.log('🔄 [Awesome People] 10:10 온/오프라인 매출 집계 및 구매자 추출 시작...');
+    console.log('🔄 [Awesome People] 10:10 온/오프라인 매출 집계 및 구매자 추출 시작...');
 
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth() + 1;
-      const startDateStr = `${currentYear}-03-10`; 
-      
-      // 🌟 [추가] 최근 7일 기준일 계산
-      const sevenDaysAgoStr = moment().tz('Asia/Seoul').subtract(7, 'days').format('YYYY-MM-DD');
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const startDateStr = `${currentYear}-03-10`;
 
-      const offlineBase = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders';
-      const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
+    // 🌟 [추가] 최근 7일 기준일 계산
+    const sevenDaysAgoStr = moment().tz('Asia/Seoul').subtract(7, 'days').format('YYYY-MM-DD');
 
-      const fetchPromises = [];
-      const timestamp = new Date().getTime(); 
+    const offlineBase = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders';
+    const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
 
-      // 3월부터 현재 월까지 병렬 호출
-      for (let m = 3; m <= currentMonth; m++) {
-          const monthParam = `${currentYear}-${String(m).padStart(2, '0')}`;
-          fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
-          fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
+    const fetchPromises = [];
+    const timestamp = new Date().getTime();
+
+    // 3월부터 현재 월까지 병렬 호출
+    for (let m = 3; m <= currentMonth; m++) {
+      const monthParam = `${currentYear}-${String(m).padStart(2, '0')}`;
+      fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
+      fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
+    }
+
+    const responses = await Promise.allSettled(fetchPromises);
+
+    const allOrders = responses.reduce((acc, res) => {
+      if (res.status === 'fulfilled' && res.value.data && res.value.data.success && res.value.data.orders) {
+        return acc.concat(res.value.data.orders);
+      }
+      return acc;
+    }, []);
+
+    let grandTotalQty = 0;
+    let grandTotalAmount = 0;
+    let recentBuyers = []; // 🌟 구매자 리스트 배열
+
+    const productSummary = allOrders.reduce((acc, cur) => {
+      if (cur.date < startDateStr) return acc;
+
+      const rawProductName = (cur.productName || "");
+      const normalizedRawName = normalizeAwesome(rawProductName);
+
+      const isExcluded = AWESOME_EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord));
+      if (isExcluded) return acc;
+
+      const matchedObj = awesomeSearchTargets.find(target => normalizedRawName.includes(target.searchKey));
+      if (!matchedObj) return acc;
+
+      // 🌟 [핵심] 7일 이내 구매자면 ID/이름 추출
+      if (cur.date >= sevenDaysAgoStr) {
+        const rawId = String(cur.memberId || cur.member_id || cur.userId || '');
+        let displayUser = '';
+
+        // 회원 ID가 존재하고 비회원(guest)이 아닐 경우 ID 마스킹
+        if (rawId && rawId.toLowerCase() !== 'guest' && rawId !== '비회원') {
+          displayUser = maskMemberId(rawId);
+        } else {
+          // 비회원이나 네이버페이일 경우 이름 마스킹
+          const rawName = String(cur.buyerName || cur.buyer_name || cur.billing_name || cur.name || cur.customerName || '어썸피플');
+          displayUser = maskName(rawName);
+        }
+
+        if (!recentBuyers.includes(displayUser)) {
+          recentBuyers.push(displayUser);
+        }
       }
 
-      const responses = await Promise.allSettled(fetchPromises);
-      
-      const allOrders = responses.reduce((acc, res) => {
-          if (res.status === 'fulfilled' && res.value.data && res.value.data.success && res.value.data.orders) {
-              return acc.concat(res.value.data.orders);
-          }
-          return acc;
-      }, []);
+      const displayTargetName = matchedObj.originalName;
+      const qty = Number(cur.qty) || 0;
+      const amount = Number(cur.amount) || 0;
 
-      let grandTotalQty = 0;
-      let grandTotalAmount = 0;
-      let recentBuyers = []; // 🌟 구매자 리스트 배열
+      if (!acc[displayTargetName]) {
+        acc[displayTargetName] = { qty: 0, amount: 0 };
+      }
 
-      const productSummary = allOrders.reduce((acc, cur) => {
-          if (cur.date < startDateStr) return acc;
+      acc[displayTargetName].qty += qty;
+      acc[displayTargetName].amount += amount;
 
-          const rawProductName = (cur.productName || "");
-          const normalizedRawName = normalizeAwesome(rawProductName);
+      grandTotalQty += qty;
+      grandTotalAmount += amount;
 
-          const isExcluded = AWESOME_EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord));
-          if (isExcluded) return acc; 
+      return acc;
+    }, {});
 
-          const matchedObj = awesomeSearchTargets.find(target => normalizedRawName.includes(target.searchKey));
-          if (!matchedObj) return acc;
+    const executedAtKST = moment().tz('Asia/Seoul').toDate();
+    const rewardAmount = Math.floor(grandTotalAmount * 0.01);
 
-          // 🌟 [핵심] 7일 이내 구매자면 ID/이름 추출
-          if (cur.date >= sevenDaysAgoStr) {
-              const rawId = String(cur.memberId || cur.member_id || cur.userId || '');
-              let displayUser = '';
+    // 최신 구매자가 먼저 나오도록 배열 뒤집기
+    recentBuyers.reverse();
 
-              // 회원 ID가 존재하고 비회원(guest)이 아닐 경우 ID 마스킹
-              if (rawId && rawId.toLowerCase() !== 'guest' && rawId !== '비회원') {
-                  displayUser = maskMemberId(rawId);
-              } else {
-                  // 비회원이나 네이버페이일 경우 이름 마스킹
-                  const rawName = String(cur.buyerName || cur.buyer_name || cur.billing_name || cur.name || cur.customerName || '어썸피플');
-                  displayUser = maskName(rawName);
-              }
-              
-              if (!recentBuyers.includes(displayUser)) {
-                  recentBuyers.push(displayUser);
-              }
-          }
+    const collection = db.collection('asSomeDtat');
+    await collection.updateOne(
+      { docType: 'awesome_daily_summary' },
+      {
+        $set: {
+          totalQuantity: grandTotalQty,
+          totalAmount: grandTotalAmount,
+          rewardAmount: rewardAmount,
+          productDetails: productSummary,
+          recentBuyers: recentBuyers, // 🌟 추출한 ID/이름 리스트 저장
+          period: `${startDateStr} ~ ${moment(executedAtKST).format('YYYY-MM-DD')}`,
+          updatedAt: executedAtKST,
+          status: 'calculated_at_1010'
+        }
+      },
+      { upsert: true }
+    );
+    console.log(`✅ [Awesome People] 집계 및 덮어쓰기 완료! (구매자: ${recentBuyers.length}명, 총 매출: ${grandTotalAmount}원)`);
 
-          const displayTargetName = matchedObj.originalName;
-          const qty = Number(cur.qty) || 0;
-          const amount = Number(cur.amount) || 0;
-
-          if (!acc[displayTargetName]) {
-              acc[displayTargetName] = { qty: 0, amount: 0 };
-          }
-          
-          acc[displayTargetName].qty += qty;
-          acc[displayTargetName].amount += amount;
-
-          grandTotalQty += qty;
-          grandTotalAmount += amount;
-
-          return acc;
-      }, {});
-
-      const executedAtKST = moment().tz('Asia/Seoul').toDate();
-      const rewardAmount = Math.floor(grandTotalAmount * 0.01);
-      
-      // 최신 구매자가 먼저 나오도록 배열 뒤집기
-      recentBuyers.reverse();
-
-      const collection = db.collection('asSomeDtat');
-      await collection.updateOne(
-          { docType: 'awesome_daily_summary' },
-          {
-              $set: {
-                  totalQuantity: grandTotalQty,
-                  totalAmount: grandTotalAmount, 
-                  rewardAmount: rewardAmount,    
-                  productDetails: productSummary,
-                  recentBuyers: recentBuyers, // 🌟 추출한 ID/이름 리스트 저장
-                  period: `${startDateStr} ~ ${moment(executedAtKST).format('YYYY-MM-DD')}`,
-                  updatedAt: executedAtKST,
-                  status: 'calculated_at_1010'
-              }
-          },
-          { upsert: true }
-      );
-      console.log(`✅ [Awesome People] 집계 및 덮어쓰기 완료! (구매자: ${recentBuyers.length}명, 총 매출: ${grandTotalAmount}원)`);
-      
-      return { success: true, grandTotalAmount, rewardAmount };
+    return { success: true, grandTotalAmount, rewardAmount };
 
   } catch (error) {
-      console.error('❌ [Awesome People] 매출 집계 스케줄러 에러:', error);
-      return { success: false, message: error.message };
+    console.error('❌ [Awesome People] 매출 집계 스케줄러 에러:', error);
+    return { success: false, message: error.message };
   }
 }
 
@@ -3688,25 +3688,25 @@ async function aggregateAwesomeSalesData() {
 cron.schedule('0 0 * * *', async () => {
   if (!db) return;
   try {
-      const collection = db.collection('asSomeDtat');
-      await collection.updateOne(
-          { docType: 'awesome_daily_summary' },
-          {
-              $set: {
-                  totalQuantity: 0,
-                  totalAmount: 0,
-                  rewardAmount: 0,
-                  productDetails: {},
-                  recentBuyers: [], // 👈 초기화 시 구매자 리스트도 0으로 
-                  updatedAt: moment().tz('Asia/Seoul').toDate(),
-                  status: 'initialized_at_midnight'
-              }
-          },
-          { upsert: true }
-      );
-      console.log('🔄 [Awesome People] 자정(00:00) asSomeDtat 데이터 0으로 초기화 완료');
+    const collection = db.collection('asSomeDtat');
+    await collection.updateOne(
+      { docType: 'awesome_daily_summary' },
+      {
+        $set: {
+          totalQuantity: 0,
+          totalAmount: 0,
+          rewardAmount: 0,
+          productDetails: {},
+          recentBuyers: [], // 👈 초기화 시 구매자 리스트도 0으로 
+          updatedAt: moment().tz('Asia/Seoul').toDate(),
+          status: 'initialized_at_midnight'
+        }
+      },
+      { upsert: true }
+    );
+    console.log('🔄 [Awesome People] 자정(00:00) asSomeDtat 데이터 0으로 초기화 완료');
   } catch (error) {
-      console.error('❌ [Awesome People] 초기화 에러:', error);
+    console.error('❌ [Awesome People] 초기화 에러:', error);
   }
 }, {
   scheduled: true,
@@ -3716,34 +3716,34 @@ cron.schedule('0 0 * * *', async () => {
 // 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
 cron.schedule('10 10 * * *', async () => {
   console.log('⏰ [Cron] 10:10 어썸피플 매출 집계 스케줄러 작동 시작!');
-  
+
   // 하나로 통합된 집계 함수 실행!
   const result = await aggregateAwesomeSalesData();
 
   try {
-      const logCollection = db.collection('awesome_sync_logs'); 
-      const executedAtKST = moment().tz('Asia/Seoul').toDate();
+    const logCollection = db.collection('awesome_sync_logs');
+    const executedAtKST = moment().tz('Asia/Seoul').toDate();
 
-      if (result.success) {
-          console.log(`🟢 [Cron] 10:10 스케줄러 정상 작동 완료`);
-          await logCollection.insertOne({
-              type: 'cron_1010_sync',
-              status: 'SUCCESS',
-              grandTotalAmount: result.grandTotalAmount,
-              rewardAmount: result.rewardAmount,
-              executedAt: executedAtKST
-          });
-      } else {
-          console.error(`🔴 [Cron] 10:10 스케줄러 작동 실패: ${result.message}`);
-          await logCollection.insertOne({
-              type: 'cron_1010_sync',
-              status: 'FAIL',
-              errorMessage: result.message,
-              executedAt: executedAtKST
-          });
-      }
+    if (result.success) {
+      console.log(`🟢 [Cron] 10:10 스케줄러 정상 작동 완료`);
+      await logCollection.insertOne({
+        type: 'cron_1010_sync',
+        status: 'SUCCESS',
+        grandTotalAmount: result.grandTotalAmount,
+        rewardAmount: result.rewardAmount,
+        executedAt: executedAtKST
+      });
+    } else {
+      console.error(`🔴 [Cron] 10:10 스케줄러 작동 실패: ${result.message}`);
+      await logCollection.insertOne({
+        type: 'cron_1010_sync',
+        status: 'FAIL',
+        errorMessage: result.message,
+        executedAt: executedAtKST
+      });
+    }
   } catch (logError) {
-      console.error('❌ [Cron] DB에 스케줄러 로그 에러:', logError);
+    console.error('❌ [Cron] DB에 스케줄러 로그 에러:', logError);
   }
 }, {
   scheduled: true,
@@ -3753,43 +3753,143 @@ cron.schedule('10 10 * * *', async () => {
 // 5. 테스트용 수동 동기화 라우터
 app.get('/api/awesome-people/manual-sync', async (req, res) => {
   const result = await aggregateAwesomeSalesData();
-  
+
   if (result.success) {
-      res.json({ 
-          success: true, 
-          message: '어썸 피플 데이터 및 최근 구매자 리스트 강제 동기화가 완료되었습니다.',
-          data: result
-      });
+    res.json({
+      success: true,
+      message: '어썸 피플 데이터 및 최근 구매자 리스트 강제 동기화가 완료되었습니다.',
+      data: result
+    });
   } else {
-      res.status(500).json({ 
-          success: false, 
-          message: `데이터 집계 실패: ${result.message}` 
-      });
+    res.status(500).json({
+      success: false,
+      message: `데이터 집계 실패: ${result.message}`
+    });
   }
 });
 
 // 6. 프론트엔드 데이터 제공용 GET API
 app.get('/api/awesome-people/summary', async (req, res) => {
   try {
-      const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
-      res.json({
-          success: true,
-          totalAmount: data ? (data.rewardAmount || 0) : 0, 
-          originalTotalAmount: data ? data.totalAmount : 0,
-          totalQuantity: data ? (data.totalQuantity || 0) : 0, 
-          recentBuyers: data ? (data.recentBuyers || []) : [], 
-          updatedAt: data ? data.updatedAt : null
-      });
+    const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
+    res.json({
+      success: true,
+      totalAmount: data ? (data.rewardAmount || 0) : 0,
+      originalTotalAmount: data ? data.totalAmount : 0,
+      totalQuantity: data ? (data.totalQuantity || 0) : 0,
+      recentBuyers: data ? (data.recentBuyers || []) : [],
+      updatedAt: data ? data.updatedAt : null
+    });
   } catch (error) {
-      console.error('데이터 조회 에러:', error);
-      res.status(500).json({ success: false, totalAmount: 0, totalQuantity: 0, recentBuyers: [] });
+    console.error('데이터 조회 에러:', error);
+    res.status(500).json({ success: false, totalAmount: 0, totalQuantity: 0, recentBuyers: [] });
   }
 });
 
 
+// ========== [추가] 봄꽃 룰렛 이벤트 저장 및 관리 API ==========
 
+const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 
+// [API 1] 룰렛 응모하기
+app.post('/api/raffle/entryEvents', async (req, res) => {
+  try {
+      const { userId, optionName } = req.body;
+      
+      if (!userId || userId === 'GUEST' || userId === 'null') {
+          return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
+      }
+      if (!optionName) {
+          return res.status(400).json({ success: false, message: '당첨 결과(옵션)가 없습니다.' });
+      }
 
+      const collection = db.collection(ROLLET_COLLECTION);
+      const existingEntry = await collection.findOne({ userId: userId });
+
+      if (existingEntry) {
+          return res.json({
+              success: false, 
+              code: 'ALREADY_ENTERED', 
+              message: `이미 [${existingEntry.optionName}] 경품에 응모하셨습니다.` 
+          });
+      }
+
+      const newEntry = {
+          userId: userId,
+          optionName: optionName,
+          entryDate: moment().tz('Asia/Seoul').format('YYYY-MM-DD'),
+          createdAt: new Date(),
+      };
+
+      const result = await collection.insertOne(newEntry);
+      res.json({ success: true, message: `응모 완료!`, entryId: result.insertedId });
+  } catch (error) {
+      console.error('룰렛 응모 오류:', error);
+      res.status(500).json({ success: false, message: '서버 오류 발생' });
+  }
+});
+
+// [API 2] 응모 현황 조회
+app.get('/api/raffle/status', async (req, res) => {
+  try {
+      const { userId } = req.query;
+      if (!userId || userId === 'GUEST' || userId === 'null') {
+          return res.json({ success: true, isEntered: false, message: '로그인 필요' });
+      }
+      const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
+      if (existingEntry) {
+          return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
+      } else {
+          return res.json({ success: true, isEntered: false });
+      }
+  } catch (error) {
+      console.error('룰렛 상태 조회 오류:', error);
+      res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// [API 3] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
+app.get('/api/raffle/admin/participants', async (req, res) => {
+  try {
+      // 1. 참여자 목록 가져오기
+      const participants = await db.collection(ROLLET_COLLECTION).find({}).sort({ createdAt: -1 }).toArray();
+      
+      if (!participants.length) {
+          return res.json({ success: true, data: [] });
+      }
+
+      // 2. 각 참여자별로 트래킹 DB (visit_logs1Event) 조회하여 basket.html, order_result.html 방문 여부 확인
+      const enrichedData = await Promise.all(participants.map(async (p) => {
+          // 참여일 (예: 2026-03-23)
+          const entryDateStr = p.entryDate;
+          const startDate = new Date(entryDateStr + "T00:00:00.000Z");
+
+          // 로그 검색 (해당 유저가 이벤트 참여 이후에 장바구니/결제 페이지를 방문했는지)
+          const logs = await db.collection('visit_logs1Event').find({
+              visitorId: p.userId,
+              createdAt: { $gte: startDate },
+              currentUrl: { $regex: 'basket.html|order_result.html' }
+          }).toArray();
+
+          const hasCart = logs.some(log => log.currentUrl.includes('basket.html'));
+          const hasPurchase = logs.some(log => log.currentUrl.includes('order_result.html'));
+
+          return {
+              userId: p.userId,
+              optionName: p.optionName,
+              entryDate: p.entryDate,
+              createdAt: p.createdAt,
+              hasCart: hasCart,
+              hasPurchase: hasPurchase
+          };
+      }));
+
+      res.json({ success: true, data: enrichedData });
+  } catch (error) {
+      console.error('참여자 목록 조회 오류:', error);
+      res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
