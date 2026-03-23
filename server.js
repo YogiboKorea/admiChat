@@ -3908,11 +3908,11 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
       const logs = await db.collection('visit_logs1Event').find({
         visitorId: p.userId,
         createdAt: { $gte: startDate },
-        currentUrl: { $regex: 'basket.html|order_result.html' }
+        currentUrl: { $regex: '/order/basket.html|/order/order_result.html' }
       }).toArray();
 
-      const hasCart = logs.some(log => log.currentUrl.includes('basket.html'));
-      const hasPurchase = logs.some(log => log.currentUrl.includes('order_result.html'));
+      const hasCart = logs.some(log => log.currentUrl.includes('/order/basket.html'));
+      const hasPurchase = logs.some(log => log.currentUrl.includes('/order/order_result.html'));
 
       return {
         userId: p.userId,
@@ -3954,15 +3954,15 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
       const logs = await db.collection('visit_logs1Event').find({
         visitorId: p.userId,
         createdAt: { $gte: sDate },
-        currentUrl: { $regex: 'basket.html|order_result.html' }
+        currentUrl: { $regex: '/order/basket.html|/order/order_result.html' }
       }).toArray();
       return {
         userId: p.userId,
         optionName: p.optionName,
         entryDate: p.entryDate,
         createdAt: p.createdAt,
-        hasCart: logs.some(log => log.currentUrl.includes('basket.html')) ? 'O' : 'X',
-        hasPurchase: logs.some(log => log.currentUrl.includes('order_result.html')) ? 'O' : 'X'
+        hasCart: logs.some(log => log.currentUrl.includes('/order/basket.html')) ? 'O' : 'X',
+        hasPurchase: logs.some(log => log.currentUrl.includes('/order/order_result.html')) ? 'O' : 'X'
       };
     }));
 
