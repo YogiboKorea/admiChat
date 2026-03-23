@@ -3682,8 +3682,41 @@ cron.schedule('0 0 * * *', async () => {
 
 // 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
 cron.schedule('10 10 * * *', async () => {
-  // 스케줄러 내에서도 await 처리하여 비동기 실행 보장
-  await aggregateAwesomeSalesData();
+  console.log('⏰ [Cron] 10:10 어썸피플 매출 집계 스케줄러 작동 시작!');
+  
+  // 집계 함수 실행 후 결과 받아오기
+  const result = await aggregateAwesomeSalesData();
+
+  try {
+      const logCollection = db.collection('awesome_sync_logs'); // 👈 실행 이력을 남길 새로운 컬렉션
+      const executedAtKST = moment().tz('Asia/Seoul').toDate();
+
+      if (result.success) {
+          console.log(`🟢 [Cron] 10:10 스케줄러 정상 작동 완료 (적립금: ${result.rewardAmount}원)`);
+          
+          // DB에 성공 로그 남기기
+          await logCollection.insertOne({
+              type: 'cron_1010_sync',
+              status: 'SUCCESS',
+              grandTotalAmount: result.grandTotalAmount,
+              rewardAmount: result.rewardAmount,
+              executedAt: executedAtKST
+          });
+      } else {
+          console.error(`🔴 [Cron] 10:10 스케줄러 작동 실패: ${result.message}`);
+          
+          // DB에 실패 로그 남기기
+          await logCollection.insertOne({
+              type: 'cron_1010_sync',
+              status: 'FAIL',
+              errorMessage: result.message,
+              executedAt: executedAtKST
+          });
+      }
+  } catch (logError) {
+      console.error('❌ [Cron] DB에 스케줄러 로그를 남기는 중 에러 발생:', logError);
+  }
+
 }, {
   scheduled: true,
   timezone: "Asia/Seoul"
