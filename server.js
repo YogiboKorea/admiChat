@@ -3508,13 +3508,6 @@ app.get('/api/event/sessions', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false }); }
 });
 
-
-
-
-//어썸 피플 관련 데이터 축척 관련 MONGOD DB 결과 값변경작업 진행하기
-
-
-
 // =================================================================
 // 🌟 어썸 피플 관련 데이터 (0시 초기화 및 10시 10분 덮어쓰기 스케줄러)
 // =================================================================
@@ -3549,6 +3542,72 @@ const awesomeSearchTargets = AWESOME_TARGET_PRODUCTS.map(name => ({
 const AWESOME_EXCLUDE_KEYWORDS = ["플랜트 스퀴지보", "비즈", "커버"].map(name => normalizeAwesome(name));
 
 
+// 🌟 [추가] 이름 마스킹 헬퍼 함수 (홍길동 -> 홍*동, 이산 -> 이*)
+const maskName = (name) => {
+    if (!name || name.length < 2) return name || '익명';
+    if (name.length === 2) return name[0] + '*';
+    return name[0] + '*'.repeat(name.length - 2) + name[name.length - 1];
+};
+
+// 🌟 [추가] 최근 7일 타겟 제품 구매자 리스트 갱신 로직
+async function updateAwesomeRecentBuyers() {
+    if (!db) return;
+    try {
+        console.log('🔄 [Awesome Buyers] 최근 7일 구매자 리스트 갱신 시작...');
+        
+        const endDate = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
+        const startDate = moment().tz('Asia/Seoul').subtract(7, 'days').format('YYYY-MM-DD');
+
+        let orderHasMore = true;
+        let orderOffset = 0;
+        const recentBuyers = [];
+
+        while (orderHasMore && orderOffset < 1000) { 
+            const orderRes = await apiRequest('GET', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`, {}, {
+                shop_no: 1, start_date: startDate, end_date: endDate, limit: 100, offset: orderOffset, embed: 'items'
+            });
+
+            const orders = orderRes.orders || [];
+            orders.forEach(o => {
+                if (['C', 'R', 'E'].includes(o.order_status)) return;
+                
+                let hasTargetItem = false;
+                const items = o.items || [];
+                
+                items.forEach(item => {
+                    const normalizedRawName = normalizeAwesome(item.product_name || "");
+                    if (AWESOME_EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord))) return;
+                    if (awesomeSearchTargets.some(target => normalizedRawName.includes(target.searchKey))) {
+                        hasTargetItem = true;
+                    }
+                });
+
+                if (hasTargetItem) {
+                    const maskedName = maskName(o.billing_name);
+                    if (!recentBuyers.includes(maskedName)) {
+                        recentBuyers.push(maskedName);
+                    }
+                }
+            });
+
+            if (orders.length < 100) orderHasMore = false;
+            else orderOffset += 100;
+        }
+
+        // 기존 누적 데이터에 최근 7일 구매자(recentBuyers) 배열 추가 저장
+        await db.collection('asSomeDtat').updateOne(
+            { docType: 'awesome_daily_summary' },
+            { $set: { recentBuyers: recentBuyers, buyersUpdatedAt: new Date() } },
+            { upsert: true }
+        );
+        console.log(`✅ [Awesome Buyers] 7일 내 구매자 ${recentBuyers.length}명 갱신 완료.`);
+
+    } catch (err) {
+        console.error('❌ [Awesome Buyers] 구매자 리스트 갱신 실패:', err);
+    }
+}
+
+
 // 2. 10시 10분 데이터 페치 및 DB 덮어쓰기 핵심 로직
 async function aggregateAwesomeSalesData() {
   if (!db) {
@@ -3573,7 +3632,6 @@ async function aggregateAwesomeSalesData() {
       // 3월부터 현재 월까지 병렬 호출
       for (let m = 3; m <= currentMonth; m++) {
           const monthParam = `${currentYear}-${String(m).padStart(2, '0')}`;
-          // URL 끝에 _t 파라미터를 추가하여 항상 최신 데이터를 받아오도록 강제
           fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
           fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
       }
@@ -3621,18 +3679,17 @@ async function aggregateAwesomeSalesData() {
 
       const executedAtKST = moment().tz('Asia/Seoul').toDate();
       
-      // 🌟 [핵심 수정] 총매출의 1%를 적립금으로 계산 (소수점 버림)
+      // 🌟 총매출의 1%를 적립금으로 계산
       const rewardAmount = Math.floor(grandTotalAmount * 0.01);
 
-      // 🌟 컬렉션명 asSomeDtat 반영 & updateOne으로 단일 문서 덮어쓰기
       const collection = db.collection('asSomeDtat');
       await collection.updateOne(
           { docType: 'awesome_daily_summary' },
           {
               $set: {
                   totalQuantity: grandTotalQty,
-                  totalAmount: grandTotalAmount, // 원본 매출액 보관
-                  rewardAmount: rewardAmount,    // 👈 1% 적립금 필드 추가
+                  totalAmount: grandTotalAmount, 
+                  rewardAmount: rewardAmount,    
                   productDetails: productSummary,
                   period: `${startDateStr} ~ ${moment(executedAtKST).format('YYYY-MM-DD')}`,
                   updatedAt: executedAtKST,
@@ -3643,7 +3700,6 @@ async function aggregateAwesomeSalesData() {
       );
       console.log(`✅ [Awesome People] 집계 및 asSomeDtat 덮어쓰기 완료! (총 수량: ${grandTotalQty}, 총 매출: ${grandTotalAmount}원)`);
       
-      // 함수 실행 결과를 명확하게 리턴
       return { success: true, grandTotalAmount, rewardAmount };
 
   } catch (error) {
@@ -3652,7 +3708,7 @@ async function aggregateAwesomeSalesData() {
   }
 }
 
-// 3. 🌟 [신규] 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
+// 3. 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
 cron.schedule('0 0 * * *', async () => {
   if (!db) return;
   try {
@@ -3663,8 +3719,9 @@ cron.schedule('0 0 * * *', async () => {
               $set: {
                   totalQuantity: 0,
                   totalAmount: 0,
-                  rewardAmount: 0, // 👈 1% 적립금도 0으로 초기화
+                  rewardAmount: 0,
                   productDetails: {},
+                  recentBuyers: [], // 👈 초기화 시 구매자 리스트도 초기화
                   updatedAt: moment().tz('Asia/Seoul').toDate(),
                   status: 'initialized_at_midnight'
               }
@@ -3684,17 +3741,19 @@ cron.schedule('0 0 * * *', async () => {
 cron.schedule('10 10 * * *', async () => {
   console.log('⏰ [Cron] 10:10 어썸피플 매출 집계 스케줄러 작동 시작!');
   
-  // 집계 함수 실행 후 결과 받아오기
+  // 집계 함수 실행
   const result = await aggregateAwesomeSalesData();
+  
+  // 🌟 [추가] 매출 집계가 끝난 후, 최근 7일 구매자 리스트도 바로 업데이트
+  await updateAwesomeRecentBuyers();
 
   try {
-      const logCollection = db.collection('awesome_sync_logs'); // 👈 실행 이력을 남길 새로운 컬렉션
+      const logCollection = db.collection('awesome_sync_logs'); 
       const executedAtKST = moment().tz('Asia/Seoul').toDate();
 
       if (result.success) {
           console.log(`🟢 [Cron] 10:10 스케줄러 정상 작동 완료 (적립금: ${result.rewardAmount}원)`);
           
-          // DB에 성공 로그 남기기
           await logCollection.insertOne({
               type: 'cron_1010_sync',
               status: 'SUCCESS',
@@ -3705,7 +3764,6 @@ cron.schedule('10 10 * * *', async () => {
       } else {
           console.error(`🔴 [Cron] 10:10 스케줄러 작동 실패: ${result.message}`);
           
-          // DB에 실패 로그 남기기
           await logCollection.insertOne({
               type: 'cron_1010_sync',
               status: 'FAIL',
@@ -3722,24 +3780,28 @@ cron.schedule('10 10 * * *', async () => {
   timezone: "Asia/Seoul"
 });
 
-// 5. [선택 API] 테스트용 수동 동기화 라우터 (결과 응답 개선)
+// 5. 테스트용 수동 동기화 라우터
 app.get('/api/awesome-people/manual-sync', async (req, res) => {
   const result = await aggregateAwesomeSalesData();
+  
+  // 🌟 [추가] 수동으로 돌릴 때도 구매자 리스트 같이 갱신
+  await updateAwesomeRecentBuyers();
   
   if (result.success) {
       res.json({ 
           success: true, 
-          message: '어썸 피플 데이터 수동 집계 및 덮어쓰기가 완료되었습니다.',
+          message: '어썸 피플 데이터 및 최근 구매자 리스트 강제 동기화가 완료되었습니다.',
           data: result
       });
   } else {
-      // 에러 발생 시 500 상태 코드와 실패 메시지 응답
       res.status(500).json({ 
           success: false, 
           message: `데이터 집계 실패: ${result.message}` 
       });
   }
 });
+
+// 6. 프론트엔드 데이터 제공용 GET API
 app.get('/api/awesome-people/summary', async (req, res) => {
   try {
       const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
@@ -3747,14 +3809,20 @@ app.get('/api/awesome-people/summary', async (req, res) => {
           success: true,
           totalAmount: data ? (data.rewardAmount || 0) : 0, 
           originalTotalAmount: data ? data.totalAmount : 0,
-          totalQuantity: data ? (data.totalQuantity || 0) : 0, // 👈 [추가] 총 판매 수량을 함께 전송
+          totalQuantity: data ? (data.totalQuantity || 0) : 0, 
+          recentBuyers: data ? (data.recentBuyers || []) : [], // 🌟 [추가] 배열 쏴주기!
           updatedAt: data ? data.updatedAt : null
       });
   } catch (error) {
       console.error('데이터 조회 에러:', error);
-      res.status(500).json({ success: false, totalAmount: 0, totalQuantity: 0 });
+      // 에러 시 배열로 빈 값 반환 안전장치
+      res.status(500).json({ success: false, totalAmount: 0, totalQuantity: 0, recentBuyers: [] });
   }
 });
+
+
+
+
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
