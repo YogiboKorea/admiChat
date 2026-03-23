@@ -3883,8 +3883,16 @@ app.post('/api/raffle/probability', async (req, res) => {
 // [API 3] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    let query = {};
+    if (startDate || endDate) {
+      query.entryDate = {};
+      if (startDate) query.entryDate.$gte = startDate;
+      if (endDate) query.entryDate.$lte = endDate;
+    }
+
     // 1. 참여자 목록 가져오기
-    const participants = await db.collection(ROLLET_COLLECTION).find({}).sort({ createdAt: -1 }).toArray();
+    const participants = await db.collection(ROLLET_COLLECTION).find(query).sort({ createdAt: -1 }).toArray();
 
     if (!participants.length) {
       return res.json({ success: true, data: [] });
@@ -3922,6 +3930,80 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
+
+// [API 4] 관리자용: 룰렛 참여 내역 엑셀 다운로드
+app.get('/api/raffle/admin/excel', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let query = {};
+    if (startDate || endDate) {
+      query.entryDate = {};
+      if (startDate) query.entryDate.$gte = startDate;
+      if (endDate) query.entryDate.$lte = endDate;
+    }
+
+    const participants = await db.collection(ROLLET_COLLECTION).find(query).sort({ createdAt: -1 }).toArray();
+    
+    if (!participants.length) {
+      return res.status(404).send('데이터가 없습니다.');
+    }
+
+    const enrichedData = await Promise.all(participants.map(async (p) => {
+      const entryDateStr = p.entryDate;
+      const sDate = new Date(entryDateStr + "T00:00:00.000Z");
+      const logs = await db.collection('visit_logs1Event').find({
+        visitorId: p.userId,
+        createdAt: { $gte: sDate },
+        currentUrl: { $regex: 'basket.html|order_result.html' }
+      }).toArray();
+      return {
+        userId: p.userId,
+        optionName: p.optionName,
+        entryDate: p.entryDate,
+        createdAt: p.createdAt,
+        hasCart: logs.some(log => log.currentUrl.includes('basket.html')) ? 'O' : 'X',
+        hasPurchase: logs.some(log => log.currentUrl.includes('order_result.html')) ? 'O' : 'X'
+      };
+    }));
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('봄꽃룰렛_참여자');
+
+    worksheet.columns = [
+      { header: 'No', key: 'index', width: 8 },
+      { header: '회원 ID', key: 'userId', width: 20 },
+      { header: '당첨 경품', key: 'optionName', width: 20 },
+      { header: '응모일(기준)', key: 'entryDate', width: 15 },
+      { header: '응모일시(상세)', key: 'createdAt', width: 25 },
+      { header: '장바구니 이동', key: 'hasCart', width: 15 },
+      { header: '결제완료 여부', key: 'hasPurchase', width: 15 },
+    ];
+
+    enrichedData.forEach((entry, idx) => {
+      worksheet.addRow({
+        index: enrichedData.length - idx,
+        userId: entry.userId,
+        optionName: entry.optionName,
+        entryDate: entry.entryDate,
+        createdAt: entry.createdAt ? new Date(entry.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-',
+        hasCart: entry.hasCart,
+        hasPurchase: entry.hasPurchase
+      });
+    });
+
+    const filename = encodeURIComponent(`봄꽃룰렛_결과_${Date.now()}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('엑셀 생성 오류:', error);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  }
+});
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {

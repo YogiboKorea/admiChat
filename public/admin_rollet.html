@@ -89,6 +89,17 @@
     <p id="probMessage" style="color:#047857; font-size:13px; margin-top:10px; display:none;"></p>
   </div>
 
+  <div style="background:#fff; padding:15px; border-radius:6px; border:1px solid #e9ecef; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <label style="font-weight:600; margin-right:10px;">기간 조회:</label>
+      <input type="date" id="startDate" style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
+      <span style="margin:0 5px;">~</span>
+      <input type="date" id="endDate" style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
+      <button onclick="loadData()" style="margin-left:10px; padding:7px 16px; background:#475569; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">조회</button>
+    </div>
+    <button onclick="downloadExcel()" style="padding:7px 18px; background:#10b981; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:14px;">📑 엑셀 다운로드</button>
+  </div>
+
   <div class="stats">
     <div class="stat-card">
       <h3>총 참여자</h3>
@@ -136,7 +147,14 @@
 
   async function loadData() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/raffle/admin/participants`);
+      const sDate = document.getElementById('startDate').value;
+      const eDate = document.getElementById('endDate').value;
+      
+      const url = new URL(`${API_BASE_URL}/api/raffle/admin/participants`);
+      if (sDate) url.searchParams.append('startDate', sDate);
+      if (eDate) url.searchParams.append('endDate', eDate);
+
+      const response = await fetch(url);
       const result = await response.json();
       
       if (!result.success) {
@@ -224,9 +242,27 @@
   }
 
   window.onload = () => {
+    // 기본 날짜를 이번 달로 설정
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
     loadData();
     loadProbConfig();
   };
+
+  function downloadExcel() {
+    const sDate = document.getElementById('startDate').value;
+    const eDate = document.getElementById('endDate').value;
+    let url = `${API_BASE_URL}/api/raffle/admin/excel`;
+    const params = [];
+    if (sDate) params.push(`startDate=${sDate}`);
+    if (eDate) params.push(`endDate=${eDate}`);
+    if (params.length > 0) url += '?' + params.join('&');
+    
+    window.location.href = url;
+  }
 </script>
 
 </body>
