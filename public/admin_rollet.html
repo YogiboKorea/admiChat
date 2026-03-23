@@ -122,6 +122,8 @@
 </div>
 
 <script>
+  const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+
   function formatDate(isoString) {
     if (!isoString) return '-';
     const date = new Date(isoString);
@@ -134,7 +136,7 @@
 
   async function loadData() {
     try {
-      const response = await fetch('/api/raffle/admin/participants');
+      const response = await fetch(`${API_BASE_URL}/api/raffle/admin/participants`);
       const result = await response.json();
       
       if (!result.success) {
@@ -183,7 +185,7 @@
 
   async function loadProbConfig() {
     try {
-      const res = await fetch('/api/raffle/probability');
+      const res = await fetch(`${API_BASE_URL}/api/raffle/probability`);
       const result = await res.json();
       if(result.success && result.data) {
         document.getElementById('prob1').value = result.data.p1;
@@ -204,7 +206,7 @@
     }
 
     try {
-      const res = await fetch('/api/raffle/probability', {
+      const res = await fetch(`${API_BASE_URL}/api/raffle/probability`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ p1, p2, p3 })

@@ -348,10 +348,10 @@
       <img class="btn-start" id="btnStart" src="https://yogibo.kr//web/img/event/0318/btn_Start.png" alt="START"
         onclick="spinRoulette()">
 
-      <div class="login-overlay" id="loginOverlay">
+      <div class="login-overlay active" id="loginOverlay">
         <div class="login-overlay-inner">
-          <span class="login-overlay-text" id="overlayText">회원가입 후 룰렛 이벤트 참여!</span>
-          <a class="login-overlay-btn" id="overlayBtn" href="/member/join.html">
+          <span class="login-overlay-text" id="overlayText">회원 정보 확인 중...</span>
+          <a class="login-overlay-btn" id="overlayBtn" href="/member/join.html" style="display: none;">
             <svg viewBox="0 0 24 24">
               <path
                 d="M12 12c2.7 0 4.8-2.2 4.8-4.8S14.7 2.4 12 2.4 7.2 4.6 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
@@ -422,12 +422,14 @@
       CAFE24API.getMemberID(function (res) {
         if (res) {
           memberId = res;
+          console.log('✅ 프론트엔드 체크 완료 - 현재 회원 ID:', memberId);
           checkParticipationHistory(memberId);
         } else {
           if (memberIdRetryCount < maxRetryLimit) {
             memberIdRetryCount++;
             setTimeout(initializeAndGetMemberId, 500);
           } else {
+            console.log('❌ 프론트엔드 체크 완료 - 비회원 상태');
             memberId = null;
             showOverlayUI('login');
           }
@@ -486,6 +488,7 @@
   // [3] 확률 기반 룰렛 로직 (✨ 완벽 매칭 완료)
   // ==========================================
   var isSpinning = false;
+  var totalRotation = 0;
   // 🎯 1등이 맨 위에 있는 원본 이미지 기준의 정확한 각도 (이제 절대 안 엇갈립니다!)
   var prizes = [
     { label: '1등', deg: 360, weight: 1 },  // 기본 1% 확률
@@ -537,8 +540,7 @@
 
     var disk = document.getElementById('innerDisk');
     var btn = document.getElementById('btnStart');
-    btn.style.pointerEvents = 'none';
-    btn.style.opacity = '0.5';
+    btn.style.display = 'none';
 
     var picked = getWeightedRandomPrize();
 
@@ -560,9 +562,8 @@
 
     setTimeout(function () {
       isSpinning = false;
-      btn.style.pointerEvents = 'auto';
-      btn.style.opacity = '1';
-
+      // 버튼은 이미 display: none 처리 상태이며, 이후 응모 결과에 따라 Overlay가 제어됩니다.
+      
       submitRaffleEntry(picked.label);
     }, 4600);
   }
