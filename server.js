@@ -3515,7 +3515,6 @@ app.get('/api/event/sessions', async (req, res) => {
 
 
 
-
 // =================================================================
 // 🌟 어썸 피플 관련 데이터 (0시 초기화 및 10시 10분 덮어쓰기 스케줄러)
 // =================================================================
@@ -3549,11 +3548,12 @@ const awesomeSearchTargets = AWESOME_TARGET_PRODUCTS.map(name => ({
 
 const AWESOME_EXCLUDE_KEYWORDS = ["플랜트 스퀴지보", "비즈", "커버"].map(name => normalizeAwesome(name));
 
+
 // 2. 10시 10분 데이터 페치 및 DB 덮어쓰기 핵심 로직
 async function aggregateAwesomeSalesData() {
   if (!db) {
-      console.error('[Awesome People] DB 연결이 되어있지 않아 작업을 중단합니다.');
-      return;
+      console.error('❌ [Awesome People] DB 연결이 되어있지 않아 작업을 중단합니다.');
+      return { success: false, message: 'DB 연결 오류' };
   }
 
   try {
@@ -3568,12 +3568,14 @@ async function aggregateAwesomeSalesData() {
       const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
 
       const fetchPromises = [];
+      const timestamp = new Date().getTime(); // 👈 캐싱 방지용 타임스탬프
 
       // 3월부터 현재 월까지 병렬 호출
       for (let m = 3; m <= currentMonth; m++) {
           const monthParam = `${currentYear}-${String(m).padStart(2, '0')}`;
-          fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all`));
-          fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all`));
+          // URL 끝에 _t 파라미터를 추가하여 항상 최신 데이터를 받아오도록 강제
+          fetchPromises.push(axios.get(`${offlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
+          fetchPromises.push(axios.get(`${onlineBase}?month=${monthParam}&store=all&_t=${timestamp}`));
       }
 
       const responses = await Promise.allSettled(fetchPromises);
@@ -3640,11 +3642,16 @@ async function aggregateAwesomeSalesData() {
           { upsert: true }
       );
       console.log(`✅ [Awesome People] 집계 및 asSomeDtat 덮어쓰기 완료! (총 수량: ${grandTotalQty}, 총 매출: ${grandTotalAmount}원)`);
+      
+      // 함수 실행 결과를 명확하게 리턴
+      return { success: true, grandTotalAmount, rewardAmount };
 
   } catch (error) {
       console.error('❌ [Awesome People] 매출 집계 스케줄러 에러:', error);
+      return { success: false, message: error.message };
   }
 }
+
 // 3. 🌟 [신규] 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
 cron.schedule('0 0 * * *', async () => {
   if (!db) return;
@@ -3674,19 +3681,34 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
-cron.schedule('10 10 * * *', () => {
-  aggregateAwesomeSalesData();
+cron.schedule('10 10 * * *', async () => {
+  // 스케줄러 내에서도 await 처리하여 비동기 실행 보장
+  await aggregateAwesomeSalesData();
 }, {
   scheduled: true,
   timezone: "Asia/Seoul"
 });
 
-// 5. [선택 API] 테스트용 수동 동기화 라우터
+// 5. [선택 API] 테스트용 수동 동기화 라우터 (결과 응답 개선)
 app.get('/api/awesome-people/manual-sync', async (req, res) => {
-  await aggregateAwesomeSalesData();
-  res.json({ success: true, message: '어썸 피플 데이터 수동 집계 및 덮어쓰기가 완료되었습니다.' });
+  const result = await aggregateAwesomeSalesData();
+  
+  if (result.success) {
+      res.json({ 
+          success: true, 
+          message: '어썸 피플 데이터 수동 집계 및 덮어쓰기가 완료되었습니다.',
+          data: result
+      });
+  } else {
+      // 에러 발생 시 500 상태 코드와 실패 메시지 응답
+      res.status(500).json({ 
+          success: false, 
+          message: `데이터 집계 실패: ${result.message}` 
+      });
+  }
 });
-// 프론트엔드 데이터 제공용 GET API
+
+// 6. 프론트엔드 데이터 제공용 GET API
 app.get('/api/awesome-people/summary', async (req, res) => {
   try {
       const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
@@ -3702,8 +3724,6 @@ app.get('/api/awesome-people/summary', async (req, res) => {
       res.status(500).json({ success: false, totalAmount: 0 });
   }
 });
-
-
 
 
 
