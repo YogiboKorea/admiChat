@@ -3794,100 +3794,132 @@ const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 // [API 1] 룰렛 응모하기
 app.post('/api/raffle/entryEvents', async (req, res) => {
   try {
-      const { userId, optionName } = req.body;
-      
-      if (!userId || userId === 'GUEST' || userId === 'null') {
-          return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
-      }
-      if (!optionName) {
-          return res.status(400).json({ success: false, message: '당첨 결과(옵션)가 없습니다.' });
-      }
+    const { userId, optionName } = req.body;
 
-      const collection = db.collection(ROLLET_COLLECTION);
-      const existingEntry = await collection.findOne({ userId: userId });
+    if (!userId || userId === 'GUEST' || userId === 'null') {
+      return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
+    }
+    if (!optionName) {
+      return res.status(400).json({ success: false, message: '당첨 결과(옵션)가 없습니다.' });
+    }
 
-      if (existingEntry) {
-          return res.json({
-              success: false, 
-              code: 'ALREADY_ENTERED', 
-              message: `이미 [${existingEntry.optionName}] 경품에 응모하셨습니다.` 
-          });
-      }
+    const collection = db.collection(ROLLET_COLLECTION);
+    const existingEntry = await collection.findOne({ userId: userId });
 
-      const newEntry = {
-          userId: userId,
-          optionName: optionName,
-          entryDate: moment().tz('Asia/Seoul').format('YYYY-MM-DD'),
-          createdAt: new Date(),
-      };
+    if (existingEntry) {
+      return res.json({
+        success: false,
+        code: 'ALREADY_ENTERED',
+        message: `이미 [${existingEntry.optionName}] 경품에 응모하셨습니다.`
+      });
+    }
 
-      const result = await collection.insertOne(newEntry);
-      res.json({ success: true, message: `응모 완료!`, entryId: result.insertedId });
+    const newEntry = {
+      userId: userId,
+      optionName: optionName,
+      entryDate: moment().tz('Asia/Seoul').format('YYYY-MM-DD'),
+      createdAt: new Date(),
+    };
+
+    const result = await collection.insertOne(newEntry);
+    res.json({ success: true, message: `응모 완료!`, entryId: result.insertedId });
   } catch (error) {
-      console.error('룰렛 응모 오류:', error);
-      res.status(500).json({ success: false, message: '서버 오류 발생' });
+    console.error('룰렛 응모 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류 발생' });
   }
 });
 
 // [API 2] 응모 현황 조회
 app.get('/api/raffle/status', async (req, res) => {
   try {
-      const { userId } = req.query;
-      if (!userId || userId === 'GUEST' || userId === 'null') {
-          return res.json({ success: true, isEntered: false, message: '로그인 필요' });
-      }
-      const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
-      if (existingEntry) {
-          return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
-      } else {
-          return res.json({ success: true, isEntered: false });
-      }
+    const { userId } = req.query;
+    if (!userId || userId === 'GUEST' || userId === 'null') {
+      return res.json({ success: true, isEntered: false, message: '로그인 필요' });
+    }
+    const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
+    if (existingEntry) {
+      return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
+    } else {
+      return res.json({ success: true, isEntered: false });
+    }
   } catch (error) {
-      console.error('룰렛 상태 조회 오류:', error);
-      res.status(500).json({ success: false, message: '서버 오류' });
+    console.error('룰렛 상태 조회 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// [API 2.5] 룰렛 확률 조회 및 설정
+app.get('/api/raffle/probability', async (req, res) => {
+  try {
+    let config = await db.collection('event_2026_03_Rollet_Config').findOne({ type: 'probability' });
+    if (!config) {
+      // 기본값 (1등 1%, 2등 10%, 3등 89%) 설정
+      config = { type: 'probability', p1: 1, p2: 10, p3: 89, updatedAt: new Date() };
+      await db.collection('event_2026_03_Rollet_Config').insertOne(config);
+    }
+    res.json({ success: true, data: config });
+  } catch (error) {
+    console.error('확률 조회 오류:', error);
+    //확률 조정부분
+    res.status(500).json({ success: false, data: { p1: 1, p2: 10, p3: 89 } });
+  }
+});
+
+app.post('/api/raffle/probability', async (req, res) => {
+  try {
+    const { p1, p2, p3 } = req.body;
+    await db.collection('event_2026_03_Rollet_Config').updateOne(
+      { type: 'probability' },
+      { $set: { p1: Number(p1), p2: Number(p2), p3: Number(p3), updatedAt: new Date() } },
+      { upsert: true }
+    );
+    res.json({ success: true, message: '확률이 변경되었습니다.' });
+  } catch (error) {
+    console.error('확률 변경 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
 
 // [API 3] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
-      // 1. 참여자 목록 가져오기
-      const participants = await db.collection(ROLLET_COLLECTION).find({}).sort({ createdAt: -1 }).toArray();
-      
-      if (!participants.length) {
-          return res.json({ success: true, data: [] });
-      }
+    // 1. 참여자 목록 가져오기
+    const participants = await db.collection(ROLLET_COLLECTION).find({}).sort({ createdAt: -1 }).toArray();
 
-      // 2. 각 참여자별로 트래킹 DB (visit_logs1Event) 조회하여 basket.html, order_result.html 방문 여부 확인
-      const enrichedData = await Promise.all(participants.map(async (p) => {
-          // 참여일 (예: 2026-03-23)
-          const entryDateStr = p.entryDate;
-          const startDate = new Date(entryDateStr + "T00:00:00.000Z");
+    if (!participants.length) {
+      return res.json({ success: true, data: [] });
+    }
 
-          // 로그 검색 (해당 유저가 이벤트 참여 이후에 장바구니/결제 페이지를 방문했는지)
-          const logs = await db.collection('visit_logs1Event').find({
-              visitorId: p.userId,
-              createdAt: { $gte: startDate },
-              currentUrl: { $regex: 'basket.html|order_result.html' }
-          }).toArray();
+    // 2. 각 참여자별로 트래킹 DB (visit_logs1Event) 조회하여 basket.html, order_result.html 방문 여부 확인
+    const enrichedData = await Promise.all(participants.map(async (p) => {
+      // 참여일 (예: 2026-03-23)
+      const entryDateStr = p.entryDate;
+      const startDate = new Date(entryDateStr + "T00:00:00.000Z");
 
-          const hasCart = logs.some(log => log.currentUrl.includes('basket.html'));
-          const hasPurchase = logs.some(log => log.currentUrl.includes('order_result.html'));
+      // 로그 검색 (해당 유저가 이벤트 참여 이후에 장바구니/결제 페이지를 방문했는지)
+      const logs = await db.collection('visit_logs1Event').find({
+        visitorId: p.userId,
+        createdAt: { $gte: startDate },
+        currentUrl: { $regex: 'basket.html|order_result.html' }
+      }).toArray();
 
-          return {
-              userId: p.userId,
-              optionName: p.optionName,
-              entryDate: p.entryDate,
-              createdAt: p.createdAt,
-              hasCart: hasCart,
-              hasPurchase: hasPurchase
-          };
-      }));
+      const hasCart = logs.some(log => log.currentUrl.includes('basket.html'));
+      const hasPurchase = logs.some(log => log.currentUrl.includes('order_result.html'));
 
-      res.json({ success: true, data: enrichedData });
+      return {
+        userId: p.userId,
+        optionName: p.optionName,
+        entryDate: p.entryDate,
+        createdAt: p.createdAt,
+        hasCart: hasCart,
+        hasPurchase: hasPurchase
+      };
+    }));
+
+    res.json({ success: true, data: enrichedData });
   } catch (error) {
-      console.error('참여자 목록 조회 오류:', error);
-      res.status(500).json({ success: false, message: '서버 오류' });
+    console.error('참여자 목록 조회 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
 

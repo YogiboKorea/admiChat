@@ -409,6 +409,7 @@
     initializeAndGetMemberId();
     sendVisitLog();
     initClickTracking();
+    loadProbabilities();
   });
 
   function initializeAndGetMemberId() {
@@ -485,14 +486,25 @@
   // [3] 확률 기반 룰렛 로직 (✨ 완벽 매칭 완료)
   // ==========================================
   var isSpinning = false;
-  var totalRotation = 0;
-
   // 🎯 1등이 맨 위에 있는 원본 이미지 기준의 정확한 각도 (이제 절대 안 엇갈립니다!)
   var prizes = [
-    { label: '1등', deg: 360, weight: 5 },  // 5% 확률
-    { label: '2등', deg: 120, weight: 25 },  // 25% 확률
-    { label: '3등', deg: 240, weight: 70 },  // 70% 확률
+    { label: '1등', deg: 360, weight: 1 },  // 기본 1% 확률
+    { label: '2등', deg: 120, weight: 10 },  // 기본 10% 확률
+    { label: '3등', deg: 240, weight: 89 },  // 기본 89% 확률
   ];
+
+  function loadProbabilities() {
+      fetch(API_BASE_URL + '/api/raffle/probability')
+          .then(res => res.json())
+          .then(res => {
+              if (res.success && res.data) {
+                  prizes[0].weight = res.data.p1;
+                  prizes[1].weight = res.data.p2;
+                  prizes[2].weight = res.data.p3;
+              }
+          })
+          .catch(err => console.error('확률 로드 에러:', err));
+  }
 
   function getWeightedRandomPrize() {
     var totalWeight = prizes.reduce(function (sum, prize) { return sum + prize.weight; }, 0);
