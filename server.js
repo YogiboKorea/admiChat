@@ -3740,24 +3740,21 @@ app.get('/api/awesome-people/manual-sync', async (req, res) => {
       });
   }
 });
-
-// 6. 프론트엔드 데이터 제공용 GET API
 app.get('/api/awesome-people/summary', async (req, res) => {
   try {
       const data = await db.collection('asSomeDtat').findOne({ docType: 'awesome_daily_summary' });
       res.json({
           success: true,
-          // 👈 프론트엔드에는 1% 금액(rewardAmount)을 totalAmount라는 이름으로 넘겨줌
           totalAmount: data ? (data.rewardAmount || 0) : 0, 
-          originalTotalAmount: data ? data.totalAmount : 0, // (참고용) 실제 총매출
+          originalTotalAmount: data ? data.totalAmount : 0,
+          totalQuantity: data ? (data.totalQuantity || 0) : 0, // 👈 [추가] 총 판매 수량을 함께 전송
           updatedAt: data ? data.updatedAt : null
       });
   } catch (error) {
       console.error('데이터 조회 에러:', error);
-      res.status(500).json({ success: false, totalAmount: 0 });
+      res.status(500).json({ success: false, totalAmount: 0, totalQuantity: 0 });
   }
 });
-
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
