@@ -76,8 +76,19 @@
 <body>
 
 <div class="container">
-  <h1>🌺 봄꽃룰렛 이벤트 참여현황</h1>
+  <h1>🌺 봄꽃룰렛 이벤트 관리자 대시보드</h1>
   
+  <div class="stat-card" style="margin-bottom: 20px; text-align: left;">
+    <h3>🎲 룰렛 당첨 확률 설정</h3>
+    <div style="display:flex; gap:15px; align-items:center; margin-top: 10px;">
+      <label>1등(%) <input type="number" id="prob1" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
+      <label>2등(%) <input type="number" id="prob2" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
+      <label>3등(%) <input type="number" id="prob3" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
+      <button onclick="updateProbabilities()" style="padding:6px 15px; background:#FC6C98; color:white; border:none; border-radius:4px; cursor:pointer;">설정 저장</button>
+    </div>
+    <p id="probMessage" style="color:#047857; font-size:13px; margin-top:10px; display:none;"></p>
+  </div>
+
   <div class="stats">
     <div class="stat-card">
       <h3>총 참여자</h3>
@@ -170,7 +181,50 @@
     }
   }
 
-  window.onload = loadData;
+  async function loadProbConfig() {
+    try {
+      const res = await fetch('/api/raffle/probability');
+      const result = await res.json();
+      if(result.success && result.data) {
+        document.getElementById('prob1').value = result.data.p1;
+        document.getElementById('prob2').value = result.data.p2;
+        document.getElementById('prob3').value = result.data.p3;
+      }
+    } catch(err) { console.error('확률 설정 로드 실패', err); }
+  }
+
+  async function updateProbabilities() {
+    const p1 = Number(document.getElementById('prob1').value);
+    const p2 = Number(document.getElementById('prob2').value);
+    const p3 = Number(document.getElementById('prob3').value);
+
+    if (p1 + p2 + p3 !== 100) {
+      alert('확률의 합은 100%가 되어야 합니다.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/raffle/probability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p1, p2, p3 })
+      });
+      const result = await res.json();
+      if(result.success) {
+        const msg = document.getElementById('probMessage');
+        msg.innerText = '✅ 확률이 성공적으로 변경되었습니다.';
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+      }
+    } catch(err) {
+      alert('확률 수정 중 요류 발생!');
+    }
+  }
+
+  window.onload = () => {
+    loadData();
+    loadProbConfig();
+  };
 </script>
 
 </body>
