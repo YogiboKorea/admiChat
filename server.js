@@ -3685,6 +3685,8 @@ async function aggregateAwesomeSalesData() {
 }
 
 // 3. 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
+// (10:10 오전 집계 전까지 프론트엔드에 0으로 계속 뜨는 문제를 해결하기 위해 주석 처리)
+/*
 cron.schedule('0 0 * * *', async () => {
   if (!db) return;
   try {
@@ -3712,6 +3714,7 @@ cron.schedule('0 0 * * *', async () => {
   scheduled: true,
   timezone: "Asia/Seoul"
 });
+*/
 
 // 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
 cron.schedule('10 10 * * *', async () => {
@@ -3943,7 +3946,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     }
 
     const participants = await db.collection(ROLLET_COLLECTION).find(query).sort({ createdAt: -1 }).toArray();
-    
+
     if (!participants.length) {
       return res.status(404).send('데이터가 없습니다.');
     }

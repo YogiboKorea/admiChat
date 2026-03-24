@@ -1,0 +1,269 @@
+<!-- 중복된 테스트 스크립트 제거됨 (최하단 스크립트로 동작) -->
+<script>window.CAFE24 = { front: {} };</script>
+<link rel="stylesheet" type="text/css"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+<style>
+    .buyer-badge-wrapper {
+        display: none !important;
+    }
+
+    :root {
+        --brand-color: #AA4B76;
+        --grad-start: #F59CC8;
+        --grad-end: #FF7CB7;
+    }
+
+    /* 전체 컨테이너 */
+    .donation-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #fff;
+    }
+
+    /* 이미지 조각 */
+    .image-slice {
+        width: 100%;
+        font-size: 0;
+        line-height: 0;
+    }
+
+    .image-slice img {
+        width: 100%;
+        display: block;
+    }
+
+    /* 그래프 영역 */
+    .grap-section {
+        position: relative;
+        width: 100%;
+    }
+
+    /* 래퍼 */
+    .grap-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 82%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* 누적금액, 퍼센트, 구매자수 레이아웃 */
+    .grap-text {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 3%;
+    }
+
+    .grap-title-area {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .grap-title,
+    .grap-percent {
+        font-size: clamp(16px, 4.5vw, 28px);
+        font-weight: 800;
+        color: var(--brand-color);
+        line-height: 1;
+        letter-spacing: -0.02em;
+    }
+
+    .grap-buyers {
+        font-size: clamp(12px, 3vw, 15px);
+        font-weight: 700;
+        color: var(--grad-end);
+        padding: 5px 14px;
+        border-radius: 20px;
+        letter-spacing: -0.02em;
+    }
+
+    /* 프로그레스 바 트랙 (배경) */
+    .grap-track {
+        width: 100%;
+        height: clamp(18px, 5vw, 33px);
+        background-color: #ffffff;
+        border-radius: 154px;
+        overflow: hidden;
+        box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.03), 0 2px 10px rgba(255, 124, 183, 0.15);
+    }
+
+    /* 프로그레스 바 채우기 */
+    .grap-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 154px;
+        background: linear-gradient(83deg, var(--grad-start) 0%, var(--grad-end) 70%, var(--grad-end) 100%);
+        transition: width 1.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    /* 🌟 [신규] 기부 완료 알림 뱃지 스타일 */
+    .buyer-badge-wrapper {
+        margin-top: 15px;
+        /* 바와 뱃지 사이 간격 */
+        display: flex;
+        justify-content: center;
+        /* 가운데 정렬 */
+        height: 40px;
+        /* 애니메이션 시 높이 흔들림 방지 */
+    }
+
+    .buyer-badge {
+        display: none;
+        /* 데이터가 들어오면 flex로 변경됨 */
+        align-items: center;
+        gap: 8px;
+        background-color: #ffffff;
+        padding: 8px 24px;
+        border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(255, 124, 183, 0.2);
+        /* 은은한 핑크 그림자 */
+        font-size: clamp(13px, 3.5vw, 15px);
+
+        /* 페이드 인/아웃 애니메이션 설정 */
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    /* 자바스크립트로 넣었다 뺐다 할 사라짐 클래스 */
+    .buyer-badge.fade-out {
+        opacity: 0;
+        transform: translateY(-10px);
+        /* 살짝 위로 올라가며 사라짐 */
+    }
+
+    .buyer-name {
+        font-weight: 700;
+        color: #333333;
+        /* 이름은 진한 회색 */
+    }
+
+    .buyer-action {
+        font-weight: 700;
+        color: var(--brand-color);
+        /* '기부 완료'는 브랜드 컬러 */
+    }
+</style>
+</head>
+
+<body>
+
+    <div class="donation-container">
+        <div class="image-slice">
+            <img src="/web/img/0310/Frame-1_01.png" alt="" />
+        </div>
+
+        <div class="image-slice grap-section">
+            <img src="/web/img/0310/Frame-1_02.png" alt="" />
+
+            <div class="grap-overlay">
+                <div class="grap-text">
+                    <div class="grap-title-area">
+                        <div class="grap-title">누적 금액</div>
+                        <div class="grap-buyers" id="currentBuyers">지금까지 0분께서 함께해주셨어요</div>
+                    </div>
+                    <div class="grap-percent" id="currentPercent">0%</div>
+                </div>
+                <div class="grap-track">
+                    <div class="grap-fill" id="progressFill"></div>
+                </div>
+
+                <div class="buyer-badge-wrapper">
+                    <div class="buyer-badge" id="buyerBadge">
+                        <span>❤️</span>
+                        <span class="buyer-name" id="rollingName">익명님</span>
+                        <span class="buyer-action">기부 완료</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="image-slice">
+            <img src="/web/img/0310/Frame-1_03.png" alt="" />
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const API_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/api/awesome-people/summary';
+        const TARGET_AMOUNT = 30000000;
+        async function fetchDonationData() {
+            try {
+                const response = await axios.get(API_URL);
+                const data = response.data;
+
+                let rewardAmount = 0;
+                let totalQuantity = 0;
+                let buyersList = [];
+
+                if (data && data.success) {
+                    rewardAmount = data.totalAmount || 0;
+                    totalQuantity = data.totalQuantity || 0;
+                    buyersList = data.recentBuyers || [];
+                }
+
+                // 👇👇👇 이 부분을 완전히 지우거나 주석(/* ... */) 처리해 주세요! 👇👇👇
+                /* if (buyersList.length === 0) {
+                    rewardAmount = 300000; 
+                    totalQuantity = 24;
+                    buyersList = ['테*트', '요*보', '프*트']; // 여기서 튀어나온 겁니다!
+                }
+                */
+                // 👆👆👆 여기까지 👆👆👆
+
+                updateUI(rewardAmount, totalQuantity, buyersList);
+
+            } catch (error) {
+                console.error('데이터 조회 실패:', error);
+                updateUI(0, 0, []);
+            }
+        }
+        function updateUI(amount, quantity, buyersList) {
+            let rawPercent = (amount / TARGET_AMOUNT) * 100;
+            let percent = Math.ceil(rawPercent);
+
+            if (percent > 100) percent = 100;
+
+            document.getElementById('currentPercent').innerText = percent + '%';
+            document.getElementById('currentBuyers').innerText = `지금까지 ${quantity.toLocaleString()}분께서 함께해주셨어요`;
+
+            setTimeout(() => {
+                document.getElementById('progressFill').style.width = percent + '%';
+            }, 100);
+
+            // 🌟 [신규] 구매자 알림 뱃지 롤링 로직
+            const badge = document.getElementById('buyerBadge');
+            const nameEl = document.getElementById('rollingName');
+
+            // 구매자가 1명이라도 있으면 뱃지 보이기
+            if (buyersList && buyersList.length > 0) {
+                badge.style.display = 'inline-flex';
+
+                let currentIndex = 0;
+                nameEl.innerText = buyersList[currentIndex] + '님'; // 초기 세팅
+
+                // 2명 이상이면 3초 간격으로 롤링 애니메이션 실행
+                if (buyersList.length > 1) {
+                    setInterval(() => {
+                        badge.classList.add('fade-out'); // 1. 투명해지며 위로 올라감
+
+                        setTimeout(() => {
+                            // 2. 안 보일 때 이름 텍스트 변경
+                            currentIndex = (currentIndex + 1) % buyersList.length;
+                            nameEl.innerText = buyersList[currentIndex] + '님';
+
+                            badge.classList.remove('fade-out'); // 3. 다시 나타남
+                        }, 500); // 0.5초 동안 사라져 있음
+                    }, 3000); // 3초마다 반복
+                }
+            }
+        }
+
+        fetchDonationData();
+    </script>
