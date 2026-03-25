@@ -3790,7 +3790,6 @@ app.get('/api/awesome-people/summary', async (req, res) => {
 });
 
 
-const moment = require('moment-timezone'); // 날짜 처리를 위해 필요 시 사용
 
 const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 
