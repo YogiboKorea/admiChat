@@ -3791,10 +3791,14 @@ app.get('/api/awesome-people/summary', async (req, res) => {
 
 
 
+
+// =========================================================================
+// [봄꽃 룰렛 이벤트] 전역 상수
+// =========================================================================
 const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 
 // =========================================================================
-// [API 1] 룰렛 돌리기 및 응모 (✨ 백엔드에서 확률 계산 - 보안 적용)
+// [API 1] 룰렛 돌리기 및 응모 (백엔드 당첨 연산)
 // =========================================================================
 app.post('/api/raffle/play', async (req, res) => {
   try {
@@ -3815,11 +3819,9 @@ app.post('/api/raffle/play', async (req, res) => {
       });
     }
 
-    // 1. DB에서 확률 설정 불러오기
+    // 1. DB에서 확률 설정 불러오기 (없으면 기본값)
     let config = await db.collection('event_2026_03_Rollet_Config').findOne({ type: 'probability' });
-    if (!config) {
-      config = { p1: 1, p2: 10, p3: 89 }; // DB에 없으면 기본값 적용
-    }
+    if (!config) config = { p1: 1, p2: 10, p3: 89 }; 
 
     // 2. 가중치 기반 랜덤 당첨 계산
     const prizes = [
@@ -3851,7 +3853,7 @@ app.post('/api/raffle/play', async (req, res) => {
 
     await collection.insertOne(newEntry);
 
-    // 4. 프론트엔드로 결과 반환 (프론트는 이 값으로 애니메이션만 실행)
+    // 4. 프론트엔드로 결과 반환
     res.json({ success: true, prizeName: pickedPrize });
   } catch (error) {
     console.error('룰렛 응모 오류:', error);
@@ -3860,7 +3862,7 @@ app.post('/api/raffle/play', async (req, res) => {
 });
 
 // =========================================================================
-// [API 2] 응모 현황 조회 (프론트 진입 시 참여 여부 체크)
+// [API 2] 응모 현황 조회
 // =========================================================================
 app.get('/api/raffle/status', async (req, res) => {
   try {
@@ -3882,85 +3884,7 @@ app.get('/api/raffle/status', async (req, res) => {
 });
 
 // =========================================================================
-// [API 3] 장바구니 데이터 수집 Webhook (카페24 프론트엔드에서 쏴주는 데이터 저장)
-// =========================================================================
-app.post('/api/trace/cart', async (req, res) => {
-  try {
-    const { userId, items } = req.body;
-
-    if (!userId || !items || !Array.isArray(items)) {
-      return res.status(400).json({ success: false, message: '잘못된 데이터' });
-    }
-
-    const cartCollection = db.collection('cart');
-    const now = new Date();
-
-    const operations = items.map(item => ({
-      updateOne: {
-        filter: { userId: userId, productCode: item.productCode },
-        update: {
-          $set: { productName: item.productName, qty: item.qty, price: item.price, updatedAt: now },
-          $setOnInsert: { createdAt: now }
-        },
-        upsert: true
-      }
-    }));
-
-    if (operations.length > 0) {
-      await cartCollection.bulkWrite(operations);
-    }
-
-    res.json({ success: true, message: '장바구니 동기화 완료' });
-  } catch (error) {
-    console.error('장바구니 기록 오류:', error);
-    res.status(500).json({ success: false, message: '서버 오류' });
-  }
-});
-
-
-
-// ========== [추가] 관리자 모달용: 카페24 Admin API로 특정 유저 장바구니 조회 ==========
-app.get('/api/raffle/admin/cart-detail', async (req, res) => {
-  try {
-    const { userId } = req.query;
-    
-    if (!userId) {
-      return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
-    }
-
-    // 💡 [개발자 수정 필요] 카페24 Admin API 호출을 위한 정보 세팅
-    const CAFE24_MALL_ID = '고객님의_몰아이디'; 
-    const CAFE24_ACCESS_TOKEN = '발급받으신_Admin_Access_Token'; 
-    // ※ 엑세스 토큰은 보통 만료되므로 DB에서 리프레시 토큰으로 갱신해오는 로직이 필요할 수 있습니다.
-
-    // 카페24 장바구니 조회 API 호출 (member_id 파라미터로 특정 회원 필터링)
-    const cafe24Response = await axios.get(`https://${CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/carts?member_id=${userId}`, {
-      headers: {
-        'Authorization': `Bearer ${CAFE24_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const carts = cafe24Response.data.carts || [];
-
-    // 프론트엔드 모달에 띄우기 좋게 데이터 가공
-    const cartDetails = carts.map(item => ({
-      productName: item.product_name,
-      qty: item.quantity,
-      addedAt: item.created_date // 카페24에서 내려주는 장바구니 담은 일시
-    }));
-
-    res.json({ success: true, data: cartDetails });
-
-  } catch (error) {
-    console.error('카페24 장바구니 API 호출 오류:', error.response?.data || error.message);
-    res.status(500).json({ success: false, message: '카페24 API 연동 중 오류가 발생했습니다.' });
-  }
-});
-
-
-// =========================================================================
-// [API 4] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
+// [API 3] 관리자용: 룰렛 참여자 목록 데이터 조회
 // =========================================================================
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
@@ -3979,23 +3903,17 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
     }
 
     const userIds = participants.map(p => p.userId);
-    // 최적화를 위해 조회할 데이터의 최소 날짜(가장 과거 응모일)를 구함
     const minDate = participants[participants.length - 1].createdAt;
 
-    // 장바구니, 결제 데이터 한 번에 메모리로 로드 (N+1 방지)
-    // ⚠️ 'orders' 컬렉션의 실제 결제상태 필드명(status)과 완료값('PAID')은 DB에 맞게 수정하세요.
+    // 장바구니/결제 유무 파악 (자체 DB 사용)
     const [allCarts, allOrders] = await Promise.all([
       db.collection('cart').find({ userId: { $in: userIds }, createdAt: { $gte: minDate } }).toArray(),
       db.collection('orders').find({ userId: { $in: userIds }, status: 'PAID', createdAt: { $gte: minDate } }).toArray()
     ]);
 
     const enrichedData = participants.map((p) => {
-      // 💡 "룰렛 참여 시간(p.createdAt) 이후"에 발생한 장바구니 데이터만 필터링
-      const userCartItems = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
-      
-      const hasCart = userCartItems.length > 0;
-      
-      // 💡 "룰렛 참여 시간(p.createdAt) 이후"에 발생한 결제건이 있는지 확인
+      // 이벤트 참여 시간 이후의 데이터만 매핑
+      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
       const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
 
       return {
@@ -4005,11 +3923,11 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
         createdAt: p.createdAt,
         hasCart: hasCart,
         hasPurchase: hasPurchase,
-        // 팝업에 띄워줄 장바구니 상세 배열
-        cartDetails: userCartItems.map(item => ({
+        // 결제 내역은 팝업용으로 세팅
+        purchaseDetails: allOrders.filter(o => o.userId === p.userId && o.createdAt >= p.createdAt).map(item => ({
           productName: item.productName || '알 수 없는 상품',
           qty: item.qty || 1,
-          addedAt: item.updatedAt
+          addedAt: item.createdAt
         }))
       };
     });
@@ -4018,6 +3936,60 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
   } catch (error) {
     console.error('참여자 목록 조회 오류:', error);
     res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// =========================================================================
+// [API 4] 관리자 모달용: 카페24 Admin API 실시간 장바구니 조회 (토큰 갱신 적용)
+// =========================================================================
+app.get('/api/raffle/admin/cart-detail', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
+    }
+
+    // 카페24 API 호출을 담당하는 내부 함수
+    const fetchFromCafe24 = async (token) => {
+      return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/carts?member_id=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token.trim()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    };
+
+    let cafe24Response;
+    try {
+      // 1. 현재 메모리에 있는 토큰으로 최초 시도
+      cafe24Response = await fetchFromCafe24(accessToken);
+    } catch (error) {
+      // 2. 만약 401(Unauthorized) 에러가 발생했다면 토큰 만료를 의미
+      if (error.response && error.response.status === 401) {
+        console.log(`[장바구니 조회] 토큰 만료 감지 (${userId}). 재발급 시도...`);
+        // 만들어두신 토큰 갱신 함수 호출
+        const newToken = await refreshAccessToken(); 
+        // 갱신된 토큰으로 재요청
+        cafe24Response = await fetchFromCafe24(newToken); 
+      } else {
+        throw error; // 401이 아닌 다른 에러면 그대로 던짐
+      }
+    }
+
+    const carts = cafe24Response.data.carts || [];
+
+    // 프론트 모달 테이블에 맞게 데이터 정제
+    const cartDetails = carts.map(item => ({
+      productName: item.product_name,
+      qty: item.quantity,
+      addedAt: item.created_date 
+    }));
+
+    res.json({ success: true, data: cartDetails });
+
+  } catch (error) {
+    console.error('카페24 장바구니 API 호출 최상위 오류:', error.response?.data || error.message);
+    res.status(500).json({ success: false, message: '카페24 API 연동 중 오류가 발생했습니다.' });
   }
 });
 
@@ -4062,7 +4034,6 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
       };
     });
 
-    const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('봄꽃룰렛_참여자');
 
@@ -4099,6 +4070,12 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
   }
 });
+
+
+
+
+
+
 
 
 
