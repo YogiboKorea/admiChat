@@ -3884,7 +3884,7 @@ app.get('/api/raffle/status', async (req, res) => {
 });
 
 // =========================================================================
-// [API 3] 관리자용: 룰렛 참여자 목록 데이터 조회
+// [API 3] 관리자용: 룰렛 참여자 목록 데이터 조회 (💡 팝업용 상세 데이터 포함)
 // =========================================================================
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
@@ -3905,16 +3905,20 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
     const userIds = participants.map(p => p.userId);
     const minDate = participants[participants.length - 1].createdAt;
 
-    // 장바구니/결제 유무 파악 (자체 DB 사용)
+    // 장바구니/결제 데이터 한 번에 메모리로 로드
     const [allCarts, allOrders] = await Promise.all([
       db.collection('cart').find({ userId: { $in: userIds }, createdAt: { $gte: minDate } }).toArray(),
       db.collection('orders').find({ userId: { $in: userIds }, status: 'PAID', createdAt: { $gte: minDate } }).toArray()
     ]);
 
     const enrichedData = participants.map((p) => {
-      // 이벤트 참여 시간 이후의 데이터만 매핑
-      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
-      const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
+      // 💡 1. 룰렛 참여 시간 이후의 장바구니 내역 필터링
+      const userCartItems = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
+      const hasCart = userCartItems.length > 0;
+
+      // 💡 2. 룰렛 참여 시간 이후의 결제 내역 필터링
+      const userPurchaseItems = allOrders.filter(order => order.userId === p.userId && order.createdAt >= p.createdAt);
+      const hasPurchase = userPurchaseItems.length > 0;
 
       return {
         userId: p.userId,
@@ -3923,8 +3927,14 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
         createdAt: p.createdAt,
         hasCart: hasCart,
         hasPurchase: hasPurchase,
-        // 결제 내역은 팝업용으로 세팅
-        purchaseDetails: allOrders.filter(o => o.userId === p.userId && o.createdAt >= p.createdAt).map(item => ({
+        
+        // 🚨 프론트 모달창을 위해 상세 데이터(배열)를 다시 꽉꽉 채워서 넘겨줍니다! 🚨
+        cartDetails: userCartItems.map(item => ({
+          productName: item.productName || '알 수 없는 상품',
+          qty: item.qty || 1,
+          addedAt: item.updatedAt || item.createdAt
+        })),
+        purchaseDetails: userPurchaseItems.map(item => ({
           productName: item.productName || '알 수 없는 상품',
           qty: item.qty || 1,
           addedAt: item.createdAt
