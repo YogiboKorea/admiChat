@@ -4091,7 +4091,81 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
 });
 
 
+// =========================================================================
+// [API 6] 프론트엔드 결제 완료 Ping 수신용
+// =========================================================================
+app.post('/api/trace/purchase', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ success: false });
 
+    // DB의 'orders' 컬렉션에 도장 찍기 (대시보드에서 PAID 상태를 찾고 있으므로 PAID로 고정)
+    await db.collection('orders').insertOne({
+      userId: userId,
+      status: 'PAID',
+      createdAt: new Date()
+    });
+
+    res.json({ success: true, message: '결제 트래킹 완료' });
+  } catch (err) {
+    console.error('결제 핑 수신 에러:', err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// =========================================================================
+// [API 7] 관리자 모달용: 카페24 실시간 결제 내역(주문 상품명) 조회
+// =========================================================================
+app.get('/api/raffle/admin/purchase-detail', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ success: false });
+
+    // 카페24 주문 조회 API는 start_date와 end_date가 필수입니다. 
+    // 이벤트 기간을 넉넉하게 이번 달 1일부터 오늘까지로 설정합니다.
+    const start_date = moment().tz('Asia/Seoul').startOf('month').format('YYYY-MM-DD');
+    const end_date = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
+
+    const getOrdersFromCafe24 = async (token) => {
+      // 💡 카페24 주문조회 API (장바구니와 다르게 이 API는 다행히 상품명(items)을 한 번에 다 내려줍니다!)
+      return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?member_id=${userId}&start_date=${start_date}&end_date=${end_date}`, {
+        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
+      });
+    };
+
+    let orderRes;
+    try {
+      orderRes = await getOrdersFromCafe24(accessToken);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        console.log(`[주문조회] 토큰 만료. 재발급 시도...`);
+        const newToken = await refreshAccessToken();
+        orderRes = await getOrdersFromCafe24(newToken);
+      } else throw err;
+    }
+
+    const orders = orderRes.data.orders || [];
+    let purchaseDetails = [];
+
+    // 카페24 응답 구조에서 주문한 상품들(items) 뽑아내기
+    orders.forEach(order => {
+      if (order.items && order.items.length > 0) {
+        order.items.forEach(item => {
+          purchaseDetails.push({
+            productName: item.product_name,
+            qty: item.quantity,
+            addedAt: order.order_date // 결제일시
+          });
+        });
+      }
+    });
+
+    res.json({ success: true, data: purchaseDetails });
+  } catch (error) {
+    console.error('카페24 주문 연동 에러:', error.response?.data || error.message);
+    res.status(500).json({ success: false });
+  }
+});
 
 
 
