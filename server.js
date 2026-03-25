@@ -3882,12 +3882,14 @@ app.post('/api/raffle/probability', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
+// ========== [수정] 관리자용 API 최적화 및 로직 변경 ==========
 
 // [API 3] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     let query = {};
+    
     if (startDate || endDate) {
       query.entryDate = {};
       if (startDate) query.entryDate.$gte = startDate;
@@ -3901,21 +3903,38 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-    // 2. 각 참여자별로 트래킹 DB (visit_logs1Event) 조회하여 basket.html, order_result.html 방문 여부 확인
-    const enrichedData = await Promise.all(participants.map(async (p) => {
-      // 참여일 (예: 2026-03-23)
-      const entryDateStr = p.entryDate;
-      const startDate = new Date(entryDateStr + "T00:00:00.000Z");
+    // 2. 성능 최적화를 위한 참여자 userId 배열 추출
+    const userIds = participants.map(p => p.userId);
 
-      // 로그 검색 (해당 유저가 이벤트 참여 이후에 장바구니/결제 페이지를 방문했는지)
-      const logs = await db.collection('visit_logs1Event').find({
-        visitorId: p.userId,
-        createdAt: { $gte: startDate },
-        currentUrl: { $regex: '/order/basket.html|/order/order_result.html' }
-      }).toArray();
+    // 이벤트 전체 기간의 최소 시작일자 구하기 (쿼리 최적화용)
+    const minDate = participants[participants.length - 1].createdAt; // 역순 정렬이므로 마지막 요소가 가장 과거
 
-      const hasCart = logs.some(log => log.currentUrl.includes('/order/basket.html'));
-      const hasPurchase = logs.some(log => log.currentUrl.includes('/order/order_result.html'));
+    // 3. 루프 밖에서 장바구니(Cart)와 결제(Order) 데이터를 한 번에 조회 (N+1 문제 해결)
+    // ※ 주의: 실제 사용 중인 장바구니, 주문 컬렉션명과 상태 필드명으로 변경 필수!
+    const [allCarts, allOrders] = await Promise.all([
+      db.collection('cart').find({
+        userId: { $in: userIds },
+        createdAt: { $gte: minDate }
+      }).toArray(),
+      
+      db.collection('orders').find({
+        userId: { $in: userIds },
+        status: 'PAID', // 예: '결제완료' 상태값 
+        createdAt: { $gte: minDate }
+      }).toArray()
+    ]);
+
+    // 4. 참여자 데이터와 매핑 (메모리에서 처리하여 속도 대폭 향상)
+    const enrichedData = participants.map((p) => {
+      // 해당 유저가 "룰렛을 돌린 시간(p.createdAt) 이후"에 장바구니에 담았는지 확인
+      const hasCart = allCarts.some(cart => 
+        cart.userId === p.userId && cart.createdAt >= p.createdAt
+      );
+
+      // 해당 유저가 "룰렛을 돌린 시간(p.createdAt) 이후"에 결제를 완료했는지 확인
+      const hasPurchase = allOrders.some(order => 
+        order.userId === p.userId && order.createdAt >= p.createdAt
+      );
 
       return {
         userId: p.userId,
@@ -3925,7 +3944,7 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
         hasCart: hasCart,
         hasPurchase: hasPurchase
       };
-    }));
+    });
 
     res.json({ success: true, data: enrichedData });
   } catch (error) {
@@ -3934,7 +3953,7 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
   }
 });
 
-// [API 4] 관리자용: 룰렛 참여 내역 엑셀 다운로드
+// [API 4] 관리자용: 룰렛 참여 내역 엑셀 다운로드 (동일한 최적화 로직 적용)
 app.get('/api/raffle/admin/excel', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -3951,23 +3970,27 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
       return res.status(404).send('데이터가 없습니다.');
     }
 
-    const enrichedData = await Promise.all(participants.map(async (p) => {
-      const entryDateStr = p.entryDate;
-      const sDate = new Date(entryDateStr + "T00:00:00.000Z");
-      const logs = await db.collection('visit_logs1Event').find({
-        visitorId: p.userId,
-        createdAt: { $gte: sDate },
-        currentUrl: { $regex: '/order/basket.html|/order/order_result.html' }
-      }).toArray();
+    const userIds = participants.map(p => p.userId);
+    const minDate = participants[participants.length - 1].createdAt;
+
+    const [allCarts, allOrders] = await Promise.all([
+      db.collection('cart').find({ userId: { $in: userIds }, createdAt: { $gte: minDate } }).toArray(),
+      db.collection('orders').find({ userId: { $in: userIds }, status: 'PAID', createdAt: { $gte: minDate } }).toArray()
+    ]);
+
+    const enrichedData = participants.map((p) => {
+      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.createdAt >= p.createdAt);
+      const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
+
       return {
         userId: p.userId,
         optionName: p.optionName,
         entryDate: p.entryDate,
         createdAt: p.createdAt,
-        hasCart: logs.some(log => log.currentUrl.includes('/order/basket.html')) ? 'O' : 'X',
-        hasPurchase: logs.some(log => log.currentUrl.includes('/order/order_result.html')) ? 'O' : 'X'
+        hasCart: hasCart ? 'O' : 'X',
+        hasPurchase: hasPurchase ? 'O' : 'X'
       };
-    }));
+    });
 
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
@@ -4006,7 +4029,6 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
   }
 });
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
