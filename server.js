@@ -3948,61 +3948,70 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-
 // =========================================================================
-// [API 4] 관리자 모달용: 카페24 Admin API 실시간 장바구니 조회 (토큰 갱신 적용)
+// [API 4] 관리자 모달용: 카페24 Admin API 실시간 장바구니 조회 (투스텝 매핑)
 // =========================================================================
 app.get('/api/raffle/admin/cart-detail', async (req, res) => {
   try {
     const { userId } = req.query;
-    if (!userId) {
-      return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
-    }
+    if (!userId) return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
 
-    // 카페24 API 호출을 담당하는 내부 함수
-    const fetchFromCafe24 = async (token) => {
+    // 💡 [Step 1] 카페24 장바구니 API 호출
+    const getCartFromCafe24 = async (token) => {
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/carts?member_id=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token.trim()}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
       });
     };
 
-    let cafe24Response;
+    // 💡 [Step 2] 카페24 상품명 조회 API 호출
+    const getProductNames = async (token, productNos) => {
+      return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products?product_no=${productNos}&fields=product_no,product_name`, {
+        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
+      });
+    };
+
+    let cartRes;
     try {
-      // 1. 현재 메모리에 있는 토큰으로 최초 시도
-      cafe24Response = await fetchFromCafe24(accessToken);
-    } catch (error) {
-      // 2. 만약 401(Unauthorized) 에러가 발생했다면 토큰 만료를 의미
-      if (error.response && error.response.status === 401) {
-        console.log(`[장바구니 조회] 토큰 만료 감지 (${userId}). 재발급 시도...`);
-        // 만들어두신 토큰 갱신 함수 호출
-        const newToken = await refreshAccessToken(); 
-        // 갱신된 토큰으로 재요청
-        cafe24Response = await fetchFromCafe24(newToken); 
-      } else {
-        throw error; // 401이 아닌 다른 에러면 그대로 던짐
-      }
+      cartRes = await getCartFromCafe24(accessToken);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        console.log(`[장바구니] 토큰 만료. 재발급 시도...`);
+        const newToken = await refreshAccessToken();
+        cartRes = await getCartFromCafe24(newToken);
+      } else throw err;
     }
 
-    const carts = cafe24Response.data.carts || [];
+    const carts = cartRes.data.carts || [];
+    if (carts.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
 
-    // 프론트 모달 테이블에 맞게 데이터 정제
+    // 장바구니에 있는 상품 번호(product_no)들만 중복 없이 추출해서 콤마로 연결
+    const productNos = [...new Set(carts.map(c => c.product_no))].join(',');
+    
+    // 해당 상품 번호들의 진짜 '상품명'을 가져와서 매핑 딕셔너리 생성
+    let productMap = {};
+    if (productNos) {
+      const productRes = await getProductNames(accessToken, productNos);
+      const products = productRes.data.products || [];
+      products.forEach(p => {
+        productMap[p.product_no] = p.product_name;
+      });
+    }
+
+    // 최종 데이터 조립 (상품명 + 수량 + 담은 시간)
     const cartDetails = carts.map(item => ({
-      productName: item.product_name,
+      productName: productMap[item.product_no] || `상품번호: ${item.product_no}`, // 이름이 없으면 번호라도 노출
       qty: item.quantity,
       addedAt: item.created_date 
     }));
 
     res.json({ success: true, data: cartDetails });
-
   } catch (error) {
-    console.error('카페24 장바구니 API 호출 최상위 오류:', error.response?.data || error.message);
-    res.status(500).json({ success: false, message: '카페24 API 연동 중 오류가 발생했습니다.' });
+    console.error('카페24 API 연동 에러:', error.response?.data || error.message);
+    res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-
 // =========================================================================
 // [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드
 // =========================================================================
