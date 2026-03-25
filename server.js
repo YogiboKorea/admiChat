@@ -4167,7 +4167,49 @@ app.get('/api/raffle/admin/purchase-detail', async (req, res) => {
   }
 });
 
+// =========================================================================
+// [API 8] 스퀴지보 게임 시작 (날짜별 카운트 +1)
+// =========================================================================
+app.post('/api/squibo/start', async (req, res) => {
+  try {
+    // 오늘 날짜 구하기 (예: 2026-03-25)
+    const today = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
+    
+    // DB에 해당 날짜 문서가 있으면 count를 1 증가시키고, 없으면 새로 만듭니다(upsert)
+    await db.collection('event_2026_03_Squibo').updateOne(
+      { date: today },
+      { $inc: { count: 1 } },
+      { upsert: true }
+    );
 
+    res.json({ success: true, message: '카운트 증가 완료' });
+  } catch (error) {
+    console.error('스퀴지보 카운트 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// =========================================================================
+// [API 9] 관리자용: 스퀴지보 게임 날짜별 통계 조회
+// =========================================================================
+app.get('/api/squibo/admin/stats', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let query = {};
+    
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = startDate;
+      if (endDate) query.date.$lte = endDate;
+    }
+
+    const stats = await db.collection('event_2026_03_Squibo').find(query).sort({ date: -1 }).toArray();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('스퀴지보 통계 조회 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
 
 
 
