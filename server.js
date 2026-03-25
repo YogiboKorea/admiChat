@@ -3917,9 +3917,9 @@ app.post('/api/trace/cart', async (req, res) => {
   }
 });
 
-// ========== [추가] 관리자 모달용: 카페24 Admin API로 특정 유저 장바구니 조회 ==========
-const axios = require('axios'); // 카페24 API 호출을 위해 필요 (없다면 npm install axios)
 
+
+// ========== [추가] 관리자 모달용: 카페24 Admin API로 특정 유저 장바구니 조회 ==========
 app.get('/api/raffle/admin/cart-detail', async (req, res) => {
   try {
     const { userId } = req.query;
