@@ -3789,6 +3789,98 @@ app.get('/api/awesome-people/summary', async (req, res) => {
   }
 });
 
+// =========================================================================
+// [추가] 어썸피플 타겟 제품 구매자(Cafe24 회원 ID) 직접 조회 API
+// =========================================================================
+app.get('/api/cafe24/awesome-buyers', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'startDate, endDate가 필요합니다.' });
+    }
+
+    // 타겟 제품 목록 (프론트와 동일하게 설정)
+    const TARGET_PRODUCTS = [
+        "요기보 피라미드", "요기보 피라미드 프리미엄", "요기보 피라미드 프리미엄 플러스",
+        "요기보 드롭", "요기보 드롭 프리미엄", "요기보 드롭 프리미엄 플러스",
+        "요기보 슬림", "요기보 슬림 프리미엄", "요기보 슬림 프리미엄 플러스",
+        "요기보 카카오프렌즈 피라미드", "요기보 카카오프렌즈 피라미드 프리미엄", "요기보 카카오프렌즈 피라미드 프리미엄 플러스",
+        "요기보 카카오프렌즈 드롭", "요기보 카카오프렌즈 드롭 프리미엄", "요기보 카카오프렌즈 드롭 프리미엄 플러스",
+        "요기보 카카오프렌즈 슬림", "요기보 카카오프렌즈 슬림 프리미엄", "요기보 카카오프렌즈 슬림 프리미엄 플러스",
+        "솔리드 스퀴지보", "스퀴지보 하트", "스퀴지보 애니멀",
+        "요기보 메이트", "요기보 플랜트 메이트",
+        "요기보 메가 메이트 팍스", "요기보 메가 메이트 티렉스", "요기보 메가 메이트 유니콘",
+        "요기보 메이트 나르왈", "요기보 메이트 우파루파", "요기보 메이트 라쿤",
+        "요기보 메이트 드래곤", "요기보 메이트 티렉스", "요기보 메이트 샤크",
+        "요기보 메이트 헤지호그", "요기보 메이트 디노", "요기보 메이트 도그",
+        "요기보 메이트 코알라", "요기보 메이트 판다", "요기보 메이트 펭귄",
+        "요기보 메이트 옥토푸스", "요기보 메이트 엘리펀트", "요기보 메이트 팍스",
+        "요기보 메이트 돌핀", "요기보 메이트 지라프", "요기보 메이트 써니",
+        "요기보 메이트 아로", "요기보 메이트 스트라우프"
+    ];
+    const normalize = (str) => str.replace(/요기보/g, '').replace(/[^가-힣a-zA-Z0-9]/g, '').toLowerCase();
+    const searchTargets = TARGET_PRODUCTS.map(name => ({ originalName: name, searchKey: normalize(name) }));
+    const EXCLUDE_KEYWORDS = ["플랜트 스퀴지보", "비즈", "커버"].map(name => normalize(name));
+
+    const fetchFromCafe24 = async (url, params, retry = false) => {
+      try {
+        return await axios.get(url, { params, headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Cafe24-Api-Version': CAFE24_API_VERSION } });
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(url, params, true);
+        }
+        throw err;
+      }
+    };
+
+    let allOrders = [];
+    let orderHasMore = true;
+    let orderOffset = 0;
+    
+    // 카페24에서 해당 기간의 주문 긁어오기
+    while (orderHasMore && orderOffset < 5000) {
+      const orderRes = await fetchFromCafe24(
+        `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+        { shop_no: 1, start_date: startDate, end_date: endDate, date_type: 'pay_date', limit: 100, offset: orderOffset, embed: 'items' }
+      );
+      const orders = orderRes.data.orders || [];
+      allOrders = allOrders.concat(orders);
+      
+      if (orders.length < 100) orderHasMore = false;
+      else orderOffset += 100;
+    }
+
+    const uniqueBuyers = new Set();
+    
+    allOrders.forEach(o => {
+      // 비회원 제외
+      if (!o.member_id || String(o.member_id).toLowerCase() === 'guest') return; 
+
+      let hasTarget = false;
+      (o.items || []).forEach(item => {
+        const normalizedRawName = normalize(item.product_name || "");
+        if (EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord))) return; 
+        
+        if (searchTargets.find(target => normalizedRawName.includes(target.searchKey))) {
+          hasTarget = true;
+        }
+      });
+
+      // 타겟 제품이 포함된 주문이면 회원 ID 수집
+      if (hasTarget) {
+        uniqueBuyers.add(o.member_id);
+      }
+    });
+
+    res.json({ success: true, count: uniqueBuyers.size, buyers: Array.from(uniqueBuyers) });
+  } catch (error) {
+    console.error('Cafe24 구매자 조회 에러:', error.message);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+
 
 
 
