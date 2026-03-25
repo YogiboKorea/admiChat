@@ -3917,6 +3917,48 @@ app.post('/api/trace/cart', async (req, res) => {
   }
 });
 
+// ========== [추가] 관리자 모달용: 카페24 Admin API로 특정 유저 장바구니 조회 ==========
+const axios = require('axios'); // 카페24 API 호출을 위해 필요 (없다면 npm install axios)
+
+app.get('/api/raffle/admin/cart-detail', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
+    }
+
+    // 💡 [개발자 수정 필요] 카페24 Admin API 호출을 위한 정보 세팅
+    const CAFE24_MALL_ID = '고객님의_몰아이디'; 
+    const CAFE24_ACCESS_TOKEN = '발급받으신_Admin_Access_Token'; 
+    // ※ 엑세스 토큰은 보통 만료되므로 DB에서 리프레시 토큰으로 갱신해오는 로직이 필요할 수 있습니다.
+
+    // 카페24 장바구니 조회 API 호출 (member_id 파라미터로 특정 회원 필터링)
+    const cafe24Response = await axios.get(`https://${CAFE24_MALL_ID}.cafe24api.com/api/v2/admin/carts?member_id=${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${CAFE24_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const carts = cafe24Response.data.carts || [];
+
+    // 프론트엔드 모달에 띄우기 좋게 데이터 가공
+    const cartDetails = carts.map(item => ({
+      productName: item.product_name,
+      qty: item.quantity,
+      addedAt: item.created_date // 카페24에서 내려주는 장바구니 담은 일시
+    }));
+
+    res.json({ success: true, data: cartDetails });
+
+  } catch (error) {
+    console.error('카페24 장바구니 API 호출 오류:', error.response?.data || error.message);
+    res.status(500).json({ success: false, message: '카페24 API 연동 중 오류가 발생했습니다.' });
+  }
+});
+
+
 // =========================================================================
 // [API 4] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
 // =========================================================================
