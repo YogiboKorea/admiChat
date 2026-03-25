@@ -3790,20 +3790,19 @@ app.get('/api/awesome-people/summary', async (req, res) => {
 });
 
 
-// ========== [추가] 봄꽃 룰렛 이벤트 저장 및 관리 API ==========
+const moment = require('moment-timezone'); // 날짜 처리를 위해 필요 시 사용
 
 const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 
-// [API 1] 룰렛 응모하기
-app.post('/api/raffle/entryEvents', async (req, res) => {
+// =========================================================================
+// [API 1] 룰렛 돌리기 및 응모 (✨ 백엔드에서 확률 계산 - 보안 적용)
+// =========================================================================
+app.post('/api/raffle/play', async (req, res) => {
   try {
-    const { userId, optionName } = req.body;
+    const { userId } = req.body;
 
     if (!userId || userId === 'GUEST' || userId === 'null') {
       return res.status(401).json({ success: false, message: '회원 로그인 후 참여 가능합니다.' });
-    }
-    if (!optionName) {
-      return res.status(400).json({ success: false, message: '당첨 결과(옵션)가 없습니다.' });
     }
 
     const collection = db.collection(ROLLET_COLLECTION);
@@ -3817,22 +3816,53 @@ app.post('/api/raffle/entryEvents', async (req, res) => {
       });
     }
 
+    // 1. DB에서 확률 설정 불러오기
+    let config = await db.collection('event_2026_03_Rollet_Config').findOne({ type: 'probability' });
+    if (!config) {
+      config = { p1: 1, p2: 10, p3: 89 }; // DB에 없으면 기본값 적용
+    }
+
+    // 2. 가중치 기반 랜덤 당첨 계산
+    const prizes = [
+      { name: '롤 미디', weight: Number(config.p1) },
+      { name: '냅 엑스', weight: Number(config.p2) },
+      { name: '오리 비눗방울', weight: Number(config.p3) }
+    ];
+
+    const totalWeight = prizes.reduce((sum, p) => sum + p.weight, 0);
+    const randomNum = Math.random() * totalWeight;
+    let weightSum = 0;
+    let pickedPrize = prizes[prizes.length - 1].name;
+
+    for (let i = 0; i < prizes.length; i++) {
+      weightSum += prizes[i].weight;
+      if (randomNum <= weightSum) {
+        pickedPrize = prizes[i].name;
+        break;
+      }
+    }
+
+    // 3. 당첨 결과 DB 저장
     const newEntry = {
       userId: userId,
-      optionName: optionName,
+      optionName: pickedPrize,
       entryDate: moment().tz('Asia/Seoul').format('YYYY-MM-DD'),
       createdAt: new Date(),
     };
 
-    const result = await collection.insertOne(newEntry);
-    res.json({ success: true, message: `응모 완료!`, entryId: result.insertedId });
+    await collection.insertOne(newEntry);
+
+    // 4. 프론트엔드로 결과 반환 (프론트는 이 값으로 애니메이션만 실행)
+    res.json({ success: true, prizeName: pickedPrize });
   } catch (error) {
     console.error('룰렛 응모 오류:', error);
     res.status(500).json({ success: false, message: '서버 오류 발생' });
   }
 });
 
-// [API 2] 응모 현황 조회
+// =========================================================================
+// [API 2] 응모 현황 조회 (프론트 진입 시 참여 여부 체크)
+// =========================================================================
 app.get('/api/raffle/status', async (req, res) => {
   try {
     const { userId } = req.query;
@@ -3840,6 +3870,7 @@ app.get('/api/raffle/status', async (req, res) => {
       return res.json({ success: true, isEntered: false, message: '로그인 필요' });
     }
     const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
+    
     if (existingEntry) {
       return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
     } else {
@@ -3851,90 +3882,80 @@ app.get('/api/raffle/status', async (req, res) => {
   }
 });
 
-// [API 2.5] 룰렛 확률 조회 및 설정
-app.get('/api/raffle/probability', async (req, res) => {
+// =========================================================================
+// [API 3] 장바구니 데이터 수집 Webhook (카페24 프론트엔드에서 쏴주는 데이터 저장)
+// =========================================================================
+app.post('/api/trace/cart', async (req, res) => {
   try {
-    let config = await db.collection('event_2026_03_Rollet_Config').findOne({ type: 'probability' });
-    if (!config) {
-      // 기본값 (1등 1%, 2등 10%, 3등 89%) 설정
-      config = { type: 'probability', p1: 1, p2: 10, p3: 89, updatedAt: new Date() };
-      await db.collection('event_2026_03_Rollet_Config').insertOne(config);
-    }
-    res.json({ success: true, data: config });
-  } catch (error) {
-    console.error('확률 조회 오류:', error);
-    //확률 조정부분
-    res.status(500).json({ success: false, data: { p1: 1, p2: 10, p3: 89 } });
-  }
-});
+    const { userId, items } = req.body;
 
-app.post('/api/raffle/probability', async (req, res) => {
-  try {
-    const { p1, p2, p3 } = req.body;
-    await db.collection('event_2026_03_Rollet_Config').updateOne(
-      { type: 'probability' },
-      { $set: { p1: Number(p1), p2: Number(p2), p3: Number(p3), updatedAt: new Date() } },
-      { upsert: true }
-    );
-    res.json({ success: true, message: '확률이 변경되었습니다.' });
+    if (!userId || !items || !Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: '잘못된 데이터' });
+    }
+
+    const cartCollection = db.collection('cart');
+    const now = new Date();
+
+    const operations = items.map(item => ({
+      updateOne: {
+        filter: { userId: userId, productCode: item.productCode },
+        update: {
+          $set: { productName: item.productName, qty: item.qty, price: item.price, updatedAt: now },
+          $setOnInsert: { createdAt: now }
+        },
+        upsert: true
+      }
+    }));
+
+    if (operations.length > 0) {
+      await cartCollection.bulkWrite(operations);
+    }
+
+    res.json({ success: true, message: '장바구니 동기화 완료' });
   } catch (error) {
-    console.error('확률 변경 오류:', error);
+    console.error('장바구니 기록 오류:', error);
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
-// ========== [수정] 관리자용 API 최적화 및 로직 변경 ==========
 
-// [API 3] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
+// =========================================================================
+// [API 4] 관리자용: 룰렛 참여자 목록 및 장바구니/결제 완료 여부 체크
+// =========================================================================
 app.get('/api/raffle/admin/participants', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     let query = {};
-    
     if (startDate || endDate) {
       query.entryDate = {};
       if (startDate) query.entryDate.$gte = startDate;
       if (endDate) query.entryDate.$lte = endDate;
     }
 
-    // 1. 참여자 목록 가져오기
     const participants = await db.collection(ROLLET_COLLECTION).find(query).sort({ createdAt: -1 }).toArray();
 
     if (!participants.length) {
       return res.json({ success: true, data: [] });
     }
 
-    // 2. 성능 최적화를 위한 참여자 userId 배열 추출
     const userIds = participants.map(p => p.userId);
+    // 최적화를 위해 조회할 데이터의 최소 날짜(가장 과거 응모일)를 구함
+    const minDate = participants[participants.length - 1].createdAt;
 
-    // 이벤트 전체 기간의 최소 시작일자 구하기 (쿼리 최적화용)
-    const minDate = participants[participants.length - 1].createdAt; // 역순 정렬이므로 마지막 요소가 가장 과거
-
-    // 3. 루프 밖에서 장바구니(Cart)와 결제(Order) 데이터를 한 번에 조회 (N+1 문제 해결)
-    // ※ 주의: 실제 사용 중인 장바구니, 주문 컬렉션명과 상태 필드명으로 변경 필수!
+    // 장바구니, 결제 데이터 한 번에 메모리로 로드 (N+1 방지)
+    // ⚠️ 'orders' 컬렉션의 실제 결제상태 필드명(status)과 완료값('PAID')은 DB에 맞게 수정하세요.
     const [allCarts, allOrders] = await Promise.all([
-      db.collection('cart').find({
-        userId: { $in: userIds },
-        createdAt: { $gte: minDate }
-      }).toArray(),
-      
-      db.collection('orders').find({
-        userId: { $in: userIds },
-        status: 'PAID', // 예: '결제완료' 상태값 
-        createdAt: { $gte: minDate }
-      }).toArray()
+      db.collection('cart').find({ userId: { $in: userIds }, createdAt: { $gte: minDate } }).toArray(),
+      db.collection('orders').find({ userId: { $in: userIds }, status: 'PAID', createdAt: { $gte: minDate } }).toArray()
     ]);
 
-    // 4. 참여자 데이터와 매핑 (메모리에서 처리하여 속도 대폭 향상)
     const enrichedData = participants.map((p) => {
-      // 해당 유저가 "룰렛을 돌린 시간(p.createdAt) 이후"에 장바구니에 담았는지 확인
-      const hasCart = allCarts.some(cart => 
-        cart.userId === p.userId && cart.createdAt >= p.createdAt
-      );
-
-      // 해당 유저가 "룰렛을 돌린 시간(p.createdAt) 이후"에 결제를 완료했는지 확인
-      const hasPurchase = allOrders.some(order => 
-        order.userId === p.userId && order.createdAt >= p.createdAt
-      );
+      // 💡 "룰렛 참여 시간(p.createdAt) 이후"에 발생한 장바구니 데이터만 필터링
+      const userCartItems = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
+      
+      const hasCart = userCartItems.length > 0;
+      
+      // 💡 "룰렛 참여 시간(p.createdAt) 이후"에 발생한 결제건이 있는지 확인
+      const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
 
       return {
         userId: p.userId,
@@ -3942,7 +3963,13 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
         entryDate: p.entryDate,
         createdAt: p.createdAt,
         hasCart: hasCart,
-        hasPurchase: hasPurchase
+        hasPurchase: hasPurchase,
+        // 팝업에 띄워줄 장바구니 상세 배열
+        cartDetails: userCartItems.map(item => ({
+          productName: item.productName || '알 수 없는 상품',
+          qty: item.qty || 1,
+          addedAt: item.updatedAt
+        }))
       };
     });
 
@@ -3953,7 +3980,9 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
   }
 });
 
-// [API 4] 관리자용: 룰렛 참여 내역 엑셀 다운로드 (동일한 최적화 로직 적용)
+// =========================================================================
+// [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드
+// =========================================================================
 app.get('/api/raffle/admin/excel', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -3979,7 +4008,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     ]);
 
     const enrichedData = participants.map((p) => {
-      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.createdAt >= p.createdAt);
+      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
       const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
 
       return {
@@ -4029,6 +4058,11 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
   }
 });
+
+
+
+
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
