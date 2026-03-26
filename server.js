@@ -3853,7 +3853,7 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
 // =========================================================================
 const ROLLET_COLLECTION = 'event_2026_03_Rollet';
 // =========================================================================
-// [API 1] 룰렛 돌리기 및 응모 (어드민 확률 + 실시간 재고 연동형 / MongoDB 최신버전 대응)
+// [API 1] 룰렛 돌리기 및 응모 (어드민 확률 + 실시간 재고 연동형 / MongoDB 배열 버그 수정)
 // =========================================================================
 app.post('/api/raffle/play', async (req, res) => {
   try {
@@ -3880,7 +3880,7 @@ app.post('/api/raffle/play', async (req, res) => {
       return res.status(400).json({ success: false, message: '금일 이벤트가 준비되지 않았습니다.' });
     }
 
-    // 3. 재고가 0인 상품은 어드민 설정 확률과 무관하게 가중치를 0으로 강제 변환
+    // 3. 재고가 0인 상품은 가중치를 0으로 강제 변환
     let totalWeight = 0;
     const activePrizes = dailyData.prizes.map(p => {
       const effectiveWeight = p.currentStock > 0 ? Number(p.prob) : 0;
@@ -3906,11 +3906,16 @@ app.post('/api/raffle/play', async (req, res) => {
     }
 
     // 5. 당첨된 상품의 재고 차감 (Atomic Update)
+    // 💡 [수정됨] $elemMatch를 사용하여 정확히 일치하는 객체만 찾아내도록 수정!
     const updateResult = await stockCollection.findOneAndUpdate(
       { 
         date: todayStr, 
-        "prizes.name": wonPrize.name, 
-        "prizes.currentStock": { $gt: 0 } 
+        prizes: { 
+          $elemMatch: { 
+            name: wonPrize.name, 
+            currentStock: { $gt: 0 } 
+          } 
+        }
       },
       { 
         $inc: { "prizes.$.currentStock": -1 } 
@@ -3918,16 +3923,24 @@ app.post('/api/raffle/play', async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    // 💡 [수정됨] MongoDB Driver v5, v6 호환성 방어 로직 추가
     const updatedDoc = updateResult && updateResult.value ? updateResult.value : updateResult;
 
-    // 만약 내가 뽑힌 순간 간발의 차로 누군가 재고를 털어갔을 경우 (Race Condition 방어)
+    // 간발의 차로 재고가 털렸을 경우 3등(오리 비눗방울) 우회 처리
     if (!updatedDoc) {
       console.warn(`[룰렛] ${userId}님이 ${wonPrize.name}에 당첨되었으나 재고 소진됨. 3등 우회 처리.`);
       
       const fallbackPrizeName = "오리 비눗방울";
+      // 💡 [수정됨] 우회 차감 로직에도 동일하게 $elemMatch 적용
       const fallbackResult = await stockCollection.findOneAndUpdate(
-        { date: todayStr, "prizes.name": fallbackPrizeName, "prizes.currentStock": { $gt: 0 } },
+        { 
+          date: todayStr, 
+          prizes: { 
+            $elemMatch: { 
+              name: fallbackPrizeName, 
+              currentStock: { $gt: 0 } 
+            } 
+          }
+        },
         { $inc: { "prizes.$.currentStock": -1 } },
         { returnDocument: 'after' }
       );
