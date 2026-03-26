@@ -4079,6 +4079,46 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
+
+// =========================================================================
+// [추가] 프론트엔드 장바구니 트래킹 데이터 수신용 API
+// =========================================================================
+app.post('/api/trace/cart', async (req, res) => {
+  try {
+    const { userId, items } = req.body;
+
+    // 데이터 유효성 검사
+    if (!userId || !items || !Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: '잘못된 데이터 형식입니다.' });
+    }
+
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+
+    // 프론트에서 받은 배열 데이터를 어드민 DB 구조(다큐먼트 단위)에 맞게 매핑
+    const cartLogs = items.map(item => ({
+      userId: userId,
+      productCode: item.productCode,
+      productName: item.productName,
+      qty: item.qty,
+      price: item.price,
+      createdAt: nowKST,
+      updatedAt: nowKST // 어드민에서 updatedAt을 참조하는 로직 대비
+    }));
+
+    // cart 컬렉션에 일괄 저장 (이벤트 트래킹이므로 로그성으로 계속 쌓음)
+    if (cartLogs.length > 0) {
+      await db.collection('cart').insertMany(cartLogs);
+    }
+
+    console.log(`[Cart Tracker] ${userId}님의 장바구니 상품 ${cartLogs.length}개 추적 저장 완료`);
+    res.json({ success: true, message: '장바구니 데이터 트래킹 성공' });
+    
+  } catch (err) {
+    console.error('장바구니 핑 수신 에러:', err);
+    res.status(500).json({ success: false });
+  }
+});
+
 // =========================================================================
 // [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드
 // =========================================================================
