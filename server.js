@@ -4460,7 +4460,60 @@ app.get('/api/squibo/admin/stats', async (req, res) => {
 });
 
 
+// =========================================================================
+// [API] 관리자용: 일자별 재고/확률 데이터 조회
+// =========================================================================
+app.get('/api/raffle/admin/stock', async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ success: false, message: '날짜 파라미터가 필요합니다.' });
 
+    const dailyData = await db.collection('raffle_daily_stock').findOne({ date: date });
+    
+    if (dailyData) {
+      res.json({ success: true, data: dailyData });
+    } else {
+      // 해당 날짜에 데이터가 없으면 false를 반환하여 프론트가 기본값을 띄우도록 유도
+      res.json({ success: false, message: '설정된 데이터가 없습니다.' });
+    }
+  } catch (error) {
+    console.error('재고 조회 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// =========================================================================
+// [API] 관리자용: 일자별 재고/확률 데이터 저장 및 수정 (Upsert)
+// =========================================================================
+app.post('/api/raffle/admin/stock', async (req, res) => {
+  try {
+    const { date, prizes } = req.body;
+
+    if (!date || !prizes || !Array.isArray(prizes)) {
+      return res.status(400).json({ success: false, message: '잘못된 데이터 형식입니다.' });
+    }
+
+    // 해당 날짜(date)를 기준으로 데이터를 덮어쓰거나(새로 생성) 업데이트
+    await db.collection('raffle_daily_stock').updateOne(
+      { date: date },
+      { 
+        $set: { 
+          date: date,
+          prizes: prizes, // [{name, totalStock, currentStock, prob}, ...]
+          updatedAt: new Date()
+        } 
+      },
+      { upsert: true }
+    );
+
+    console.log(`[Admin] ${date} 룰렛 재고/확률 설정 완료`);
+    res.json({ success: true, message: '저장 완료' });
+
+  } catch (error) {
+    console.error('재고 저장 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
