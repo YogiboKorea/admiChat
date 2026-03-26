@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
   <meta charset="UTF-8">
-  <title>봄꽃룰렛 이벤트 참여자 현황</title>
+  <title>여의도 봄꽃 축제</title>
   <style>
     body {
       font-family: 'Noto Sans KR', sans-serif;
@@ -11,26 +12,61 @@
       background-color: #f5f7fa;
       color: #333;
     }
+
     .container {
       max-width: 1000px;
       margin: 0 auto;
       background: #fff;
       padding: 30px;
       border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     }
+
     h1 {
       font-size: 24px;
       margin-top: 0;
       margin-bottom: 20px;
-      border-bottom: 2px solid #333;
-      padding-bottom: 15px;
     }
+
+    /* ── 탭 메뉴 스타일 ── */
+    .tab-menu {
+      display: flex;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      font-size: 16px;
+      font-weight: bold;
+      color: #64748b;
+      cursor: pointer;
+      position: relative;
+      outline: none;
+    }
+
+    .tab-btn.active {
+      color: #FC6C98;
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background-color: #FC6C98;
+    }
+
     .stats {
       display: flex;
       gap: 20px;
       margin-bottom: 20px;
     }
+
     .stat-card {
       background: #f8f9fa;
       padding: 15px 20px;
@@ -39,27 +75,47 @@
       flex: 1;
       text-align: center;
     }
-    .stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: #6c757d; }
-    .stat-card p { margin: 0; font-size: 24px; font-weight: bold; color: #FC6C98; }
-    
+
+    .stat-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #6c757d;
+    }
+
+    .stat-card p {
+      margin: 0;
+      font-size: 24px;
+      font-weight: bold;
+      color: #FC6C98;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
     }
-    th, td {
+
+    th,
+    td {
       border: 1px solid #e2e8f0;
       padding: 12px 15px;
       text-align: center;
     }
+
     th {
       background-color: #f8fafc;
       font-weight: 600;
       color: #475569;
     }
-    tr:nth-child(even) { background-color: #fbfbfc; }
-    tr:hover { background-color: #f1f5f9; }
-    
+
+    tr:nth-child(even) {
+      background-color: #fbfbfc;
+    }
+
+    tr:hover {
+      background-color: #f1f5f9;
+    }
+
     .badge {
       display: inline-block;
       padding: 4px 10px;
@@ -67,203 +123,391 @@
       font-size: 12px;
       font-weight: bold;
     }
-    .badge.yes { background-color: #d1fae5; color: #047857; }
-    .badge.no { background-color: #f1f5f9; color: #64748b; }
-    .badge.prize1 { background-color: #fee2e2; color: #b91c1c; }
-    .badge.prize { background-color: #e0e7ff; color: #4338ca; }
+
+    .badge.yes {
+      background-color: #d1fae5;
+      color: #047857;
+    }
+
+    .badge.no {
+      background-color: #f1f5f9;
+      color: #64748b;
+    }
+
+    .badge.prize1 {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .badge.prize {
+      background-color: #e0e7ff;
+      color: #4338ca;
+    }
+
+    /* 상세 팝업(모달) 스타일 */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #fff;
+      width: 500px;
+      max-width: 90%;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #FC6C98;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 26px;
+      cursor: pointer;
+      color: #999;
+      line-height: 1;
+    }
+
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .detail-table th {
+      background: #fdf2f8;
+      color: #be185d;
+      padding: 10px;
+      text-align: left;
+      border: none;
+    }
+
+    .detail-table td {
+      padding: 10px;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: left;
+    }
   </style>
 </head>
+
 <body>
 
-<div class="container">
-  <h1>🌺 봄꽃룰렛 이벤트 관리자 대시보드</h1>
-  
-  <div class="stat-card" style="margin-bottom: 20px; text-align: left;">
-    <h3>🎲 룰렛 당첨 확률 설정</h3>
-    <div style="display:flex; gap:15px; align-items:center; margin-top: 10px;">
-      <label>1등(%) <input type="number" id="prob1" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
-      <label>2등(%) <input type="number" id="prob2" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
-      <label>3등(%) <input type="number" id="prob3" style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px;"></label>
-      <button onclick="updateProbabilities()" style="padding:6px 15px; background:#FC6C98; color:white; border:none; border-radius:4px; cursor:pointer;">설정 저장</button>
+  <div class="container">
+    <h1>🌸 여의도 봄꽃 축제</h1>
+
+    <div class="tab-menu">
+      <button class="tab-btn active" id="tabRoulette" onclick="switchTab('roulette')">룰렛 이벤트 참여자</button>
+      <button class="tab-btn" id="tabSquibo" onclick="switchTab('squibo')">스퀴지보 게임 참여자</button>
     </div>
-    <p id="probMessage" style="color:#047857; font-size:13px; margin-top:10px; display:none;"></p>
-  </div>
 
-  <div style="background:#fff; padding:15px; border-radius:6px; border:1px solid #e9ecef; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
-    <div>
-      <label style="font-weight:600; margin-right:10px;">기간 조회:</label>
-      <input type="date" id="startDate" style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
-      <span style="margin:0 5px;">~</span>
-      <input type="date" id="endDate" style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
-      <button onclick="loadData()" style="margin-left:10px; padding:7px 16px; background:#475569; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">조회</button>
+    <div
+      style="background:#fff; padding:15px; border-radius:6px; border:1px solid #e9ecef; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <label style="font-weight:600; margin-right:10px;">기간 조회:</label>
+        <input type="date" id="startDate"
+          style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
+        <span style="margin:0 5px;">~</span>
+        <input type="date" id="endDate" style="padding:6px; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
+        <button onclick="loadCurrentTabData()"
+          style="margin-left:10px; padding:7px 16px; background:#475569; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">조회</button>
+      </div>
+      <button id="excelBtn" onclick="downloadExcel()"
+        style="padding:7px 18px; background:#10b981; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:14px;">📑
+        엑셀 다운로드</button>
     </div>
-    <button onclick="downloadExcel()" style="padding:7px 18px; background:#10b981; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold; font-size:14px;">📑 엑셀 다운로드</button>
-  </div>
 
-  <div class="stats">
-    <div class="stat-card">
-      <h3>총 참여자</h3>
-      <p id="totalCount">0명</p>
-    </div>
-    <div class="stat-card">
-      <h3>장바구니 이동</h3>
-      <p id="cartCount">0명</p>
-    </div>
-    <div class="stat-card">
-      <h3>결제 페이지 도달</h3>
-      <p id="purchaseCount">0명</p>
-    </div>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>No.</th>
-        <th>회원 ID</th>
-        <th>당첨 경품</th>
-        <th>응모일</th>
-        <th>장바구니(basket)</th>
-        <th>결제완료(order_result)</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody">
-      <tr><td colspan="6">데이터를 불러오는 중입니다...</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<script>
-  const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-
-  function formatDate(isoString) {
-    if (!isoString) return '-';
-    const date = new Date(isoString);
-    return date.getFullYear() + '-' + 
-           String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-           String(date.getDate()).padStart(2, '0') + ' ' + 
-           String(date.getHours()).padStart(2, '0') + ':' + 
-           String(date.getMinutes()).padStart(2, '0');
-  }
-
-  async function loadData() {
-    try {
-      const sDate = document.getElementById('startDate').value;
-      const eDate = document.getElementById('endDate').value;
-      
-      const url = new URL(`${API_BASE_URL}/api/raffle/admin/participants`);
-      if (sDate) url.searchParams.append('startDate', sDate);
-      if (eDate) url.searchParams.append('endDate', eDate);
-
-      const response = await fetch(url);
-      const result = await response.json();
-      
-      if (!result.success) {
-        alert('데이터를 불러오는데 실패했습니다.');
-        return;
-      }
-
-      const data = result.data;
-      const tbody = document.getElementById('tableBody');
-      
-      if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6">참여 내역이 없습니다.</td></tr>';
-        return;
-      }
-
-      let cartTotal = 0;
-      let purchaseTotal = 0;
-
-      tbody.innerHTML = data.map((item, index) => {
-        if (item.hasCart) cartTotal++;
-        if (item.hasPurchase) purchaseTotal++;
-
-        const prizeClass = item.optionName === '1등' ? 'prize1' : 'prize';
-        
-        return `
+    <div id="sectionRoulette">
+      <div class="stats">
+        <div class="stat-card">
+          <h3>총 룰렛 참여자</h3>
+          <p id="totalCount">0명</p>
+        </div>
+        <div class="stat-card">
+          <h3>장바구니 이동</h3>
+          <p id="cartCount">0명</p>
+        </div>
+        <div class="stat-card">
+          <h3>결제 페이지 도달</h3>
+          <p id="purchaseCount">0명</p>
+        </div>
+      </div>
+      <table>
+        <thead>
           <tr>
-            <td>${data.length - index}</td>
+            <th>No.</th>
+            <th>회원 ID</th>
+            <th>당첨 경품</th>
+            <th>응모일</th>
+            <th>장바구니(basket)</th>
+            <th>결제완료(order_result)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBodyRoulette">
+          <tr>
+            <td colspan="6">데이터를 불러오는 중입니다...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="sectionSquibo" style="display: none;">
+      <div class="stats">
+        <div class="stat-card" style="background: #e0f2fe; border-color: #bae6fd;">
+          <h3>기간 내 총 스퀴지보 게임 횟수</h3>
+          <p id="squiboTotalCount" style="color: #0369a1;">0회</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th>게임 참여 횟수 (Start 버튼 클릭 수)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBodySquibo">
+          <tr>
+            <td colspan="2">데이터를 불러오는 중입니다...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <div class="modal-overlay" id="detailsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">상세 내역</h2>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>상품명</th>
+            <th style="width: 50px; text-align: center;">수량</th>
+            <th style="width: 130px; text-align: center;">일시</th>
+          </tr>
+        </thead>
+        <tbody id="modalTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    let globalData = [];
+    let currentTab = 'roulette'; // 기본 활성 탭
+
+    function formatDate(isoString) {
+      if (!isoString) return '-';
+      const date = new Date(isoString);
+      return date.getFullYear() + '-' +
+        String(date.getMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getDate()).padStart(2, '0') + ' ' +
+        String(date.getHours()).padStart(2, '0') + ':' +
+        String(date.getMinutes()).padStart(2, '0');
+    }
+
+    // 💡 탭 전환 함수
+    function switchTab(tabName) {
+      currentTab = tabName;
+
+      // 버튼 스타일 변경
+      document.getElementById('tabRoulette').classList.toggle('active', tabName === 'roulette');
+      document.getElementById('tabSquibo').classList.toggle('active', tabName === 'squibo');
+
+      // 섹션 표시 변경
+      document.getElementById('sectionRoulette').style.display = tabName === 'roulette' ? 'block' : 'none';
+      document.getElementById('sectionSquibo').style.display = tabName === 'squibo' ? 'block' : 'none';
+
+      // 엑셀 다운로드 버튼 제어 (스퀴지보는 심플하므로 숨김)
+      document.getElementById('excelBtn').style.display = tabName === 'roulette' ? 'inline-block' : 'none';
+
+      loadCurrentTabData();
+    }
+
+    // 💡 조회 버튼 클릭 시 현재 탭에 맞는 데이터 호출
+    function loadCurrentTabData() {
+      if (currentTab === 'roulette') {
+        loadRouletteData();
+      } else {
+        loadSquiboData();
+      }
+    }
+
+    // 🎯 1. 룰렛 데이터 로드 (기존 함수)
+    async function loadRouletteData() {
+      try {
+        const sDate = document.getElementById('startDate').value;
+        const eDate = document.getElementById('endDate').value;
+
+        const url = new URL(`${API_BASE_URL}/api/raffle/admin/participants`);
+        if (sDate) url.searchParams.append('startDate', sDate);
+        if (eDate) url.searchParams.append('endDate', eDate);
+
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (!result.success) return;
+
+        globalData = result.data;
+        const tbody = document.getElementById('tableBodyRoulette');
+
+        if (globalData.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6">참여 내역이 없습니다.</td></tr>';
+          document.getElementById('totalCount').innerText = `0명`;
+          document.getElementById('cartCount').innerText = `0명`;
+          document.getElementById('purchaseCount').innerText = `0명`;
+          return;
+        }
+
+        let cartTotal = 0; let purchaseTotal = 0;
+
+        tbody.innerHTML = globalData.map((item, index) => {
+          const hasCart = item.hasCart === 'O' || item.hasCart === true;
+          const hasPurchase = item.hasPurchase === 'O' || item.hasPurchase === true;
+
+          if (hasCart) cartTotal++;
+          if (hasPurchase) purchaseTotal++;
+
+          const prizeClass = item.optionName === '1등' ? 'prize1' : 'prize';
+          const cartHtml = hasCart ? `<span class="badge yes" style="cursor:pointer; border:1px solid #047857;" onclick="openModal('${item.userId}', 'cart')">O (상세보기)</span>` : `<span class="badge no">X</span>`;
+          const purchaseHtml = hasPurchase ? `<span class="badge yes" style="cursor:pointer; border:1px solid #047857;" onclick="openModal('${item.userId}', 'purchase')">O (상세보기)</span>` : `<span class="badge no">X</span>`;
+
+          return `
+          <tr>
+            <td>${globalData.length - index}</td>
             <td style="font-weight:500;">${item.userId}</td>
             <td><span class="badge ${prizeClass}">${item.optionName}</span></td>
             <td>${formatDate(item.createdAt)}</td>
-            <td>${item.hasCart ? '<span class="badge yes">O</span>' : '<span class="badge no">X</span>'}</td>
-            <td>${item.hasPurchase ? '<span class="badge yes">O</span>' : '<span class="badge no">X</span>'}</td>
+            <td>${cartHtml}</td>
+            <td>${purchaseHtml}</td>
           </tr>
         `;
-      }).join('');
+        }).join('');
 
-      document.getElementById('totalCount').innerText = `${data.length}명`;
-      document.getElementById('cartCount').innerText = `${cartTotal}명`;
-      document.getElementById('purchaseCount').innerText = `${purchaseTotal}명`;
+        document.getElementById('totalCount').innerText = `${globalData.length}명`;
+        document.getElementById('cartCount').innerText = `${cartTotal}명`;
+        document.getElementById('purchaseCount').innerText = `${purchaseTotal}명`;
 
-    } catch (err) {
-      console.error(err);
-      document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" style="color:red;">에러 발생! 콘솔을 확인해주세요.</td></tr>';
-    }
-  }
-
-  async function loadProbConfig() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/raffle/probability`);
-      const result = await res.json();
-      if(result.success && result.data) {
-        document.getElementById('prob1').value = result.data.p1;
-        document.getElementById('prob2').value = result.data.p2;
-        document.getElementById('prob3').value = result.data.p3;
+      } catch (err) {
+        document.getElementById('tableBodyRoulette').innerHTML = '<tr><td colspan="6" style="color:red;">에러 발생! 콘솔을 확인해주세요.</td></tr>';
       }
-    } catch(err) { console.error('확률 설정 로드 실패', err); }
-  }
-
-  async function updateProbabilities() {
-    const p1 = Number(document.getElementById('prob1').value);
-    const p2 = Number(document.getElementById('prob2').value);
-    const p3 = Number(document.getElementById('prob3').value);
-
-    if (p1 + p2 + p3 !== 100) {
-      alert('확률의 합은 100%가 되어야 합니다.');
-      return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/raffle/probability`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p1, p2, p3 })
-      });
-      const result = await res.json();
-      if(result.success) {
-        const msg = document.getElementById('probMessage');
-        msg.innerText = '✅ 확률이 성공적으로 변경되었습니다.';
-        msg.style.display = 'block';
-        setTimeout(() => msg.style.display = 'none', 3000);
+    // 🎯 2. 스퀴지보 데이터 로드 (새로 추가됨)
+    async function loadSquiboData() {
+      try {
+        const sDate = document.getElementById('startDate').value;
+        const eDate = document.getElementById('endDate').value;
+
+        const url = new URL(`${API_BASE_URL}/api/squibo/admin/stats`);
+        if (sDate) url.searchParams.append('startDate', sDate);
+        if (eDate) url.searchParams.append('endDate', eDate);
+
+        const response = await fetch(url);
+        const result = await response.json();
+        const tbody = document.getElementById('tableBodySquibo');
+
+        if (!result.success || result.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="2">해당 기간에 게임 참여 기록이 없습니다.</td></tr>';
+          document.getElementById('squiboTotalCount').innerText = `0회`;
+          return;
+        }
+
+        let totalClicks = 0;
+        tbody.innerHTML = result.data.map(item => {
+          totalClicks += item.count;
+          return `
+          <tr>
+            <td style="font-weight:bold;">${item.date}</td>
+            <td style="color:#0369a1; font-weight:bold;">${item.count.toLocaleString()} 회</td>
+          </tr>
+        `;
+        }).join('');
+
+        document.getElementById('squiboTotalCount').innerText = `${totalClicks.toLocaleString()}회`;
+
+      } catch (err) {
+        document.getElementById('tableBodySquibo').innerHTML = '<tr><td colspan="2" style="color:red;">데이터 로드 중 에러가 발생했습니다.</td></tr>';
       }
-    } catch(err) {
-      alert('확률 수정 중 요류 발생!');
     }
-  }
 
-  window.onload = () => {
-    // 기본 날짜를 이번 달로 설정
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
-    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    // 모달 제어 함수들 (기존과 동일)
+    async function openModal(userId, type) {
+      const titleEl = document.getElementById('modalTitle');
+      const tbody = document.getElementById('modalTableBody');
+      document.getElementById('detailsModal').classList.add('active');
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:#666;">데이터를 불러오는 중입니다... ⏳</td></tr>';
 
-    loadData();
-    loadProbConfig();
-  };
+      try {
+        let fetchUrl = type === 'cart' ? `${API_BASE_URL}/api/raffle/admin/cart-detail?userId=${userId}` : `${API_BASE_URL}/api/raffle/admin/purchase-detail?userId=${userId}`;
+        titleEl.innerHTML = `<span style="color:#FC6C98">${userId}</span>님의 ${type === 'cart' ? '장바구니' : '결제'} 내역`;
 
-  function downloadExcel() {
-    const sDate = document.getElementById('startDate').value;
-    const eDate = document.getElementById('endDate').value;
-    let url = `${API_BASE_URL}/api/raffle/admin/excel`;
-    const params = [];
-    if (sDate) params.push(`startDate=${sDate}`);
-    if (eDate) params.push(`endDate=${eDate}`);
-    if (params.length > 0) url += '?' + params.join('&');
-    
-    window.location.href = url;
-  }
-</script>
+        const res = await fetch(fetchUrl);
+        const result = await res.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+          tbody.innerHTML = result.data.map(d => `<tr><td style="font-weight:500;">${d.productName || '상품명 알 수 없음'}</td><td style="text-align:center;">${d.qty || 1}개</td><td style="text-align:center; font-size:12px; color:#666;">${formatDate(d.addedAt)}</td></tr>`).join('');
+        } else {
+          tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:30px; color:#999;">데이터가 없습니다.</td></tr>`;
+        }
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:red;">서버 통신 에러</td></tr>';
+      }
+    }
+
+    function closeModal() { document.getElementById('detailsModal').classList.remove('active'); }
+    document.getElementById('detailsModal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+
+    function downloadExcel() {
+      const sDate = document.getElementById('startDate').value;
+      const eDate = document.getElementById('endDate').value;
+      let url = `${API_BASE_URL}/api/raffle/admin/excel`;
+      const params = [];
+      if (sDate) params.push(`startDate=${sDate}`);
+      if (eDate) params.push(`endDate=${eDate}`);
+      if (params.length > 0) url += '?' + params.join('&');
+      window.location.href = url;
+    }
+
+    window.onload = () => {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
+      document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
+      // 초기 로드
+      loadCurrentTabData();
+    };
+  </script>
 
 </body>
+
 </html>

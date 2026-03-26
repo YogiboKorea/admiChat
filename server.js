@@ -4051,27 +4051,37 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     const productNos = [...new Set(carts.map(c => c.product_no))];
     let productMap = {};
 
-    // 💡 [Step 2] 콤마로 묶지 않고 개별 API 엔드포인트(/products/{product_no})로 각각 호출 (Promise.all로 속도 보완)
+    // 💡 [Step 2] 상품 상세 정보(이름, 가격) 호출
     const productRequests = productNos.map(pNo => 
-      axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name`, {
+      axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name,price`, {
         headers: CAFE24_HEADERS(accessToken) 
-      }).catch(e => null) // 상품이 지워졌거나 에러가 나도 전체 서버가 죽지 않도록 방어 코드 추가
+      }).catch(e => null) 
     );
 
     const productResponses = await Promise.all(productRequests);
-    
+        
     productResponses.forEach((pRes, idx) => {
       if (pRes && pRes.data && pRes.data.product) {
-        productMap[productNos[idx]] = pRes.data.product.product_name;
+        // 이름과 가격을 객체 형태로 저장 (가격은 숫자형으로 변환)
+        productMap[productNos[idx]] = {
+          name: pRes.data.product.product_name,
+          price: Number(pRes.data.product.price) || 0 
+        };
       }
     });
 
-    // 최종 데이터 조립
-    const cartDetails = carts.map(item => ({
-      productName: productMap[item.product_no] || `조회 불가 (상품번호:${item.product_no})`,
-      qty: item.quantity,
-      addedAt: item.created_date 
-    }));
+    // 💡 최종 데이터 조립 (이 부분 수정됨!)
+    const cartDetails = carts.map(item => {
+      // productMap에 해당 상품 번호가 있으면 가져오고, 없으면 기본값 세팅 (방어 코드)
+      const pInfo = productMap[item.product_no] || { name: `조회 불가 (상품번호:${item.product_no})`, price: 0 };
+      
+      return {
+        productName: pInfo.name,
+        price: pInfo.price, // 가격 데이터 매핑 추가
+        qty: item.quantity,
+        addedAt: item.created_date 
+      };
+    });
 
     res.json({ success: true, data: cartDetails });
   } catch (error) {
@@ -4079,6 +4089,8 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
+
+
 
 // =========================================================================
 // [추가] 프론트엔드 장바구니 트래킹 데이터 수신용 API
