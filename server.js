@@ -3684,38 +3684,6 @@ async function aggregateAwesomeSalesData() {
   }
 }
 
-// 3. 매일 00시 00분에 데이터를 0으로 초기화하는 스케줄러
-// (10:10 오전 집계 전까지 프론트엔드에 0으로 계속 뜨는 문제를 해결하기 위해 주석 처리)
-/*
-cron.schedule('0 0 * * *', async () => {
-  if (!db) return;
-  try {
-    const collection = db.collection('asSomeDtat');
-    await collection.updateOne(
-      { docType: 'awesome_daily_summary' },
-      {
-        $set: {
-          totalQuantity: 0,
-          totalAmount: 0,
-          rewardAmount: 0,
-          productDetails: {},
-          recentBuyers: [], // 👈 초기화 시 구매자 리스트도 0으로 
-          updatedAt: moment().tz('Asia/Seoul').toDate(),
-          status: 'initialized_at_midnight'
-        }
-      },
-      { upsert: true }
-    );
-    console.log('🔄 [Awesome People] 자정(00:00) asSomeDtat 데이터 0으로 초기화 완료');
-  } catch (error) {
-    console.error('❌ [Awesome People] 초기화 에러:', error);
-  }
-}, {
-  scheduled: true,
-  timezone: "Asia/Seoul"
-});
-*/
-
 // 4. 매일 10시 10분에 실데이터로 덮어쓰는 스케줄러
 cron.schedule('10 10 * * *', async () => {
   console.log('⏰ [Cron] 10:10 어썸피플 매출 집계 스케줄러 작동 시작!');
@@ -4040,6 +4008,7 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
+
 // =========================================================================
 // [API 4] 관리자 모달용: 카페24 Admin API 실시간 장바구니 조회 (투스텝 매핑)
 // =========================================================================
@@ -4048,17 +4017,17 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ success: false, message: '회원 ID가 필요합니다.' });
 
-    // 💡 [Step 1] 카페24 장바구니 API 호출
+    // 💡 공통 헤더 세팅 (API 버전 필수 포함)
+    const CAFE24_HEADERS = (token) => ({
+      'Authorization': `Bearer ${token.trim()}`,
+      'Content-Type': 'application/json',
+      'X-Cafe24-Api-Version': CAFE24_API_VERSION || '2025-12-01'
+    });
+
+    // [Step 1] 카페24 장바구니 API 호출
     const getCartFromCafe24 = async (token) => {
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/carts?member_id=${userId}`, {
-        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
-      });
-    };
-
-    // 💡 [Step 2] 카페24 상품명 조회 API 호출
-    const getProductNames = async (token, productNos) => {
-      return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products?product_no=${productNos}&fields=product_no,product_name`, {
-        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
+        headers: CAFE24_HEADERS(token)
       });
     };
 
@@ -4078,29 +4047,35 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-    // 장바구니에 있는 상품 번호(product_no)들만 중복 없이 추출해서 콤마로 연결
-    const productNos = [...new Set(carts.map(c => c.product_no))].join(',');
-    
-    // 해당 상품 번호들의 진짜 '상품명'을 가져와서 매핑 딕셔너리 생성
+    // 장바구니에 있는 고유 상품 번호 추출
+    const productNos = [...new Set(carts.map(c => c.product_no))];
     let productMap = {};
-    if (productNos) {
-      const productRes = await getProductNames(accessToken, productNos);
-      const products = productRes.data.products || [];
-      products.forEach(p => {
-        productMap[p.product_no] = p.product_name;
-      });
-    }
 
-    // 최종 데이터 조립 (상품명 + 수량 + 담은 시간)
+    // 💡 [Step 2] 콤마로 묶지 않고 개별 API 엔드포인트(/products/{product_no})로 각각 호출 (Promise.all로 속도 보완)
+    const productRequests = productNos.map(pNo => 
+      axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name`, {
+        headers: CAFE24_HEADERS(accessToken) 
+      }).catch(e => null) // 상품이 지워졌거나 에러가 나도 전체 서버가 죽지 않도록 방어 코드 추가
+    );
+
+    const productResponses = await Promise.all(productRequests);
+    
+    productResponses.forEach((pRes, idx) => {
+      if (pRes && pRes.data && pRes.data.product) {
+        productMap[productNos[idx]] = pRes.data.product.product_name;
+      }
+    });
+
+    // 최종 데이터 조립
     const cartDetails = carts.map(item => ({
-      productName: productMap[item.product_no] || `상품번호: ${item.product_no}`, // 이름이 없으면 번호라도 노출
+      productName: productMap[item.product_no] || `조회 불가 (상품번호:${item.product_no})`,
       qty: item.quantity,
       addedAt: item.created_date 
     }));
 
     res.json({ success: true, data: cartDetails });
   } catch (error) {
-    console.error('카페24 API 연동 에러:', error.response?.data || error.message);
+    console.error('카페24 장바구니 매핑 에러:', error.response?.data || error.message);
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
@@ -4213,15 +4188,17 @@ app.get('/api/raffle/admin/purchase-detail', async (req, res) => {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ success: false });
 
-    // 카페24 주문 조회 API는 start_date와 end_date가 필수입니다. 
-    // 이벤트 기간을 넉넉하게 이번 달 1일부터 오늘까지로 설정합니다.
     const start_date = moment().tz('Asia/Seoul').startOf('month').format('YYYY-MM-DD');
     const end_date = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
 
+    // 💡 결제 내역 조회 시에도 버전을 명시하여 안정성 확보
     const getOrdersFromCafe24 = async (token) => {
-      // 💡 카페24 주문조회 API (장바구니와 다르게 이 API는 다행히 상품명(items)을 한 번에 다 내려줍니다!)
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?member_id=${userId}&start_date=${start_date}&end_date=${end_date}`, {
-        headers: { 'Authorization': `Bearer ${token.trim()}`, 'Content-Type': 'application/json' }
+        headers: { 
+          'Authorization': `Bearer ${token.trim()}`, 
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': CAFE24_API_VERSION || '2025-12-01'
+        }
       });
     };
 
@@ -4239,14 +4216,13 @@ app.get('/api/raffle/admin/purchase-detail', async (req, res) => {
     const orders = orderRes.data.orders || [];
     let purchaseDetails = [];
 
-    // 카페24 응답 구조에서 주문한 상품들(items) 뽑아내기
     orders.forEach(order => {
       if (order.items && order.items.length > 0) {
         order.items.forEach(item => {
           purchaseDetails.push({
             productName: item.product_name,
             qty: item.quantity,
-            addedAt: order.order_date // 결제일시
+            addedAt: order.order_date
           });
         });
       }
