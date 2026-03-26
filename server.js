@@ -3852,9 +3852,8 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
 // [봄꽃 룰렛 이벤트] 전역 상수
 // =========================================================================
 const ROLLET_COLLECTION = 'event_2026_03_Rollet';
-
 // =========================================================================
-// [API 1] 룰렛 돌리기 및 응모 (어드민 확률 + 실시간 재고 연동형)
+// [API 1] 룰렛 돌리기 및 응모 (어드민 확률 + 실시간 재고 연동형 / MongoDB 최신버전 대응)
 // =========================================================================
 app.post('/api/raffle/play', async (req, res) => {
   try {
@@ -3866,7 +3865,7 @@ app.post('/api/raffle/play', async (req, res) => {
 
     const todayStr = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
     const rolletCollection = db.collection(ROLLET_COLLECTION);
-    const stockCollection = db.collection('raffle_daily_stock'); // 일자별 재고/확률 컬렉션
+    const stockCollection = db.collection('raffle_daily_stock'); 
 
     // 1. 중복 참여 체크
     const existingEntry = await rolletCollection.findOne({ userId: userId, entryDate: todayStr });
@@ -3877,29 +3876,26 @@ app.post('/api/raffle/play', async (req, res) => {
     // 2. 오늘의 재고 및 어드민이 설정한 확률 데이터 불러오기
     let dailyData = await stockCollection.findOne({ date: todayStr });
     
-    // 만약 관리자가 오늘 설정을 안 해뒀다면 기본값 세팅 (또는 에러 처리)
     if (!dailyData) {
       return res.status(400).json({ success: false, message: '금일 이벤트가 준비되지 않았습니다.' });
     }
 
-    // 💡 [핵심 로직 1] 재고가 0인 상품은 어드민 설정 확률과 무관하게 가중치를 0으로 강제 변환
+    // 3. 재고가 0인 상품은 어드민 설정 확률과 무관하게 가중치를 0으로 강제 변환
     let totalWeight = 0;
     const activePrizes = dailyData.prizes.map(p => {
-      // 재고가 없으면 확률을 0으로, 있으면 어드민이 설정한 확률(prob) 적용
       const effectiveWeight = p.currentStock > 0 ? Number(p.prob) : 0;
       totalWeight += effectiveWeight;
       return { ...p, effectiveWeight };
     });
 
-    // 모든 경품(비눗방울 포함)이 소진되어 totalWeight가 0이 된 경우 (이벤트 조기 종료)
     if (totalWeight <= 0) {
       return res.json({ success: false, code: 'SOLD_OUT', message: '금일 준비된 모든 경품이 소진되었습니다.' });
     }
 
-    // 3. 동적 가중치 기반 랜덤 추첨 (주사위 굴리기)
+    // 4. 동적 가중치 기반 랜덤 추첨 
     const randomNum = Math.random() * totalWeight;
     let weightSum = 0;
-    let wonPrize = activePrizes[activePrizes.length - 1]; // 기본값은 마지막 상품(비눗방울)
+    let wonPrize = activePrizes[activePrizes.length - 1]; 
 
     for (let i = 0; i < activePrizes.length; i++) {
       weightSum += activePrizes[i].effectiveWeight;
@@ -3909,8 +3905,7 @@ app.post('/api/raffle/play', async (req, res) => {
       }
     }
 
-    // 💡 [핵심 로직 2] 당첨된 상품의 재고 차감 (Atomic Update로 동시성 방어!)
-    // 조건: 오늘 날짜, 해당 상품 이름, 그리고 '재고가 0보다 클 때만' 차감
+    // 5. 당첨된 상품의 재고 차감 (Atomic Update)
     const updateResult = await stockCollection.findOneAndUpdate(
       { 
         date: todayStr, 
@@ -3918,16 +3913,18 @@ app.post('/api/raffle/play', async (req, res) => {
         "prizes.currentStock": { $gt: 0 } 
       },
       { 
-        $inc: { "prizes.$.currentStock": -1 } // 1개 차감
+        $inc: { "prizes.$.currentStock": -1 } 
       },
       { returnDocument: 'after' }
     );
 
-    // 🚨 Race Condition 발생! 내가 뽑힌 순간 0.01초 차이로 남이 마지막 1개를 가져간 경우
-    if (!updateResult.value) {
-      console.warn(`[룰렛] ${userId}님이 ${wonPrize.name}에 당첨되었으나 간발의 차로 재고 소진됨. 3등으로 우회 처리.`);
+    // 💡 [수정됨] MongoDB Driver v5, v6 호환성 방어 로직 추가
+    const updatedDoc = updateResult && updateResult.value ? updateResult.value : updateResult;
+
+    // 만약 내가 뽑힌 순간 간발의 차로 누군가 재고를 털어갔을 경우 (Race Condition 방어)
+    if (!updatedDoc) {
+      console.warn(`[룰렛] ${userId}님이 ${wonPrize.name}에 당첨되었으나 재고 소진됨. 3등 우회 처리.`);
       
-      // 가장 안전한 3등(비눗방울)으로 강제 변경하여 차감 시도
       const fallbackPrizeName = "오리 비눗방울";
       const fallbackResult = await stockCollection.findOneAndUpdate(
         { date: todayStr, "prizes.name": fallbackPrizeName, "prizes.currentStock": { $gt: 0 } },
@@ -3935,14 +3932,15 @@ app.post('/api/raffle/play', async (req, res) => {
         { returnDocument: 'after' }
       );
 
-      if (!fallbackResult.value) {
-         // 비눗방울마저 그 찰나에 다 털렸다면 진짜 끝
+      const fallbackDoc = fallbackResult && fallbackResult.value ? fallbackResult.value : fallbackResult;
+
+      if (!fallbackDoc) {
          return res.json({ success: false, code: 'SOLD_OUT', message: '금일 준비된 모든 경품이 소진되었습니다.' });
       }
-      wonPrize.name = fallbackPrizeName; // 유저에게는 3등 당첨으로 안내
+      wonPrize.name = fallbackPrizeName; 
     }
 
-    // 4. 최종 당첨 결과 DB 기록
+    // 6. 최종 당첨 결과 DB 기록
     const newEntry = {
       userId: userId,
       optionName: wonPrize.name,
@@ -3951,7 +3949,6 @@ app.post('/api/raffle/play', async (req, res) => {
     };
     await rolletCollection.insertOne(newEntry);
 
-    // 5. 프론트엔드로 성공 응답
     res.json({ success: true, prizeName: wonPrize.name });
 
   } catch (error) {
