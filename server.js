@@ -4131,7 +4131,7 @@ app.post('/api/trace/cart', async (req, res) => {
   }
 });
 // =========================================================================
-// [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드 (장바구니 및 결제 상세내역 포함)
+// [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드 (null 상품명 자동 복구 기능 추가)
 // =========================================================================
 app.get('/api/raffle/admin/excel', async (req, res) => {
   try {
@@ -4152,21 +4152,41 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     const userIds = participants.map(p => p.userId);
     const minDate = participants[participants.length - 1].createdAt;
 
-    // 1. DB에서 장바구니 내역 조회 (이전 단계에서 DB에 넣은 productName, price 활용)
+    // 1. DB에서 장바구니 내역 조회
     const allCarts = await db.collection('cart').find({ 
       userId: { $in: userIds }, 
       createdAt: { $gte: minDate } 
     }).toArray();
 
-    // 2. Cafe24 API로 기간 내 실제 결제 내역 긁어오기 (상세 상품명 및 가격 추출용)
-    const sDate = moment(minDate).tz('Asia/Seoul').format('YYYY-MM-DD');
-    const eDate = moment().tz('Asia/Seoul').add(1, 'days').format('YYYY-MM-DD'); // 안전하게 내일까지 포함
-
+    // 💡 [핵심 추가] DB에 productName이 null로 저장된 경우를 대비해 Cafe24에서 실시간으로 이름을 가져옵니다.
     const CAFE24_HEADERS = (token) => ({
       'Authorization': `Bearer ${token.trim()}`,
       'Content-Type': 'application/json',
       'X-Cafe24-Api-Version': CAFE24_API_VERSION || '2025-12-01'
     });
+
+    // 이름이 없거나 'null'인 상품들의 번호(productCode)만 추출
+    const cartProductNos = [...new Set(allCarts.filter(c => !c.productName || c.productName === 'null').map(c => c.productCode))].filter(Boolean);
+    let cartProductMap = {};
+    
+    // 누락된 상품들의 이름을 카페24에서 다시 조회해 맵에 저장
+    if (cartProductNos.length > 0) {
+      const pRequests = cartProductNos.map(pNo => 
+        axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name`, {
+          headers: CAFE24_HEADERS(accessToken) 
+        }).catch(e => null) 
+      );
+      const pResponses = await Promise.all(pRequests);
+      pResponses.forEach((pRes, idx) => {
+        if (pRes && pRes.data && pRes.data.product) {
+          cartProductMap[cartProductNos[idx]] = pRes.data.product.product_name;
+        }
+      });
+    }
+
+    // 2. Cafe24 API로 기간 내 실제 결제 내역 긁어오기
+    const sDate = moment(minDate).tz('Asia/Seoul').format('YYYY-MM-DD');
+    const eDate = moment().tz('Asia/Seoul').add(1, 'days').format('YYYY-MM-DD'); 
 
     const getOrdersFromCafe24 = async (token, offset) => {
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`, {
@@ -4180,7 +4200,6 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     let orderOffset = 0;
     let currentToken = accessToken;
 
-    // 대량 다운로드 시 API Limit 방어 (최대 3000건 조회)
     while (orderHasMore && orderOffset < 3000) { 
       try {
         const orderRes = await getOrdersFromCafe24(currentToken, orderOffset);
@@ -4197,21 +4216,27 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
           if (orders.length < 100) orderHasMore = false;
           else orderOffset += 100;
         } else {
-          console.error('Cafe24 주문 조회 에러 (Excel):', err.message);
-          break; // 에러 발생 시 수집된 데이터까지만 진행
+          break; 
         }
       }
     }
 
     // 3. 참여자별 데이터 매핑 및 텍스트 조립
     const enrichedData = participants.map((p) => {
-      // (1) 장바구니 텍스트 조립: "상품명 (n개) - 00,000원"
+      // (1) 장바구니 텍스트 조립
       const userCarts = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
       const cartText = userCarts.length > 0 
-        ? userCarts.map(c => `${c.productName} (${c.qty || 1}개) - ${(Number(c.price) || 0).toLocaleString()}원`).join('\n')
+        ? userCarts.map(c => {
+            // 💡 null 일 경우 방금 매핑해온 새 이름으로 교체!
+            let pName = c.productName;
+            if (!pName || pName === 'null') {
+              pName = cartProductMap[c.productCode] || '상품명 확인불가';
+            }
+            return `${pName} (${c.qty || 1}개) - ${(Number(c.price) || 0).toLocaleString()}원`;
+          }).join('\n')
         : 'X';
 
-      // (2) 결제내역 텍스트 조립 (룰렛 참여시간 이후 주문만)
+      // (2) 결제내역 텍스트 조립
       const userOrders = allCafe24Orders.filter(o => 
         o.member_id === p.userId && 
         new Date(o.order_date) >= new Date(p.createdAt)
@@ -4238,11 +4263,10 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
       };
     });
 
-    // 4. 엑셀 워크북 생성 및 쓰기
+    // 4. 엑셀 워크북 생성
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('봄꽃룰렛_참여자');
 
-    // 컬럼 너비 조정 (상품 상세가 길게 들어가므로 너비 넓힘)
     worksheet.columns = [
       { header: 'No', key: 'index', width: 8 },
       { header: '회원 ID', key: 'userId', width: 20 },
@@ -4253,7 +4277,6 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
       { header: '결제 상세 내역', key: 'purchaseText', width: 50 },
     ];
 
-    // 데이터 삽입 및 엑셀 셀 스타일링 (줄바꿈 허용)
     enrichedData.forEach((entry, idx) => {
       const row = worksheet.addRow({
         index: enrichedData.length - idx,
@@ -4265,7 +4288,6 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
         purchaseText: entry.purchaseText
       });
       
-      // 여러 상품이 있을 경우 \n을 엑셀 내 줄바꿈(Alt+Enter)으로 인식되게 설정
       row.getCell('cartText').alignment = { wrapText: true, vertical: 'top' };
       row.getCell('purchaseText').alignment = { wrapText: true, vertical: 'top' };
     });
