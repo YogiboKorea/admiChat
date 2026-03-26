@@ -4130,9 +4130,8 @@ app.post('/api/trace/cart', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-
 // =========================================================================
-// [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드
+// [API 5] 관리자용: 룰렛 참여 내역 엑셀 다운로드 (장바구니 및 결제 상세내역 포함)
 // =========================================================================
 app.get('/api/raffle/admin/excel', async (req, res) => {
   try {
@@ -4153,48 +4152,122 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     const userIds = participants.map(p => p.userId);
     const minDate = participants[participants.length - 1].createdAt;
 
-    const [allCarts, allOrders] = await Promise.all([
-      db.collection('cart').find({ userId: { $in: userIds }, createdAt: { $gte: minDate } }).toArray(),
-      db.collection('orders').find({ userId: { $in: userIds }, status: 'PAID', createdAt: { $gte: minDate } }).toArray()
-    ]);
+    // 1. DB에서 장바구니 내역 조회 (이전 단계에서 DB에 넣은 productName, price 활용)
+    const allCarts = await db.collection('cart').find({ 
+      userId: { $in: userIds }, 
+      createdAt: { $gte: minDate } 
+    }).toArray();
 
+    // 2. Cafe24 API로 기간 내 실제 결제 내역 긁어오기 (상세 상품명 및 가격 추출용)
+    const sDate = moment(minDate).tz('Asia/Seoul').format('YYYY-MM-DD');
+    const eDate = moment().tz('Asia/Seoul').add(1, 'days').format('YYYY-MM-DD'); // 안전하게 내일까지 포함
+
+    const CAFE24_HEADERS = (token) => ({
+      'Authorization': `Bearer ${token.trim()}`,
+      'Content-Type': 'application/json',
+      'X-Cafe24-Api-Version': CAFE24_API_VERSION || '2025-12-01'
+    });
+
+    const getOrdersFromCafe24 = async (token, offset) => {
+      return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`, {
+        params: { shop_no: 1, start_date: sDate, end_date: eDate, date_type: 'order_date', limit: 100, offset: offset, embed: 'items' },
+        headers: CAFE24_HEADERS(token)
+      });
+    };
+
+    let allCafe24Orders = [];
+    let orderHasMore = true;
+    let orderOffset = 0;
+    let currentToken = accessToken;
+
+    // 대량 다운로드 시 API Limit 방어 (최대 3000건 조회)
+    while (orderHasMore && orderOffset < 3000) { 
+      try {
+        const orderRes = await getOrdersFromCafe24(currentToken, orderOffset);
+        const orders = orderRes.data.orders || [];
+        allCafe24Orders = allCafe24Orders.concat(orders);
+        if (orders.length < 100) orderHasMore = false;
+        else orderOffset += 100;
+      } catch (err) {
+        if (err.response && err.response.status === 401) {
+          currentToken = await refreshAccessToken();
+          const orderRes = await getOrdersFromCafe24(currentToken, orderOffset);
+          const orders = orderRes.data.orders || [];
+          allCafe24Orders = allCafe24Orders.concat(orders);
+          if (orders.length < 100) orderHasMore = false;
+          else orderOffset += 100;
+        } else {
+          console.error('Cafe24 주문 조회 에러 (Excel):', err.message);
+          break; // 에러 발생 시 수집된 데이터까지만 진행
+        }
+      }
+    }
+
+    // 3. 참여자별 데이터 매핑 및 텍스트 조립
     const enrichedData = participants.map((p) => {
-      const hasCart = allCarts.some(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
-      const hasPurchase = allOrders.some(order => order.userId === p.userId && order.createdAt >= p.createdAt);
+      // (1) 장바구니 텍스트 조립: "상품명 (n개) - 00,000원"
+      const userCarts = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
+      const cartText = userCarts.length > 0 
+        ? userCarts.map(c => `${c.productName} (${c.qty || 1}개) - ${(Number(c.price) || 0).toLocaleString()}원`).join('\n')
+        : 'X';
+
+      // (2) 결제내역 텍스트 조립 (룰렛 참여시간 이후 주문만)
+      const userOrders = allCafe24Orders.filter(o => 
+        o.member_id === p.userId && 
+        new Date(o.order_date) >= new Date(p.createdAt)
+      );
+
+      let purchaseText = 'X';
+      if (userOrders.length > 0) {
+        const purchaseItems = [];
+        userOrders.forEach(o => {
+          (o.items || []).forEach(item => {
+            purchaseItems.push(`${item.product_name} (${item.quantity}개) - ${(Number(item.product_price) || 0).toLocaleString()}원`);
+          });
+        });
+        purchaseText = purchaseItems.length > 0 ? purchaseItems.join('\n') : 'X';
+      }
 
       return {
         userId: p.userId,
         optionName: p.optionName,
         entryDate: p.entryDate,
         createdAt: p.createdAt,
-        hasCart: hasCart ? 'O' : 'X',
-        hasPurchase: hasPurchase ? 'O' : 'X'
+        cartText: cartText,
+        purchaseText: purchaseText
       };
     });
 
+    // 4. 엑셀 워크북 생성 및 쓰기
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('봄꽃룰렛_참여자');
 
+    // 컬럼 너비 조정 (상품 상세가 길게 들어가므로 너비 넓힘)
     worksheet.columns = [
       { header: 'No', key: 'index', width: 8 },
       { header: '회원 ID', key: 'userId', width: 20 },
       { header: '당첨 경품', key: 'optionName', width: 20 },
       { header: '응모일(기준)', key: 'entryDate', width: 15 },
       { header: '응모일시(상세)', key: 'createdAt', width: 25 },
-      { header: '장바구니 이동', key: 'hasCart', width: 15 },
-      { header: '결제완료 여부', key: 'hasPurchase', width: 15 },
+      { header: '장바구니 상세 내역', key: 'cartText', width: 50 },
+      { header: '결제 상세 내역', key: 'purchaseText', width: 50 },
     ];
 
+    // 데이터 삽입 및 엑셀 셀 스타일링 (줄바꿈 허용)
     enrichedData.forEach((entry, idx) => {
-      worksheet.addRow({
+      const row = worksheet.addRow({
         index: enrichedData.length - idx,
         userId: entry.userId,
         optionName: entry.optionName,
         entryDate: entry.entryDate,
         createdAt: entry.createdAt ? new Date(entry.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-',
-        hasCart: entry.hasCart,
-        hasPurchase: entry.hasPurchase
+        cartText: entry.cartText,
+        purchaseText: entry.purchaseText
       });
+      
+      // 여러 상품이 있을 경우 \n을 엑셀 내 줄바꿈(Alt+Enter)으로 인식되게 설정
+      row.getCell('cartText').alignment = { wrapText: true, vertical: 'top' };
+      row.getCell('purchaseText').alignment = { wrapText: true, vertical: 'top' };
     });
 
     const filename = encodeURIComponent(`봄꽃룰렛_결과_${Date.now()}.xlsx`);
