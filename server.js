@@ -134,59 +134,78 @@ async function saveTokensToDB(newAccessToken, newRefreshToken) {
     console.error('❌ 토큰 저장 중 오류:', error);
   }
 }
-
 // ========== [4] 토큰 갱신 및 API 요청 로직 ==========
 
-// 토큰 갱신 함수
+// 💡 [핵심 추가] 동시성 방어(Lock)를 위한 전역 변수
+let isRefreshing = false;
+let refreshPromise = null;
+
+// 토큰 갱신 함수 (Promise 락 적용)
 async function refreshAccessToken() {
+  // 1. 이미 다른 API 요청이 토큰을 갱신하고 있다면, 그 작업이 끝날 때까지 기다립니다.
+  if (isRefreshing) {
+    console.log('⏳ 다른 요청이 토큰을 갱신 중입니다. 기존 갱신 작업 완료를 대기합니다...');
+    return await refreshPromise;
+  }
+
   const now = new Date().toLocaleTimeString();
   console.log(`\n[${now}] 🚨 토큰 갱신 프로세스 시작! (원인: 401 에러 또는 강제 만료)`);
-  // ▼ [진단용 코드] 변수 값이 제대로 들어오는지 확인
-  console.log('DEBUG CHECK:', {
-    CID: process.env.CAFE24_CLIENT_ID, // 이 값이 undefined나 null이면 안됨
-    SECRET: process.env.CAFE24_CLIENT_SECRET ? 'EXIST' : 'MISSING'
-  });
 
-  try {
-    const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
-    const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
-    const mallId = (process.env.CAFE24_MALLID || '').trim();
+  // 2. 내가 갱신을 시작한다고 락(Lock)을 겁니다.
+  isRefreshing = true;
 
-    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  // 3. 갱신 작업을 Promise로 만들어 다른 요청들이 이 Promise를 기다리게 합니다.
+  refreshPromise = (async () => {
+    try {
+      // 💡 [안전장치] 혹시 모르니 DB에서 최신 토큰을 한 번 더 읽어옵니다. (멀티 프로세스 환경 대비)
+      await getTokensFromDB();
 
-    console.log(`[${now}] 🚀 Cafe24 서버로 새 토큰 요청 전송...`);
+      const clientId = (process.env.CAFE24_CLIENT_ID || '').trim();
+      const clientSecret = (process.env.CAFE24_CLIENT_SECRET || '').trim();
+      const mallId = (process.env.CAFE24_MALLID || '').trim();
 
-    const response = await axios.post(
-      `https://${mallId}.cafe24api.com/api/v2/oauth/token`,
-      `grant_type=refresh_token&refresh_token=${refreshToken}`,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${basicAuth}`,
-        },
-      }
-    );
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-    const newAccessToken = response.data.access_token;
-    const newRefreshToken = response.data.refresh_token;
+      console.log(`[${now}] 🚀 Cafe24 서버로 새 토큰 요청 전송...`);
 
-    console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
-    console.log(`   - New Access Token: ${newAccessToken.substring(0, 10)}...`);
+      const response = await axios.post(
+        `https://${mallId}.cafe24api.com/api/v2/oauth/token`,
+        `grant_type=refresh_token&refresh_token=${refreshToken}`,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${basicAuth}`,
+          },
+        }
+      );
 
-    // 메모리 변수 갱신
-    accessToken = newAccessToken;
-    refreshToken = newRefreshToken;
+      const newAccessToken = response.data.access_token;
+      const newRefreshToken = response.data.refresh_token;
 
-    // DB 저장
-    await saveTokensToDB(newAccessToken, newRefreshToken);
-    console.log(`[${now}] 갱신 프로세스 정상 종료.\n`);
+      console.log(`[${now}] ✅ Cafe24 토큰 갱신 성공!`);
 
-    return newAccessToken;
+      // 메모리 변수 갱신
+      accessToken = newAccessToken;
+      refreshToken = newRefreshToken;
 
-  } catch (error) {
-    console.error(`[${now}] ❌ 토큰 갱신 실패:`, error.response ? error.response.data : error.message);
-    throw error;
-  }
+      // DB 저장
+      await saveTokensToDB(newAccessToken, newRefreshToken);
+      console.log(`[${now}] 갱신 프로세스 정상 종료.\n`);
+
+      return newAccessToken;
+
+    } catch (error) {
+      console.error(`[${now}] ❌ 토큰 갱신 실패:`, error.response ? error.response.data : error.message);
+      throw error;
+    } finally {
+      // 4. 갱신 성공하든 실패하든 무조건 락(Lock)을 풀어줍니다.
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  // 갱신 작업 실행 후 새 토큰 반환
+  return await refreshPromise;
 }
 
 
