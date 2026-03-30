@@ -3788,22 +3788,22 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
 
     // 타겟 제품 목록 (프론트와 동일하게 설정)
     const TARGET_PRODUCTS = [
-        "요기보 피라미드", "요기보 피라미드 프리미엄", "요기보 피라미드 프리미엄 플러스",
-        "요기보 드롭", "요기보 드롭 프리미엄", "요기보 드롭 프리미엄 플러스",
-        "요기보 슬림", "요기보 슬림 프리미엄", "요기보 슬림 프리미엄 플러스",
-        "요기보 카카오프렌즈 피라미드", "요기보 카카오프렌즈 피라미드 프리미엄", "요기보 카카오프렌즈 피라미드 프리미엄 플러스",
-        "요기보 카카오프렌즈 드롭", "요기보 카카오프렌즈 드롭 프리미엄", "요기보 카카오프렌즈 드롭 프리미엄 플러스",
-        "요기보 카카오프렌즈 슬림", "요기보 카카오프렌즈 슬림 프리미엄", "요기보 카카오프렌즈 슬림 프리미엄 플러스",
-        "솔리드 스퀴지보", "스퀴지보 하트", "스퀴지보 애니멀",
-        "요기보 메이트", "요기보 플랜트 메이트",
-        "요기보 메가 메이트 팍스", "요기보 메가 메이트 티렉스", "요기보 메가 메이트 유니콘",
-        "요기보 메이트 나르왈", "요기보 메이트 우파루파", "요기보 메이트 라쿤",
-        "요기보 메이트 드래곤", "요기보 메이트 티렉스", "요기보 메이트 샤크",
-        "요기보 메이트 헤지호그", "요기보 메이트 디노", "요기보 메이트 도그",
-        "요기보 메이트 코알라", "요기보 메이트 판다", "요기보 메이트 펭귄",
-        "요기보 메이트 옥토푸스", "요기보 메이트 엘리펀트", "요기보 메이트 팍스",
-        "요기보 메이트 돌핀", "요기보 메이트 지라프", "요기보 메이트 써니",
-        "요기보 메이트 아로", "요기보 메이트 스트라우프"
+      "요기보 피라미드", "요기보 피라미드 프리미엄", "요기보 피라미드 프리미엄 플러스",
+      "요기보 드롭", "요기보 드롭 프리미엄", "요기보 드롭 프리미엄 플러스",
+      "요기보 슬림", "요기보 슬림 프리미엄", "요기보 슬림 프리미엄 플러스",
+      "요기보 카카오프렌즈 피라미드", "요기보 카카오프렌즈 피라미드 프리미엄", "요기보 카카오프렌즈 피라미드 프리미엄 플러스",
+      "요기보 카카오프렌즈 드롭", "요기보 카카오프렌즈 드롭 프리미엄", "요기보 카카오프렌즈 드롭 프리미엄 플러스",
+      "요기보 카카오프렌즈 슬림", "요기보 카카오프렌즈 슬림 프리미엄", "요기보 카카오프렌즈 슬림 프리미엄 플러스",
+      "솔리드 스퀴지보", "스퀴지보 하트", "스퀴지보 애니멀",
+      "요기보 메이트", "요기보 플랜트 메이트",
+      "요기보 메가 메이트 팍스", "요기보 메가 메이트 티렉스", "요기보 메가 메이트 유니콘",
+      "요기보 메이트 나르왈", "요기보 메이트 우파루파", "요기보 메이트 라쿤",
+      "요기보 메이트 드래곤", "요기보 메이트 티렉스", "요기보 메이트 샤크",
+      "요기보 메이트 헤지호그", "요기보 메이트 디노", "요기보 메이트 도그",
+      "요기보 메이트 코알라", "요기보 메이트 판다", "요기보 메이트 펭귄",
+      "요기보 메이트 옥토푸스", "요기보 메이트 엘리펀트", "요기보 메이트 팍스",
+      "요기보 메이트 돌핀", "요기보 메이트 지라프", "요기보 메이트 써니",
+      "요기보 메이트 아로", "요기보 메이트 스트라우프"
     ];
     const normalize = (str) => str.replace(/요기보/g, '').replace(/[^가-힣a-zA-Z0-9]/g, '').toLowerCase();
     const searchTargets = TARGET_PRODUCTS.map(name => ({ originalName: name, searchKey: normalize(name) }));
@@ -3824,7 +3824,7 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
     let allOrders = [];
     let orderHasMore = true;
     let orderOffset = 0;
-    
+
     // 카페24에서 해당 기간의 주문 긁어오기
     while (orderHasMore && orderOffset < 5000) {
       const orderRes = await fetchFromCafe24(
@@ -3833,22 +3833,22 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
       );
       const orders = orderRes.data.orders || [];
       allOrders = allOrders.concat(orders);
-      
+
       if (orders.length < 100) orderHasMore = false;
       else orderOffset += 100;
     }
 
     const uniqueBuyers = new Set();
-    
+
     allOrders.forEach(o => {
       // 비회원 제외
-      if (!o.member_id || String(o.member_id).toLowerCase() === 'guest') return; 
+      if (!o.member_id || String(o.member_id).toLowerCase() === 'guest') return;
 
       let hasTarget = false;
       (o.items || []).forEach(item => {
         const normalizedRawName = normalize(item.product_name || "");
-        if (EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord))) return; 
-        
+        if (EXCLUDE_KEYWORDS.some(exWord => normalizedRawName.includes(exWord))) return;
+
         if (searchTargets.find(target => normalizedRawName.includes(target.searchKey))) {
           hasTarget = true;
         }
@@ -3884,7 +3884,7 @@ app.post('/api/raffle/play', async (req, res) => {
 
     const todayStr = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
     const rolletCollection = db.collection(ROLLET_COLLECTION);
-    const stockCollection = db.collection('raffle_daily_stock'); 
+    const stockCollection = db.collection('raffle_daily_stock');
 
     // 1. 중복 참여 체크
     const existingEntry = await rolletCollection.findOne({ userId: userId, entryDate: todayStr });
@@ -3894,7 +3894,7 @@ app.post('/api/raffle/play', async (req, res) => {
 
     // 2. 오늘의 재고 및 어드민이 설정한 확률 데이터 불러오기
     let dailyData = await stockCollection.findOne({ date: todayStr });
-    
+
     if (!dailyData) {
       return res.status(400).json({ success: false, message: '금일 이벤트가 준비되지 않았습니다.' });
     }
@@ -3914,7 +3914,7 @@ app.post('/api/raffle/play', async (req, res) => {
     // 4. 동적 가중치 기반 랜덤 추첨 
     const randomNum = Math.random() * totalWeight;
     let weightSum = 0;
-    let wonPrize = activePrizes[activePrizes.length - 1]; 
+    let wonPrize = activePrizes[activePrizes.length - 1];
 
     for (let i = 0; i < activePrizes.length; i++) {
       weightSum += activePrizes[i].effectiveWeight;
@@ -3927,17 +3927,17 @@ app.post('/api/raffle/play', async (req, res) => {
     // 5. 당첨된 상품의 재고 차감 (Atomic Update)
     // 💡 [수정됨] $elemMatch를 사용하여 정확히 일치하는 객체만 찾아내도록 수정!
     const updateResult = await stockCollection.findOneAndUpdate(
-      { 
-        date: todayStr, 
-        prizes: { 
-          $elemMatch: { 
-            name: wonPrize.name, 
-            currentStock: { $gt: 0 } 
-          } 
+      {
+        date: todayStr,
+        prizes: {
+          $elemMatch: {
+            name: wonPrize.name,
+            currentStock: { $gt: 0 }
+          }
         }
       },
-      { 
-        $inc: { "prizes.$.currentStock": -1 } 
+      {
+        $inc: { "prizes.$.currentStock": -1 }
       },
       { returnDocument: 'after' }
     );
@@ -3947,17 +3947,17 @@ app.post('/api/raffle/play', async (req, res) => {
     // 간발의 차로 재고가 털렸을 경우 3등(오리 비눗방울) 우회 처리
     if (!updatedDoc) {
       console.warn(`[룰렛] ${userId}님이 ${wonPrize.name}에 당첨되었으나 재고 소진됨. 3등 우회 처리.`);
-      
+
       const fallbackPrizeName = "오리 비눗방울";
       // 💡 [수정됨] 우회 차감 로직에도 동일하게 $elemMatch 적용
       const fallbackResult = await stockCollection.findOneAndUpdate(
-        { 
-          date: todayStr, 
-          prizes: { 
-            $elemMatch: { 
-              name: fallbackPrizeName, 
-              currentStock: { $gt: 0 } 
-            } 
+        {
+          date: todayStr,
+          prizes: {
+            $elemMatch: {
+              name: fallbackPrizeName,
+              currentStock: { $gt: 0 }
+            }
           }
         },
         { $inc: { "prizes.$.currentStock": -1 } },
@@ -3967,9 +3967,9 @@ app.post('/api/raffle/play', async (req, res) => {
       const fallbackDoc = fallbackResult && fallbackResult.value ? fallbackResult.value : fallbackResult;
 
       if (!fallbackDoc) {
-         return res.json({ success: false, code: 'SOLD_OUT', message: '금일 준비된 모든 경품이 소진되었습니다.' });
+        return res.json({ success: false, code: 'SOLD_OUT', message: '금일 준비된 모든 경품이 소진되었습니다.' });
       }
-      wonPrize.name = fallbackPrizeName; 
+      wonPrize.name = fallbackPrizeName;
     }
 
     // 6. 최종 당첨 결과 DB 기록
@@ -3999,7 +3999,7 @@ app.get('/api/raffle/status', async (req, res) => {
       return res.json({ success: true, isEntered: false, message: '로그인 필요' });
     }
     const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
-    
+
     if (existingEntry) {
       return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
     } else {
@@ -4055,7 +4055,7 @@ app.get('/api/raffle/admin/participants', async (req, res) => {
         createdAt: p.createdAt,
         hasCart: hasCart,
         hasPurchase: hasPurchase,
-        
+
         // 🚨 프론트 모달창을 위해 상세 데이터(배열)를 다시 꽉꽉 채워서 넘겨줍니다! 🚨
         cartDetails: userCartItems.map(item => ({
           productName: item.productName || '알 수 없는 상품',
@@ -4120,20 +4120,20 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     let productMap = {};
 
     // 💡 [Step 2] 상품 상세 정보(이름, 가격) 호출
-    const productRequests = productNos.map(pNo => 
+    const productRequests = productNos.map(pNo =>
       axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name,price`, {
-        headers: CAFE24_HEADERS(accessToken) 
-      }).catch(e => null) 
+        headers: CAFE24_HEADERS(accessToken)
+      }).catch(e => null)
     );
 
     const productResponses = await Promise.all(productRequests);
-        
+
     productResponses.forEach((pRes, idx) => {
       if (pRes && pRes.data && pRes.data.product) {
         // 이름과 가격을 객체 형태로 저장 (가격은 숫자형으로 변환)
         productMap[productNos[idx]] = {
           name: pRes.data.product.product_name,
-          price: Number(pRes.data.product.price) || 0 
+          price: Number(pRes.data.product.price) || 0
         };
       }
     });
@@ -4142,12 +4142,12 @@ app.get('/api/raffle/admin/cart-detail', async (req, res) => {
     const cartDetails = carts.map(item => {
       // productMap에 해당 상품 번호가 있으면 가져오고, 없으면 기본값 세팅 (방어 코드)
       const pInfo = productMap[item.product_no] || { name: `조회 불가 (상품번호:${item.product_no})`, price: 0 };
-      
+
       return {
         productName: pInfo.name,
         price: pInfo.price, // 가격 데이터 매핑
         qty: item.quantity,
-        addedAt: item.created_date 
+        addedAt: item.created_date
       };
     });
 
@@ -4190,7 +4190,7 @@ app.post('/api/trace/cart', async (req, res) => {
 
     console.log(`[Cart Tracker] ${userId}님의 장바구니 상품 ${cartLogs.length}개 추적 저장 완료`);
     res.json({ success: true, message: '장바구니 데이터 트래킹 성공' });
-    
+
   } catch (err) {
     console.error('장바구니 핑 수신 에러:', err);
     res.status(500).json({ success: false });
@@ -4220,9 +4220,9 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     const minDate = participants[participants.length - 1].createdAt;
 
     // 1. DB에서 장바구니 내역 조회
-    const allCarts = await db.collection('cart').find({ 
-      userId: { $in: userIds }, 
-      createdAt: { $gte: minDate } 
+    const allCarts = await db.collection('cart').find({
+      userId: { $in: userIds },
+      createdAt: { $gte: minDate }
     }).toArray();
 
     // 💡 [핵심 추가] DB에 productName이 null로 저장된 경우를 대비해 Cafe24에서 실시간으로 이름을 가져옵니다.
@@ -4235,13 +4235,13 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     // 이름이 없거나 'null'인 상품들의 번호(productCode)만 추출
     const cartProductNos = [...new Set(allCarts.filter(c => !c.productName || c.productName === 'null').map(c => c.productCode))].filter(Boolean);
     let cartProductMap = {};
-    
+
     // 누락된 상품들의 이름을 카페24에서 다시 조회해 맵에 저장
     if (cartProductNos.length > 0) {
-      const pRequests = cartProductNos.map(pNo => 
+      const pRequests = cartProductNos.map(pNo =>
         axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products/${pNo}?fields=product_name`, {
-          headers: CAFE24_HEADERS(accessToken) 
-        }).catch(e => null) 
+          headers: CAFE24_HEADERS(accessToken)
+        }).catch(e => null)
       );
       const pResponses = await Promise.all(pRequests);
       pResponses.forEach((pRes, idx) => {
@@ -4253,7 +4253,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
 
     // 2. Cafe24 API로 기간 내 실제 결제 내역 긁어오기
     const sDate = moment(minDate).tz('Asia/Seoul').format('YYYY-MM-DD');
-    const eDate = moment().tz('Asia/Seoul').add(1, 'days').format('YYYY-MM-DD'); 
+    const eDate = moment().tz('Asia/Seoul').add(1, 'days').format('YYYY-MM-DD');
 
     const getOrdersFromCafe24 = async (token, offset) => {
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`, {
@@ -4267,7 +4267,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     let orderOffset = 0;
     let currentToken = accessToken;
 
-    while (orderHasMore && orderOffset < 3000) { 
+    while (orderHasMore && orderOffset < 3000) {
       try {
         const orderRes = await getOrdersFromCafe24(currentToken, orderOffset);
         const orders = orderRes.data.orders || [];
@@ -4283,7 +4283,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
           if (orders.length < 100) orderHasMore = false;
           else orderOffset += 100;
         } else {
-          break; 
+          break;
         }
       }
     }
@@ -4292,20 +4292,20 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
     const enrichedData = participants.map((p) => {
       // (1) 장바구니 텍스트 조립
       const userCarts = allCarts.filter(cart => cart.userId === p.userId && cart.updatedAt >= p.createdAt);
-      const cartText = userCarts.length > 0 
+      const cartText = userCarts.length > 0
         ? userCarts.map(c => {
-            // 💡 null 일 경우 방금 매핑해온 새 이름으로 교체!
-            let pName = c.productName;
-            if (!pName || pName === 'null') {
-              pName = cartProductMap[c.productCode] || '상품명 확인불가';
-            }
-            return `${pName} (${c.qty || 1}개) - ${(Number(c.price) || 0).toLocaleString()}원`;
-          }).join('\n')
+          // 💡 null 일 경우 방금 매핑해온 새 이름으로 교체!
+          let pName = c.productName;
+          if (!pName || pName === 'null') {
+            pName = cartProductMap[c.productCode] || '상품명 확인불가';
+          }
+          return `${pName} (${c.qty || 1}개) - ${(Number(c.price) || 0).toLocaleString()}원`;
+        }).join('\n')
         : 'X';
 
       // (2) 결제내역 텍스트 조립
-      const userOrders = allCafe24Orders.filter(o => 
-        o.member_id === p.userId && 
+      const userOrders = allCafe24Orders.filter(o =>
+        o.member_id === p.userId &&
         new Date(o.order_date) >= new Date(p.createdAt)
       );
 
@@ -4354,7 +4354,7 @@ app.get('/api/raffle/admin/excel', async (req, res) => {
         cartText: entry.cartText,
         purchaseText: entry.purchaseText
       });
-      
+
       row.getCell('cartText').alignment = { wrapText: true, vertical: 'top' };
       row.getCell('purchaseText').alignment = { wrapText: true, vertical: 'top' };
     });
@@ -4407,8 +4407,8 @@ app.get('/api/raffle/admin/purchase-detail', async (req, res) => {
     // 💡 결제 내역 조회 시에도 버전을 명시하여 안정성 확보
     const getOrdersFromCafe24 = async (token) => {
       return await axios.get(`https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders?member_id=${userId}&start_date=${start_date}&end_date=${end_date}`, {
-        headers: { 
-          'Authorization': `Bearer ${token.trim()}`, 
+        headers: {
+          'Authorization': `Bearer ${token.trim()}`,
           'Content-Type': 'application/json',
           'X-Cafe24-Api-Version': CAFE24_API_VERSION || '2025-12-01'
         }
@@ -4498,7 +4498,7 @@ app.get('/api/raffle/admin/stock', async (req, res) => {
     if (!date) return res.status(400).json({ success: false, message: '날짜 파라미터가 필요합니다.' });
 
     const dailyData = await db.collection('raffle_daily_stock').findOne({ date: date });
-    
+
     if (dailyData) {
       res.json({ success: true, data: dailyData });
     } else {
@@ -4525,12 +4525,12 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
     // 해당 날짜(date)를 기준으로 데이터를 덮어쓰거나(새로 생성) 업데이트
     await db.collection('raffle_daily_stock').updateOne(
       { date: date },
-      { 
-        $set: { 
+      {
+        $set: {
           date: date,
           prizes: prizes, // [{name, totalStock, currentStock, prob}, ...]
           updatedAt: new Date()
-        } 
+        }
       },
       { upsert: true }
     );
@@ -4553,7 +4553,7 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
 app.get('/api/game/detox/status', async (req, res) => {
   const { memberId, guestId, ip } = req.query;
   const collection = db.collection('detox_game_users');
-  
+
   try {
     let userDoc = null;
     let showSignupMsg = false;
@@ -4561,17 +4561,17 @@ app.get('/api/game/detox/status', async (req, res) => {
     // 회원의 경우
     if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
       userDoc = await collection.findOne({ memberId });
-      
+
       // 회원 기록이 없다면, guestId나 ip로 남겨진 이전 기록 찾기
       if (!userDoc) {
         let guestDoc = await collection.findOne({ $or: [{ guestId }, { ip }], memberId: { $exists: false } });
-        
+
         if (guestDoc) {
           // 병합 진행
           await collection.updateOne(
             { _id: guestDoc._id },
-            { 
-              $set: { 
+            {
+              $set: {
                 memberId: memberId,
                 signupRewardGiven: true,
                 showSignupMsg: true, // 프론트에서 1회 보여주기 위함
@@ -4606,13 +4606,13 @@ app.get('/api/game/detox/status', async (req, res) => {
           userDoc = await collection.findOne({ _id: userDoc._id });
         }
       }
-      
+
       // 메세지 표시 여부 체크 후 리셋
       if (userDoc.showSignupMsg) {
         showSignupMsg = true;
         await collection.updateOne({ _id: userDoc._id }, { $set: { showSignupMsg: false } });
       }
-      
+
     } else {
       // 비회원의 경우
       if (guestId) {
@@ -4634,12 +4634,12 @@ app.get('/api/game/detox/status', async (req, res) => {
       }
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       hearts: userDoc.hearts,
       isSuccess: userDoc.isSuccess,
       successRewardGiven: userDoc.successRewardGiven,
-      showSignupMsg: showSignupMsg 
+      showSignupMsg: showSignupMsg
     });
   } catch (error) {
     console.error('게임 상태 조회 에러:', error);
@@ -4651,7 +4651,7 @@ app.get('/api/game/detox/status', async (req, res) => {
 app.post('/api/game/detox/fail', async (req, res) => {
   const { memberId, guestId } = req.body;
   const collection = db.collection('detox_game_users');
-  
+
   try {
     let query = {};
     if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
@@ -4679,7 +4679,7 @@ app.post('/api/game/detox/fail', async (req, res) => {
 app.post('/api/game/detox/success', async (req, res) => {
   const { memberId, guestId } = req.body;
   const collection = db.collection('detox_game_users');
-  
+
   try {
     let query = {};
     if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
@@ -4700,7 +4700,7 @@ app.post('/api/game/detox/success', async (req, res) => {
 async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/web/off') {
   const client = new ftp.Client();
   client.ftp.verbose = false;
-  
+
   const host = process.env.FTP_HOST || `${CAFE24_MALLID}.cafe24.com`;
   const user = process.env.FTP_USER || CAFE24_MALLID;
   const password = process.env.FTP_PASSWORD;
@@ -4716,10 +4716,10 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
       password: password,
       secure: false
     });
-    
+
     await client.ensureDir(remoteDir);
     await client.uploadFrom(localFilePath, remoteFileName);
-    
+
     return `https://${host}${remoteDir}/${remoteFileName}`;
   } catch (err) {
     console.error('FTP 업로드 중 오류 발생:', err);
@@ -4758,9 +4758,9 @@ const storeUpload = multer({
 // 1. 매장 등록
 app.post('/api/store', storeUpload.single('image'), async (req, res) => {
   try {
-    const { name, address, phone, isAlways, startDate, endDate } = req.body;
+    const { name, address, phone, isAlways, startDate, endDate, isPopup, isPickup, isModju } = req.body;
     let imagePath = '';
-    
+
     if (req.file) {
       try {
         const remoteFileName = `store-${Date.now()}-${req.file.originalname}`;
@@ -4769,7 +4769,7 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
         fs.unlinkSync(req.file.path);
       } catch (ftpErr) {
         console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
-        imagePath = `/uploads/stores/${req.file.filename}`;
+        imagePath = `/web/off/${req.file.filename}`;
       }
     }
 
@@ -4780,6 +4780,9 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
       isAlways: isAlways === 'true',
       startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
       endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      isPopup: isPopup === 'true',
+      isPickup: isPickup === 'true',
+      isModju: isModju === 'true',
       imagePath,
       createdAt: new Date()
     };
@@ -4802,7 +4805,7 @@ app.get('/api/store', async (req, res) => {
       query = {
         $or: [
           { isAlways: true },
-          { 
+          {
             isAlways: false,
             startDate: { $lte: now },
             endDate: { $gte: now }
@@ -4823,8 +4826,8 @@ app.get('/api/store', async (req, res) => {
 app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
   try {
     const storeId = req.params.id;
-    const { name, address, phone, isAlways, startDate, endDate, existingImage } = req.body;
-    
+    const { name, address, phone, isAlways, startDate, endDate, existingImage, isPopup, isPickup, isModju } = req.body;
+
     let imagePath = existingImage || '';
     if (req.file) {
       try {
@@ -4835,7 +4838,7 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
         console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
         imagePath = `/uploads/stores/${req.file.filename}`;
       }
-      
+
       // 기존 이미지가 로컬 파일일 경우 삭제 로직
       if (existingImage && existingImage.startsWith('/uploads/')) {
         const oldFilePath = path.join(__dirname, 'public', existingImage);
@@ -4850,6 +4853,9 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
       isAlways: isAlways === 'true',
       startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
       endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      isPopup: isPopup === 'true',
+      isPickup: isPickup === 'true',
+      isModju: isModju === 'true',
       imagePath,
       updatedAt: new Date()
     };
