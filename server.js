@@ -4580,6 +4580,39 @@ app.get('/api/cafe24/last-login/:userId', async (req, res) => {
   }
 });
 
+// ==========================================
+// [추가] 특정 회원의 접속 이력을 가져오는 API (기간 검색)
+// ==========================================
+app.get('/api/trace/history/:userId', async (req, res) => {
+  try {
+      const targetUserId = req.params.userId;
+      const { startDate, endDate } = req.query;
+      
+      let query = { visitorId: targetUserId };
+
+      if (startDate || endDate) {
+          query.createdAt = {};
+          if (startDate) query.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
+          if (endDate) query.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
+      }
+      
+      const userLogs = await db.collection('visit_logs1Event')
+                               .find(query)
+                               .sort({ createdAt: -1 })
+                               .toArray();
+      
+      res.status(200).json({
+          success: true,
+          count: userLogs.length,
+          data: userLogs
+      });
+  } catch (error) {
+      console.error('로그 조회 에러:', error);
+      res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
