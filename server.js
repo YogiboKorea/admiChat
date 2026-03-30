@@ -4546,6 +4546,8 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
+
+
 // 카페24 API로 특정 회원의 최근 접속일 확인
 app.get('/api/cafe24/last-login/:userId', async (req, res) => {
   try {
@@ -4577,6 +4579,7 @@ app.get('/api/cafe24/last-login/:userId', async (req, res) => {
       res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
   }
 });
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
