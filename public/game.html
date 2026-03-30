@@ -398,6 +398,17 @@ e
             object-position: bottom center;
         }
 
+        /* 인게임 내 캐릭터는 이미지 여백 이슈로 인해 약간 스케일을 키움 */
+        #screen-game .char-display-wrapper img {
+            transform: translateX(-50%) scale(1.15);
+            transition: transform 0.2s;
+        }
+
+        /* 터치 시 재생되는 애니메이션 프레임들의 기본 여백이 커서 작아보이는 현상 보정 */
+        #screen-game .char-display-wrapper.animating img {
+            transform: translateX(-50%) scale(1.3);
+        }
+
         .start-action-wrapper {
             display: flex;
             align-items: center;
@@ -438,18 +449,19 @@ e
 
         .btn-touch {
             cursor: pointer;
-            width: 65%;
-            max-width: 200px;
+            width: 80%;
+            max-width: 260px;
             display: none;
             user-select: none;
             -webkit-user-select: none;
             touch-action: none;
             -webkit-touch-callout: none;
-            transition: transform 0.1s;
+            transition: filter 0.1s;
         }
 
         .btn-touch.pressing {
-            transform: scale(0.95);
+            /* 크기가 줄어든다는 피드백이 있어 scale 대신 brightness 로 눌림 효과 대체 */
+            filter: brightness(0.85);
         }
 
         /* --- [4] 결과 화면 --- */
@@ -879,8 +891,14 @@ e
                     if (data.success) {
                         STATE.currentLives = data.hearts;
                         if (data.showSignupMsg) {
-                            alert("회원가입으로 하트2개가 충전되었어요 재도전 해보세요");
-                            // 대기 화면으로 유도
+                            // alert("회원가입으로 하트2개가 충전되었어요 재도전 해보세요");
+                            
+                            // 대기 화면으로 유도 시 말풍선 문구를 직접 변경합니다
+                            const bubble = document.querySelector('#screen-confirm .speech-bubble');
+                            if (bubble) {
+                                bubble.innerHTML = '회원가입으로 하트 2개가 충전되었어요!<br>재도전 해볼까요?';
+                            }
+
                             if (STATE.selectedChar) {
                                 switchScreen('confirm');
                             }
@@ -1058,6 +1076,7 @@ e
 
             isPressing = true;
             btnTouch.classList.add('pressing');
+            document.querySelector('#screen-game .char-display-wrapper').classList.add('animating');
             startTime = Date.now();
 
             timerReqId = requestAnimationFrame(updateTimer);
@@ -1073,6 +1092,7 @@ e
         function endGame(finalTime) {
             isPressing = false;
             btnTouch.classList.remove('pressing');
+            document.querySelector('#screen-game .char-display-wrapper').classList.remove('animating');
             btnTouch.style.display = 'none';
             cancelAnimationFrame(timerReqId);
             stopFrameAnimation();
