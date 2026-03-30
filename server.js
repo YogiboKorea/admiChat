@@ -4547,15 +4547,17 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
   }
 });
 
-
-
 // 특정 회원의 접속 이력을 가져오는 API
 app.get('/api/trace/history/:userId', async (req, res) => {
   try {
       const targetUserId = req.params.userId;
       
-      // 예: MongoDB 모델(TrackingLog)을 사용하는 경우
-      const userLogs = await TrackingLog.find({ visitorId: targetUserId }).sort({ timestamp: -1 });
+      // 순수 MongoDB 드라이버 문법 사용 (.toArray() 필수)
+      // 실제 로그가 저장되는 visit_logs1Event 컬렉션에서 데이터 조회
+      const userLogs = await db.collection('visit_logs1Event')
+                               .find({ visitorId: targetUserId })
+                               .sort({ createdAt: -1 }) // 최신순 정렬 (timestamp가 아닌 createdAt 사용)
+                               .toArray();
       
       res.status(200).json({
           success: true,
@@ -4567,7 +4569,6 @@ app.get('/api/trace/history/:userId', async (req, res) => {
       res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
 
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
