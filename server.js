@@ -4546,37 +4546,35 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-// 특정 회원의 접속 이력을 가져오는 API (기간 검색 추가)
-app.get('/api/trace/history/:userId', async (req, res) => {
+// 카페24 API로 특정 회원의 최근 접속일 확인
+app.get('/api/cafe24/last-login/:userId', async (req, res) => {
   try {
-      const targetUserId = req.params.userId;
-      const { startDate, endDate } = req.query; // URL 쿼리 파라미터에서 날짜 추출
+      const { userId } = req.params;
       
-      let query = { visitorId: targetUserId };
+      // 카페24 회원 정보 조회 API 호출
+      const response = await axios.get(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${userId}?fields=member_id,recent_login_date,created_date`,
+          {
+              headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
+              }
+          }
+      );
 
-      // 시작일이나 종료일이 넘어왔을 경우 조건 추가
-      if (startDate || endDate) {
-          query.createdAt = {};
-          // 시작일의 00시 00분 00초부터
-          if (startDate) query.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
-          // 종료일의 23시 59분 59초까지
-          if (endDate) query.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
-      }
+      const customer = response.data.customer;
       
-      // DB 조회
-      const userLogs = await db.collection('visit_logs1Event')
-                               .find(query)
-                               .sort({ createdAt: -1 })
-                               .toArray();
-      
-      res.status(200).json({
+      res.json({
           success: true,
-          count: userLogs.length,
-          data: userLogs
+          member_id: customer.member_id,
+          last_login: customer.recent_login_date, // 🌟 최근 로그인 시간
+          join_date: customer.created_date
       });
+      
   } catch (error) {
-      console.error('로그 조회 에러:', error);
-      res.status(500).json({ success: false, message: 'Server Error' });
+      console.error('카페24 회원조회 에러:', error.response ? error.response.data : error.message);
+      res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
   }
 });
 
