@@ -4546,17 +4546,27 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
-
-// 특정 회원의 접속 이력을 가져오는 API
+// 특정 회원의 접속 이력을 가져오는 API (기간 검색 추가)
 app.get('/api/trace/history/:userId', async (req, res) => {
   try {
       const targetUserId = req.params.userId;
+      const { startDate, endDate } = req.query; // URL 쿼리 파라미터에서 날짜 추출
       
-      // 순수 MongoDB 드라이버 문법 사용 (.toArray() 필수)
-      // 실제 로그가 저장되는 visit_logs1Event 컬렉션에서 데이터 조회
+      let query = { visitorId: targetUserId };
+
+      // 시작일이나 종료일이 넘어왔을 경우 조건 추가
+      if (startDate || endDate) {
+          query.createdAt = {};
+          // 시작일의 00시 00분 00초부터
+          if (startDate) query.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
+          // 종료일의 23시 59분 59초까지
+          if (endDate) query.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
+      }
+      
+      // DB 조회
       const userLogs = await db.collection('visit_logs1Event')
-                               .find({ visitorId: targetUserId })
-                               .sort({ createdAt: -1 }) // 최신순 정렬 (timestamp가 아닌 createdAt 사용)
+                               .find(query)
+                               .sort({ createdAt: -1 })
                                .toArray();
       
       res.status(200).json({
@@ -4569,7 +4579,6 @@ app.get('/api/trace/history/:userId', async (req, res) => {
       res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
