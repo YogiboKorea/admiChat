@@ -4579,40 +4579,38 @@ app.get('/api/cafe24/last-login/:userId', async (req, res) => {
       res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
   }
 });
-
-// ==========================================
-// [추가] 특정 회원의 접속 이력을 가져오는 API (기간 검색)
-// ==========================================
-app.get('/api/trace/history/:userId', async (req, res) => {
+// 카페24 API로 특정 회원의 최근 접속일 확인 (수정본)
+app.get('/api/cafe24/last-login/:userId', async (req, res) => {
   try {
-      const targetUserId = req.params.userId;
-      const { startDate, endDate } = req.query;
+      const { userId } = req.params;
       
-      let query = { visitorId: targetUserId };
+      // 이미 정의해두신 apiRequest 공통 함수 활용 (토큰 자동 갱신 포함)
+      const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+      
+      // 경로(/customers/id) 대신 쿼리 파라미터(member_id=id) 방식 사용
+      const response = await apiRequest('GET', customerUrl, {}, {
+          member_id: userId, 
+          fields: 'member_id,recent_login_date,created_date'
+      });
 
-      if (startDate || endDate) {
-          query.createdAt = {};
-          if (startDate) query.createdAt.$gte = new Date(`${startDate}T00:00:00.000Z`);
-          if (endDate) query.createdAt.$lte = new Date(`${endDate}T23:59:59.999Z`);
+      // 배열 형태로 응답이 오므로 첫 번째 데이터 추출
+      if (response && response.customers && response.customers.length > 0) {
+          const customer = response.customers[0];
+          res.json({
+              success: true,
+              member_id: customer.member_id,
+              last_login: customer.recent_login_date, // 🌟 최근 로그인 시간
+              join_date: customer.created_date
+          });
+      } else {
+          res.json({ success: false, message: '카페24에서 해당 회원을 찾을 수 없습니다.' });
       }
       
-      const userLogs = await db.collection('visit_logs1Event')
-                               .find(query)
-                               .sort({ createdAt: -1 })
-                               .toArray();
-      
-      res.status(200).json({
-          success: true,
-          count: userLogs.length,
-          data: userLogs
-      });
   } catch (error) {
-      console.error('로그 조회 에러:', error);
-      res.status(500).json({ success: false, message: 'Server Error' });
+      console.error('카페24 회원조회 에러:', error);
+      res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
   }
 });
-
-
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
