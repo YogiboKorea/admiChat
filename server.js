@@ -210,9 +210,6 @@ async function refreshAccessToken() {
 
 
 
-
-
-
 // 공통 API 요청 함수 (재시도 로직 포함)
 async function apiRequest(method, url, data = {}, params = {}) {
   try {
@@ -4547,70 +4544,6 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
   }
 });
 
-
-// 카페24 API로 특정 회원의 최근 접속일 확인
-app.get('/api/cafe24/last-login/:userId', async (req, res) => {
-  try {
-      const { userId } = req.params;
-      
-      // 카페24 회원 정보 조회 API 호출
-      const response = await axios.get(
-          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers/${userId}?fields=member_id,recent_login_date,created_date`,
-          {
-              headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                  'X-Cafe24-Api-Version': CAFE24_API_VERSION
-              }
-          }
-      );
-
-      const customer = response.data.customer;
-      
-      res.json({
-          success: true,
-          member_id: customer.member_id,
-          last_login: customer.recent_login_date, // 🌟 최근 로그인 시간
-          join_date: customer.created_date
-      });
-      
-  } catch (error) {
-      console.error('카페24 회원조회 에러:', error.response ? error.response.data : error.message);
-      res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
-  }
-});
-// 카페24 API로 특정 회원의 최근 접속일 확인 (수정본)
-app.get('/api/cafe24/last-login/:userId', async (req, res) => {
-  try {
-      const { userId } = req.params;
-      
-      // 이미 정의해두신 apiRequest 공통 함수 활용 (토큰 자동 갱신 포함)
-      const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
-      
-      // 경로(/customers/id) 대신 쿼리 파라미터(member_id=id) 방식 사용
-      const response = await apiRequest('GET', customerUrl, {}, {
-          member_id: userId, 
-          fields: 'member_id,recent_login_date,created_date'
-      });
-
-      // 배열 형태로 응답이 오므로 첫 번째 데이터 추출
-      if (response && response.customers && response.customers.length > 0) {
-          const customer = response.customers[0];
-          res.json({
-              success: true,
-              member_id: customer.member_id,
-              last_login: customer.recent_login_date, // 🌟 최근 로그인 시간
-              join_date: customer.created_date
-          });
-      } else {
-          res.json({ success: false, message: '카페24에서 해당 회원을 찾을 수 없습니다.' });
-      }
-      
-  } catch (error) {
-      console.error('카페24 회원조회 에러:', error);
-      res.status(500).json({ success: false, message: '카페24 API 연동 에러' });
-  }
-});
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
