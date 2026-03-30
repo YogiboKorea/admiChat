@@ -4697,6 +4697,38 @@ app.post('/api/game/detox/success', async (req, res) => {
 });
 
 // ========== [Store Locator API] ==========
+async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/web/off') {
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  
+  const host = process.env.FTP_HOST || `${CAFE24_MALLID}.cafe24.com`;
+  const user = process.env.FTP_USER || CAFE24_MALLID;
+  const password = process.env.FTP_PASSWORD;
+
+  if (!password) {
+    throw new Error('FTP_PASSWORD 환경변수가 설정되지 않았습니다. .env 를 확인해주세요.');
+  }
+
+  try {
+    await client.access({
+      host: host,
+      user: user,
+      password: password,
+      secure: false
+    });
+    
+    await client.ensureDir(remoteDir);
+    await client.uploadFrom(localFilePath, remoteFileName);
+    
+    return `https://${host}${remoteDir}/${remoteFileName}`;
+  } catch (err) {
+    console.error('FTP 업로드 중 오류 발생:', err);
+    throw err;
+  } finally {
+    client.close();
+  }
+}
+
 const storeUploadDir = path.join(__dirname, 'public', 'uploads', 'stores');
 if (!fs.existsSync(storeUploadDir)) {
   fs.mkdirSync(storeUploadDir, { recursive: true });
@@ -4730,7 +4762,15 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
     let imagePath = '';
     
     if (req.file) {
-      imagePath = `/uploads/stores/${req.file.filename}`;
+      try {
+        const remoteFileName = `store-${Date.now()}-${req.file.originalname}`;
+        imagePath = await uploadToCafe24FTP(req.file.path, remoteFileName, '/web/off');
+        // FTP 업로드 성공 시 로컬 임시 파일 삭제
+        fs.unlinkSync(req.file.path);
+      } catch (ftpErr) {
+        console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
+        imagePath = `/uploads/stores/${req.file.filename}`;
+      }
     }
 
     const newStore = {
@@ -4787,9 +4827,17 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
     
     let imagePath = existingImage || '';
     if (req.file) {
-      imagePath = `/uploads/stores/${req.file.filename}`;
-      // 기존 이미지 삭제 로직
-      if (existingImage) {
+      try {
+        const remoteFileName = `store-${Date.now()}-${req.file.originalname}`;
+        imagePath = await uploadToCafe24FTP(req.file.path, remoteFileName, '/web/off');
+        fs.unlinkSync(req.file.path);
+      } catch (ftpErr) {
+        console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
+        imagePath = `/uploads/stores/${req.file.filename}`;
+      }
+      
+      // 기존 이미지가 로컬 파일일 경우 삭제 로직
+      if (existingImage && existingImage.startsWith('/uploads/')) {
         const oldFilePath = path.join(__dirname, 'public', existingImage);
         if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
       }

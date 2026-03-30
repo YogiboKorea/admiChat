@@ -51,7 +51,10 @@
             
             <div class="form-group">
                 <label>매장 주소* (구글맵 연동용)</label>
-                <input type="text" id="address" required placeholder="도로명 주소 등 정확한 주소 입력">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="address" required placeholder="도로명 주소 등 정확한 주소 입력">
+                    <button type="button" class="btn btn-warning" style="white-space: nowrap; padding: 10px 15px;" onclick="openPostcode()">주소 검색</button>
+                </div>
             </div>
             
             <div class="form-group">
@@ -106,9 +109,21 @@
     </div>
 </div>
 
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
     const API_URL = '/api/store';
     let stores = [];
+
+    // 다음 우편번호 검색
+    function openPostcode() {
+        new daum.Postcode({
+            oncomplete: function(data) {
+                let addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                document.getElementById("address").value = addr;
+                document.getElementById("address").focus();
+            }
+        }).open();
+    }
 
     // 기간선택 라디오 변경 이벤트
     document.querySelectorAll('input[name="periodType"]').forEach(radio => {
