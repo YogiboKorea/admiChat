@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매장안내 - 요기보</title>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #fcfcfc; margin: 0; padding: 0; color: #333; }
+        .header { background: #fff; text-align: center; padding: 40px 20px; border-bottom: 1px solid #eaeaea; }
+        .header h1 { margin: 0; font-size: 28px; color: #222; }
+        .header p { color: #666; margin-top: 10px; font-size: 16px; }
+
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+        
+        .store-list { display: flex; flex-direction: column; gap: 40px; }
+        .store-card { 
+            display: flex; 
+            flex-direction: column; 
+            background: #fff; 
+            border: 1px solid #eaeaea;
+            border-radius: 12px; 
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .store-card:hover { transform: translateY(-3px); }
+
+        .store-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media(min-width: 768px) {
+            .store-content { flex-direction: row; }
+            .store-info-wrap { flex: 1; display:flex; flex-direction: column;}
+            .store-map { flex: 1; }
+        }
+
+        .store-image { width: 100%; height: 300px; object-fit: cover; border-bottom: 1px solid #eaeaea; }
+        @media(min-width: 768px) {
+            .store-image { border-bottom: none; border-right: 1px solid #eaeaea; }
+        }
+
+        .store-info { padding: 30px; flex: 1; display:flex; flex-direction:column; justify-content: center;}
+        .store-name { font-size: 24px; font-weight: bold; margin: 0 0 10px 0; display:flex; align-items:center; gap:8px;}
+        .store-name svg { width: 20px; height: 20px; fill: #e74c3c; }
+        .store-details { margin: 5px 0; color: #555; font-size: 15px; display:flex; align-items: flex-start; gap: 8px;}
+        .store-details svg { width: 16px; height: 16px; min-width: 16px; fill: #888; margin-top:3px;}
+        
+        .store-map iframe { width: 100%; height: 100%; min-height: 300px; border: none; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #888; font-size: 18px; }
+        
+        .loading { text-align: center; padding: 50px; font-size: 18px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>요기보 매장 안내</h1>
+    <p>가까운 요기보 매장을 찾아보세요.</p>
+</div>
+
+<div class="container">
+    <div id="loading" class="loading">매장 정보를 불러오는 중입니다...</div>
+    <div id="storeList" class="store-list">
+        <!-- 렌더링 영역 -->
+    </div>
+</div>
+
+<!-- Icons -->
+<svg style="display:none;">
+    <symbol id="icon-location" viewBox="0 0 24 24">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+    </symbol>
+    <symbol id="icon-phone" viewBox="0 0 24 24">
+        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+    </symbol>
+</svg>
+
+<script>
+    const API_URL = '/api/store?filterActive=true'; // 라이브 강제 필터
+
+    async function fetchStores() {
+        const storeListEl = document.getElementById('storeList');
+        const loadingEl = document.getElementById('loading');
+        
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            
+            loadingEl.style.display = 'none';
+
+            if (data.success) {
+                if (data.stores.length === 0) {
+                    storeListEl.innerHTML = '<div class="empty-state">현재 운영 중인 매장이 없습니다.</div>';
+                    return;
+                }
+                renderStores(data.stores);
+            } else {
+                storeListEl.innerHTML = '<div class="empty-state">매장 정보를 불러오지 못했습니다.</div>';
+            }
+        } catch (e) {
+            console.error(e);
+            loadingEl.style.display = 'none';
+            storeListEl.innerHTML = '<div class="empty-state">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</div>';
+        }
+    }
+
+    function renderStores(stores) {
+        const storeListEl = document.getElementById('storeList');
+        storeListEl.innerHTML = '';
+
+        stores.forEach(store => {
+            const imgSrc = store.imagePath ? store.imagePath : 'https://via.placeholder.com/600x400?text=Yogibo+Store';
+            const encodedAddress = encodeURIComponent(store.address);
+            // 구글맵 임베드 URL
+            const mapSrc = `https://maps.google.com/maps?q=${encodedAddress}&output=embed&hl=ko&z=15`;
+            
+            const card = document.createElement('div');
+            card.className = 'store-card';
+            
+            card.innerHTML = `
+                <div class="store-content">
+                    <div class="store-info-wrap">
+                        <img src="${imgSrc}" class="store-image" alt="${store.name} 매장 이미지" onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
+                        <div class="store-info">
+                            <h2 class="store-name">
+                                <svg><use href="#icon-location"></use></svg>
+                                ${store.name}
+                            </h2>
+                            <p class="store-details">
+                                <svg><use href="#icon-location"></use></svg>
+                                <span>${store.address}</span>
+                            </p>
+                            ${store.phone ? `
+                            <p class="store-details">
+                                <svg><use href="#icon-phone"></use></svg>
+                                <span>${store.phone}</span>
+                            </p>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="store-map">
+                        <iframe src="${mapSrc}" allowfullscreen="" loading="lazy"></iframe>
+                    </div>
+                </div>
+            `;
+            
+            storeListEl.appendChild(card);
+        });
+    }
+
+    // 문서 로드 시 데이터 패치
+    document.addEventListener('DOMContentLoaded', fetchStores);
+</script>
+
+</body>
+</html>

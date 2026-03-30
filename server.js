@@ -4696,6 +4696,147 @@ app.post('/api/game/detox/success', async (req, res) => {
   }
 });
 
+// ========== [Store Locator API] ==========
+const storeUploadDir = path.join(__dirname, 'public', 'uploads', 'stores');
+if (!fs.existsSync(storeUploadDir)) {
+  fs.mkdirSync(storeUploadDir, { recursive: true });
+}
+
+const storeUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, storeUploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'store-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('허용되지 않는 파일 형식입니다. (jpg/png/webp/gif만 가능)'));
+    }
+  }
+});
+
+// 1. 매장 등록
+app.post('/api/store', storeUpload.single('image'), async (req, res) => {
+  try {
+    const { name, address, phone, isAlways, startDate, endDate } = req.body;
+    let imagePath = '';
+    
+    if (req.file) {
+      imagePath = `/uploads/stores/${req.file.filename}`;
+    }
+
+    const newStore = {
+      name,
+      address,
+      phone,
+      isAlways: isAlways === 'true',
+      startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
+      endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      imagePath,
+      createdAt: new Date()
+    };
+
+    const result = await db.collection('store').insertOne(newStore);
+    res.json({ success: true, insertedId: result.insertedId, store: newStore });
+  } catch (error) {
+    console.error('매장 등록 오류:', error);
+    res.status(500).json({ success: false, error: '매장 등록 중 오류가 발생했습니다.' });
+  }
+});
+
+// 2. 매장 목록 조회 
+app.get('/api/store', async (req, res) => {
+  try {
+    const { filterActive } = req.query;
+    let query = {};
+    if (filterActive === 'true') {
+      const now = new Date();
+      query = {
+        $or: [
+          { isAlways: true },
+          { 
+            isAlways: false,
+            startDate: { $lte: now },
+            endDate: { $gte: now }
+          }
+        ]
+      };
+    }
+
+    const stores = await db.collection('store').find(query).sort({ createdAt: -1 }).toArray();
+    res.json({ success: true, stores });
+  } catch (error) {
+    console.error('매장 조회 오류:', error);
+    res.status(500).json({ success: false, error: '매장 목록을 불러오지 못했습니다.' });
+  }
+});
+
+// 3. 매장 수정
+app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
+  try {
+    const storeId = req.params.id;
+    const { name, address, phone, isAlways, startDate, endDate, existingImage } = req.body;
+    
+    let imagePath = existingImage || '';
+    if (req.file) {
+      imagePath = `/uploads/stores/${req.file.filename}`;
+      // 기존 이미지 삭제 로직
+      if (existingImage) {
+        const oldFilePath = path.join(__dirname, 'public', existingImage);
+        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    const updatedStore = {
+      name,
+      address,
+      phone,
+      isAlways: isAlways === 'true',
+      startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
+      endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      imagePath,
+      updatedAt: new Date()
+    };
+
+    await db.collection('store').updateOne(
+      { _id: new ObjectId(storeId) },
+      { $set: updatedStore }
+    );
+    res.json({ success: true, store: updatedStore });
+  } catch (error) {
+    console.error('매장 수정 오류:', error);
+    res.status(500).json({ success: false, error: '매장 정보를 수정하지 못했습니다.' });
+  }
+});
+
+// 4. 매장 삭제
+app.delete('/api/store/:id', async (req, res) => {
+  try {
+    const storeId = req.params.id;
+    const store = await db.collection('store').findOne({ _id: new ObjectId(storeId) });
+    if (store && store.imagePath) {
+      const filePath = path.join(__dirname, 'public', store.imagePath);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    await db.collection('store').deleteOne({ _id: new ObjectId(storeId) });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('매장 삭제 오류:', error);
+    res.status(500).json({ success: false, error: '매장 정보를 삭제하지 못했습니다.' });
+  }
+});
+
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {

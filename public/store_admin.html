@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매장 안내도 관리</title>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        .card { background: #fff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 30px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input[type="text"], input[type="date"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .radio-group { display: flex; gap: 20px; align-items: center; }
+        .radio-item { display: flex; align-items: center; gap: 5px; }
+        .date-range { display: none; gap: 10px; margin-top: 10px; align-items: center; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-primary { background-color: #3498db; color: #fff; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-danger { background-color: #e74c3c; color: #fff; }
+        .btn-danger:hover { background-color: #c0392b; }
+        .btn-warning { background-color: #f1c40f; color: #fff; }
+        .btn-warning:hover { background-color: #f39c12; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        .store-image { max-width: 100px; border-radius: 4px; }
+        .actions { display: flex; gap: 10px; }
+        
+        .preview-img { max-width: 200px; margin-top: 10px; display: none; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>매장 안내도 관리</h1>
+
+    <!-- Form Section -->
+    <div class="card">
+        <h2 id="formTitle">새 매장 등록</h2>
+        <form id="storeForm">
+            <input type="hidden" id="storeId">
+            <input type="hidden" id="existingImage">
+            
+            <div class="form-group">
+                <label>매장 이름*</label>
+                <input type="text" id="name" required placeholder="예: 요기보 강남점">
+            </div>
+            
+            <div class="form-group">
+                <label>매장 주소* (구글맵 연동용)</label>
+                <input type="text" id="address" required placeholder="도로명 주소 등 정확한 주소 입력">
+            </div>
+            
+            <div class="form-group">
+                <label>매장 전화번호</label>
+                <input type="text" id="phone" placeholder="예: 02-1234-5678">
+            </div>
+            
+            <div class="form-group">
+                <label>라이브 기간 분류*</label>
+                <div class="radio-group">
+                    <label class="radio-item"><input type="radio" name="periodType" value="always" checked> 상시 노출</label>
+                    <label class="radio-item"><input type="radio" name="periodType" value="period"> 특정 기간 노출</label>
+                </div>
+                
+                <div class="date-range" id="dateRangeContainer">
+                    <input type="date" id="startDate">
+                    <span>~</span>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>매장 이미지</label>
+                <input type="file" id="image" accept="image/*">
+                <img id="imagePreview" class="preview-img" src="" alt="미리보기">
+            </div>
+            
+            <div style="text-align: right; margin-top: 20px;">
+                <button type="button" class="btn" onclick="resetForm()" style="background:#eee; color:#333; margin-right:10px;">초기화</button>
+                <button type="submit" class="btn btn-primary" id="submitBtn">매장 등록</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- List Section -->
+    <div class="card">
+        <h2>등록된 매장 목록</h2>
+        <table id="storeTable">
+            <thead>
+                <tr>
+                    <th>이미지</th>
+                    <th>매장명</th>
+                    <th>주소</th>
+                    <th>기간 설정</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 로드 시 렌더링 -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const API_URL = '/api/store';
+    let stores = [];
+
+    // 기간선택 라디오 변경 이벤트
+    document.querySelectorAll('input[name="periodType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const dateRange = document.getElementById('dateRangeContainer');
+            if (this.value === 'period') {
+                dateRange.style.display = 'flex';
+                document.getElementById('startDate').required = true;
+                document.getElementById('endDate').required = true;
+            } else {
+                dateRange.style.display = 'none';
+                document.getElementById('startDate').required = false;
+                document.getElementById('endDate').required = false;
+                document.getElementById('startDate').value = '';
+                document.getElementById('endDate').value = '';
+            }
+        });
+    });
+
+    // 이미지 파일 선택 시 미리보기
+    document.getElementById('image').addEventListener('change', function(e) {
+        if(this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('imagePreview');
+                img.src = e.target.result;
+                img.style.display = 'block';
+            }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    // 날짜 포맷팅 유틸
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const d = new Date(dateString);
+        return d.toISOString().split('T')[0];
+    }
+
+    // 폼 초기화
+    function resetForm() {
+        document.getElementById('storeForm').reset();
+        document.getElementById('storeId').value = '';
+        document.getElementById('existingImage').value = '';
+        document.getElementById('imagePreview').style.display = 'none';
+        document.getElementById('imagePreview').src = '';
+        document.getElementById('dateRangeContainer').style.display = 'none';
+        document.getElementById('submitBtn').innerText = '매장 등록';
+        document.getElementById('formTitle').innerText = '새 매장 등록';
+    }
+
+    // 목록 불러오기
+    async function fetchStores() {
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            if (data.success) {
+                stores = data.stores;
+                renderTable();
+            }
+        } catch (e) {
+            console.error(e);
+            alert('데이터 로드 실패');
+        }
+    }
+
+    // 테이블 렌더링
+    function renderTable() {
+        const tbody = document.querySelector('#storeTable tbody');
+        tbody.innerHTML = '';
+        
+        stores.forEach(store => {
+            const tr = document.createElement('tr');
+            
+            let periodText = '상시';
+            if (!store.isAlways) {
+                periodText = `${formatDate(store.startDate)} ~ ${formatDate(store.endDate)}`;
+            }
+
+            const imgSrc = store.imagePath ? store.imagePath : 'https://via.placeholder.com/100?text=No+Image';
+
+            tr.innerHTML = `
+                <td><img src="${imgSrc}" class="store-image" alt="이미지"></td>
+                <td><strong>${store.name}</strong><br><small>${store.phone || '-'}</small></td>
+                <td>${store.address}</td>
+                <td><span style="display:inline-block; background:#eee; padding:3px 8px; border-radius:10px; font-size:0.85em;">${periodText}</span></td>
+                <td class="actions">
+                    <button class="btn btn-warning btn-sm" onclick="editStore('${store._id}')">수정</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteStore('${store._id}')">삭제</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 매장 추가 / 수정 전송
+    document.getElementById('storeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const storeId = document.getElementById('storeId').value;
+        const name = document.getElementById('name').value;
+        const address = document.getElementById('address').value;
+        const phone = document.getElementById('phone').value;
+        const isAlways = document.querySelector('input[name="periodType"]:checked').value === 'always';
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const existingImage = document.getElementById('existingImage').value;
+        const imageFile = document.getElementById('image').files[0];
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('address', address);
+        formData.append('phone', phone);
+        formData.append('isAlways', isAlways);
+        if (!isAlways) {
+            formData.append('startDate', startDate);
+            formData.append('endDate', endDate);
+        }
+        if (existingImage) formData.append('existingImage', existingImage);
+        if (imageFile) formData.append('image', imageFile);
+
+        const method = storeId ? 'PUT' : 'POST';
+        const url = storeId ? `${API_URL}/${storeId}` : API_URL;
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                alert(storeId ? '수정되었습니다.' : '등록되었습니다.');
+                resetForm();
+                fetchStores();
+            } else {
+                alert('요청 중 오류 발생: ' + data.error);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('요청 실패');
+        }
+    });
+
+    // 수정 버튼 클릭 시 폼에 데이터 채우기
+    function editStore(id) {
+        const store = stores.find(s => s._id === id);
+        if (!store) return;
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        document.getElementById('formTitle').innerText = '매장 정보 수정';
+        document.getElementById('submitBtn').innerText = '수정 완료';
+        
+        document.getElementById('storeId').value = store._id;
+        document.getElementById('name').value = store.name;
+        document.getElementById('address').value = store.address;
+        document.getElementById('phone').value = store.phone || '';
+        document.getElementById('existingImage').value = store.imagePath || '';
+        
+        if (store.isAlways) {
+            document.querySelector('input[name="periodType"][value="always"]').checked = true;
+            document.getElementById('dateRangeContainer').style.display = 'none';
+        } else {
+            document.querySelector('input[name="periodType"][value="period"]').checked = true;
+            document.getElementById('dateRangeContainer').style.display = 'flex';
+            document.getElementById('startDate').value = formatDate(store.startDate);
+            document.getElementById('endDate').value = formatDate(store.endDate);
+        }
+
+        if (store.imagePath) {
+            const imgPreview = document.getElementById('imagePreview');
+            imgPreview.src = store.imagePath;
+            imgPreview.style.display = 'block';
+        } else {
+            document.getElementById('imagePreview').style.display = 'none';
+        }
+    }
+
+    // 삭제 버튼 클릭 시
+    async function deleteStore(id) {
+        if (!confirm('정말로 이 매장을 삭제하시겠습니까?')) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (data.success) {
+                alert('삭제되었습니다.');
+                fetchStores();
+            } else {
+                alert('삭제 실패: ' + data.error);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('삭제 요청 실패');
+        }
+    }
+
+    // 초기 데이터 로드
+    fetchStores();
+</script>
+
+</body>
+</html>
