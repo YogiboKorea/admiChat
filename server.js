@@ -4555,8 +4555,7 @@ app.get('/api/trace/history/:userId', async (req, res) => {
       const targetUserId = req.params.userId;
       
       // 예: MongoDB 모델(TrackingLog)을 사용하는 경우
-      const userLogs = await TrackingLog.find({ visitorId: targetUserId })
-                                        .sort({ timestamp: -1 });
+      const userLogs = await TrackingLog.find({ visitorId: targetUserId }).sort({ timestamp: -1 });
       
       res.status(200).json({
           success: true,
