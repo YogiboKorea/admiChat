@@ -4703,10 +4703,10 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
 
   const host = process.env.FTP_HOST || `${CAFE24_MALLID}.cafe24.com`;
   const user = process.env.FTP_USER || CAFE24_MALLID;
-  const password = process.env.FTP_PASSWORD;
+  const password = process.env.FTP_PASS;
 
   if (!password) {
-    throw new Error('FTP_PASSWORD 환경변수가 설정되지 않았습니다. .env 를 확인해주세요.');
+    throw new Error('FTP_PASS 환경변수가 설정되지 않았습니다. .env 를 확인해주세요.');
   }
 
   try {
