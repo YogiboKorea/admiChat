@@ -931,8 +931,12 @@ e
             }
         }
         function addLife() {
-            if (STATE.currentLives < STATE.maxLives) { STATE.currentLives++; renderLives(); }
-            else { alert('목숨이 이미 가득 찼습니다.'); }
+            if (memberId === 'testid') {
+                if (STATE.currentLives < STATE.maxLives) { STATE.currentLives++; renderLives(); }
+                else { alert('목숨이 이미 가득 찼습니다.'); }
+            } else {
+                alert('하트는 회원가입 혜택으로만 충전됩니다!');
+            }
         }
 
         function switchScreen(targetScreenId, saveHistory = true) {
