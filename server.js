@@ -4545,6 +4545,158 @@ app.post('/api/raffle/admin/stock', async (req, res) => {
 });
 
 
+// =========================================================================
+// [API] 10초 디톡스 게임 연동 API
+// =========================================================================
+
+// 1. 상태 조회 및 데이터 병합
+app.get('/api/game/detox/status', async (req, res) => {
+  const { memberId, guestId, ip } = req.query;
+  const collection = db.collection('detox_game_users');
+  
+  try {
+    let userDoc = null;
+    let showSignupMsg = false;
+
+    // 회원의 경우
+    if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
+      userDoc = await collection.findOne({ memberId });
+      
+      // 회원 기록이 없다면, guestId나 ip로 남겨진 이전 기록 찾기
+      if (!userDoc) {
+        let guestDoc = await collection.findOne({ $or: [{ guestId }, { ip }], memberId: { $exists: false } });
+        
+        if (guestDoc) {
+          // 병합 진행
+          await collection.updateOne(
+            { _id: guestDoc._id },
+            { 
+              $set: { 
+                memberId: memberId,
+                signupRewardGiven: true,
+                showSignupMsg: true, // 프론트에서 1회 보여주기 위함
+                hearts: (guestDoc.hearts || 0) + 2
+              }
+            }
+          );
+          userDoc = await collection.findOne({ _id: guestDoc._id });
+        } else {
+          // 완전 신규 회원 참가자
+          const newDoc = {
+            memberId,
+            guestId,
+            ip,
+            hearts: 3, // 기본 1 + 가입 2 = 3
+            isSuccess: false,
+            signupRewardGiven: true,
+            successRewardGiven: false,
+            showSignupMsg: false, // 처음부터 회원이면 팝업 없음
+            createdAt: new Date()
+          };
+          const result = await collection.insertOne(newDoc);
+          userDoc = { _id: result.insertedId, ...newDoc };
+        }
+      } else {
+        // 기존 회원 기록이 있는 경우 - 가입 보상을 안 받았다면?
+        if (!userDoc.signupRewardGiven) {
+          await collection.updateOne(
+            { _id: userDoc._id },
+            { $set: { signupRewardGiven: true, showSignupMsg: true }, $inc: { hearts: 2 } }
+          );
+          userDoc = await collection.findOne({ _id: userDoc._id });
+        }
+      }
+      
+      // 메세지 표시 여부 체크 후 리셋
+      if (userDoc.showSignupMsg) {
+        showSignupMsg = true;
+        await collection.updateOne({ _id: userDoc._id }, { $set: { showSignupMsg: false } });
+      }
+      
+    } else {
+      // 비회원의 경우
+      if (guestId) {
+        userDoc = await collection.findOne({ guestId, memberId: { $exists: false } });
+      }
+      if (!userDoc) {
+        const newDoc = {
+          guestId,
+          ip,
+          hearts: 1, // 비회원 기본 1
+          isSuccess: false,
+          signupRewardGiven: false,
+          successRewardGiven: false,
+          showSignupMsg: false,
+          createdAt: new Date()
+        };
+        const result = await collection.insertOne(newDoc);
+        userDoc = { _id: result.insertedId, ...newDoc };
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      hearts: userDoc.hearts,
+      isSuccess: userDoc.isSuccess,
+      successRewardGiven: userDoc.successRewardGiven,
+      showSignupMsg: showSignupMsg 
+    });
+  } catch (error) {
+    console.error('게임 상태 조회 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// 2. 게임 실패 (하트 감소)
+app.post('/api/game/detox/fail', async (req, res) => {
+  const { memberId, guestId } = req.body;
+  const collection = db.collection('detox_game_users');
+  
+  try {
+    let query = {};
+    if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
+      query = { memberId };
+    } else {
+      query = { guestId, memberId: { $exists: false } };
+    }
+
+    const userDoc = await collection.findOne(query);
+    if (!userDoc) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const newHearts = Math.max(0, (userDoc.hearts || 0) - 1);
+    await collection.updateOne({ _id: userDoc._id }, { $set: { hearts: newHearts } });
+
+    res.json({ success: true, hearts: newHearts });
+  } catch (error) {
+    console.error('게임 실패 처리 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// 3. 게임 성공
+app.post('/api/game/detox/success', async (req, res) => {
+  const { memberId, guestId } = req.body;
+  const collection = db.collection('detox_game_users');
+  
+  try {
+    let query = {};
+    if (memberId && memberId !== 'null' && memberId !== 'GUEST') {
+      query = { memberId };
+    } else {
+      query = { guestId, memberId: { $exists: false } };
+    }
+
+    await collection.updateOne(query, { $set: { isSuccess: true } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('게임 성공 처리 에러:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능

@@ -1,0 +1,1180 @@
+e
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>10초 디톡스 게임</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', sans-serif;
+        }
+
+        :root {
+            --vh: 1vh;
+        }
+
+        html,
+        body {
+            height: 100vh;
+            height: 100dvh;
+            height: calc(var(--vh, 1vh) * 100);
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 추가: PC에서 세로 중앙 정렬 */
+            background-color: #e9ecef;
+        }
+
+        #app {
+            width: 100%;
+            min-width: 320px;
+            max-width: 400px;
+            height: 100vh;
+            height: 100dvh;
+            height: calc(var(--vh, 1vh) * 100);
+            max-height: 850px;
+            /* 추가: PC 화면에서 세로로 기형적으로 늘어나는 것 방지 */
+            position: relative;
+            background-color: #fdf5e6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+        }
+
+        /* PC 환경에서 모바일 느낌을 살리기 위한 라운드 처리 */
+        @media (min-width: 401px) {
+            #app {
+                border-radius: 20px;
+                height: 95vh;
+            }
+        }
+
+        /* --- 헤더 --- */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            z-index: 10;
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+
+        .header-btn {
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+        }
+
+        .header-btn img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .lives-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .life-icon {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+
+        .btn-add-life {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+        }
+
+        /* --- 스크린 공통 --- */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* --- [0] 인트로 --- */
+        #screen-intro {
+            background-image: url('/game/시작배경.png');
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            /* 수정: 100% 100% 대신 비율 유지하는 cover 사용 */
+        }
+
+        /* --- [1] 캐릭터 선택 --- */
+        #screen-select {
+            background-image: url('/game/캐릭터선택화면.png');
+            background-size: cover;
+            background-position: center;
+        }
+
+        .character-img {
+            width: 250px;
+            height: 250px;
+            object-fit: contain;
+        }
+
+        .select-top-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            padding-bottom: 20px;
+        }
+
+        .select-logo {
+            width: 120px;
+            margin-bottom: 20px;
+            object-fit: contain;
+        }
+
+        .select-title-box {
+            background-color: rgba(255, 255, 255, 0.45);
+            border-radius: 15px;
+            padding: 30px 20px;
+            width: 90%;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 18px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border: 3px solid #fff;
+        }
+
+        .select-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            min-height: 0;
+            padding-top: 5%;
+        }
+
+        .label-row {
+            display: flex;
+            gap: 12px;
+            width: 90%;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        /* ★ 캐릭터 텍스트 그림자(아웃라인) */
+        .char-label {
+            flex: 1;
+            background-color: #ffffff;
+            border-radius: 25px;
+            padding: 12px 0;
+            text-align: center;
+            font-weight: 900;
+            color: #71737D;
+            font-size: 22px;
+            box-shadow: 0 5px 0 #dcdcdc;
+            text-shadow:
+                -2px -2px 0 #EDEEEF, 2px -2px 0 #EDEEEF,
+                -2px 2px 0 #EDEEEF, 2px 2px 0 #EDEEEF,
+                -3px 0 0 #EDEEEF, 3px 0 0 #EDEEEF,
+                0 -3px 0 #EDEEEF, 0 3px 0 #EDEEEF;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .char-label.active {
+            background-color: #3bc8d8;
+            color: #ffffff;
+            box-shadow: 0 5px 0 #28a0ad;
+            transform: translateY(-2px);
+            text-shadow: none;
+        }
+
+        .character-list {
+            display: flex;
+            gap: 4px;
+            width: 90%;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        /* ★ 바닥 그림자(타원형) 효과 복구 완료 */
+        .character-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            cursor: pointer;
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .character-card img {
+            width: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+            transition: filter 0.2s;
+        }
+
+        .character-card::after {
+            content: '';
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 15px;
+            background-color: rgba(0, 0, 0, 0.15);
+            border-radius: 50%;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .character-card.active::after {
+            opacity: 1;
+        }
+
+        /* 1. 캐릭터가 좌우로 귀엽게 흔들리는 키프레임 애니메이션 정의 */
+        @keyframes wiggle {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(-2deg);
+            }
+
+            50% {
+                transform: rotate(2deg);
+            }
+
+            75% {
+                transform: rotate(-2deg);
+            }
+        }
+
+        /* 2. 기존 .character-card.active img 클래스 수정 */
+        .character-card.active img {
+            filter: brightness(1.05);
+            animation: wiggle 0.9s ease-in-out infinite;
+            transform-origin: bottom center;
+        }
+
+        .select-bottom {
+            flex: 0 0 auto;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 5% 0 8%;
+        }
+
+        .btn-select-complete {
+            cursor: pointer;
+            width: 85%;
+            max-width: 280px;
+            transition: transform 0.1s;
+        }
+
+        .btn-select-complete:active {
+            transform: translateY(3px);
+        }
+
+        /* --- [2] 선택 완료 (대기) & [3] 인게임 공통 변경점 --- */
+        #screen-confirm,
+        #screen-game {
+            background-image: url('/game/캐릭터선택완료.png');
+            background-size: cover;
+            background-position: center;
+            padding: 0 20px;
+        }
+
+        /* 추가: 화면 전환 시 캐릭터 위치가 점프하는 것을 막기 위한 구조적 레이아웃 */
+        .ui-top {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 100%;
+            padding-bottom: 25px;
+        }
+
+        .ui-bottom {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            padding-top: 25px;
+        }
+
+        .speech-bubble {
+            background: white;
+            border-radius: 15px;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 15px;
+            line-height: 1.5;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            width: 80%;
+            position: relative;
+        }
+
+        .timer-box {
+            background: #565151;
+            border: 3px solid #787474;
+            width: 85%;
+            border-radius: 15px;
+            text-align: center;
+            padding: 12px 0 15px 0;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .timer-label {
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .timer-text {
+            color: #ff6b6b;
+            font-size: 48px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .char-display-wrapper {
+            width: 100%;
+            max-width: 280px;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            /* 수정: 화면 전환 시 완벽히 가운데 고정되도록 하단 마진 제거 */
+        }
+
+        .char-display-wrapper img {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: bottom center;
+        }
+
+        .start-action-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn-info-circle {
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            transition: transform 0.1s;
+        }
+
+        .btn-info-circle:active {
+            transform: scale(0.95);
+        }
+
+        .btn-game-start {
+            cursor: pointer;
+            width: 55%;
+            max-width: 180px;
+            transition: transform 0.1s;
+        }
+
+        .btn-game-start:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .btn-touch {
+            cursor: pointer;
+            width: 65%;
+            max-width: 200px;
+            display: none;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            transition: transform 0.1s;
+        }
+
+        .btn-touch.pressing {
+            transform: scale(0.95);
+        }
+
+        /* --- [4] 결과 화면 --- */
+        #screen-result {
+            justify-content: flex-start;
+            align-items: center;
+            padding: 10% 15px 5%;
+        }
+
+        #screen-result.success {
+            background: url('/game/실패_bg.png') no-repeat;
+            background-size: cover;
+            background-position: center;
+        }
+
+        #screen-result.fail {
+            background: url('/game/성공_bg.png') no-repeat;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .result-top-text {
+            font-size: 15px;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .result-banner {
+            width: 75%;
+            max-width: 250px;
+            object-fit: contain;
+            margin-bottom: 20px;
+        }
+
+        .result-char-wrapper {
+            width: 50%;
+            max-width: 180px;
+            aspect-ratio: 1/1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .result-char-wrapper img {
+            width: 100%;
+            object-fit: contain;
+        }
+
+        .result-time-record {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #ffeb3b;
+        }
+
+        .result-text-box {
+            width: 85%;
+            max-width: 280px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1.5;
+        }
+
+        #screen-result.fail .result-text-box {
+            color: white;
+            font-size: 16px;
+            font-weight: 900;
+        }
+
+        .result-text-img {
+            width: 100%;
+            object-fit: contain;
+        }
+
+        .fail-extra-ui {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .warning-banner {
+            background-color: #fff9ed;
+            border-radius: 30px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 90%;
+            max-width: 300px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .warning-banner .hand-icon {
+            font-size: 20px;
+        }
+
+        .warning-banner .warning-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #b33939;
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        .retry-count-text {
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .retry-count-text .highlight {
+            color: #ff4757;
+            font-size: 18px;
+        }
+
+        .result-btn-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: auto;
+        }
+
+        .btn-result {
+            cursor: pointer;
+            width: 80%;
+            max-width: 260px;
+            transition: transform 0.1s;
+        }
+
+        .btn-result:active {
+            transform: scale(0.95);
+        }
+
+        /* --- 모달 (게임 방법 안내) --- */
+        #info-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 30px;
+            width: 85%;
+            max-width: 320px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            padding-bottom: 20px;
+        }
+
+        .modal-header-bg {
+            background-color: #fff;
+            padding: 30px 20px 15px;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .modal-subtitle {
+            font-size: 15px;
+            color: #333;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        .modal-body-box {
+            background-color: #fff2e3;
+            border-radius: 15px;
+            margin: 0 20px 20px;
+            padding: 20px 15px;
+            text-align: left;
+        }
+
+        .modal-body-box p {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .modal-body-box p strong {
+            color: #222;
+        }
+
+        .btn-modal-confirm {
+            cursor: pointer;
+            width: 50%;
+            max-width: 150px;
+            display: block;
+            margin: 0 auto;
+            transition: transform 0.1s;
+        }
+
+        .btn-modal-confirm:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <div class="header" id="main-header" style="display: none;">
+            <div id="header-left-btns" style="display: flex; gap: 8px;">
+                <button class="header-btn" id="btn-header-home" onclick="goHome()" style="display: none;"><img
+                        src="/game/메인.png" alt="메인"></button>
+                <button class="header-btn" id="btn-header-back" onclick="goBack()" style="display: none;"><img
+                        src="/game/이전.png" alt="이전"></button>
+                <button class="header-btn" id="btn-header-pause" style="display: none;"><img src="/game/정지.png"
+                        alt="정지"></button>
+            </div>
+            <div class="lives-container" id="lives-display"></div>
+        </div>
+
+        <div id="screen-intro" class="screen active" onclick="switchScreen('select')"> </div>
+
+        <div id="screen-select" class="screen">
+            <div class="select-top-section">
+                <div><img src="/web/img/icon/logo3_on.png" alt="yogibo" class="select-logo"></div>
+                <div class="select-title-box">✅ 캐릭터를 골라주세요!</div>
+            </div>
+
+            <div class="select-content">
+                <div class="label-row">
+                    <div class="char-label" data-char="trax">티렉스</div>
+                    <div class="char-label" data-char="uniq">유니콘</div>
+                    <div class="char-label" data-char="fox">팍스</div>
+                </div>
+                <div class="character-list">
+                    <div class="character-card" data-char="trax"><img src="/game/티렉스.png" alt="티렉스"></div>
+                    <div class="character-card" data-char="uniq"><img src="/game/유니콘.png" alt="유니콘"></div>
+                    <div class="character-card" data-char="fox"><img src="/game/팍스.png" alt="팍스"></div>
+                </div>
+            </div>
+            <div class="select-bottom">
+                <div style="text-align-last: center;"><img src="/game/선택완료버튼.png" class="btn-select-complete"
+                        id="btn-select-complete" alt="선택 완료"></div>
+            </div>
+        </div>
+
+        <div id="screen-confirm" class="screen">
+            <div class="ui-top">
+                <div class="speech-bubble">
+                    <span id="confirm-char-name">내 캐릭터 : </span><br>도파민 10초 디톡스 시작해볼까요?
+                </div>
+            </div>
+
+            <div class="char-display-wrapper">
+                <img id="confirm-char-img" src="" alt="대기캐릭터">
+            </div>
+
+            <div class="ui-bottom">
+                <div class="start-action-wrapper">
+                    <img src="/game/게임설명무름표.png" class="btn-info-circle" onclick="openModal()" alt="설명">
+                    <img src="/game/시작하기버튼.png" class="btn-game-start" id="btn-game-start" alt="시작하기">
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-game" class="screen">
+            <div class="ui-top">
+                <div class="timer-box">
+                    <div class="timer-label">타이머</div>
+                    <div class="timer-text" id="timer-text">00:00</div>
+                </div>
+            </div>
+
+            <div class="char-display-wrapper">
+                <img id="game-char-img" src="" style="" alt="게임캐릭터">
+            </div>
+
+            <div class="ui-bottom">
+                <div class="action-btn-wrapper">
+                    <img src="/game/터치버튼.png" class="btn-touch" id="btn-touch" alt="터치">
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-result" class="screen">
+
+            <img id="result-banner" class="result-banner" src="" alt="타이틀 배너">
+
+            <div class="result-char-wrapper">
+                <img id="result-char-img" src="" alt="결과 캐릭터">
+            </div>
+
+            <div id="result-time-record" class="result-time-record"></div>
+
+            <div id="result-text-box" class="result-text-box"></div>
+
+            <div id="fail-extra-ui" class="fail-extra-ui" style="display: none;">
+                <div class="warning-banner">
+                    <span class="hand-icon">✋</span>
+                    <span class="warning-text">잠깐! 회원가입만하면<br>다시 도전할 수 있어요!</span>
+                </div>
+                <div class="retry-count-text">재도전 기회 <span class="highlight" id="retry-count-num">0</span>번</div>
+            </div>
+
+            <div class="result-btn-wrapper" id="result-btn-wrapper"></div>
+        </div>
+    </div>
+
+    <div id="info-modal">
+        <div class="modal-content">
+            <div class="modal-header-bg">
+                <div class="modal-title">🎮 게임 방법 안내</div>
+                <div class="modal-subtitle">10초간의 완벽한 휴식,<br>요기보 디톡스에 도전하세요!</div>
+            </div>
+
+            <div class="modal-body-box">
+                <p><strong>1. START:</strong> 손가락으로 누르면 시작됩니다.</p>
+                <p><strong>2. HOLD:</strong> 10초가 될 때까지 절대 손가락을 떼지 마세요.</p>
+                <p><strong>3. KEEP CALM:</strong> 중간에 뜨는 방해 팝업(알림, 전화 등)에 속지 마세요.</p>
+                <p style="margin-bottom:0;"><strong>4. SUCCESS:</strong> 10초를 맞추면 당신은 상위 1% '평정심 마스터'!</p>
+            </div>
+
+            <img src="/game/확인_버튼.png" class="btn-modal-confirm" onclick="closeModal()" alt="확인">
+        </div>
+    </div>
+
+    <script>
+        const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        const LOGIN_BASE = '/member/login.html';
+
+        let memberId = null;
+        let memberIdRetryCount = 0;
+        const maxRetryLimit = 5;
+
+        function setVH() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        setVH();
+        window.addEventListener('resize', setVH);
+        window.addEventListener('orientationchange', () => setTimeout(setVH, 100));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                document.documentElement.style.setProperty('--vh', `${window.visualViewport.height * 0.01}px`);
+            });
+        }
+
+        const STATE = { currentScreen: 'intro', selectedChar: null, maxLives: 5, currentLives: 0, history: [], guestId: null };
+
+        function getLoginUrlWithReturn() {
+            const fullPath = window.location.pathname + window.location.search + window.location.hash;
+            const cleanPath = fullPath.replace(/([?&])hmac=[^&]*(&?)/g, (_, p1, p2) => p2 ? p1 : '');
+            return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(cleanPath);
+        }
+
+        function getFinalId() {
+            if (typeof memberId !== 'undefined' && memberId && memberId !== 'GUEST') return memberId;
+            let vid = localStorage.getItem('site_visitor_id');
+            if (!vid) {
+                vid = 'guest_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+                localStorage.setItem('site_visitor_id', vid);
+            }
+            return vid;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeAndGetMemberId();
+        });
+
+        function initializeAndGetMemberId() {
+            if (typeof CAFE24API === 'undefined') {
+                setTimeout(initializeAndGetMemberId, 500);
+                return;
+            }
+            try {
+                CAFE24API.init(CAFE24_APP_KEY);
+                CAFE24API.getMemberID(function (res) {
+                    if (res) {
+                        memberId = res;
+                    } else {
+                        if (memberIdRetryCount < maxRetryLimit) {
+                            memberIdRetryCount++;
+                            setTimeout(initializeAndGetMemberId, 500);
+                            return;
+                        } else {
+                            memberId = null;
+                        }
+                    }
+                    STATE.guestId = getFinalId();
+                    fetchGameStatus();
+                });
+            } catch (err) {
+                console.error('Cafe24 API Error:', err);
+                STATE.guestId = getFinalId();
+                fetchGameStatus();
+            }
+        }
+
+        function fetchGameStatus() {
+            const mId = memberId || '';
+            const gId = STATE.guestId || '';
+            fetch(`${API_BASE_URL}/api/game/detox/status?memberId=${mId}&guestId=${gId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        STATE.currentLives = data.hearts;
+                        if (data.showSignupMsg) {
+                            alert("회원가입으로 하트2개가 충전되었어요 재도전 해보세요");
+                            // 대기 화면으로 유도
+                            if (STATE.selectedChar) {
+                                switchScreen('confirm');
+                            }
+                        }
+                        if (data.isSuccess && !data.successRewardGiven && memberId) {
+                            alert("회원가입 완료! 성공 보상이 지급되었습니다.");
+                            // 성공화면 표시 또는 보상 API 호출
+                        }
+                    }
+                    renderLives();
+                })
+                .catch(err => console.error('상태 로드 실패:', err));
+        }
+
+        const CHARACTERS = {
+            trax: {
+                name: '티렉스', img: '/game/티렉스.png', start: '/game/티렉스_시작.png',
+                frames: Array.from({ length: 10 }, (_, i) => `/game/티렉스_${String(i + 1).padStart(2, '0')}.png`),
+                success: '/game/티렉스성공.png', fail: '/game/티렉스실패.png'
+            },
+            uniq: {
+                name: '유니콘', img: '/game/유니콘.png', start: '/game/유니콘_시작.png',
+                frames: Array.from({ length: 10 }, (_, i) => `/game/유니콘_${String(i + 1).padStart(2, '0')}.png`),
+                success: '/game/유니콘성공.png', fail: '/game/유니콘실패.png'
+            },
+            fox: {
+                name: '팍스', img: '/game/팍스.png', start: '/game/팍스_시작.png',
+                frames: Array.from({ length: 10 }, (_, i) => `/game/팍스_${String(i + 1).padStart(2, '0')}.png`),
+                success: '/game/팍스성공.png', fail: '/game/팍스실패.png'
+            }
+        };
+
+        const screens = document.querySelectorAll('.screen');
+        const header = document.getElementById('main-header');
+        const livesDisplay = document.getElementById('lives-display');
+        const btnTouch = document.getElementById('btn-touch');
+        const gameCharImg = document.getElementById('game-char-img');
+
+        const btnHeaderHome = document.getElementById('btn-header-home');
+        const btnHeaderBack = document.getElementById('btn-header-back');
+        const btnHeaderPause = document.getElementById('btn-header-pause');
+
+        function renderLives() {
+            livesDisplay.innerHTML = `<img src="/game/하트_추가_버튼.png" class="btn-add-life" onclick="addLife()">`;
+            for (let i = 0; i < STATE.maxLives; i++) {
+                const heartImg = i < STATE.currentLives ? '/game/하트_on.png' : '/game/하트off.png';
+                livesDisplay.innerHTML += `<img src="${heartImg}" class="life-icon">`;
+            }
+        }
+        function addLife() {
+            if (STATE.currentLives < STATE.maxLives) { STATE.currentLives++; renderLives(); }
+            else { alert('목숨이 이미 가득 찼습니다.'); }
+        }
+
+        function switchScreen(targetScreenId, saveHistory = true) {
+            if (saveHistory && STATE.currentScreen !== targetScreenId) STATE.history.push(STATE.currentScreen);
+            screens.forEach(s => s.classList.remove('active'));
+            document.getElementById(`screen-${targetScreenId}`).classList.add('active');
+            STATE.currentScreen = targetScreenId;
+
+            btnHeaderHome.style.display = 'none';
+            btnHeaderBack.style.display = 'none';
+            btnHeaderPause.style.display = 'none';
+
+            if (['intro', 'result'].includes(targetScreenId)) {
+                header.style.display = 'none';
+            } else {
+                header.style.display = 'flex';
+                renderLives();
+
+                if (targetScreenId === 'select') {
+                    btnHeaderBack.style.display = 'block';
+                } else if (targetScreenId === 'confirm') {
+                    btnHeaderHome.style.display = 'block';
+                } else if (targetScreenId === 'game') {
+                    btnHeaderPause.style.display = 'block';
+                }
+            }
+        }
+
+        function goBack() { STATE.history.length > 0 ? switchScreen(STATE.history.pop(), false) : goHome(); }
+        function goHome() {
+            STATE.history = []; STATE.selectedChar = null;
+            document.querySelectorAll('.char-label, .character-card').forEach(el => el.classList.remove('active'));
+            switchScreen('intro');
+        }
+
+        function selectCharacter(charKey) {
+            STATE.selectedChar = charKey;
+            document.querySelectorAll('.char-label').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.char-label[data-char="${charKey}"]`).classList.add('active');
+            document.querySelectorAll('.character-card').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.character-card[data-char="${charKey}"]`).classList.add('active');
+        }
+
+        document.querySelectorAll('.char-label, .character-card').forEach(el => {
+            el.addEventListener('click', function (e) { e.stopPropagation(); selectCharacter(this.dataset.char); });
+        });
+
+        document.getElementById('btn-select-complete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!STATE.selectedChar) { alert('먼저 함께할 캐릭터를 선택해주세요!'); return; }
+
+            const d = CHARACTERS[STATE.selectedChar];
+            document.getElementById('confirm-char-name').innerText = `내 캐릭터 : ${d.name}`;
+
+            document.getElementById('confirm-char-img').src = d.img;
+
+            preloadFrames([d.start, ...d.frames]);
+            switchScreen('confirm');
+        });
+
+        function preloadFrames(frames) {
+            frames.forEach(src => { const img = new Image(); img.src = src; });
+        }
+
+        document.getElementById('btn-game-start').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (STATE.currentLives <= 0) { alert('목숨이 부족합니다. 하트를 충전해주세요!'); return; }
+
+            document.getElementById('timer-text').innerText = '00:00';
+            gameCharImg.src = CHARACTERS[STATE.selectedChar].start;
+
+            btnTouch.style.display = 'block';
+            switchScreen('game');
+        });
+
+        // --- 게임 코어 ---
+        let isPressing = false, startTime = 0, timerReqId;
+        let frameInterval = null;
+        let currentFrame = 0;
+        const TARGET_TIME = 10000, TOLERANCE = 500;
+
+        function formatTime(ms) {
+            return `${String(Math.floor(ms / 1000)).padStart(2, '0')}:${String(Math.floor((ms % 1000) / 10)).padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            if (!isPressing) return;
+            const elapsed = Date.now() - startTime;
+            document.getElementById('timer-text').innerText = formatTime(elapsed);
+            if (elapsed > TARGET_TIME + TOLERANCE) { endGame(elapsed); return; }
+            timerReqId = requestAnimationFrame(updateTimer);
+        }
+
+        function startFrameAnimation() {
+            const charData = CHARACTERS[STATE.selectedChar];
+            currentFrame = 0;
+
+            gameCharImg.src = charData.frames[currentFrame];
+            currentFrame++;
+
+            frameInterval = setInterval(() => {
+                if (currentFrame < charData.frames.length) {
+                    gameCharImg.src = charData.frames[currentFrame];
+                    currentFrame++;
+                }
+            }, 1000);
+        }
+
+        function stopFrameAnimation() {
+            if (frameInterval) {
+                clearInterval(frameInterval);
+                frameInterval = null;
+            }
+        }
+
+        function handlePressStart(e) {
+            e.preventDefault(); e.stopPropagation();
+            if (isPressing) return;
+
+            isPressing = true;
+            btnTouch.classList.add('pressing');
+            startTime = Date.now();
+
+            timerReqId = requestAnimationFrame(updateTimer);
+            startFrameAnimation();
+        }
+
+        function handlePressEnd(e) {
+            if (!isPressing) return;
+            e.preventDefault(); e.stopPropagation();
+            endGame(Date.now() - startTime);
+        }
+
+        function endGame(finalTime) {
+            isPressing = false;
+            btnTouch.classList.remove('pressing');
+            btnTouch.style.display = 'none';
+            cancelAnimationFrame(timerReqId);
+            stopFrameAnimation();
+
+            const isSuccess = Math.abs(TARGET_TIME - finalTime) <= TOLERANCE;
+            const endpoint = isSuccess ? '/api/game/detox/success' : '/api/game/detox/fail';
+            
+            fetch(`${API_BASE_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    memberId: memberId || null,
+                    guestId: STATE.guestId
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && typeof data.hearts !== 'undefined') {
+                    STATE.currentLives = data.hearts;
+                }
+                showResult(isSuccess, finalTime);
+            })
+            .catch(err => {
+                console.error('API Error:', err);
+                if (!isSuccess) STATE.currentLives--;
+                showResult(isSuccess, finalTime);
+            });
+        }
+
+        function showResult(isSuccess, finalTime) {
+            const d = CHARACTERS[STATE.selectedChar];
+
+            const resultScreen = document.getElementById('screen-result');
+            const banner = document.getElementById('result-banner');
+            const charImg = document.getElementById('result-char-img');
+            const textBox = document.getElementById('result-text-box');
+            const btnWrapper = document.getElementById('result-btn-wrapper');
+            const timeRecord = document.getElementById('result-time-record');
+            const failExtraUi = document.getElementById('fail-extra-ui');
+            const retryCountNum = document.getElementById('retry-count-num');
+
+            timeRecord.innerText = `내 기록: ${formatTime(finalTime)}`;
+            resultScreen.classList.remove('success', 'fail');
+
+            if (isSuccess) {
+                resultScreen.classList.add('success');
+                banner.src = '/game/성공_텍스트.png';
+                charImg.src = d.success;
+
+                failExtraUi.style.display = 'none';
+
+                if (!memberId) {
+                    btnWrapper.innerHTML = `
+                    <div><img src="/game/선물증정_회원가입.png" class="btn-result" onclick="location.href='${getLoginUrlWithReturn()}'"></div>
+                    <div><img src="/game/친구에게_자랑하기.png" class="btn-result" onclick="alert('공유 API 연결 필요')"></div>
+                    `;
+                } else {
+                    btnWrapper.innerHTML = `
+                    <div style="width:100%; text-align:center; margin-bottom:10px;">
+                      <span style="display:inline-block; padding:15px 30px; background:#e84887; color:#fff; border-radius:30px; font-weight:bold;">보상 지급 완료</span>
+                    </div>
+                    <div><img src="/game/친구에게_자랑하기.png" class="btn-result" onclick="alert('공유 API 연결 필요')"></div>
+                    `;
+                }
+            } else {
+                resultScreen.classList.add('fail');
+                banner.src = '/game/실패_텍스트.png';
+                charImg.src = d.fail;
+                textBox.innerText = '아쉬워요...\n도파민 디톡스에 실패했어요';
+                retryCountNum.innerText = STATE.currentLives;
+
+                if (!memberId) {
+                    failExtraUi.style.display = 'flex';
+                    btnWrapper.innerHTML = `
+                    <img src="/game/재도전_회원가입.png" class="btn-result" onclick="location.href='${getLoginUrlWithReturn()}'">
+                    <div style="margin-top:10px;text-align:center;cursor:pointer;color:#fff;text-decoration:underline;" onclick="retryGame()">비회원으로 재도전</div>
+                    `;
+                } else {
+                    failExtraUi.style.display = 'none';
+                    btnWrapper.innerHTML = `
+                    <button class="btn-result" style="background:#4bc8d8; color:#fff; border:none; padding:15px 0; border-radius:30px; font-size:18px; font-weight:bold; cursor:pointer;" onclick="retryGame()">다시 도전하기</button>
+                    `;
+                }
+            }
+
+            switchScreen('result');
+        }
+
+        function retryGame() {
+            if (STATE.currentLives > 0) {
+                switchScreen('confirm');
+            } else {
+                alert('하트(목숨)가 부족합니다! 하트를 추가해주세요.');
+            }
+        }
+
+        btnTouch.addEventListener('touchstart', handlePressStart, { passive: false });
+        btnTouch.addEventListener('mousedown', handlePressStart);
+
+        document.addEventListener('touchend', function (e) { if (isPressing) { e.preventDefault(); endGame(Date.now() - startTime); } }, { passive: false });
+        document.addEventListener('mouseup', function (e) { if (isPressing) { endGame(Date.now() - startTime); } });
+        document.addEventListener('touchcancel', function (e) { if (isPressing) { endGame(Date.now() - startTime); } });
+
+        function openModal() { document.getElementById('info-modal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('info-modal').style.display = 'none'; }
+    </script>
+</body>
+
+</html>
