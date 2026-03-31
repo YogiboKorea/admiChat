@@ -807,15 +807,15 @@
 
                     <!-- 기간 설정 -->
                     <div class="form-group full-width">
-                        <span class="form-label">라이브 기간 <span class="req">*</span></span>
+                        <span class="form-label">매장 운영/행사 기간 <span class="req">*</span></span>
                         <div class="radio-group">
                             <div class="radio-option">
                                 <input type="radio" name="periodType" id="periodAlways" value="always" checked>
-                                <label for="periodAlways">상시 노출</label>
+                                <label for="periodAlways">상시 운영 매장</label>
                             </div>
                             <div class="radio-option">
                                 <input type="radio" name="periodType" id="periodRange" value="period">
-                                <label for="periodRange">특정 기간</label>
+                                <label for="periodRange">팝업스토어 특별 행사 기간</label>
                             </div>
                         </div>
                         <div class="date-range" id="dateRangeContainer">
@@ -823,6 +823,12 @@
                             <span>~</span>
                             <input class="form-input" type="date" id="endDate">
                         </div>
+                    </div>
+
+                    <!-- 유튜브 길찾기 링크 -->
+                    <div class="form-group full-width">
+                        <span class="form-label">길찾기 안내 동영상 URL (선택 항목)</span>
+                        <input class="form-input" type="url" id="youtubeUrl" placeholder="예: https://youtube.com/watch?v=12345 (유튜브 링크 입력 시 사용자 화면에 '영상으로 찾기' 표시)">
                     </div>
 
                     <!-- 매장 특성 -->
@@ -997,6 +1003,7 @@
             document.getElementById('storeForm').reset();
             document.getElementById('storeId').value = '';
             document.getElementById('existingImage').value = '';
+            document.getElementById('youtubeUrl').value = '';
             document.getElementById('previewContainer').style.display = 'none';
             document.getElementById('imagePreview').src = '';
             document.getElementById('dateRangeContainer').style.display = 'none';
@@ -1140,7 +1147,7 @@
             const orderedIds = Array.from(rows).map(row => row.getAttribute('data-id')).filter(id => id);
             
             try {
-                const res = await fetch('/api/store/reorder', {
+                const res = await fetch(`${API_URL}/reorder`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ orderedIds })
@@ -1176,6 +1183,7 @@
             formData.append('isPopup', document.getElementById('isPopup').checked);
             formData.append('isPickup', document.getElementById('isPickup').checked);
             formData.append('isModju', document.getElementById('isModju').checked);
+            formData.append('youtubeUrl', document.getElementById('youtubeUrl').value);
 
             if (document.querySelector('input[name="periodType"]:checked').value !== 'always') {
                 formData.append('startDate', document.getElementById('startDate').value);
@@ -1233,6 +1241,7 @@
             document.getElementById('name').value = store.name;
             document.getElementById('address').value = store.address;
             document.getElementById('phone').value = store.phone || '';
+            document.getElementById('youtubeUrl').value = store.youtubeUrl || '';
             document.getElementById('existingImage').value = store.imagePath || '';
 
             document.getElementById('isPopup').checked = !!store.isPopup;

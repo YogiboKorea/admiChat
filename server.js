@@ -4763,7 +4763,7 @@ const storeUpload = multer({
 // 1. 매장 등록
 app.post('/api/store', storeUpload.single('image'), async (req, res) => {
   try {
-    const { name, address, phone, isAlways, startDate, endDate, isPopup, isPickup, isModju } = req.body;
+    const { name, address, phone, isAlways, startDate, endDate, isPopup, isPickup, isModju, youtubeUrl } = req.body;
     let imagePath = '';
 
     if (req.file) {
@@ -4785,11 +4785,12 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
       phone,
       isAlways: isAlways === 'true',
       startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
-      endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      endDate: endDate && endDate !== 'null' ? new Date(`${endDate}T23:59:59.999+09:00`) : null,
       isPopup: isPopup === 'true',
       isPickup: isPickup === 'true',
       isModju: isModju === 'true',
       imagePath,
+      youtubeUrl: youtubeUrl || '',
       order: 9999,
       createdAt: new Date()
     };
@@ -4858,7 +4859,7 @@ app.post('/api/store/reorder', async (req, res) => {
 app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
   try {
     const storeId = req.params.id;
-    const { name, address, phone, isAlways, startDate, endDate, existingImage, isPopup, isPickup, isModju } = req.body;
+    const { name, address, phone, isAlways, startDate, endDate, existingImage, isPopup, isPickup, isModju, youtubeUrl } = req.body;
 
     let imagePath = existingImage || '';
     if (req.file) {
@@ -4884,11 +4885,12 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
       phone,
       isAlways: isAlways === 'true',
       startDate: startDate && startDate !== 'null' ? new Date(startDate) : null,
-      endDate: endDate && endDate !== 'null' ? new Date(endDate) : null,
+      endDate: endDate && endDate !== 'null' ? new Date(`${endDate}T23:59:59.999+09:00`) : null,
       isPopup: isPopup === 'true',
       isPickup: isPickup === 'true',
       isModju: isModju === 'true',
       imagePath,
+      youtubeUrl: youtubeUrl || '',
       updatedAt: new Date()
     };
 
