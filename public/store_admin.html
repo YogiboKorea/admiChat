@@ -542,20 +542,10 @@
 
         .store-table tbody tr {
             transition: background 0.15s;
-            cursor: grab;
         }
 
-        .store-table tbody tr:active {
-            cursor: grabbing;
-        }
-
-        .store-table tbody tr.dragging {
-            opacity: 0.5;
-            background: #f9f9f9;
-        }
-
-        .store-table tbody tr.drag-over {
-            border-top: 2px solid var(--yogibo-red);
+        .store-table tbody tr:hover {
+            background: rgba(228, 37, 40, 0.015);
         }
 
         .store-table tbody tr:hover {
@@ -598,6 +588,38 @@
             display: flex;
             gap: 4px;
             flex-wrap: wrap;
+        }
+
+        .btn-move {
+            background: var(--yogibo-light);
+            color: var(--yogibo-gray);
+            border: 1px solid var(--yogibo-border);
+            padding: 2px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-move:hover:not(:disabled) {
+            background: #e5e7eb;
+            color: var(--yogibo-dark);
+        }
+
+        .btn-move:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .move-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
         }
 
         .t-badge {
@@ -891,6 +913,7 @@
                 <table class="store-table" id="storeTable">
                     <thead>
                         <tr>
+                            <th style="width:50px; text-align:center;">순서</th>
                             <th style="width:80px;">이미지</th>
                             <th>매장명</th>
                             <th>주소</th>
@@ -1047,6 +1070,16 @@
                 if (store.isModju) badges += `<span class="t-badge t-badge-modju">${badgeSVG.modju}모듀</span>`;
 
                 tr.innerHTML = `
+                <td style="text-align:center; vertical-align:middle;">
+                    <div class="move-actions">
+                        <button type="button" class="btn-move" onclick="moveRow(this, -1)" title="위로 이동">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 14l5-5 5 5z"/></svg>
+                        </button>
+                        <button type="button" class="btn-move" onclick="moveRow(this, 1)" title="아래로 이동">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                        </button>
+                    </div>
+                </td>
                 <td><img src="${imgSrc}" class="table-thumb" alt="이미지" onerror="this.src='https://via.placeholder.com/128/f0f0f0/ccc?text=No'"></td>
                 <td>
                     <div class="table-name">${store.name}</div>
@@ -1070,62 +1103,33 @@
             `;
                 tbody.appendChild(tr);
             });
-            initDragAndDrop();
+            updateMoveButtons();
         }
 
-        // ── 순서 변경 (드래그 앤 드롭) ──
-        let draggedRow = null;
+        // ── 상하 이동 (버튼 방식) ──
+        function moveRow(btn, direction) {
+            const row = btn.closest('tr');
+            const tbody = row.parentNode;
+            
+            if (direction === -1 && row.previousElementSibling) {
+                tbody.insertBefore(row, row.previousElementSibling);
+                saveNewOrder();
+                updateMoveButtons();
+            } else if (direction === 1 && row.nextElementSibling) {
+                tbody.insertBefore(row.nextElementSibling, row);
+                saveNewOrder();
+                updateMoveButtons();
+            }
+        }
 
-        function initDragAndDrop() {
-            const tbody = document.getElementById('storeTableBody');
-            if (!tbody) return;
-            const rows = tbody.querySelectorAll('tr[data-id]');
-
-            rows.forEach(row => {
-                row.setAttribute('draggable', true);
-
-                row.addEventListener('dragstart', function(e) {
-                    draggedRow = this;
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/html', this.innerHTML);
-                    this.classList.add('dragging');
-                });
-
-                row.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                });
-
-                row.addEventListener('dragenter', function(e) {
-                    e.preventDefault();
-                    this.classList.add('drag-over');
-                });
-
-                row.addEventListener('dragleave', function() {
-                    this.classList.remove('drag-over');
-                });
-
-                row.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    this.classList.remove('drag-over');
-                    if (draggedRow && draggedRow !== this) {
-                        const allRows = Array.from(tbody.querySelectorAll('tr[data-id]'));
-                        const draggedIndex = allRows.indexOf(draggedRow);
-                        const targetIndex = allRows.indexOf(this);
-                        
-                        if (draggedIndex < targetIndex) {
-                            this.after(draggedRow);
-                        } else {
-                            this.before(draggedRow);
-                        }
-                        saveNewOrder();
-                    }
-                });
-
-                row.addEventListener('dragend', function() {
-                    this.classList.remove('dragging');
-                    draggedRow = null;
-                });
+        function updateMoveButtons() {
+            const rows = document.querySelectorAll('#storeTableBody tr');
+            rows.forEach((row, index) => {
+                const btns = row.querySelectorAll('.btn-move');
+                if (btns.length === 2) {
+                    btns[0].disabled = (index === 0);
+                    btns[1].disabled = (index === rows.length - 1);
+                }
             });
         }
 
