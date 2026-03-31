@@ -4790,6 +4790,7 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
       isPickup: isPickup === 'true',
       isModju: isModju === 'true',
       imagePath,
+      order: 9999,
       createdAt: new Date()
     };
 
@@ -4820,11 +4821,36 @@ app.get('/api/store', async (req, res) => {
       };
     }
 
-    const stores = await db.collection('store').find(query).sort({ createdAt: -1 }).toArray();
+    const stores = await db.collection('store').find(query).sort({ order: 1, createdAt: -1 }).toArray();
     res.json({ success: true, stores });
   } catch (error) {
     console.error('매장 조회 오류:', error);
     res.status(500).json({ success: false, error: '매장 목록을 불러오지 못했습니다.' });
+  }
+});
+
+// 2-1. 매장 순서 재정렬 API
+app.post('/api/store/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: '올바르지 않은 요청 데이터입니다.' });
+    }
+
+    const bulkOps = orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(id) },
+        update: { $set: { order: index } }
+      }
+    }));
+
+    if (bulkOps.length > 0) {
+      await db.collection('store').bulkWrite(bulkOps);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('매장 순서 재정렬 에러:', error);
+    res.status(500).json({ success: false, error: '서버 에러가 발생했습니다.' });
   }
 });
 

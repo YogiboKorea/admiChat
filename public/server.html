@@ -1,50 +1,147 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>배너 클릭 히트맵 대시보드</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: #f0f4f8; color: #1e293b; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f0f4f8;
+            color: #1e293b;
+        }
 
         /* 헤더 */
         .header {
             background: linear-gradient(135deg, #1e40af, #4f46e5);
             padding: 18px 24px;
-            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        .header h1 { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
-        .header-right { display: flex; gap: 10px; }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 10px;
+        }
+
         .tab-btn {
-            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
-            color: #fff; padding: 7px 16px; border-radius: 8px; cursor: pointer;
-            font-size: 13px; font-family: inherit; font-weight: 500; transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 7px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        .tab-btn:hover, .tab-btn.active { background: rgba(255,255,255,0.35); }
+
+        .tab-btn:hover,
+        .tab-btn.active {
+            background: rgba(255, 255, 255, 0.35);
+        }
 
         /* 필터 바 */
         .filter-bar {
-            background: #fff; border-bottom: 1px solid #e2e8f0;
-            padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        .filter-bar label { font-size: 12px; color: #64748b; font-weight: 600; }
-        .filter-bar select, .filter-bar input[type="date"] {
-            border: 1px solid #cbd5e1; background: #f8fafc; color: #1e293b;
-            padding: 7px 12px; border-radius: 8px; font-size: 13px; font-family: inherit;
+
+        .filter-bar label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 600;
         }
-        .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: #4f46e5; }
-        .divider { width: 1px; height: 24px; background: #e2e8f0; }
-        .btn { padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; border: none; transition: all 0.2s; }
-        .btn-outline { background: transparent; border: 1px solid #cbd5e1; color: #64748b; }
-        .btn-outline:hover { border-color: #4f46e5; color: #4f46e5; }
-        .btn-amber { border: 1px solid #d97706; color: #d97706; background: transparent; }
-        .btn-amber.active { background: #fef3c7; }
+
+        .filter-bar select,
+        .filter-bar input[type="date"] {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #1e293b;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .filter-bar select:focus,
+        .filter-bar input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: #e2e8f0;
+        }
+
+        .btn {
+            padding: 7px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 600;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #cbd5e1;
+            color: #64748b;
+        }
+
+        .btn-outline:hover {
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+
+        .btn-amber {
+            border: 1px solid #d97706;
+            color: #d97706;
+            background: transparent;
+        }
+
+        .btn-amber.active {
+            background: #fef3c7;
+        }
 
         /* 탭 패널 */
-        .panel { display: none; }
-        .panel.active { display: block; }
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
 
         /* === 히트맵 패널 === */
         .heatmap-layout {
@@ -53,274 +150,598 @@
             height: calc(100vh - 116px);
             overflow: hidden;
         }
+
         @media (max-width: 900px) {
-            .heatmap-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; }
+            .heatmap-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+                height: auto;
+            }
         }
 
-        .sidebar { background: #fff; border-right: 1px solid #e2e8f0; overflow-y: auto; }
-        .sidebar-title {
-            padding: 14px 18px; font-size: 11px; font-weight: 700; color: #94a3b8;
-            text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid #f1f5f9;
-            display: flex; justify-content: space-between; align-items: center;
-            position: sticky; top: 0; background: #fff; z-index: 5;
+        .sidebar {
+            background: #fff;
+            border-right: 1px solid #e2e8f0;
+            overflow-y: auto;
         }
+
+        .sidebar-title {
+            padding: 14px 18px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 5;
+        }
+
         .total-chip {
-            background: #eff6ff; color: #3b82f6; font-size: 11px;
-            padding: 3px 10px; border-radius: 20px; font-weight: 700;
+            background: #eff6ff;
+            color: #3b82f6;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 700;
         }
 
         .banner-item {
-            padding: 14px 18px; border-bottom: 1px solid #f1f5f9;
-            cursor: pointer; transition: background 0.15s;
+            padding: 14px 18px;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: background 0.15s;
         }
-        .banner-item:hover { background: #f8fafc; }
-        .banner-item.active { background: #eff6ff; border-left: 3px solid #4f46e5; }
-        .banner-item.archived { opacity: 0.4; }
 
-        .item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-        .banner-name { font-size: 13px; font-weight: 600; color: #1e293b; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .device-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; }
-        .device-chip.pc { background: #dbeafe; color: #1d4ed8; }
-        .device-chip.mobile { background: #ede9fe; color: #7c3aed; }
+        .banner-item:hover {
+            background: #f8fafc;
+        }
+
+        .banner-item.active {
+            background: #eff6ff;
+            border-left: 3px solid #4f46e5;
+        }
+
+        .banner-item.archived {
+            opacity: 0.4;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .banner-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .device-chip {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            flex-shrink: 0;
+        }
+
+        .device-chip.pc {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .device-chip.mobile {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
         .btn-hide {
-            font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
-            border: 1px solid #fca5a5; color: #ef4444; background: transparent;
-            cursor: pointer; flex-shrink: 0; transition: all 0.2s; font-family: inherit;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            border: 1px solid #fca5a5;
+            color: #ef4444;
+            background: transparent;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            font-family: inherit;
         }
-        .btn-hide:hover { background: #fef2f2; }
-        .btn-hide.hidden { border-color: #86efac; color: #16a34a; }
-        .btn-hide.hidden:hover { background: #f0fdf4; }
 
-        .bar-row { display: flex; align-items: center; gap: 8px; }
-        .bar-bg { flex: 1; height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
-        .bar-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #818cf8); border-radius: 99px; transition: width 0.5s; }
-        .bar-label { font-size: 12px; font-weight: 700; color: #4f46e5; min-width: 40px; text-align: right; }
+        .btn-hide:hover {
+            background: #fef2f2;
+        }
 
-        .loading-msg { padding: 40px; text-align: center; color: #94a3b8; font-size: 14px; }
+        .btn-hide.hidden {
+            border-color: #86efac;
+            color: #16a34a;
+        }
+
+        .btn-hide.hidden:hover {
+            background: #f0fdf4;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #818cf8);
+            border-radius: 99px;
+            transition: width 0.5s;
+        }
+
+        .bar-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #4f46e5;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .loading-msg {
+            padding: 40px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
 
         /* 히트맵 뷰어 */
-        .viewer { background: #f8fafc; display: flex; flex-direction: column; overflow: hidden; }
-        .viewer-bar {
-            background: #fff; border-bottom: 1px solid #e2e8f0;
-            padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; flex-wrap: wrap; gap: 8px;
+        .viewer {
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .viewer-info { font-size: 14px; color: #64748b; }
-        .viewer-info strong { color: #1e293b; }
-        .viewer-info .count { color: #4f46e5; font-weight: 700; }
-        .btn-clear-dots { border: 1px solid #fca5a5; color: #ef4444; background: transparent; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
-        .btn-clear-dots:hover { background: #fef2f2; }
 
-        .viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 20px; }
-        .banner-wrapper { position: relative; display: inline-block; }
-        .banner-wrapper img { display: block; max-width: 100%; max-height: calc(100vh - 260px); border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+        .viewer-bar {
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
 
-        .empty-state { text-align: center; color: #94a3b8; }
-        .empty-state .ico { font-size: 48px; margin-bottom: 12px; }
-        .empty-state p { font-size: 14px; }
+        .viewer-info {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .viewer-info strong {
+            color: #1e293b;
+        }
+
+        .viewer-info .count {
+            color: #4f46e5;
+            font-weight: 700;
+        }
+
+        .btn-clear-dots {
+            border: 1px solid #fca5a5;
+            color: #ef4444;
+            background: transparent;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn-clear-dots:hover {
+            background: #fef2f2;
+        }
+
+        .viewer-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .banner-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .banner-wrapper img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 260px);
+            border-radius: 10px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        .empty-state .ico {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
 
         /* 히트맵 점 */
         .heatmap-dot {
-            position: absolute; border-radius: 50%;
-            transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
+            position: absolute;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
         }
+
         .heatmap-dot.single {
-            width: 32px; height: 32px;
-            background: radial-gradient(circle, rgba(255,230,0,1) 0%, rgba(255,80,0,0.85) 40%, rgba(255,0,80,0) 80%);
+            width: 32px;
+            height: 32px;
+            background: radial-gradient(circle, rgba(255, 230, 0, 1) 0%, rgba(255, 80, 0, 0.85) 40%, rgba(255, 0, 80, 0) 80%);
         }
+
         .heatmap-dot.hot {
-            width: 42px; height: 42px;
-            background: radial-gradient(circle, #fff 0%, rgba(255,220,0,1) 20%, rgba(255,50,0,0.95) 55%, rgba(255,0,0,0) 100%);
+            width: 42px;
+            height: 42px;
+            background: radial-gradient(circle, #fff 0%, rgba(255, 220, 0, 1) 20%, rgba(255, 50, 0, 0.95) 55%, rgba(255, 0, 0, 0) 100%);
         }
 
         /* === IP 관리 패널 === */
-        .ip-panel { padding: 24px; max-width: 700px; margin: 0 auto; }
-        .ip-panel h2 { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
-        .ip-panel .desc { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+        .ip-panel {
+            padding: 24px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .ip-panel h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 6px;
+        }
+
+        .ip-panel .desc {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
 
         .my-ip-card {
-            background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
-            padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        .my-ip-label { font-size: 12px; color: #3b82f6; font-weight: 600; }
-        .my-ip-value { font-size: 16px; font-weight: 700; color: #1d4ed8; font-family: monospace; }
-        .btn-add-myip { border: 1px solid #3b82f6; color: #3b82f6; background: transparent; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; transition: all 0.2s; }
-        .btn-add-myip:hover { background: #dbeafe; }
 
-        .add-form { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .my-ip-label {
+            font-size: 12px;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .my-ip-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1d4ed8;
+            font-family: monospace;
+        }
+
+        .btn-add-myip {
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+            background: transparent;
+            padding: 7px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-add-myip:hover {
+            background: #dbeafe;
+        }
+
+        .add-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
         .add-form input {
-            flex: 1; min-width: 160px; border: 1px solid #cbd5e1; border-radius: 8px;
-            padding: 9px 14px; font-size: 13px; font-family: inherit; background: #fff;
+            flex: 1;
+            min-width: 160px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-family: inherit;
+            background: #fff;
         }
-        .add-form input:focus { outline: none; border-color: #4f46e5; }
-        .btn-indigo { background: #4f46e5; color: #fff; padding: 9px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; border: none; transition: all 0.2s; }
-        .btn-indigo:hover { background: #4338ca; }
 
-        .ip-table { width: 100%; border-collapse: collapse; }
-        .ip-table th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 14px; font-size: 12px; font-weight: 700; color: #64748b; text-align: left; }
-        .ip-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
-        .ip-table td:first-child { font-family: monospace; font-weight: 600; color: #1e293b; }
-        .btn-del { border: 1px solid #fca5a5; color: #ef4444; background: transparent; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.2s; }
-        .btn-del:hover { background: #fef2f2; }
+        .add-form input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .btn-indigo {
+            background: #4f46e5;
+            color: #fff;
+            padding: 9px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 600;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-indigo:hover {
+            background: #4338ca;
+        }
+
+        .ip-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .ip-table th {
+            background: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-align: left;
+        }
+
+        .ip-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .ip-table td:first-child {
+            font-family: monospace;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .btn-del {
+            border: 1px solid #fca5a5;
+            color: #ef4444;
+            background: transparent;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn-del:hover {
+            background: #fef2f2;
+        }
 
         /* 스크롤바 */
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
     </style>
 </head>
+
 <body>
 
-<div class="header">
-    <h1>🔥 배너 클릭 히트맵 대시보드</h1>
-    <div class="header-right">
-        <button class="tab-btn active" onclick="showPanel('heatmap', this)">📊 히트맵</button>
-        <button class="tab-btn" onclick="showPanel('ip', this)">🚫 IP 관리</button>
-    </div>
-</div>
-
-<!-- 필터 (히트맵 전용) -->
-<div class="filter-bar" id="filter-area">
-    <label>기기</label>
-    <select id="filter-device" onchange="fetchSummary()">
-        <option value="all">전체</option>
-        <option value="pc">💻 PC</option>
-        <option value="mobile">📱 모바일</option>
-    </select>
-    <div class="divider"></div>
-    <label>기간</label>
-    <input type="date" id="filter-start" onchange="fetchSummary()">
-    <span style="color:#94a3b8">~</span>
-    <input type="date" id="filter-end" onchange="fetchSummary()">
-    <div class="divider"></div>
-    <button class="btn btn-outline" onclick="resetFilters()">초기화</button>
-    <button class="btn btn-amber" id="btn-archived" onclick="toggleArchived()">🗂 숨김 보기</button>
-</div>
-
-<!-- 히트맵 패널 -->
-<div class="panel active" id="panel-heatmap">
-    <div class="heatmap-layout">
-        <div class="sidebar">
-            <div class="sidebar-title">
-                배너별 클릭 통계
-                <span class="total-chip" id="total-chip">총 0건</span>
-            </div>
-            <div id="banner-list"><div class="loading-msg">불러오는 중...</div></div>
+    <div class="header">
+        <h1>🔥 배너 클릭 히트맵 대시보드</h1>
+        <div class="header-right">
+            <button class="tab-btn active" onclick="showPanel('heatmap', this)">📊 히트맵</button>
+            <button class="tab-btn" onclick="showPanel('ip', this)">🚫 IP 관리</button>
         </div>
-        <div class="viewer">
-            <div class="viewer-bar">
-                <div class="viewer-info" id="viewer-info">← 좌측에서 배너를 선택하세요</div>
-                <button class="btn-clear-dots" onclick="clearDots()">점 지우기</button>
+    </div>
+
+    <!-- 필터 (히트맵 전용) -->
+    <div class="filter-bar" id="filter-area">
+        <label>기기</label>
+        <select id="filter-device" onchange="fetchSummary()">
+            <option value="all">전체</option>
+            <option value="pc">💻 PC</option>
+            <option value="mobile">📱 모바일</option>
+        </select>
+        <div class="divider"></div>
+        <label>기간</label>
+        <input type="date" id="filter-start" onchange="fetchSummary()">
+        <span style="color:#94a3b8">~</span>
+        <input type="date" id="filter-end" onchange="fetchSummary()">
+        <div class="divider"></div>
+        <button class="btn btn-outline" onclick="resetFilters()">초기화</button>
+        <button class="btn btn-amber" id="btn-archived" onclick="toggleArchived()">🗂 숨김 보기</button>
+    </div>
+
+    <!-- 히트맵 패널 -->
+    <div class="panel active" id="panel-heatmap">
+        <div class="heatmap-layout">
+            <div class="sidebar">
+                <div class="sidebar-title">
+                    배너별 클릭 통계
+                    <span class="total-chip" id="total-chip">총 0건</span>
+                </div>
+                <div id="banner-list">
+                    <div class="loading-msg">불러오는 중...</div>
+                </div>
             </div>
-            <div class="viewer-body">
-                <div id="banner-wrapper" class="banner-wrapper">
-                    <div class="empty-state">
-                        <div class="ico">🎯</div>
-                        <p>배너를 선택하면 클릭 분포도가 표시됩니다.</p>
+            <div class="viewer">
+                <div class="viewer-bar">
+                    <div class="viewer-info" id="viewer-info">← 좌측에서 배너를 선택하세요</div>
+                    <button class="btn-clear-dots" onclick="clearDots()">점 지우기</button>
+                </div>
+                <div class="viewer-body">
+                    <div id="banner-wrapper" class="banner-wrapper">
+                        <div class="empty-state">
+                            <div class="ico">🎯</div>
+                            <p>배너를 선택하면 클릭 분포도가 표시됩니다.</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- IP 관리 패널 -->
-<div class="panel" id="panel-ip">
-    <div class="ip-panel">
-        <h2>🚫 제외 IP 관리</h2>
-        <p class="desc">등록된 IP에서 발생하는 배너 클릭은 데이터에서 제외됩니다. 내부 직원 IP를 등록하세요.</p>
+    <!-- IP 관리 패널 -->
+    <div class="panel" id="panel-ip">
+        <div class="ip-panel">
+            <h2>🚫 제외 IP 관리</h2>
+            <p class="desc">등록된 IP에서 발생하는 배너 클릭은 데이터에서 제외됩니다. 내부 직원 IP를 등록하세요.</p>
 
-        <div class="my-ip-card">
-            <div>
-                <div class="my-ip-label">현재 내 IP 주소</div>
-                <div class="my-ip-value" id="my-ip-display">조회 중...</div>
+            <div class="my-ip-card">
+                <div>
+                    <div class="my-ip-label">현재 내 IP 주소</div>
+                    <div class="my-ip-value" id="my-ip-display">조회 중...</div>
+                </div>
+                <button class="btn-add-myip" onclick="addMyIp()">+ 내 IP 제외 등록</button>
             </div>
-            <button class="btn-add-myip" onclick="addMyIp()">+ 내 IP 제외 등록</button>
-        </div>
 
-        <div class="add-form">
-            <input type="text" id="ip-input" placeholder="IP 주소 입력 (예: 123.456.78.9)">
-            <input type="text" id="label-input" placeholder="메모 (예: 마케팀 PC)">
-            <button class="btn-indigo" onclick="addIp()">등록</button>
-        </div>
+            <div class="add-form">
+                <input type="text" id="ip-input" placeholder="IP 주소 입력 (예: 123.456.78.9)">
+                <input type="text" id="label-input" placeholder="메모 (예: 마케팀 PC)">
+                <button class="btn-indigo" onclick="addIp()">등록</button>
+            </div>
 
-        <table class="ip-table">
-            <thead><tr><th>IP 주소</th><th>메모</th><th>등록일</th><th>삭제</th></tr></thead>
-            <tbody id="ip-tbody"><tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">불러오는 중...</td></tr></tbody>
-        </table>
+            <table class="ip-table">
+                <thead>
+                    <tr>
+                        <th>IP 주소</th>
+                        <th>메모</th>
+                        <th>등록일</th>
+                        <th>삭제</th>
+                    </tr>
+                </thead>
+                <tbody id="ip-tbody">
+                    <tr>
+                        <td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">불러오는 중...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-</div>
 
-<script>
-    const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-    let summaryData = [], archivedSet = new Set(), showArchived = false, myIp = '';
+    <script>
+        const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        let summaryData = [], archivedSet = new Set(), showArchived = false, myIp = '';
 
-    // ===== 탭 전환 =====
-    function showPanel(name, btn) {
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('panel-' + name).classList.add('active');
-        btn.classList.add('active');
-        document.getElementById('filter-area').style.display = name === 'heatmap' ? 'flex' : 'none';
-        if (name === 'ip') loadIpPanel();
-    }
+        // ===== 탭 전환 =====
+        function showPanel(name, btn) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('panel-' + name).classList.add('active');
+            btn.classList.add('active');
+            document.getElementById('filter-area').style.display = name === 'heatmap' ? 'flex' : 'none';
+            if (name === 'ip') loadIpPanel();
+        }
 
-    // ===== 히트맵 기능 =====
-    function resetFilters() {
-        document.getElementById('filter-device').value = 'all';
-        document.getElementById('filter-start').value = '';
-        document.getElementById('filter-end').value = '';
-        fetchSummary();
-    }
-    function toggleArchived() {
-        showArchived = !showArchived;
-        document.getElementById('btn-archived').classList.toggle('active', showArchived);
-        renderList();
-    }
-
-    async function fetchSummary() {
-        document.getElementById('banner-list').innerHTML = '<div class="loading-msg">불러오는 중...</div>';
-        const p = new URLSearchParams();
-        const dev = document.getElementById('filter-device').value;
-        const s = document.getElementById('filter-start').value;
-        const e = document.getElementById('filter-end').value;
-        if (dev !== 'all') p.append('deviceType', dev);
-        if (s) p.append('startDate', s);
-        if (e) p.append('endDate', e);
-        try {
-            const [sumRes, arcRes] = await Promise.all([
-                fetch(`${API}/api/track-click/summary?${p}`),
-                fetch(`${API}/api/banner-archive`)
-            ]);
-            const sum = await sumRes.json();
-            const arc = await arcRes.json();
-            archivedSet = new Set((arc.data || []).map(a => `${a.bannerId}__${a.deviceType || 'pc'}`));
-            summaryData = sum.success ? sum.data : [];
+        // ===== 히트맵 기능 =====
+        function resetFilters() {
+            document.getElementById('filter-device').value = 'all';
+            document.getElementById('filter-start').value = '';
+            document.getElementById('filter-end').value = '';
+            fetchSummary();
+        }
+        function toggleArchived() {
+            showArchived = !showArchived;
+            document.getElementById('btn-archived').classList.toggle('active', showArchived);
             renderList();
-        } catch { document.getElementById('banner-list').innerHTML = '<div class="loading-msg">통신 오류</div>'; }
-    }
+        }
 
-    function renderList() {
-        const visible = summaryData.filter(item => {
-            const k = `${item.bannerId || item._id}__${item.deviceType || 'pc'}`;
-            return showArchived || !archivedSet.has(k);
-        });
-        const total = visible.reduce((s, i) => s + i.clickCount, 0);
-        const max = visible.length ? Math.max(...visible.map(i => i.clickCount)) : 0;
-        document.getElementById('total-chip').textContent = `총 ${total.toLocaleString()}건`;
-        const list = document.getElementById('banner-list');
-        if (!visible.length) { list.innerHTML = '<div class="loading-msg">표시할 항목이 없습니다.</div>'; return; }
-        list.innerHTML = '';
-        visible.forEach(item => {
-            const idx = summaryData.indexOf(item);
-            const id = item.bannerId || item._id || '알 수 없음';
-            let name = id; try { name = decodeURIComponent(id); } catch(e){}
-            const dev = item.deviceType || 'pc';
-            const k = `${id}__${dev}`;
-            const isArc = archivedSet.has(k);
-            const pct = max > 0 ? Math.round(item.clickCount / max * 100) : 0;
-            const d = document.createElement('div');
-            d.className = 'banner-item' + (isArc ? ' archived' : '');
-            d.dataset.idx = idx;
-            d.innerHTML = `
+        async function fetchSummary() {
+            document.getElementById('banner-list').innerHTML = '<div class="loading-msg">불러오는 중...</div>';
+            const p = new URLSearchParams();
+            const dev = document.getElementById('filter-device').value;
+            const s = document.getElementById('filter-start').value;
+            const e = document.getElementById('filter-end').value;
+            if (dev !== 'all') p.append('deviceType', dev);
+            if (s) p.append('startDate', s);
+            if (e) p.append('endDate', e);
+            try {
+                const [sumRes, arcRes] = await Promise.all([
+                    fetch(`${API}/api/track-click/summary?${p}`),
+                    fetch(`${API}/api/banner-archive`)
+                ]);
+                const sum = await sumRes.json();
+                const arc = await arcRes.json();
+                archivedSet = new Set((arc.data || []).map(a => `${a.bannerId}__${a.deviceType || 'pc'}`));
+                summaryData = sum.success ? sum.data : [];
+                renderList();
+            } catch { document.getElementById('banner-list').innerHTML = '<div class="loading-msg">통신 오류</div>'; }
+        }
+
+        function renderList() {
+            const visible = summaryData.filter(item => {
+                const k = `${item.bannerId || item._id}__${item.deviceType || 'pc'}`;
+                return showArchived || !archivedSet.has(k);
+            });
+            const total = visible.reduce((s, i) => s + i.clickCount, 0);
+            const max = visible.length ? Math.max(...visible.map(i => i.clickCount)) : 0;
+            document.getElementById('total-chip').textContent = `총 ${total.toLocaleString()}건`;
+            const list = document.getElementById('banner-list');
+            if (!visible.length) { list.innerHTML = '<div class="loading-msg">표시할 항목이 없습니다.</div>'; return; }
+            list.innerHTML = '';
+            visible.forEach(item => {
+                const idx = summaryData.indexOf(item);
+                const id = item.bannerId || item._id || '알 수 없음';
+                let name = id; try { name = decodeURIComponent(id); } catch (e) { }
+                const dev = item.deviceType || 'pc';
+                const k = `${id}__${dev}`;
+                const isArc = archivedSet.has(k);
+                const pct = max > 0 ? Math.round(item.clickCount / max * 100) : 0;
+                const d = document.createElement('div');
+                d.className = 'banner-item' + (isArc ? ' archived' : '');
+                d.dataset.idx = idx;
+                d.innerHTML = `
                 <div class="item-row">
                     <span class="banner-name" title="${name}">${name}</span>
                     <span class="device-chip ${dev}">${dev === 'mobile' ? '📱' : '💻'} ${dev === 'mobile' ? '모바일' : 'PC'}</span>
@@ -331,127 +752,128 @@
                     <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
                     <span class="bar-label">${item.clickCount.toLocaleString()}회</span>
                 </div>`;
-            d.addEventListener('click', ev => { if (!ev.target.classList.contains('btn-hide')) selectBanner(idx); });
-            list.appendChild(d);
-        });
-        if (visible.length) selectBanner(summaryData.indexOf(visible[0]));
-    }
+                d.addEventListener('click', ev => { if (!ev.target.classList.contains('btn-hide')) selectBanner(idx); });
+                list.appendChild(d);
+            });
+            if (visible.length) selectBanner(summaryData.indexOf(visible[0]));
+        }
 
-    async function toggleHide(e, enc, dev) {
-        e.stopPropagation();
-        const id = decodeURIComponent(enc);
-        const r = await fetch(`${API}/api/banner-archive`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ bannerId: id, deviceType: dev })
-        });
-        const j = await r.json();
-        if (j.success) { const k = `${id}__${dev}`; j.archived ? archivedSet.add(k) : archivedSet.delete(k); renderList(); }
-    }
-
-    function selectBanner(idx) {
-        document.querySelectorAll('.banner-item').forEach(el => el.classList.remove('active'));
-        const el = document.querySelector(`.banner-item[data-idx="${idx}"]`);
-        if (el) el.classList.add('active');
-        loadHeatmap(idx);
-    }
-
-    async function loadHeatmap(idx) {
-        const item = summaryData[idx]; if (!item) return;
-        const id = item.bannerId || item._id;
-        const dev = item.deviceType || 'pc';
-        let name = id; try { name = decodeURIComponent(id); } catch(e){}
-        document.getElementById('viewer-info').innerHTML =
-            `<strong>${name}</strong> &nbsp;·&nbsp; ${dev === 'mobile' ? '📱 모바일' : '💻 PC'} &nbsp;·&nbsp; <span class="count">${item.clickCount.toLocaleString()}회 클릭</span>`;
-        const wrapper = document.getElementById('banner-wrapper');
-        clearDots(); wrapper.innerHTML = '';
-        const img = document.createElement('img'); img.src = item.imageUrl || ''; img.alt = name;
-        wrapper.appendChild(img);
-        const p = new URLSearchParams({ bannerId: id, deviceType: dev });
-        const s = document.getElementById('filter-start').value, e = document.getElementById('filter-end').value;
-        if (s) p.append('startDate', s); if (e) p.append('endDate', e);
-        try {
-            const r = await fetch(`${API}/api/track-click?${p}`);
+        async function toggleHide(e, enc, dev) {
+            e.stopPropagation();
+            const id = decodeURIComponent(enc);
+            const r = await fetch(`${API}/api/banner-archive`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bannerId: id, deviceType: dev })
+            });
             const j = await r.json();
-            if (j.success && j.data.length) { img.onload = () => drawDots(j.data, img, wrapper); if (img.complete) drawDots(j.data, img, wrapper); }
-        } catch(e){}
-    }
+            if (j.success) { const k = `${id}__${dev}`; j.archived ? archivedSet.add(k) : archivedSet.delete(k); renderList(); }
+        }
 
-    function drawDots(clicks, img, wrapper) {
-        clearDots();
-        const W = img.clientWidth, H = img.clientHeight;
-        const grid = {};
-        clicks.forEach(c => {
-            if (!c.coordinates || !c.screenSize) return;
-            const x = Math.round((c.coordinates.x / c.screenSize.width) * W);
-            const y = Math.round((c.coordinates.y / c.screenSize.height) * H);
-            const k = `${Math.round(x/15)*15}_${Math.round(y/15)*15}`;
-            grid[k] = (grid[k] || 0) + 1;
-        });
-        clicks.forEach(c => {
-            if (!c.coordinates || !c.screenSize) return;
-            const x = (c.coordinates.x / c.screenSize.width) * W;
-            const y = (c.coordinates.y / c.screenSize.height) * H;
-            const k = `${Math.round(x/15)*15}_${Math.round(y/15)*15}`;
-            const dot = document.createElement('div');
-            dot.className = 'heatmap-dot ' + ((grid[k] || 1) >= 2 ? 'hot' : 'single');
-            dot.style.left = `${x}px`; dot.style.top = `${y}px`;
-            wrapper.appendChild(dot);
-        });
-    }
-    function clearDots() { document.querySelectorAll('.heatmap-dot').forEach(d => d.remove()); }
+        function selectBanner(idx) {
+            document.querySelectorAll('.banner-item').forEach(el => el.classList.remove('active'));
+            const el = document.querySelector(`.banner-item[data-idx="${idx}"]`);
+            if (el) el.classList.add('active');
+            loadHeatmap(idx);
+        }
 
-    // ===== IP 관리 =====
-    async function loadIpPanel() {
-        try {
-            const [ipRes, myRes] = await Promise.all([
-                fetch(`${API}/api/ip-exclude`),
-                fetch(`${API}/api/my-ip`)
-            ]);
-            const ipj = await ipRes.json();
-            const myj = await myRes.json();
-            myIp = myj.ip || '';
-            document.getElementById('my-ip-display').textContent = myIp || '알 수 없음';
-            renderIpTable(ipj.data || []);
-        } catch { document.getElementById('ip-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#ef4444">오류</td></tr>'; }
-    }
+        async function loadHeatmap(idx) {
+            const item = summaryData[idx]; if (!item) return;
+            const id = item.bannerId || item._id;
+            const dev = item.deviceType || 'pc';
+            let name = id; try { name = decodeURIComponent(id); } catch (e) { }
+            document.getElementById('viewer-info').innerHTML =
+                `<strong>${name}</strong> &nbsp;·&nbsp; ${dev === 'mobile' ? '📱 모바일' : '💻 PC'} &nbsp;·&nbsp; <span class="count">${item.clickCount.toLocaleString()}회 클릭</span>`;
+            const wrapper = document.getElementById('banner-wrapper');
+            clearDots(); wrapper.innerHTML = '';
+            const img = document.createElement('img'); img.src = item.imageUrl || ''; img.alt = name;
+            wrapper.appendChild(img);
+            const p = new URLSearchParams({ bannerId: id, deviceType: dev });
+            const s = document.getElementById('filter-start').value, e = document.getElementById('filter-end').value;
+            if (s) p.append('startDate', s); if (e) p.append('endDate', e);
+            try {
+                const r = await fetch(`${API}/api/track-click?${p}`);
+                const j = await r.json();
+                if (j.success && j.data.length) { img.onload = () => drawDots(j.data, img, wrapper); if (img.complete) drawDots(j.data, img, wrapper); }
+            } catch (e) { }
+        }
 
-    function renderIpTable(list) {
-        const tb = document.getElementById('ip-tbody');
-        if (!list.length) { tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">등록된 IP가 없습니다.</td></tr>'; return; }
-        tb.innerHTML = list.map(item => `
+        function drawDots(clicks, img, wrapper) {
+            clearDots();
+            const W = img.clientWidth, H = img.clientHeight;
+            const grid = {};
+            clicks.forEach(c => {
+                if (!c.coordinates || !c.screenSize) return;
+                const x = Math.round((c.coordinates.x / c.screenSize.width) * W);
+                const y = Math.round((c.coordinates.y / c.screenSize.height) * H);
+                const k = `${Math.round(x / 15) * 15}_${Math.round(y / 15) * 15}`;
+                grid[k] = (grid[k] || 0) + 1;
+            });
+            clicks.forEach(c => {
+                if (!c.coordinates || !c.screenSize) return;
+                const x = (c.coordinates.x / c.screenSize.width) * W;
+                const y = (c.coordinates.y / c.screenSize.height) * H;
+                const k = `${Math.round(x / 15) * 15}_${Math.round(y / 15) * 15}`;
+                const dot = document.createElement('div');
+                dot.className = 'heatmap-dot ' + ((grid[k] || 1) >= 2 ? 'hot' : 'single');
+                dot.style.left = `${x}px`; dot.style.top = `${y}px`;
+                wrapper.appendChild(dot);
+            });
+        }
+        function clearDots() { document.querySelectorAll('.heatmap-dot').forEach(d => d.remove()); }
+
+        // ===== IP 관리 =====
+        async function loadIpPanel() {
+            try {
+                const [ipRes, myRes] = await Promise.all([
+                    fetch(`${API}/api/ip-exclude`),
+                    fetch(`${API}/api/my-ip`)
+                ]);
+                const ipj = await ipRes.json();
+                const myj = await myRes.json();
+                myIp = myj.ip || '';
+                document.getElementById('my-ip-display').textContent = myIp || '알 수 없음';
+                renderIpTable(ipj.data || []);
+            } catch { document.getElementById('ip-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#ef4444">오류</td></tr>'; }
+        }
+
+        function renderIpTable(list) {
+            const tb = document.getElementById('ip-tbody');
+            if (!list.length) { tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px">등록된 IP가 없습니다.</td></tr>'; return; }
+            tb.innerHTML = list.map(item => `
             <tr>
                 <td>${item.ip}</td>
                 <td style="color:#64748b">${item.label || '-'}</td>
                 <td style="color:#94a3b8;font-size:12px">${item.createdAt ? new Date(item.createdAt).toLocaleDateString('ko-KR') : '-'}</td>
                 <td><button class="btn-del" onclick="delIp('${encodeURIComponent(item.ip)}')">삭제</button></td>
             </tr>`).join('');
-    }
+        }
 
-    async function addIp() {
-        const ip = document.getElementById('ip-input').value.trim();
-        const label = document.getElementById('label-input').value.trim();
-        if (!ip) { alert('IP 주소를 입력하세요.'); return; }
-        const r = await fetch(`${API}/api/ip-exclude`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ip, label}) });
-        const j = await r.json();
-        alert(j.success ? '✅ 등록 완료' : (j.message || '오류'));
-        if (j.success) { document.getElementById('ip-input').value = ''; document.getElementById('label-input').value = ''; loadIpPanel(); }
-    }
+        async function addIp() {
+            const ip = document.getElementById('ip-input').value.trim();
+            const label = document.getElementById('label-input').value.trim();
+            if (!ip) { alert('IP 주소를 입력하세요.'); return; }
+            const r = await fetch(`${API}/api/ip-exclude`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip, label }) });
+            const j = await r.json();
+            alert(j.success ? '✅ 등록 완료' : (j.message || '오류'));
+            if (j.success) { document.getElementById('ip-input').value = ''; document.getElementById('label-input').value = ''; loadIpPanel(); }
+        }
 
-    async function addMyIp() {
-        if (!myIp) { alert('IP를 확인할 수 없습니다.'); return; }
-        document.getElementById('ip-input').value = myIp;
-        document.getElementById('label-input').value = '내 IP (자동 입력)';
-        addIp();
-    }
+        async function addMyIp() {
+            if (!myIp) { alert('IP를 확인할 수 없습니다.'); return; }
+            document.getElementById('ip-input').value = myIp;
+            document.getElementById('label-input').value = '내 IP (자동 입력)';
+            addIp();
+        }
 
-    async function delIp(enc) {
-        if (!confirm('이 IP를 제외 목록에서 삭제하시겠습니까?')) return;
-        const ip = decodeURIComponent(enc);
-        await fetch(`${API}/api/ip-exclude/${enc}`, { method: 'DELETE' });
-        loadIpPanel();
-    }
+        async function delIp(enc) {
+            if (!confirm('이 IP를 제외 목록에서 삭제하시겠습니까?')) return;
+            const ip = decodeURIComponent(enc);
+            await fetch(`${API}/api/ip-exclude/${enc}`, { method: 'DELETE' });
+            loadIpPanel();
+        }
 
-    window.addEventListener('DOMContentLoaded', fetchSummary);
-</script>
+        window.addEventListener('DOMContentLoaded', fetchSummary);
+    </script>
 </body>
+
 </html>
