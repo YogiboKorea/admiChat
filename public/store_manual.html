@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yogibo 매장 관리자 매뉴얼</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --yogibo-red: #E42528;
+            --yogibo-red-hover: #CC1F22;
+            --yogibo-red-light: #FFF0F0;
+            --yogibo-dark: #1A1A1A;
+            --yogibo-gray: #6B7280;
+            --yogibo-gray-light: #9CA3AF;
+            --yogibo-light: #F7F7F8;
+            --yogibo-border: #E5E7EB;
+            --yogibo-white: #FFFFFF;
+            --blue: #3B82F6;
+            --blue-light: #EFF6FF;
+            --green: #10B981;
+            --green-light: #ECFDF5;
+            --orange: #F59E0B;
+            --orange-light: #FFFBEB;
+            --purple: #8B5CF6;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+            --radius: 14px;
+            --radius-sm: 10px;
+            --radius-xs: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--yogibo-light);
+            color: var(--yogibo-dark);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ── Top Navigation ── */
+        .top-nav {
+            background: var(--yogibo-white);
+            border-bottom: 1px solid var(--yogibo-border);
+            padding: 0 32px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 18px;
+            color: var(--yogibo-dark);
+        }
+
+        .nav-brand span {
+            color: var(--yogibo-red);
+        }
+
+        .page-wrap {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            color: var(--yogibo-dark);
+        }
+
+        .page-subtitle {
+            font-size: 16px;
+            color: var(--yogibo-gray);
+            font-weight: 400;
+        }
+
+        /* ── Manual Section ── */
+        .manual-card {
+            background: var(--yogibo-white);
+            border: 1px solid var(--yogibo-border);
+            border-radius: var(--radius);
+            margin-bottom: 32px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .manual-header {
+            background: var(--yogibo-light);
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--yogibo-border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .manual-step {
+            background: var(--yogibo-red);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .manual-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--yogibo-dark);
+        }
+
+        .manual-content {
+            padding: 24px;
+        }
+
+        /* ── Mockup UI (Matches store_admin.html) ── */
+        .mockup-box {
+            background: #F8FAFC;
+            border: 1px dashed #CBD5E1;
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .form-group:last-child { margin-bottom: 0; }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--yogibo-dark);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .form-label .req { color: var(--yogibo-red); font-size: 11px; }
+
+        .form-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid var(--yogibo-border);
+            border-radius: var(--radius-xs);
+            font-size: 14px;
+            background: var(--yogibo-white);
+            color: var(--yogibo-dark);
+            pointer-events: none; /* Make mockups unclickable */
+        }
+
+        .address-row {
+            display: flex;
+            gap: 8px;
+        }
+        .address-row .form-input { flex: 1; }
+        .btn-search {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: var(--orange-light);
+            color: #D97706;
+            border: 1.5px solid #FDE68A;
+            border-radius: var(--radius-xs);
+            font-size: 14px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 4px;
+            background: var(--yogibo-light);
+            border-radius: var(--radius-xs);
+            padding: 3px;
+        }
+        .radio-option { flex: 1; text-align: center; }
+        .radio-option label {
+            display: block;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--yogibo-gray);
+            border-radius: 6px;
+        }
+        .radio-option.active label {
+            background: var(--yogibo-white);
+            color: var(--yogibo-dark);
+            font-weight: 600;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .date-range {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .checkbox-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .checkbox-pill label {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 9px 16px; border-radius: 100px;
+            border: 1.5px solid var(--yogibo-border);
+            font-size: 13px; font-weight: 500; background: var(--yogibo-white);
+        }
+        .checkbox-pill.active.popup-pill label { border-color: #FDBA74; background: #FFF7ED; color: #C2410C; }
+        .checkbox-pill.active.pickup-pill label { border-color: #86EFAC; background: #F0FDF4; color: #166534; }
+
+        .upload-area {
+            border: 2px dashed var(--yogibo-border);
+            border-radius: var(--radius-sm);
+            padding: 28px; text-align: center; background: var(--yogibo-light);
+        }
+        .upload-area p { font-size: 13px; color: var(--yogibo-gray); }
+        .upload-area .upload-hint { font-size: 12px; color: var(--yogibo-gray-light); margin-top: 4px; }
+
+        /* ── Explanations ── */
+        .desc-box {
+            background: #F0FDF4;
+            border-left: 4px solid #22C55E;
+            padding: 16px;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin-bottom: 12px;
+        }
+
+        .desc-box p {
+            margin-bottom: 8px;
+            font-size: 14.5px;
+            color: #166534;
+        }
+        .desc-box p:last-child { margin-bottom: 0; }
+        .desc-box strong { color: #15803D; font-weight: 700; }
+
+        .note {
+            font-size: 13px;
+            color: var(--yogibo-gray);
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .note svg { width:16px; height:16px; fill:var(--orange); flex-shrink:0; margin-top:2px; }
+
+        /* Table Mockup */
+        .table-mockup {
+            width: 100%; border-collapse: collapse; margin-top:10px;
+        }
+        .table-mockup th, .table-mockup td {
+            border: 1px solid var(--yogibo-border);
+            padding: 12px; text-align: center; font-size: 13px;
+            background: var(--yogibo-white);
+        }
+        .table-mockup th { background: var(--yogibo-light); font-weight: 600; }
+        
+        .btn-move {
+            background: var(--yogibo-light);
+            border: 1px solid var(--yogibo-border);
+            padding: 4px 8px; font-size: 10px; border-radius: 4px;
+            cursor: default; display: inline-block; margin: 0 2px;
+        }
+
+        .btn-link {
+            display: inline-block;
+            margin-top: 24px;
+            background: var(--yogibo-dark);
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            text-align: center;
+        }
+        .btn-link:hover { background: #000; }
+
+    </style>
+</head>
+
+<body>
+
+    <nav class="top-nav">
+        <div class="nav-brand">Yogibo <span>매장 안내도</span> 관리자 매뉴얼</div>
+    </nav>
+
+    <div class="page-wrap">
+        <div class="page-header">
+            <h1 class="page-title">매장 등록 가이드</h1>
+            <p class="page-subtitle">신규 매장을 등록하거나 기존 매장 정보를 수정할 때 참고해 주세요.</p>
+            <a href="store_admin.html" class="btn-link" target="_blank">관리자 페이지 바로가기 &rarr;</a>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">1</div>
+                <div class="manual-title">기본 정보 (매장명 및 주소)</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <div class="form-group">
+                        <span class="form-label">매장명 <span class="req">*</span></span>
+                        <input class="form-input" type="text" value="스타필드 고양점">
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">매장 주소 <span class="req">*</span></span>
+                        <div class="address-row">
+                            <input class="form-input" type="text" value="경기 고양시 덕양구 고양대로 1955 3층">
+                            <button class="btn-search">🔍 우편번호 검색</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="desc-box">
+                    <p><strong>[매장명]</strong> 지점 이름을 정확하게 기입합니다. (예: 스타필드 고양점, 롯데몰 김포공항점)</p>
+                    <p><strong>[매장 주소]</strong> 우측의 <strong>'우편번호 검색'</strong> 버튼을 클릭하여 카카오 주소찾기 팝업을 통해 정확한 주소를 입력할 수 있습니다. 입력된 주소를 바탕으로 소비자 화면에서 지도 위치(마커)가 자동으로 생성됩니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">2</div>
+                <div class="manual-title">운영 기간 설정 (상시 / 팝업)</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <div class="form-group">
+                        <span class="form-label">매장 운영/행사 기간 <span class="req">*</span></span>
+                        <div class="radio-group">
+                            <div class="radio-option "><label>상시 운영 매장</label></div>
+                            <div class="radio-option active"><label>팝업스토어 특별 행사 기간</label></div>
+                        </div>
+                        <div class="date-range">
+                            <input class="form-input" type="date" value="2026-02-26" style="width: auto;">
+                            <span>~</span>
+                            <input class="form-input" type="date" value="2026-07-31" style="width: auto;">
+                        </div>
+                    </div>
+                </div>
+                <div class="desc-box">
+                    <p><strong>[상시 운영 매장]</strong> 운영 기한이 없는 정규 매장일 경우 선택합니다. (날짜 선택칸이 사라집니다)</p>
+                    <p><strong>[팝업스토어 특별 행사 기간]</strong> 팝업스토어나 특정 기간에만 운영될 경우 선택합니다. 시작일과 종료일을 지정하면, 소비자 화면에 <strong>'달력 아이콘'</strong>과 함께 행사 기간이 강조되어 노출됩니다.</p>
+                </div>
+                <div class="note">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    종료일 노출 기준 안내: 기간을 설정하시면 지정하신 '종료일 자정 (23시 59분 59초)'까지 프론트 화면에 매장 정보가 남아있도록 시스템이 자동으로 시간 단위를 연장하여 관리합니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">3</div>
+                <div class="manual-title">길찾기 안내 동영상 (선택)</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <div class="form-group">
+                        <span class="form-label">길찾기 안내 동영상 URL (선택 항목)</span>
+                        <input class="form-input" type="url" value="https://www.youtube.com/watch?v=xxxxx">
+                    </div>
+                </div>
+                <div class="desc-box">
+                    <p>동영상 URL 칸에 <strong>유튜브 영상 주소</strong>를 입력해두면, 앱/웹 사용자 화면 전화번호 우측에 <strong>[▶ 영상으로 길찾기 확인]</strong> 이라는 붉은색 버튼이 자동 생성됩니다.</p>
+                    <p>고객이 해당 버튼을 누르면 인비저블 팝업(모달)이 열려 즉각적으로 매장 위치 영상을 감상할 수 있습니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">4</div>
+                <div class="manual-title">매장 특성 배지 선택</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <div class="form-group">
+                        <span class="form-label">매장 특성</span>
+                        <div class="checkbox-group">
+                            <div class="checkbox-pill active popup-pill"><label>팝업</label></div>
+                            <div class="checkbox-pill active pickup-pill"><label>픽업</label></div>
+                            <div class="checkbox-pill"><label>모듀</label></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="desc-box">
+                    <p>매장의 성격에 맞춰 체크박스를 클릭해주세요. 복수 선택이 가능하며, 선택된 항목에 따라 매장명 바로 우측에 컬러 배지가 예쁘게 부착됩니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">5</div>
+                <div class="manual-title">아코디언 매장 이미지 등록</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <div class="form-group">
+                        <span class="form-label">매장 사진 <span class="req">*</span></span>
+                        <div class="upload-area">
+                            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
+                            <p>클릭하여 이미지를 선택하거나 드래그 앤 드롭하세요</p>
+                            <div style="margin-top: 14px; margin-bottom: 6px;">
+                                <strong style="font-size: 26px; font-weight: 800; color: var(--yogibo-red); letter-spacing: -0.5px;">권장 사이즈 800 x 500 px</strong>
+                            </div>
+                            <p class="upload-hint" style="font-size: 14px;">(1.6:1 가로형 비율 최적화 / 최대 10MB)</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="desc-box">
+                    <p>사용자 화면에서 매장명을 클릭하여 카드를 펼쳤을 때(아코디언 형식) 제일 상단에 보여질 이미지를 등록합니다.</p>
+                    <p><strong>권장 해상도(비율):</strong> 가로 800px 최적화 / 1.6:1 가로형 이미지</p>
+                    <p>업로드 영역을 클릭하거나 직접 이미지를 끌어다 놓고 하단의 <strong>'저장하기'</strong> 버튼을 클릭 시 카페24 서버로 연동/등록처리 됩니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 6 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">6</div>
+                <div class="manual-title">게시판 위치 (순서) 조정 방법</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <table class="table-mockup">
+                        <thead>
+                            <tr>
+                                <th>매장명</th>
+                                <th>분류</th>
+                                <th>순서</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>스타필드 고양점</td>
+                                <td>상시</td>
+                                <td><span class="btn-move">▲</span> <span class="btn-move">▼</span></td>
+                            </tr>
+                            <tr>
+                                <td>롯데몰 김포공항점</td>
+                                <td>팝업</td>
+                                <td><span class="btn-move">▲</span> <span class="btn-move">▼</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="desc-box">
+                    <p>신규로 추가한 매장은 자동으로 <strong>가장 마지막</strong>에 등록됩니다.</p>
+                    <p>좌측의 <strong>매장 목록 테이블</strong>에서 각 항목별 <strong>[▲] [▼] (위/아래) 방향 화살표</strong> 버튼을 통해 원하시는 순서로 즉시 순위를 뒤바꿀 수 있습니다. 순서를 바꾸면 화면에 즉시 저장 반영됩니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 7 -->
+        <div class="manual-card">
+            <div class="manual-header">
+                <div class="manual-step">7</div>
+                <div class="manual-title">기존 매장 정보 수정 및 삭제</div>
+            </div>
+            <div class="manual-content">
+                <div class="mockup-box">
+                    <table class="table-mockup">
+                        <thead>
+                            <tr>
+                                <th>매장명</th>
+                                <th>분류</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>스타필드 고양점</td>
+                                <td>상시</td>
+                                <td>
+                                    <span class="btn-edit" style="display:inline-block; margin-right:4px;">수정</span>
+                                    <span class="btn-delete" style="display:inline-block;">삭제</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="desc-box">
+                    <p><strong>[정보 수정하기]</strong> 등록되어 있는 기존 매장의 정보를 변경해야 한다면, 리스트 우측의 파란색 <strong>'수정'</strong> 버튼을 클릭합니다. 상단 입력란에 기존 정보가 자동으로 모두 불러와지며, 내용을 수정한 뒤 하단의 등록(업데이트) 버튼을 누르면 즉시 덮어쓰기 됩니다.</p>
+                    <p><strong>[매장 삭제하기]</strong> 매장 운영이 종료되었거나 완전히 지워야 할 경우 빨간색 <strong>'삭제'</strong> 버튼을 누릅니다. 삭제 처리된 데이터는 복구할 수 없으므로 주의 바랍니다.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+
+</html>

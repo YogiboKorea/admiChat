@@ -4734,6 +4734,44 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
   }
 }
 
+async function deleteFromCafe24FTP(remoteFilePath) {
+  if (!remoteFilePath || !remoteFilePath.includes('/web/off/')) return;
+  // 기본 썸네일은 삭제 생략
+  if (remoteFilePath.includes('yogibo_logo.jpg')) return;
+
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+
+  const host = process.env.FTP_HOST || 'yogibo.ftp.cafe24.com';
+  const port = process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21;
+  const user = process.env.FTP_USER;
+  const password = process.env.FTP_PASS;
+
+  if (!password) {
+    console.warn('FTP_PASS 환경변수가 없습니다. FTP 삭제 생략.');
+    return;
+  }
+
+  try {
+    await client.access({
+      host: host,
+      port: port,
+      user: user,
+      password: password,
+      secure: 'explicit'
+    });
+
+    const urlObj = new URL(remoteFilePath);
+    const remotePath = urlObj.pathname;
+    await client.remove(remotePath);
+    console.log('✅ FTP 파일 삭제 완료:', remotePath);
+  } catch (err) {
+    console.error('FTP 파일 삭제 중 오류 발생:', err);
+  } finally {
+    client.close();
+  }
+}
+
 const storeUploadDir = path.join(__dirname, 'public', 'uploads', 'stores');
 if (!fs.existsSync(storeUploadDir)) {
   fs.mkdirSync(storeUploadDir, { recursive: true });
@@ -4777,6 +4815,9 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
         console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
         imagePath = `/uploads/stores/${req.file.filename}`;
       }
+    } else {
+      // 업로드된 이미지가 없을 경우 기본 썸네일 사용
+      imagePath = 'https://yogibo.kr/web/off/yogibo_logo.jpg';
     }
 
     const newStore = {
@@ -4876,6 +4917,9 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
       if (existingImage && existingImage.startsWith('/uploads/')) {
         const oldFilePath = path.join(__dirname, 'public', existingImage);
         if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+      } else if (existingImage && existingImage.startsWith('https://yogibo.kr/web/off/')) {
+        // 기존 이미지가 FTP에 있을 경우 삭제 로직
+        await deleteFromCafe24FTP(existingImage);
       }
     }
 
@@ -4911,9 +4955,13 @@ app.delete('/api/store/:id', async (req, res) => {
     const storeId = req.params.id;
     const store = await db.collection('store').findOne({ _id: new ObjectId(storeId) });
     if (store && store.imagePath) {
-      const filePath = path.join(__dirname, 'public', store.imagePath);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (store.imagePath.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, 'public', store.imagePath);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } else if (store.imagePath.startsWith('https://yogibo.kr/web/off/')) {
+        await deleteFromCafe24FTP(store.imagePath);
       }
     }
 

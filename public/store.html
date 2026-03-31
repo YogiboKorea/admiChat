@@ -470,15 +470,7 @@
 
 <body>
 
-    <!-- Point Bar with Yogibo Logo -->
-    <div class="point-bar">
-        <div class="point-bar-logo">
-            <svg viewBox="0 0 360 80" xmlns="http://www.w3.org/2000/svg">
-                <text x="180" y="58" text-anchor="middle" fill="#fff" font-family="Outfit, sans-serif" font-weight="900"
-                    font-size="62" letter-spacing="-2">Yogibo</text>
-            </svg>
-        </div>
-    </div>
+
 
     <!-- Sticky Nav -->
     <nav class="nav-bar">
@@ -487,10 +479,7 @@
             <div class="nav-filters">
                 <button class="nav-filter-btn active" data-filter="all" onclick="setFilter('all', this)">전체</button>
                 <button class="nav-filter-btn" data-filter="popup" onclick="setFilter('popup', this)">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z" />
-                    </svg>
+                    <img src="https://yogibo.kr/web/img/map/icon/icon_store_map_2icon4_on.png" alt="팝업" style="width:20px; height:20px; object-fit:contain;">
                     팝업스토어
                 </button>
                 <button class="nav-filter-btn" data-filter="pickup" onclick="setFilter('pickup', this)">
@@ -535,6 +524,16 @@
         <div id="emptyState" class="empty-state" style="display:none;">
             현재 조건에 맞는 매장이 없습니다.
         </div>
+    </div>
+
+    <!-- Video Modal -->
+    <div id="videoModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9999; background:rgba(0,0,0,0.85); flex-direction:column; align-items:center; justify-content:center; padding:20px;">
+        <div style="width:100%; max-width:800px; text-align:right; margin-bottom:12px;">
+            <button onclick="closeVideoModal()" style="background:rgba(255,255,255,0.1); border:none; color:#fff; cursor:pointer; width:40px; height:40px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+        <div id="videoModalContent" style="width:100%; max-width:800px; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden;"></div>
     </div>
 
     <script>
@@ -602,7 +601,57 @@
             document.getElementById('emptyState').style.display = 'block';
         }
 
+        function getKoreanDay(date) {
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            return days[date.getDay()];
+        }
 
+        function formatEventDate(startStr, endStr) {
+            if (!startStr || !endStr) return '';
+            const s = new Date(startStr);
+            const e = new Date(endStr);
+            
+            const sYear = s.getFullYear();
+            const sMonth = String(s.getMonth() + 1).padStart(2, '0');
+            const sDate = String(s.getDate()).padStart(2, '0');
+            const sDay = getKoreanDay(s);
+            
+            const eYear = e.getFullYear();
+            const eMonth = String(e.getMonth() + 1).padStart(2, '0');
+            const eDate = String(e.getDate()).padStart(2, '0');
+            const eDay = getKoreanDay(e);
+            
+            if (sYear === eYear) {
+                return `${sYear}년 ${sMonth}월 ${sDate}일(${sDay}) ~ ${eMonth}월 ${eDate}일(${eDay})`;
+            } else {
+                return `${sYear}년 ${sMonth}월 ${sDate}일(${sDay}) ~ ${eYear}년 ${eMonth}월 ${eDate}일(${eDay})`;
+            }
+        }
+
+        function getYoutubeEmbedUrl(url) {
+            if (!url) return '';
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            if (match && match[2].length === 11) {
+                return `https://www.youtube.com/embed/${match[2]}`;
+            }
+            return url; // fallback if not recognized
+        }
+
+        window.openVideoModal = function(e, embedUrl) {
+            e.stopPropagation();
+            const modal = document.getElementById('videoModal');
+            const content = document.getElementById('videoModalContent');
+            content.innerHTML = `<iframe width="100%" height="100%" src="${embedUrl}?autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            modal.style.display = 'flex';
+        };
+
+        window.closeVideoModal = function() {
+            const modal = document.getElementById('videoModal');
+            const content = document.getElementById('videoModalContent');
+            modal.style.display = 'none';
+            content.innerHTML = '';
+        };
 
         function renderStores(stores) {
             const list = document.getElementById('storeList');
@@ -615,9 +664,36 @@
                 const mapId = 'map-' + i;
 
                 let badgesHTML = '';
-                if (store.isPopup) badgesHTML += `<span class="s-badge s-badge-popup"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>팝업</span>`;
+                if (store.isPopup) badgesHTML += `<span class="s-badge s-badge-popup" style="display:inline-flex;align-items:center;gap:3px;"><img src="https://yogibo.kr/web/img/map/icon/icon_store_map_2icon4_on.png" style="width:14px; height:14px; object-fit:contain;" alt="">팝업</span>`;
                 if (store.isPickup) badgesHTML += `<span class="s-badge s-badge-pickup"><svg viewBox="0 0 24 24"><path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 14H6V8h2v2c0 .55.45 1 1 1s1-.45 1-1V8h4v2c0 .55.45 1 1 1s1-.45 1-1V8h2v10z"/></svg>픽업</span>`;
                 if (store.isModju) badgesHTML += `<span class="s-badge s-badge-modju"><svg viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>모듀</span>`;
+
+                let eventPeriodHTML = '';
+                if (!store.isAlways && store.isPopup && store.startDate && store.endDate) {
+                    eventPeriodHTML = `
+                    <div class="store-period" style="margin-top:8px; font-size:14px; color:var(--yogibo-dark); display:flex; align-items:flex-start; gap:6px;">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--yogibo-gray)" style="margin-top:2px; flex-shrink:0;"><path d="M19 4h-1V2h-2v2H8V2H6v2H5C3.89 4 3 4.9 3 6v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+                        <span>${formatEventDate(store.startDate, store.endDate)}</span>
+                    </div>`;
+                }
+
+                let videoHTML = '';
+                if (store.youtubeUrl) {
+                    const embedUrl = getYoutubeEmbedUrl(store.youtubeUrl);
+                    if (embedUrl.includes('youtube.com/embed/')) {
+                        videoHTML = `
+                        <button onclick="openVideoModal(event, '${embedUrl}')" style="display:inline-flex; align-items:center; gap:4px; background:#fff; color:#E52528; border:1px solid #E52528; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; cursor:pointer;" title="영상으로 길찾기 확인">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09s-.03 1.29-.1 2.09c-.06.8-.15 1.43-.28 1.9-.32 1.15-1.04 1.88-2.18 2.2-1.01.27-2.9.41-5.69.41s-4.68-.14-5.69-.41c-1.14-.32-1.85-1.05-2.18-2.2-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09s.03-1.29.1-2.09c.06-.8.15-1.43.28-1.9.32-1.15 1.04-1.88 2.18-2.2 1.01-.27 2.9-.41 5.69-.41s4.68.14 5.69.41c1.14.32 1.85 1.05 2.18 2.2z"/></svg>
+                            영상으로 길찾기 확인
+                        </button>`;
+                    } else {
+                        videoHTML = `
+                        <a href="${store.youtubeUrl}" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:4px; background:#fff; color:#E52528; border:1px solid #E52528; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none;" title="영상으로 길찾기 확인">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09s-.03 1.29-.1 2.09c-.06.8-.15 1.43-.28 1.9-.32 1.15-1.04 1.88-2.18 2.2-1.01.27-2.9.41-5.69.41s-4.68-.14-5.69-.41c-1.14-.32-1.85-1.05-2.18-2.2-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09s.03-1.29.1-2.09c.06-.8.15-1.43.28-1.9.32-1.15 1.04-1.88 2.18-2.2 1.01-.27 2.9-.41 5.69-.41s4.68.14 5.69.41c1.14.32 1.85 1.05 2.18 2.2z"/></svg>
+                            영상으로 길찾기 확인
+                        </a>`;
+                    }
+                }
 
                 const entry = document.createElement('div');
                 entry.className = 'store-entry';
@@ -633,7 +709,14 @@
                         </div>
                         <div class="store-address">${store.address}</div>
                     </div>
-                    <div class="store-sub-info">${store.phone || ''}</div>
+                    <div class="store-sub-info" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px;">
+                        ${store.phone ? `<span style="display:flex; align-items:center;">
+                            <img src="https://yogibo.kr/web/img/icon/map//icon-store-1-tel.svg" style="width:14px; height:14px; margin-right:4px;" alt="tel">
+                            ${store.phone}
+                        </span>` : ''}
+                        ${videoHTML}
+                    </div>
+                    ${eventPeriodHTML}
                     <svg class="toggle-icon" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
                 </div>
 
