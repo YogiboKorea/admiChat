@@ -4701,8 +4701,9 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
   const client = new ftp.Client();
   client.ftp.verbose = false;
 
-  const host = process.env.FTP_HOST || `${CAFE24_MALLID}.cafe24.com`;
-  const user = process.env.FTP_USER || CAFE24_MALLID;
+  const host = process.env.FTP_HOST || 'yogibo.ftp.cafe24.com';
+  const port = process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21;
+  const user = process.env.FTP_USER;
   const password = process.env.FTP_PASS;
 
   if (!password) {
@@ -4712,17 +4713,20 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
   try {
     await client.access({
       host: host,
+      port: port,
       user: user,
       password: password,
-      secure: false
+      secure: 'explicit'
     });
 
-    // Cafe24 권한 이슈 방지를 위해 폴더 변경(cd)만 수행
-    await client.cd(remoteDir);
-    await client.uploadFrom(localFilePath, remoteFileName);
+    // 절대 경로를 사용하여 직접 업로드 수행
+    const remotePath = `${remoteDir.replace(/\/$/, '')}/${remoteFileName}`;
+    await client.uploadFrom(localFilePath, remotePath);
 
     return `https://${host}${remoteDir}/${remoteFileName}`;
   } catch (err) {
+    fs.writeFileSync(path.join(__dirname, 'ftp_error.log'), new Date().toISOString() + ' : ' + err.stack + '\n', { flag: 'a' });
+    console.error('FTP 업로드 중 오류 발생:', err);
     console.error('FTP 업로드 중 오류 발생:', err);
     throw err;
   } finally {
