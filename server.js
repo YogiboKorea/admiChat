@@ -4717,7 +4717,8 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
       secure: false
     });
 
-    await client.ensureDir(remoteDir);
+    // Cafe24 권한 이슈 방지를 위해 폴더 변경(cd)만 수행
+    await client.cd(remoteDir);
     await client.uploadFrom(localFilePath, remoteFileName);
 
     return `https://${host}${remoteDir}/${remoteFileName}`;
@@ -4763,13 +4764,14 @@ app.post('/api/store', storeUpload.single('image'), async (req, res) => {
 
     if (req.file) {
       try {
-        const remoteFileName = `store-${Date.now()}-${req.file.originalname}`;
+        // 원본 파일명 대신 multer가 생성한 안전한 파일명을 사용하여 한글/공백 오류 방지
+        const remoteFileName = req.file.filename;
         imagePath = await uploadToCafe24FTP(req.file.path, remoteFileName, '/web/off');
         // FTP 업로드 성공 시 로컬 임시 파일 삭제
         fs.unlinkSync(req.file.path);
       } catch (ftpErr) {
         console.warn('FTP 업로드 실패, 로컬 경로를 사용합니다.', ftpErr);
-        imagePath = `/web/off/${req.file.filename}`;
+        imagePath = `/uploads/stores/${req.file.filename}`;
       }
     }
 
@@ -4831,7 +4833,7 @@ app.put('/api/store/:id', storeUpload.single('image'), async (req, res) => {
     let imagePath = existingImage || '';
     if (req.file) {
       try {
-        const remoteFileName = `store-${Date.now()}-${req.file.originalname}`;
+        const remoteFileName = req.file.filename;
         imagePath = await uploadToCafe24FTP(req.file.path, remoteFileName, '/web/off');
         fs.unlinkSync(req.file.path);
       } catch (ftpErr) {

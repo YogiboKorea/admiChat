@@ -178,7 +178,11 @@
         document.getElementById('imagePreview').style.display = 'none';
         document.getElementById('imagePreview').src = '';
         document.getElementById('dateRangeContainer').style.display = 'none';
-        document.getElementById('submitBtn').innerText = '매장 등록';
+        
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.innerText = '매장 등록';
+        submitBtn.disabled = false;
+        
         document.getElementById('formTitle').innerText = '새 매장 등록';
         document.getElementById('isPopup').checked = false;
         document.getElementById('isPickup').checked = false;
@@ -233,6 +237,11 @@
     document.getElementById('storeForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        const originalBtnText = submitBtn.innerText;
+        submitBtn.innerText = '처리 중...';
+        
         const storeId = document.getElementById('storeId').value;
         const name = document.getElementById('name').value;
         const address = document.getElementById('address').value;
@@ -279,10 +288,14 @@
                 fetchStores();
             } else {
                 alert('요청 중 오류 발생: ' + data.error);
+                submitBtn.disabled = false;
+                submitBtn.innerText = originalBtnText;
             }
         } catch (err) {
             console.error(err);
             alert('요청 실패');
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalBtnText;
         }
     });
 
