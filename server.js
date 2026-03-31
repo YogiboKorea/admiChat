@@ -4723,7 +4723,7 @@ async function uploadToCafe24FTP(localFilePath, remoteFileName, remoteDir = '/we
     const remotePath = `${remoteDir.replace(/\/$/, '')}/${remoteFileName}`;
     await client.uploadFrom(localFilePath, remotePath);
 
-    return `https://${host}${remoteDir}/${remoteFileName}`;
+    return `https://yogibo.kr${remoteDir}/${remoteFileName}`;
   } catch (err) {
     fs.writeFileSync(path.join(__dirname, 'ftp_error.log'), new Date().toISOString() + ' : ' + err.stack + '\n', { flag: 'a' });
     console.error('FTP 업로드 중 오류 발생:', err);
