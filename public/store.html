@@ -647,11 +647,46 @@
             applyFilters();
         }
 
+        function getRegionCategory(address) {
+            if(!address) return '기타';
+            const firstWord = address.trim().split(' ')[0] || '';
+            if (firstWord.includes('서울') || firstWord.includes('경기') || firstWord.includes('인천')) return '서울/경기';
+            if (firstWord.includes('충청') || firstWord.includes('충남') || firstWord.includes('충북') || firstWord.includes('대전') || firstWord.includes('세종')) return '충청/전라';
+            if (firstWord.includes('전라') || firstWord.includes('전남') || firstWord.includes('전북') || firstWord.includes('광주')) return '충청/전라';
+            if (firstWord.includes('경상') || firstWord.includes('경남') || firstWord.includes('경북') || firstWord.includes('대구') || firstWord.includes('부산') || firstWord.includes('울산')) return '경상';
+            if (firstWord.includes('강원')) return '강원';
+            if (firstWord.includes('제주')) return '제주';
+            return '기타';
+        }
+
+        function getShortRegionLabel(address) {
+            if(!address) return '';
+            const firstWord = address.trim().split(' ')[0] || '';
+            if (firstWord.includes('서울')) return '서울';
+            if (firstWord.includes('경기')) return '경기';
+            if (firstWord.includes('인천')) return '인천';
+            if (firstWord.includes('강원')) return '강원';
+            if (firstWord.includes('제주')) return '제주';
+            if (firstWord.includes('세종')) return '세종';
+            if (firstWord.includes('대전')) return '대전';
+            if (firstWord.includes('대구')) return '대구';
+            if (firstWord.includes('부산')) return '부산';
+            if (firstWord.includes('울산')) return '울산';
+            if (firstWord.includes('광주')) return '광주';
+            if (firstWord.includes('충북') || firstWord.includes('충청북도')) return '충북';
+            if (firstWord.includes('충남') || firstWord.includes('충청남도')) return '충남';
+            if (firstWord.includes('전북') || firstWord.includes('전라북도')) return '전북';
+            if (firstWord.includes('전남') || firstWord.includes('전라남도')) return '전남';
+            if (firstWord.includes('경북') || firstWord.includes('경상북도')) return '경북';
+            if (firstWord.includes('경남') || firstWord.includes('경상남도')) return '경남';
+            return firstWord.substring(0, 2);
+        }
+
         function applyFilters() {
             let filtered = allStores;
 
             if (currentRegion !== 'all') {
-                filtered = filtered.filter(s => s.region === currentRegion);
+                filtered = filtered.filter(s => getRegionCategory(s.address) === currentRegion);
             }
 
             if (currentFilter === 'popup') filtered = filtered.filter(s => s.isPopup);
@@ -739,8 +774,11 @@
                 const encodedAddr = encodeURIComponent(store.address);
                 const mapsLink = `https://map.kakao.com/link/search/${encodedAddr}`;
                 const mapId = 'map-' + i;
+                
+                const shortRegion = getShortRegionLabel(store.address);
 
                 let badgesHTML = '';
+                if (shortRegion) badgesHTML += `<span class="s-badge" style="background:#555; color:#fff;">${shortRegion}</span>`;
                 if (store.isNewStore) badgesHTML += `<span class="s-badge s-badge-new">N</span>`;
                 if (store.isPopup) badgesHTML += `<span class="s-badge s-badge-popup" style="display:inline-flex;align-items:center;gap:3px;"><img src="https://yogibo.kr/web/img/map/icon/icon_store_map_2icon4_on.png" style="width:14px; height:14px; object-fit:contain;" alt="">팝업</span>`;
                 if (store.isPickup) badgesHTML += `<span class="s-badge s-badge-pickup"><svg viewBox="0 0 24 24"><path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 14H6V8h2v2c0 .55.45 1 1 1s1-.45 1-1V8h4v2c0 .55.45 1 1 1s1-.45 1-1V8h2v10z"/></svg>픽업</span>`;

@@ -829,18 +829,6 @@
                         </div>
                     </div>
 
-                    <!-- 지역 구분 -->
-                    <div class="form-group full-width">
-                        <span class="form-label">지역 구분 <span class="req">*</span></span>
-                        <select class="form-input" id="region" required>
-                            <option value="">지역을 선택하세요</option>
-                            <option value="서울/경기">서울/경기</option>
-                            <option value="충청/전라">충청/전라</option>
-                            <option value="경상">경상</option>
-                            <option value="강원">강원</option>
-                        </select>
-                    </div>
-
                     <!-- 기간 설정 -->
                     <div class="form-group full-width">
                         <span class="form-label">매장 운영/행사 기간 <span class="req">*</span></span>
@@ -980,7 +968,6 @@
                             <th style="width:50px; text-align:center;">순서</th>
                             <th style="width:80px;">이미지</th>
                             <th>매장명</th>
-                            <th>지역</th>
                             <th>주소</th>
                             <th>특성</th>
                             <th>기간</th>
@@ -1079,7 +1066,6 @@
             새 매장 등록
         `;
             document.getElementById('blogUrl').value = '';
-            document.getElementById('region').value = '';
             document.getElementById('isNewStore').checked = false;
             document.getElementById('isPopup').checked = false;
             document.getElementById('isPickup').checked = false;
@@ -1155,7 +1141,6 @@
                     <div class="table-name">${store.name}</div>
                     ${store.phone ? `<div class="table-phone">☎ ${store.phone}</div>` : ''}
                 </td>
-                <td><div class="table-addr">${store.region || '-'}</div></td>
                 <td><div class="table-addr" title="${store.address}">${store.address}</div></td>
                 <td><div class="table-badges">${badges || '<span style="color:var(--yogibo-gray-light); font-size:12px;">—</span>'}</div></td>
                 <td>${periodHTML}</td>
@@ -1241,7 +1226,6 @@
             const storeId = document.getElementById('storeId').value;
             const formData = new FormData();
             formData.append('name', document.getElementById('name').value);
-            formData.append('region', document.getElementById('region').value);
             formData.append('address', document.getElementById('address').value);
             formData.append('phone', document.getElementById('phone').value);
             formData.append('isAlways', document.querySelector('input[name="periodType"]:checked').value === 'always');
@@ -1306,7 +1290,6 @@
 
             document.getElementById('storeId').value = store._id;
             document.getElementById('name').value = store.name;
-            document.getElementById('region').value = store.region || '';
             document.getElementById('address').value = store.address;
             document.getElementById('phone').value = store.phone || '';
             document.getElementById('youtubeUrl').value = store.youtubeUrl || '';
