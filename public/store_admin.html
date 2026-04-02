@@ -438,6 +438,20 @@
             fill: var(--yogibo-gray-light);
         }
 
+        .checkbox-pill.new-pill input:checked+label {
+            border-color: #12BDD4;
+            background: #12BDD4;
+            color: #fff;
+        }
+
+        .checkbox-pill.new-pill input:checked+label svg {
+            fill: #fff;
+        }
+
+        .checkbox-pill.new-pill label svg {
+            fill: var(--yogibo-gray-light);
+        }
+
         /* ── Image Upload ── */
         .upload-area {
             border: 2px dashed var(--yogibo-border);
@@ -665,6 +679,16 @@
             fill: #7C3AED;
         }
 
+        .t-badge-new {
+            background: #12BDD4;
+            color: #fff;
+            padding: 3px 6px;
+        }
+
+        .t-badge-new svg {
+            fill: #fff;
+        }
+
         .period-tag {
             display: inline-block;
             padding: 4px 10px;
@@ -805,6 +829,18 @@
                         </div>
                     </div>
 
+                    <!-- 지역 구분 -->
+                    <div class="form-group full-width">
+                        <span class="form-label">지역 구분 <span class="req">*</span></span>
+                        <select class="form-input" id="region" required>
+                            <option value="">지역을 선택하세요</option>
+                            <option value="서울/경기">서울/경기</option>
+                            <option value="충청/전라">충청/전라</option>
+                            <option value="경상">경상</option>
+                            <option value="강원">강원</option>
+                        </select>
+                    </div>
+
                     <!-- 기간 설정 -->
                     <div class="form-group full-width">
                         <span class="form-label">매장 운영/행사 기간 <span class="req">*</span></span>
@@ -828,13 +864,31 @@
                     <!-- 유튜브 길찾기 링크 -->
                     <div class="form-group full-width">
                         <span class="form-label">길찾기 안내 동영상 URL (선택 항목)</span>
-                        <input class="form-input" type="url" id="youtubeUrl" placeholder="예: https://youtube.com/watch?v=12345 (유튜브 링크 입력 시 사용자 화면에 '영상으로 찾기' 표시)">
+                        <input class="form-input" type="url" id="youtubeUrl"
+                            placeholder="예: https://youtube.com/watch?v=12345 (유튜브 링크 입력 시 사용자 화면에 '영상으로 찾기' 표시)">
+                    </div>
+
+                    <!-- 블로그 URL -->
+                    <div class="form-group full-width">
+                        <span class="form-label">블로그 URL (선택 항목)</span>
+                        <input class="form-input" type="url" id="blogUrl"
+                            placeholder="예: https://blog.naver.com/yogibo (블로그 링크 입력 시 사용자 화면에 표시)">
                     </div>
 
                     <!-- 매장 특성 -->
                     <div class="form-group full-width">
                         <span class="form-label">매장 특성</span>
                         <div class="checkbox-group">
+                            <div class="checkbox-pill new-pill">
+                                <input type="checkbox" id="isNewStore">
+                                <label for="isNewStore">
+                                    <svg viewBox="0 0 24 24">
+                                        <text x="5" y="17" fill="currentColor" font-family="Outfit, sans-serif"
+                                            font-weight="800" font-size="16">N</text>
+                                    </svg>
+                                    신규매장
+                                </label>
+                            </div>
                             <div class="checkbox-pill popup-pill">
                                 <input type="checkbox" id="isPopup">
                                 <label for="isPopup">
@@ -879,7 +933,9 @@
                             </svg>
                             <p>클릭하여 이미지를 업로드하세요</p>
                             <div style="margin-top: 14px; margin-bottom: 6px;">
-                                <strong style="font-size: 26px; font-weight: 800; color: var(--yogibo-red); letter-spacing: -0.5px;">권장 사이즈 800 x 500 px</strong>
+                                <strong
+                                    style="font-size: 26px; font-weight: 800; color: var(--yogibo-red); letter-spacing: -0.5px;">권장
+                                    사이즈 800 x 500 px</strong>
                             </div>
                             <div class="upload-hint" style="line-height: 1.5; font-size: 14px;">
                                 (가로형 1.6:1 비율 최적화)<br>
@@ -924,6 +980,7 @@
                             <th style="width:50px; text-align:center;">순서</th>
                             <th style="width:80px;">이미지</th>
                             <th>매장명</th>
+                            <th>지역</th>
                             <th>주소</th>
                             <th>특성</th>
                             <th>기간</th>
@@ -1021,6 +1078,9 @@
             <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             새 매장 등록
         `;
+            document.getElementById('blogUrl').value = '';
+            document.getElementById('region').value = '';
+            document.getElementById('isNewStore').checked = false;
             document.getElementById('isPopup').checked = false;
             document.getElementById('isPickup').checked = false;
             document.getElementById('isModju').checked = false;
@@ -1074,6 +1134,7 @@
                 const imgSrc = store.imagePath || 'https://via.placeholder.com/128/f0f0f0/ccc?text=No';
 
                 let badges = '';
+                if (store.isNewStore) badges += `<span class="t-badge t-badge-new">N</span>`;
                 if (store.isPopup) badges += `<span class="t-badge t-badge-popup">${badgeSVG.popup}팝업</span>`;
                 if (store.isPickup) badges += `<span class="t-badge t-badge-pickup">${badgeSVG.pickup}픽업</span>`;
                 if (store.isModju) badges += `<span class="t-badge t-badge-modju">${badgeSVG.modju}모듀</span>`;
@@ -1094,6 +1155,7 @@
                     <div class="table-name">${store.name}</div>
                     ${store.phone ? `<div class="table-phone">☎ ${store.phone}</div>` : ''}
                 </td>
+                <td><div class="table-addr">${store.region || '-'}</div></td>
                 <td><div class="table-addr" title="${store.address}">${store.address}</div></td>
                 <td><div class="table-badges">${badges || '<span style="color:var(--yogibo-gray-light); font-size:12px;">—</span>'}</div></td>
                 <td>${periodHTML}</td>
@@ -1119,7 +1181,7 @@
         function moveRow(btn, direction) {
             const row = btn.closest('tr');
             const tbody = row.parentNode;
-            
+
             if (direction === -1 && row.previousElementSibling) {
                 tbody.insertBefore(row, row.previousElementSibling);
                 saveNewOrder();
@@ -1147,7 +1209,7 @@
             if (!tbody) return;
             const rows = tbody.querySelectorAll('tr[data-id]');
             const orderedIds = Array.from(rows).map(row => row.getAttribute('data-id')).filter(id => id);
-            
+
             try {
                 const res = await fetch(`${API_URL}/reorder`, {
                     method: 'POST',
@@ -1179,13 +1241,16 @@
             const storeId = document.getElementById('storeId').value;
             const formData = new FormData();
             formData.append('name', document.getElementById('name').value);
+            formData.append('region', document.getElementById('region').value);
             formData.append('address', document.getElementById('address').value);
             formData.append('phone', document.getElementById('phone').value);
             formData.append('isAlways', document.querySelector('input[name="periodType"]:checked').value === 'always');
+            formData.append('isNewStore', document.getElementById('isNewStore').checked);
             formData.append('isPopup', document.getElementById('isPopup').checked);
             formData.append('isPickup', document.getElementById('isPickup').checked);
             formData.append('isModju', document.getElementById('isModju').checked);
             formData.append('youtubeUrl', document.getElementById('youtubeUrl').value);
+            formData.append('blogUrl', document.getElementById('blogUrl').value);
 
             if (document.querySelector('input[name="periodType"]:checked').value !== 'always') {
                 formData.append('startDate', document.getElementById('startDate').value);
@@ -1241,11 +1306,14 @@
 
             document.getElementById('storeId').value = store._id;
             document.getElementById('name').value = store.name;
+            document.getElementById('region').value = store.region || '';
             document.getElementById('address').value = store.address;
             document.getElementById('phone').value = store.phone || '';
             document.getElementById('youtubeUrl').value = store.youtubeUrl || '';
+            document.getElementById('blogUrl').value = store.blogUrl || '';
             document.getElementById('existingImage').value = store.imagePath || '';
 
+            document.getElementById('isNewStore').checked = !!store.isNewStore;
             document.getElementById('isPopup').checked = !!store.isPopup;
             document.getElementById('isPickup').checked = !!store.isPickup;
             document.getElementById('isModju').checked = !!store.isModju;
