@@ -3988,9 +3988,8 @@ app.post('/api/raffle/play', async (req, res) => {
     res.status(500).json({ success: false, message: '서버 오류 발생' });
   }
 });
-
 // =========================================================================
-// [API 2] 응모 현황 조회
+// [API 2] 응모 현황 조회 (💡 prizeName 키 추가 수정)
 // =========================================================================
 app.get('/api/raffle/status', async (req, res) => {
   try {
@@ -4001,7 +4000,12 @@ app.get('/api/raffle/status', async (req, res) => {
     const existingEntry = await db.collection(ROLLET_COLLECTION).findOne({ userId: userId });
 
     if (existingEntry) {
-      return res.json({ success: true, isEntered: true, optionName: existingEntry.optionName });
+      return res.json({ 
+        success: true, 
+        isEntered: true, 
+        optionName: existingEntry.optionName, // 기존 호환성을 위해 남겨둠
+        prizeName: existingEntry.optionName   // 💡 프론트엔드와 키값을 맞추기 위해 추가!
+      });
     } else {
       return res.json({ success: true, isEntered: false });
     }
