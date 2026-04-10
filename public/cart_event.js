@@ -23,10 +23,11 @@
   }
 
   /* ─────────────────────────────────────────
-   * 2. 장바구니 상품 유무 확인
+   * 2. 장바구니 상품 유무 확인 (PC & 모바일 호환)
    * ───────────────────────────────────────── */
   function hasCartItems() {
-    return document.querySelectorAll('.prdBox').length > 0;
+    // .prdBox(PC), .xans-order-list(모바일), .mPrdList(모바일) 등 카페24 장바구니 내역을 나타내는 클래스들
+    return document.querySelectorAll('.prdBox, .xans-order-list, .mPrdList, [class*="xans-order-normnormal"]').length > 0;
   }
 
   /* ─────────────────────────────────────────
