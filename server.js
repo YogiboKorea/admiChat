@@ -5054,6 +5054,68 @@ const missingIds = [
 });
 
 
+// ========== [추가] 카트 페이지 1회성 적립금 지급 이벤트 API (03월12일 3천원) ==========
+app.post('/api/event/cart-reward', async (req, res) => {
+  const { memberId } = req.body;
+
+  // 1. 비회원(guest_) 및 파라미터 유효성 검사
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
+  }
+
+  const amount = 3000;
+
+  try {
+    const collection = db.collection('yogiboCartEvent');
+
+    // 2. 중복 참여 확인
+    const alreadyParticipated = await collection.findOne({ memberId });
+    if (alreadyParticipated) {
+      return res.status(400).json({ success: false, message: '이미 적립 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+
+    // 3. Cafe24 API로 포인트 적립
+    const payload = {
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id: null,
+        amount: amount,
+        type: 'increase',
+        reason: '카트 이벤트 3,000원 적립금 지급'
+      }
+    };
+
+    await apiRequest(
+      'POST',
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
+      payload
+    );
+
+    // 4. 적립 성공 시 참여 기록 저장 (KST 기준)
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await collection.insertOne({
+      memberId,
+      amount,
+      participatedAt: nowKST
+    });
+
+    console.log(`[카트이벤트] ${memberId} 적립금 ${amount}원 지급 완료`);
+    return res.json({ success: true, message: '🎉 3,000원 적립금이 지급되었습니다!' });
+
+  } catch (err) {
+    console.error('[카트이벤트] 포인트 지급 오류:', err);
+
+    // Unique Index 충돌 에러 처리 (동시성 방어)
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
@@ -5066,6 +5128,14 @@ const missingIds = [
 
     // 2. 토큰 로드
     await getTokensFromDB();
+
+    // 2-1. [카트이벤트] yogiboCartEvent 컬렉션 Unique Index 보장 (동시성 방어)
+    try {
+      await db.collection('yogiboCartEvent').createIndex({ memberId: 1 }, { unique: true });
+      console.log('✅ yogiboCartEvent Unique Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ yogiboCartEvent Index 생성 경고:', idxErr.message);
+    }
 
     // 3. 서버 리스닝
     const PORT = process.env.PORT || 6000;
