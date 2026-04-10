@@ -138,8 +138,10 @@
         removePopup();
 
         if (data.success) {
+          localStorage.setItem('__cart_event_done_' + _memberId, 'true');
           showToast('🎉 3,000원 적립금이 지급되었습니다!');
         } else if (data.alreadyDone) {
+          localStorage.setItem('__cart_event_done_' + _memberId, 'true');
           showToast('이미 적립 혜택을 받으셨습니다.');
         } else {
           showToast(data.message || '잠시 후 다시 시도해주세요.');
@@ -193,7 +195,26 @@
           }
           _memberId = memberId;
           console.log('[카트이벤트] 회원 확인:', memberId);
-          showPopup();
+
+          if (localStorage.getItem('__cart_event_done_' + memberId) === 'true') {
+            console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (localStorage) - 팝업 미노출');
+            return;
+          }
+
+          fetch(API_BASE_URL + '/api/event/cart-reward/status?memberId=' + memberId)
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (data.success && data.alreadyDone) {
+                console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (서버) - 팝업 미노출');
+                localStorage.setItem('__cart_event_done_' + memberId, 'true');
+              } else {
+                showPopup();
+              }
+            })
+            .catch(function (e) {
+              console.error('[카트이벤트] 상태 조회 중 오류:', e);
+              showPopup(); // 조회 실패 시 강제 팝업
+            });
         });
       } catch (e) {
         console.error('[카트이벤트] CAFE24API 오류:', e);

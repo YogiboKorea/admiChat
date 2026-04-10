@@ -5054,6 +5054,27 @@ const missingIds = [
 });
 
 
+// ========== [추가] 카트 페이지 1회성 적립금 지급 이벤트 참여 여부 조회 ==========
+app.get('/api/event/cart-reward/status', async (req, res) => {
+  const { memberId } = req.query;
+
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '유효하지 않은 회원 ID입니다.' });
+  }
+
+  try {
+    const collection = db.collection('yogiboCartEvent');
+    const alreadyParticipated = await collection.findOne({ memberId });
+    if (alreadyParticipated) {
+      return res.json({ success: true, alreadyDone: true });
+    }
+    return res.json({ success: true, alreadyDone: false });
+  } catch (err) {
+    console.error('[카트이벤트] 상태 조회 오류:', err);
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // ========== [추가] 카트 페이지 1회성 적립금 지급 이벤트 API (03월12일 3천원) ==========
 app.post('/api/event/cart-reward', async (req, res) => {
   const { memberId } = req.body;
