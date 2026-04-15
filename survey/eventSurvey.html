@@ -1050,6 +1050,24 @@
             const resultData = computeResult();
             const container = document.getElementById('dynamic-result-container');
 
+            // ── DB 저장 (백그라운드, 실패해도 UI에 영향 없음) ──
+            fetch(`${API}/api/survey/quiz-submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    Q1: answers.Q1 || '',
+                    Q2: answers.Q2 || '',
+                    Q3: answers.Q3 || '',
+                    Q4: answers.Q4 || '',
+                    Q5: answers.Q5 || [],
+                    Q6: answers.Q6 || '',
+                    Q7: answers.Q7 || '',
+                    recommendedProduct: resultData.productName,
+                    category: resultData.category
+                }),
+                keepalive: true
+            }).catch(() => {});
+
             document.getElementById('global-title-text').innerHTML = `<span style="font-size: 24px; color: #111;">고객님에게 딱 맞는 요기보는<br><span style="color:var(--primary-color)">${resultData.productName}</span>입니다.</span>`;
 
             let beadBadge = '';

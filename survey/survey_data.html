@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>설문 응답 데이터 | Yogibo Admin</title>
+    <title>설문 데이터 관리 | Yogibo Admin</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
     <style>
         :root {
             --primary: #55B5C9;
             --primary-dark: #409aad;
             --bg: #f0f4f8;
-            --white: #ffffff;
+            --white: #fff;
             --text: #1a1a1a;
             --sub: #666;
             --border: #e2e8f0;
@@ -18,256 +18,135 @@
             --shadow: 0 4px 20px rgba(85,181,201,0.10);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Pretendard', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            padding: 0 0 60px;
-        }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 60px; }
 
-        /* ── Header ── */
+        /* Header */
         .header {
             background: var(--white);
             border-bottom: 1px solid var(--border);
-            padding: 18px 32px;
+            padding: 16px 28px;
             display: flex;
             align-items: center;
-            gap: 16px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            gap: 14px;
+            position: sticky; top: 0; z-index: 100;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
-        .header img { width: 110px; height: auto; }
-        .header h1 {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary-dark);
-            border-left: 3px solid var(--primary);
-            padding-left: 12px;
-            letter-spacing: -0.04em;
-        }
-        .header-right {
-            margin-left: auto;
+        .header img { width: 100px; height: auto; }
+        .header h1 { font-size: 17px; font-weight: 700; color: var(--primary-dark); border-left: 3px solid var(--primary); padding-left: 12px; letter-spacing: -0.04em; }
+
+        /* Tabs */
+        .tabs {
             display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
+            margin: 20px 28px 0;
+            background: var(--white);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
         }
-        .total-badge {
+        .tab-btn {
+            flex: 1;
+            padding: 16px 10px;
+            border: none;
+            background: transparent;
+            font-family: 'Pretendard', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--sub);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+            letter-spacing: -0.02em;
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            background: #f0fafc;
+        }
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 3px 3px 0 0;
+        }
+        .tab-btn .tab-badge {
+            display: inline-block;
             background: var(--primary);
             color: #fff;
             border-radius: 20px;
-            padding: 5px 14px;
-            font-size: 13px;
-            font-weight: 700;
+            padding: 1px 8px;
+            font-size: 11px;
+            margin-left: 6px;
         }
 
-        /* ── Filter Bar ── */
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Filter */
         .filter-bar {
             background: var(--white);
-            margin: 24px 32px 0;
+            margin: 16px 28px 0;
             border-radius: var(--radius);
-            padding: 20px 24px;
+            padding: 16px 20px;
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
             align-items: center;
             box-shadow: var(--shadow);
         }
-        .filter-bar label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--sub);
-            margin-right: 4px;
-        }
+        .filter-bar label { font-size: 12px; font-weight: 600; color: var(--sub); }
         .filter-bar select,
         .filter-bar input[type="date"] {
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 8px 14px;
-            font-size: 14px;
-            font-family: 'Pretendard', sans-serif;
-            outline: none;
-            background: #f8fafc;
-            transition: border-color 0.2s;
+            border: 1px solid var(--border); border-radius: 10px; padding: 7px 12px;
+            font-size: 13px; font-family: 'Pretendard', sans-serif; outline: none;
+            background: #f8fafc; transition: border-color 0.2s;
         }
-        .filter-bar select:focus,
-        .filter-bar input[type="date"]:focus { border-color: var(--primary); }
-
-        .btn {
-            padding: 9px 20px;
-            border-radius: 10px;
-            border: none;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            font-family: 'Pretendard', sans-serif;
-            transition: all 0.2s;
-        }
+        .filter-bar select:focus, .filter-bar input:focus { border-color: var(--primary); }
+        .btn { padding: 8px 18px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'Pretendard', sans-serif; transition: all 0.2s; }
         .btn-primary { background: var(--primary); color: #fff; }
         .btn-primary:hover { background: var(--primary-dark); }
-        .btn-outline {
-            background: #fff;
-            color: var(--primary);
-            border: 2px solid var(--primary);
-        }
-        .btn-outline:hover { background: #e9f6f8; }
+        .btn-outline { background: #fff; color: var(--primary); border: 2px solid var(--primary); }
         .btn-reset { background: #f1f5f9; color: #555; }
-        .btn-reset:hover { background: #e2e8f0; }
 
-        /* ── Stats cards ── */
-        .stats-row {
-            display: flex;
-            gap: 16px;
-            margin: 20px 32px 0;
-            flex-wrap: wrap;
-        }
-        .stat-card {
-            background: var(--white);
-            border-radius: var(--radius);
-            padding: 18px 24px;
-            flex: 1;
-            min-width: 160px;
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-        .stat-card .stat-num {
-            font-size: 32px;
-            font-weight: 800;
-            color: var(--primary);
-            letter-spacing: -0.04em;
-        }
-        .stat-card .stat-label {
-            font-size: 12px;
-            color: var(--sub);
-            margin-top: 4px;
-            font-weight: 500;
-        }
+        /* Stats */
+        .stats-row { display: flex; gap: 12px; margin: 14px 28px 0; flex-wrap: wrap; }
+        .stat-card { background: var(--white); border-radius: var(--radius); padding: 14px 20px; flex: 1; min-width: 130px; box-shadow: var(--shadow); text-align: center; }
+        .stat-num { font-size: 28px; font-weight: 800; color: var(--primary); letter-spacing: -0.04em; }
+        .stat-label { font-size: 11px; color: var(--sub); margin-top: 3px; font-weight: 500; }
 
-        /* ── Table ── */
-        .table-wrap {
-            margin: 20px 32px 0;
-            background: var(--white);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-        .table-header {
-            padding: 16px 24px;
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-            gap: 12px;
-        }
-        .table-header h2 {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text);
-        }
-        .table-header span {
-            font-size: 13px;
-            color: var(--sub);
-        }
+        /* Table */
+        .table-wrap { margin: 14px 28px 0; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .table-header { padding: 14px 20px; display: flex; align-items: center; border-bottom: 1px solid var(--border); gap: 10px; }
+        .table-header h2 { font-size: 14px; font-weight: 700; }
+        .table-header span { font-size: 12px; color: var(--sub); }
+        .table-header .ml-auto { margin-left: auto; }
         .table-container { overflow-x: auto; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        thead tr {
-            background: linear-gradient(135deg, #55B5C9 0%, #409aad 100%);
-        }
-        thead th {
-            color: #fff;
-            padding: 12px 14px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 12px;
-            white-space: nowrap;
-        }
-        tbody tr {
-            border-bottom: 1px solid #f0f4f8;
-            transition: background 0.15s;
-        }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        thead tr { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); }
+        thead th { color: #fff; padding: 11px 12px; text-align: left; font-weight: 600; white-space: nowrap; }
+        tbody tr { border-bottom: 1px solid #f0f4f8; transition: background 0.15s; }
         tbody tr:hover { background: #f0f9fb; }
         tbody tr:last-child { border-bottom: none; }
-        td {
-            padding: 11px 14px;
-            color: var(--text);
-            vertical-align: middle;
-            max-width: 220px;
-            word-break: break-all;
-        }
-        .coupon-badge {
-            background: var(--primary);
-            color: #fff;
-            border-radius: 8px;
-            padding: 3px 10px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            font-size: 13px;
-        }
-        .store-badge {
-            background: #e9f6f8;
-            color: var(--primary-dark);
-            border-radius: 6px;
-            padding: 3px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        .tag {
-            display: inline-block;
-            background: #f1f5f9;
-            border-radius: 6px;
-            padding: 2px 8px;
-            font-size: 11px;
-            margin: 2px;
-            color: #444;
-        }
-
-        /* ── Loading / Empty ── */
-        .loading-wrap {
-            text-align: center;
-            padding: 60px 0;
-            color: var(--sub);
-            font-size: 15px;
-        }
-        .spinner {
-            width: 36px;
-            height: 36px;
-            border: 4px solid #e2e8f0;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 14px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .empty-state {
-            text-align: center;
-            padding: 60px 0;
-            color: var(--sub);
-        }
-        .empty-icon { font-size: 40px; margin-bottom: 12px; }
-
-        /* ── Q5 cell ── */
-        .q5-text {
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            cursor: pointer;
-            color: #444;
-        }
+        td { padding: 10px 12px; vertical-align: middle; max-width: 200px; word-break: break-all; }
+        .coupon-badge { background: var(--primary); color: #fff; border-radius: 7px; padding: 2px 9px; font-weight: 800; letter-spacing: 2px; font-size: 12px; }
+        .store-badge { background: #e9f6f8; color: var(--primary-dark); border-radius: 6px; padding: 2px 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .product-badge { background: #e9f6f8; color: var(--primary-dark); border-radius: 6px; padding: 2px 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .tag { display: inline-block; background: #f1f5f9; border-radius: 5px; padding: 1px 7px; font-size: 11px; margin: 1px; color: #444; }
+        .q5-text { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: #444; }
         .q5-text:hover { text-decoration: underline; color: var(--primary); }
 
+        /* Loading */
+        .loading-wrap { text-align: center; padding: 50px 0; color: var(--sub); font-size: 14px; }
+        .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 50px 0; color: var(--sub); }
+        .empty-icon { font-size: 36px; margin-bottom: 10px; }
+
         @media (max-width: 768px) {
-            .header { padding: 14px 16px; }
-            .filter-bar, .stats-row, .table-wrap { margin-left: 12px; margin-right: 12px; }
+            .header { padding: 12px 14px; }
+            .tabs, .filter-bar, .stats-row, .table-wrap { margin-left: 10px; margin-right: 10px; }
             .filter-bar { flex-direction: column; align-items: stretch; }
-            .stats-row { gap: 10px; }
         }
     </style>
 </head>
@@ -275,75 +154,104 @@
 
 <div class="header">
     <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo">
-    <h1>설문 응답 데이터</h1>
-    <div class="header-right">
-        <span class="total-badge" id="badge-total">전체 0건</span>
-        <button class="btn btn-outline" onclick="downloadExcel()">📥 엑셀 다운로드</button>
+    <h1>설문 데이터 관리</h1>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" role="tablist">
+    <button class="tab-btn active" id="tab-survey" onclick="switchTab('survey')">
+        📋 설문조사
+        <span class="tab-badge" id="badge-survey">0</span>
+    </button>
+    <button class="tab-btn" id="tab-quiz" onclick="switchTab('quiz')">
+        🎯 나에게 딱 맞는 요기보
+        <span class="tab-badge" id="badge-quiz">0</span>
+    </button>
+</div>
+
+<!-- ===================== TAB 1: 설문조사 ===================== -->
+<div class="tab-content active" id="content-survey">
+    <div class="filter-bar">
+        <label>매장</label>
+        <select id="survey-filter-store"><option value="">전체 매장</option></select>
+        <label>날짜</label>
+        <input type="date" id="survey-filter-date">
+        <button class="btn btn-primary" onclick="loadSurvey()">🔍 조회</button>
+        <button class="btn btn-reset" onclick="resetSurveyFilter()">↺ 초기화</button>
+    </div>
+    <div class="stats-row">
+        <div class="stat-card"><div class="stat-num" id="s-total">-</div><div class="stat-label">총 응답수</div></div>
+        <div class="stat-card"><div class="stat-num" id="s-bought">-</div><div class="stat-label">구매자 비율</div></div>
+        <div class="stat-card"><div class="stat-num" id="s-inconvenient">-</div><div class="stat-label">불편 경험 비율</div></div>
+        <div class="stat-card"><div class="stat-num" id="s-comment">-</div><div class="stat-label">자유의견 작성율</div></div>
+    </div>
+    <div class="table-wrap">
+        <div class="table-header">
+            <h2>설문 응답 목록</h2>
+            <span id="s-result-count">-</span>
+            <div class="ml-auto"><button class="btn btn-outline" onclick="downloadSurveyExcel()">📥 엑셀</button></div>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead><tr>
+                    <th>#</th><th>제출일시</th><th>매장</th><th>Q1 구매</th>
+                    <th>Q2 불편</th><th>Q3 불편/망설임</th><th>Q4 개선점</th>
+                    <th>Q5 자유의견</th><th>쿠폰코드</th>
+                </tr></thead>
+                <tbody id="survey-tbody">
+                    <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- Filter -->
-<div class="filter-bar">
-    <label>매장</label>
-    <select id="filter-store">
-        <option value="">전체 매장</option>
-    </select>
-    <label>날짜</label>
-    <input type="date" id="filter-date">
-    <button class="btn btn-primary" onclick="loadData()">🔍 조회</button>
-    <button class="btn btn-reset" onclick="resetFilter()">↺ 초기화</button>
-</div>
-
-<!-- Stats -->
-<div class="stats-row">
-    <div class="stat-card">
-        <div class="stat-num" id="stat-total">-</div>
-        <div class="stat-label">총 응답수</div>
+<!-- ===================== TAB 2: 퀴즈 ===================== -->
+<div class="tab-content" id="content-quiz">
+    <div class="filter-bar">
+        <label>추천제품</label>
+        <select id="quiz-filter-product">
+            <option value="">전체</option>
+            <option value="요기보 맥스">요기보 맥스</option>
+            <option value="요기보 미니">요기보 미니</option>
+            <option value="요기보 피라미드">요기보 피라미드</option>
+            <option value="요기보 메이트">요기보 메이트</option>
+            <option value="요기보 스퀴지보">요기보 스퀴지보</option>
+            <option value="요기보 서포트">요기보 서포트</option>
+            <option value="요기보 롤 맥스">요기보 롤 맥스</option>
+            <option value="요기보 트레이보 엑스">요기보 트레이보 엑스</option>
+            <option value="요기보 냅 엑스">요기보 냅 엑스</option>
+            <option value="요기보 지퍼롤">요기보 지퍼롤</option>
+        </select>
+        <label>날짜</label>
+        <input type="date" id="quiz-filter-date">
+        <button class="btn btn-primary" onclick="loadQuiz()">🔍 조회</button>
+        <button class="btn btn-reset" onclick="resetQuizFilter()">↺ 초기화</button>
     </div>
-    <div class="stat-card">
-        <div class="stat-num" id="stat-bought">-</div>
-        <div class="stat-label">구매자 비율</div>
+    <div class="stats-row">
+        <div class="stat-card"><div class="stat-num" id="q-total">-</div><div class="stat-label">총 참여수</div></div>
+        <div class="stat-card"><div class="stat-num" id="q-top-product">-</div><div class="stat-label">최다 추천 제품</div></div>
+        <div class="stat-card"><div class="stat-num" id="q-top-age">-</div><div class="stat-label">최다 연령대</div></div>
+        <div class="stat-card"><div class="stat-num" id="q-top-color">-</div><div class="stat-label">최다 선호 컬러</div></div>
     </div>
-    <div class="stat-card">
-        <div class="stat-num" id="stat-inconvenient">-</div>
-        <div class="stat-label">불편 경험 비율</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-num" id="stat-has-comment">-</div>
-        <div class="stat-label">자유의견 작성율</div>
-    </div>
-</div>
-
-<!-- Table -->
-<div class="table-wrap">
-    <div class="table-header">
-        <h2>응답 목록</h2>
-        <span id="result-count">불러오는 중...</span>
-    </div>
-    <div class="table-container">
-        <table id="survey-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>제출일시</th>
-                    <th>매장</th>
-                    <th>Q1 구매여부</th>
-                    <th>Q2 불편여부</th>
-                    <th>Q3 불편사항/망설임</th>
-                    <th>Q4 개선점</th>
-                    <th>Q5 자유의견</th>
-                    <th>쿠폰코드</th>
-                </tr>
-            </thead>
-            <tbody id="survey-tbody">
-                <tr><td colspan="9">
-                    <div class="loading-wrap">
-                        <div class="spinner"></div>
-                        데이터를 불러오는 중...
-                    </div>
-                </td></tr>
-            </tbody>
-        </table>
+    <div class="table-wrap">
+        <div class="table-header">
+            <h2>퀴즈 결과 목록</h2>
+            <span id="q-result-count">-</span>
+            <div class="ml-auto"><button class="btn btn-outline" onclick="downloadQuizExcel()">📥 엑셀</button></div>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead><tr>
+                    <th>#</th><th>제출일시</th><th>추천제품</th><th>Q1 관심제품</th>
+                    <th>Q2 사용자</th><th>Q3 공간</th><th>Q4 컬러</th>
+                    <th>Q5 중요가치</th><th>Q6 용도</th><th>Q7 연령대</th>
+                </tr></thead>
+                <tbody id="quiz-tbody">
+                    <tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -351,12 +259,20 @@
     const SERVER = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
     const MANAGER_SERVER = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app';
 
-    let allData = [];
+    let currentTab = 'survey';
 
     window.onload = async () => {
         await loadStores();
-        await loadData();
+        await Promise.all([loadSurvey(), loadQuiz()]);
     };
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+        document.getElementById(`content-${tab}`).classList.add('active');
+    }
 
     async function loadStores() {
         try {
@@ -365,121 +281,165 @@
             if (data.success) {
                 const active = data.managers.filter(m => m.isActive !== false);
                 const stores = [...new Set(active.map(m => m.storeName))].sort();
-                const sel = document.getElementById('filter-store');
+                const sel = document.getElementById('survey-filter-store');
                 stores.forEach(s => {
                     const opt = document.createElement('option');
                     opt.value = s; opt.textContent = s;
                     sel.appendChild(opt);
                 });
             }
-        } catch (e) { console.error('매장 목록 로드 실패', e); }
+        } catch(e) {}
     }
 
-    async function loadData() {
-        const store = document.getElementById('filter-store').value;
-        const date = document.getElementById('filter-date').value;
-
+    // ── 설문조사 ──
+    async function loadSurvey() {
+        const store = document.getElementById('survey-filter-store').value;
+        const date = document.getElementById('survey-filter-date').value;
         const tbody = document.getElementById('survey-tbody');
-        tbody.innerHTML = `<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div>데이터 조회 중...</div></td></tr>`;
-        document.getElementById('result-count').textContent = '불러오는 중...';
+        tbody.innerHTML = `<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div>조회 중...</div></td></tr>`;
 
         try {
-            const params = new URLSearchParams();
-            if (store) params.append('store', store);
-            if (date) params.append('date', date);
-
-            const res = await fetch(`${SERVER}/api/survey/list?${params.toString()}`);
+            const p = new URLSearchParams();
+            if (store) p.append('store', store);
+            if (date) p.append('date', date);
+            const res = await fetch(`${SERVER}/api/survey/list?${p}`);
             const data = await res.json();
-
-            if (!data.success) throw new Error('조회 실패');
-
-            allData = data.responses || [];
-            renderTable(allData);
-            renderStats(allData);
-
-        } catch (err) {
-            console.error(err);
-            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터를 불러오지 못했습니다.</div></td></tr>`;
-            document.getElementById('result-count').textContent = '오류 발생';
+            if (!data.success) throw new Error();
+            renderSurveyTable(data.responses || []);
+            renderSurveyStats(data.responses || []);
+            document.getElementById('badge-survey').textContent = data.responses.length;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터 불러오기 실패</div></td></tr>`;
         }
     }
 
-    function renderTable(data) {
+    function renderSurveyTable(data) {
         const tbody = document.getElementById('survey-tbody');
-        document.getElementById('result-count').textContent = `총 ${data.length}건`;
-        document.getElementById('badge-total').textContent = `전체 ${data.length}건`;
-
-        if (data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>응답 데이터가 없습니다.</div></td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = data.map((r, idx) => {
-            const dt = r.submittedAt ? formatDate(r.submittedAt) : '-';
+        document.getElementById('s-result-count').textContent = `총 ${data.length}건`;
+        if (!data.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>데이터 없음</div></td></tr>`; return; }
+        tbody.innerHTML = data.map((r, i) => {
             const q3 = r.q2 === '네'
                 ? (r.q3_inconvenience || []).map(v => `<span class="tag">${v}</span>`).join('') || '-'
                 : (r.q3_hesitation ? `<span class="tag">${r.q3_hesitation}</span>` : '-');
             const q5 = r.q5
-                ? `<span class="q5-text" title="${r.q5.replace(/"/g, '&quot;')}" onclick="alert(this.title)">${r.q5}</span>`
+                ? `<span class="q5-text" title="${r.q5.replace(/"/g,'&quot;')}" onclick="alert(this.title)">${r.q5}</span>`
                 : '<span style="color:#ccc">-</span>';
-            return `
-            <tr>
-                <td style="color:#aaa;font-size:12px;">${data.length - idx}</td>
-                <td style="white-space:nowrap;font-size:12px;color:#666">${dt}</td>
-                <td><span class="store-badge">${r.store || '-'}</span></td>
-                <td>${r.q1 || '-'}</td>
-                <td>${r.q2 || '-'}</td>
+            return `<tr>
+                <td style="color:#aaa">${data.length - i}</td>
+                <td style="white-space:nowrap;font-size:11px;color:#666">${fmtDate(r.submittedAt)}</td>
+                <td><span class="store-badge">${r.store||'-'}</span></td>
+                <td>${r.q1||'-'}</td><td>${r.q2||'-'}</td>
                 <td>${q3}</td>
-                <td>${r.q4 ? `<span class="tag">${r.q4}</span>` : '-'}</td>
+                <td>${r.q4?`<span class="tag">${r.q4}</span>`:'-'}</td>
                 <td>${q5}</td>
-                <td><span class="coupon-badge">${r.couponCode || '-'}</span></td>
+                <td><span class="coupon-badge">${r.couponCode||'-'}</span></td>
             </tr>`;
         }).join('');
     }
 
-    function renderStats(data) {
-        const total = data.length;
-        document.getElementById('stat-total').textContent = total;
+    function renderSurveyStats(data) {
+        const t = data.length;
+        document.getElementById('s-total').textContent = t;
+        if (!t) { ['s-bought','s-inconvenient','s-comment'].forEach(id => document.getElementById(id).textContent = '-'); return; }
+        document.getElementById('s-bought').textContent = pct(data.filter(r => r.q1==='네').length, t);
+        document.getElementById('s-inconvenient').textContent = pct(data.filter(r => r.q2==='네').length, t);
+        document.getElementById('s-comment').textContent = pct(data.filter(r => r.q5&&r.q5.trim()).length, t);
+    }
 
-        if (total === 0) {
-            ['stat-bought', 'stat-inconvenient', 'stat-has-comment'].forEach(id => {
-                document.getElementById(id).textContent = '-';
-            });
-            return;
+    function resetSurveyFilter() {
+        document.getElementById('survey-filter-store').value = '';
+        document.getElementById('survey-filter-date').value = '';
+        loadSurvey();
+    }
+
+    function downloadSurveyExcel() {
+        const store = document.getElementById('survey-filter-store').value;
+        const date = document.getElementById('survey-filter-date').value;
+        const p = new URLSearchParams();
+        if (store) p.append('store', store);
+        if (date) p.append('date', date);
+        window.open(`${SERVER}/api/survey/download?${p}`, '_blank');
+    }
+
+    // ── 퀴즈 ──
+    async function loadQuiz() {
+        const product = document.getElementById('quiz-filter-product').value;
+        const date = document.getElementById('quiz-filter-date').value;
+        const tbody = document.getElementById('quiz-tbody');
+        tbody.innerHTML = `<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div>조회 중...</div></td></tr>`;
+
+        try {
+            const p = new URLSearchParams();
+            if (product) p.append('product', product);
+            if (date) p.append('date', date);
+            const res = await fetch(`${SERVER}/api/survey/quiz-list?${p}`);
+            const data = await res.json();
+            if (!data.success) throw new Error();
+            renderQuizTable(data.responses || []);
+            renderQuizStats(data.responses || []);
+            document.getElementById('badge-quiz').textContent = data.responses.length;
+        } catch(e) {
+            tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터 불러오기 실패</div></td></tr>`;
         }
-        const bought = data.filter(r => r.q1 === '네').length;
-        const inconvenient = data.filter(r => r.q2 === '네').length;
-        const commented = data.filter(r => r.q5 && r.q5.trim()).length;
-
-        document.getElementById('stat-bought').textContent = pct(bought, total);
-        document.getElementById('stat-inconvenient').textContent = pct(inconvenient, total);
-        document.getElementById('stat-has-comment').textContent = pct(commented, total);
     }
 
-    function pct(num, total) {
-        return total === 0 ? '-' : Math.round(num / total * 100) + '%';
+    function renderQuizTable(data) {
+        const tbody = document.getElementById('quiz-tbody');
+        document.getElementById('q-result-count').textContent = `총 ${data.length}건`;
+        if (!data.length) { tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🎯</div>데이터 없음</div></td></tr>`; return; }
+        tbody.innerHTML = data.map((r, i) => {
+            const q5 = Array.isArray(r.Q5) ? r.Q5.map(v => `<span class="tag">${v.substring(0,10)}${v.length>10?'…':''}</span>`).join('') : '-';
+            return `<tr>
+                <td style="color:#aaa">${data.length - i}</td>
+                <td style="white-space:nowrap;font-size:11px;color:#666">${fmtDate(r.submittedAt)}</td>
+                <td><span class="product-badge">${r.recommendedProduct||'-'}</span></td>
+                <td>${r.Q1||'-'}</td><td>${r.Q2||'-'}</td><td>${r.Q3||'-'}</td>
+                <td>${r.Q4?`<span class="tag">${r.Q4}</span>`:'-'}</td>
+                <td>${q5||'-'}</td>
+                <td style="max-width:140px;word-break:keep-all;font-size:11px">${r.Q6||'-'}</td>
+                <td><span class="tag">${r.Q7||'-'}</span></td>
+            </tr>`;
+        }).join('');
     }
 
-    function formatDate(isoStr) {
-        const d = new Date(isoStr);
-        const pad = n => String(n).padStart(2, '0');
+    function renderQuizStats(data) {
+        const t = data.length;
+        document.getElementById('q-total').textContent = t;
+        if (!t) { ['q-top-product','q-top-age','q-top-color'].forEach(id => document.getElementById(id).textContent = '-'); return; }
+        document.getElementById('q-top-product').textContent = topValue(data.map(r => r.recommendedProduct));
+        document.getElementById('q-top-age').textContent = topValue(data.map(r => r.Q7));
+        document.getElementById('q-top-color').textContent = topValue(data.map(r => r.Q4));
+    }
+
+    function topValue(arr) {
+        const freq = {};
+        arr.filter(Boolean).forEach(v => freq[v] = (freq[v]||0) + 1);
+        return Object.entries(freq).sort((a,b)=>b[1]-a[1])[0]?.[0] || '-';
+    }
+
+    function resetQuizFilter() {
+        document.getElementById('quiz-filter-product').value = '';
+        document.getElementById('quiz-filter-date').value = '';
+        loadQuiz();
+    }
+
+    function downloadQuizExcel() {
+        const product = document.getElementById('quiz-filter-product').value;
+        const date = document.getElementById('quiz-filter-date').value;
+        const p = new URLSearchParams();
+        if (product) p.append('product', product);
+        if (date) p.append('date', date);
+        window.open(`${SERVER}/api/survey/quiz-download?${p}`, '_blank');
+    }
+
+    // ── Utils ──
+    function fmtDate(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        const pad = n => String(n).padStart(2,'0');
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}<br><span style="color:#aaa">${pad(d.getHours())}:${pad(d.getMinutes())}</span>`;
     }
-
-    function resetFilter() {
-        document.getElementById('filter-store').value = '';
-        document.getElementById('filter-date').value = '';
-        loadData();
-    }
-
-    function downloadExcel() {
-        const store = document.getElementById('filter-store').value;
-        const date = document.getElementById('filter-date').value;
-        const params = new URLSearchParams();
-        if (store) params.append('store', store);
-        if (date) params.append('date', date);
-        window.open(`${SERVER}/api/survey/download?${params.toString()}`, '_blank');
-    }
+    function pct(n, t) { return t === 0 ? '-' : Math.round(n/t*100)+'%'; }
 </script>
 </body>
 </html>

@@ -5139,7 +5139,103 @@ app.post('/api/event/cart-reward', async (req, res) => {
 
 // ========== [SURVEY] 설문조사 응답 저장 & 조회 API ==========
 
-// 설문 응답 저장 + 쿠폰 코드 발급
+// [eventSurvey] 요기보 퀴즈 결과 저장
+app.post('/api/survey/quiz-submit', async (req, res) => {
+  try {
+    const { Q1, Q2, Q3, Q4, Q5, Q6, Q7, recommendedProduct, category } = req.body;
+    const nowKST = moment().tz('Asia/Seoul').toDate();
+    const doc = {
+      Q1: Q1 || '', Q2: Q2 || '', Q3: Q3 || '', Q4: Q4 || '',
+      Q5: Array.isArray(Q5) ? Q5 : [],
+      Q6: Q6 || '', Q7: Q7 || '',
+      recommendedProduct: recommendedProduct || '',
+      category: category || '',
+      submittedAt: nowKST
+    };
+    await db.collection('event_quiz_responses').insertOne(doc);
+    console.log(`[QUIZ] 저장 완료 - 추천제품: ${recommendedProduct}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[QUIZ] 저장 오류:', err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// [eventSurvey] 퀴즈 결과 목록 조회
+app.get('/api/survey/quiz-list', async (req, res) => {
+  try {
+    const { date, product } = req.query;
+    const filter = {};
+    if (date) {
+      const start = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      filter.submittedAt = { $gte: start, $lte: end };
+    }
+    if (product) filter.recommendedProduct = product;
+    const responses = await db.collection('event_quiz_responses')
+      .find(filter).sort({ submittedAt: -1 }).limit(500).toArray();
+    res.json({ success: true, responses });
+  } catch (err) {
+    console.error('[QUIZ] 목록 조회 오류:', err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// [eventSurvey] 퀴즈 엑셀 다운로드
+app.get('/api/survey/quiz-download', async (req, res) => {
+  try {
+    const { date, product } = req.query;
+    const filter = {};
+    if (date) {
+      const start = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      filter.submittedAt = { $gte: start, $lte: end };
+    }
+    if (product) filter.recommendedProduct = product;
+    const responses = await db.collection('event_quiz_responses')
+      .find(filter).sort({ submittedAt: -1 }).toArray();
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('퀴즈 응답');
+    ws.columns = [
+      { header: '제출일시', key: 'submittedAt', width: 22 },
+      { header: '추천제품', key: 'recommendedProduct', width: 20 },
+      { header: '카테고리', key: 'category', width: 12 },
+      { header: 'Q1 관심제품', key: 'Q1', width: 18 },
+      { header: 'Q2 사용자', key: 'Q2', width: 16 },
+      { header: 'Q3 사용공간', key: 'Q3', width: 16 },
+      { header: 'Q4 선호컬러', key: 'Q4', width: 14 },
+      { header: 'Q5 중요가치 (복수)', key: 'Q5', width: 40 },
+      { header: 'Q6 사용용도', key: 'Q6', width: 24 },
+      { header: 'Q7 연령대', key: 'Q7', width: 12 },
+    ];
+    ws.getRow(1).eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF55B5C9' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+    responses.forEach(r => {
+      ws.addRow({
+        submittedAt: moment(r.submittedAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss'),
+        recommendedProduct: r.recommendedProduct,
+        category: r.category,
+        Q1: r.Q1, Q2: r.Q2, Q3: r.Q3, Q4: r.Q4,
+        Q5: Array.isArray(r.Q5) ? r.Q5.join(', ') : '',
+        Q6: r.Q6, Q7: r.Q7,
+      });
+    });
+    const filename = `quiz_${moment().tz('Asia/Seoul').format('YYYYMMDD')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('[QUIZ] 엑셀 오류:', err);
+    res.status(500).send('Excel Error');
+  }
+});
+
+
 app.post('/api/survey/submit', async (req, res) => {
   try {
     const { store, q1, q2, q3_inconvenience, q3_hesitation, q4, q5 } = req.body;
