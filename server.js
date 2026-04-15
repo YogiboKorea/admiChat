@@ -5137,6 +5137,124 @@ app.post('/api/event/cart-reward', async (req, res) => {
 });
 
 
+// ========== [SURVEY] 설문조사 응답 저장 & 조회 API ==========
+
+// 설문 응답 저장 + 쿠폰 코드 발급
+app.post('/api/survey/submit', async (req, res) => {
+  try {
+    const { store, q1, q2, q3_inconvenience, q3_hesitation, q4, q5 } = req.body;
+    if (!store) return res.status(400).json({ success: false, message: '매장 정보가 없습니다.' });
+
+    // 쿠폰 코드 생성 (5자리 영숫자 대문자)
+    const couponCode = Math.random().toString(36).substr(2, 5).toUpperCase();
+    const nowKST = moment().tz('Asia/Seoul').toDate();
+
+    const doc = {
+      store,
+      q1: q1 || '',
+      q2: q2 || '',
+      q3_inconvenience: Array.isArray(q3_inconvenience) ? q3_inconvenience : [],
+      q3_hesitation: q3_hesitation || '',
+      q4: q4 || '',
+      q5: q5 || '',
+      couponCode,
+      submittedAt: nowKST
+    };
+
+    await db.collection('survey_responses').insertOne(doc);
+    console.log(`[SURVEY] 설문 저장 완료 - 매장: ${store}, 쿠폰: ${couponCode}`);
+    res.json({ success: true, couponCode });
+  } catch (err) {
+    console.error('[SURVEY] 저장 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// 설문 응답 목록 조회 (관리자용)
+app.get('/api/survey/list', async (req, res) => {
+  try {
+    const { store, date } = req.query;
+    const filter = {};
+    if (store) filter.store = store;
+    if (date) {
+      const start = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      filter.submittedAt = { $gte: start, $lte: end };
+    }
+    const responses = await db.collection('survey_responses')
+      .find(filter)
+      .sort({ submittedAt: -1 })
+      .limit(500)
+      .toArray();
+    res.json({ success: true, responses });
+  } catch (err) {
+    console.error('[SURVEY] 목록 조회 오류:', err);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// 설문 엑셀 다운로드
+app.get('/api/survey/download', async (req, res) => {
+  try {
+    const { store, date } = req.query;
+    const filter = {};
+    if (store) filter.store = store;
+    if (date) {
+      const start = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      filter.submittedAt = { $gte: start, $lte: end };
+    }
+    const responses = await db.collection('survey_responses')
+      .find(filter)
+      .sort({ submittedAt: -1 })
+      .toArray();
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('설문 응답');
+    ws.columns = [
+      { header: '제출일시', key: 'submittedAt', width: 22 },
+      { header: '매장', key: 'store', width: 20 },
+      { header: 'Q1 제품구매여부', key: 'q1', width: 16 },
+      { header: 'Q2 불편점 여부', key: 'q2', width: 16 },
+      { header: 'Q3 불편사항 (복수)', key: 'q3_inconvenience', width: 30 },
+      { header: 'Q3 구매망설임 이유', key: 'q3_hesitation', width: 20 },
+      { header: 'Q4 개선점', key: 'q4', width: 20 },
+      { header: 'Q5 자유의견', key: 'q5', width: 40 },
+      { header: '쿠폰코드', key: 'couponCode', width: 12 },
+    ];
+
+    // 헤더 스타일
+    ws.getRow(1).eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF55B5C9' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    responses.forEach(r => {
+      ws.addRow({
+        submittedAt: moment(r.submittedAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss'),
+        store: r.store,
+        q1: r.q1,
+        q2: r.q2,
+        q3_inconvenience: Array.isArray(r.q3_inconvenience) ? r.q3_inconvenience.join(', ') : '',
+        q3_hesitation: r.q3_hesitation,
+        q4: r.q4,
+        q5: r.q5,
+        couponCode: r.couponCode,
+      });
+    });
+
+    const filename = `survey_${moment().tz('Asia/Seoul').format('YYYYMMDD')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('[SURVEY] 엑셀 다운로드 오류:', err);
+    res.status(500).send('Excel Error');
+  }
+});
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능

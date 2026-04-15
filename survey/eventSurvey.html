@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나에게 꼭 맞는 요기보 찾기 TEST</title>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <style>
+        /* =========================================================
+           통합 CSS (다른 설문조사와 동일한 변수 및 기본 스타일 적용)
+           ========================================================= */
+        :root {
+            --primary-color: #55B5C9;
+            /* Yogibo Blue */
+            --primary-hover: #E9F6F8;
+            --bg-color: #f7f9fa;
+            /* 더 밝고 깨끗한 배경 */
+            --text-color: #1a1a1a;
+            --sub-text-color: #555;
+            --border-color: #e0e6ed;
+            --container-shadow: 0 15px 40px rgba(85, 181, 201, 0.1);
+            --card-bg: #EAEAEA;
+            /* 옵션 래퍼 및 결과 카드 배경색 */
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: var(--text-color);
+        }
+
+        .survey-container {
+            width: 100%;
+            max-width: 480px;
+            background: #ffffff;
+            box-shadow: var(--container-shadow);
+            border-radius: 32px;
+            text-align: center;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            min-height: 70vh;
+            padding-top: 20px;
+        }
+
+        @media (max-width: 500px) {
+            body {
+                padding: 0;
+            }
+
+            .survey-container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+        }
+
+        .content-wrap {
+            padding: 80px 24px 40px 24px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* 헤더 로고 */
+        .logo {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .logo img {
+            width: 130px;
+            height: auto;
+            display: block;
+        }
+
+        /* 🔥 공통 타이틀 (모든 문제 위에 항상 노출) 🔥 */
+        .global-title-area {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .global-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .global-desc {
+            font-size: 15px;
+            color: var(--text-color);
+            line-height: 1.2;
+            font-weight: 500;
+        }
+
+        /* 화면 전환 */
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 0.4s ease;
+            margin: 0;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 시작 화면 디자인 */
+        .start-card {
+            width: 85%;
+            height: 320px;
+            background: var(--primary-color);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: filter 0.2s;
+            margin-top: 10px;
+        }
+
+        /* PC에서만 hover 적용 */
+        @media (hover: hover) and (pointer: fine) {
+            .start-card:hover {
+                filter: brightness(0.96);
+            }
+        }
+
+        .start-text {
+            font-size: 32px;
+            font-weight: 500;
+            color: #1a1a1a;
+            z-index: 2;
+            letter-spacing: 1px;
+        }
+
+        .start-dino {
+            position: absolute;
+            bottom: -40px;
+            right: -60px;
+            width: 140px;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* 질문 텍스트 스타일 (말풍선 제거됨) */
+        .question-box {
+            position: relative;
+            margin-bottom: 24px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .question-text {
+            font-size: clamp(18px, 5vw, 20px);
+            font-weight: 500;
+            word-break: keep-all;
+            line-height: 1.4;
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        /* 🔥 옵션 래퍼 (회색 배경 박스) 🔥 */
+        .opts-wrap {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: var(--card-bg);
+            padding: 24px 20px;
+            border-radius: 20px;
+            box-sizing: border-box;
+        }
+
+        /* 선택 버튼 기본 디자인 */
+        .opt-btn {
+            width: 100%;
+            min-height: 60px;
+            padding: 18px 20px;
+            border: 1px solid transparent;
+            border-radius: 20px;
+            font-size: clamp(19px, 4.5vw, 22px);
+            /* 텍스트가 길어져서 살짝 폰트사이즈 유연하게 조정 */
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: #fff;
+            color: var(--text-color);
+            word-break: keep-all;
+            line-height: 1.4;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+            font-family: 'Pretendard', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        /* 🔥 Hover 액션은 마우스가 있는 기기에서만 작동 (터치 기기 잔상 방지) 🔥 */
+        @media (hover: hover) and (pointer: fine) {
+            .opt-btn:not(.unselected):hover {
+                background-color: var(--primary-color);
+                border-color: var(--primary-color);
+                color: #fff;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            }
+
+            .opt-btn.unselected:hover {
+                background-color: var(--primary-color);
+                border-color: var(--primary-color);
+                color: #fff;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            }
+
+            .opt-btn.unselected:hover .color-box {
+                opacity: 1;
+                border-color: rgba(0, 0, 0, 0.08);
+            }
+        }
+
+        .opt-btn.selected {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            border: 2px solid #fff;
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* 🔥 미선택 시 색상 죽는 연출 (Dimming Effect) 🔥 */
+        .opt-btn.unselected {
+            background-color: #F5F5F5;
+            color: #D9D9D9;
+            border-color: transparent;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .opt-btn.unselected .color-box {
+            opacity: 0.3;
+            border-color: transparent;
+            transition: all 0.2s;
+        }
+
+        /* Q6 컬러 선택 전용 버튼 스타일 */
+        .opt-btn.color-opt {
+            position: relative;
+            padding: 18px 20px;
+            justify-content: center;
+        }
+
+        .color-box {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 140px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .color-text {
+            text-align: right;
+            color: inherit;
+            width: 100%;
+        }
+
+        /* 하단 네비 및 프로그레스 바 */
+        .bottom-nav {
+            margin-top: 20px;
+            padding-top: 20px;
+            display: none;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .bottom-nav.active {
+            display: flex;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .prev-btn,
+        .next-btn {
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            color: #aaa;
+            padding: 10px 5px;
+            transition: all 0.2s;
+            letter-spacing: -0.02em;
+        }
+
+        .prev-btn:hover {
+            color: var(--text-color);
+        }
+
+        .next-btn.ready {
+            color: var(--primary-color);
+        }
+
+        .next-btn.ready:hover {
+            transform: translateX(3px);
+        }
+
+        .progress-container {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+        /* 7개 들어가므로 간격 미세조정 */
+        .progress-segment {
+            height: 6px;
+            flex: 1;
+            background-color: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary-color);
+            transition: width 0.4s ease-in-out;
+            border-radius: 10px;
+        }
+
+        /* 결과보기 버튼 */
+        .btn-see-result {
+            width: 100%;
+            margin-top: 10px;
+            padding: 20px;
+            border: none;
+            border-radius: 20px;
+            background: var(--primary-color);
+            color: #fff;
+            font-size: 19px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            transition: all 0.2s;
+        }
+
+        /* =========================================================
+           결과 화면 CSS
+           ========================================================= */
+        .result-content {
+            display: none;
+            width: 100%;
+        }
+
+        .result-content.active {
+            display: block;
+            width: 100%;
+        }
+
+        .result-title-top {
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 24px;
+            line-height: 1.4;
+            margin-top: -10px;
+        }
+
+        .result-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .result-header {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            align-items: stretch;
+        }
+
+        .result-img {
+            width: 130px;
+            height: 130px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #fff;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .result-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .result-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .result-tag {
+            font-size: 13px;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .result-name {
+            font-size: 24px;
+            font-weight: 900;
+            color: #000;
+            line-height: 1.35;
+            word-break: keep-all;
+            letter-spacing: -0.5px;
+        }
+
+        /* 특징 리스트 (이미지 적용) */
+        .result-features {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            padding-top: 24px;
+        }
+
+        .result-features li {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            font-size: 15px;
+            color: #111;
+            font-weight: 600;
+            line-height: 1.45;
+            word-break: keep-all;
+        }
+
+        /* 하단: 컬러칩 / 캐릭터칩 영역 */
+        .result-colors {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .result-colors-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 14px;
+        }
+
+        .result-colors-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .color-chip {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .color-chip.striped {
+            background: repeating-linear-gradient(90deg, #016DB5, #016DB5 4px, #fff 4px, #fff 8px);
+        }
+
+        .character-chip {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 1px solid #eee;
+        }
+
+        .character-chip img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .result-footer {
+            text-align: center;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .result-store-text {
+            font-size: 22px;
+            font-weight: 800;
+            color: #000;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .btn-retry {
+            display: inline-block;
+            padding: 16px 40px;
+            border: 1px solid #8D8B8B;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #8D8B8B;
+            background: #fff;
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .btn-retry:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* 🔥 모바일 최적화 (500px 이하) 🔥 */
+        @media (max-width: 500px) {
+            body {
+                padding: 0;
+            }
+
+            .survey-container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+
+            .content-wrap {
+                padding: 80px 20px 24px 20px;
+            }
+
+            .question-box {
+                margin-bottom: 20px;
+                padding: 0;
+                border: none;
+            }
+
+            .opts-wrap {
+                padding: 16px 14px;
+                gap: 10px;
+            }
+
+            .content-wrap {
+                padding: 24px 16px 30px 16px;
+            }
+
+            /* 질문 폰트 크기 축소 */
+            .question-text {
+                font-size: clamp(16px, 4.5vw, 18px);
+            }
+
+            /* 버튼(답변) 폰트 크기 유지 및 확대 (질문보다 크게 보이도록 설정) */
+            .opt-btn {
+                min-height: 54px;
+                padding: 14px 16px;
+                font-size: clamp(18px, 5vw, 22px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="survey-container">
+        <div class="content-wrap">
+            <div class="logo" style="cursor: pointer;" onclick="location.href='index.html'"><img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo"></div>
+
+            <div id="global-title-area" class="global-title-area">
+                <div class="global-title" id="global-title-text">
+                    <img id="main-title-img" src="https://yogibo.kr/web/img/survey/title.png" alt="나에게 꼭 맞는 요기보 찾기 TEST"
+                        style="max-width: 280px; width: 100%; height: auto; margin: 0 auto; display: block;">
+                </div>
+                <div class="global-desc" id="global-desc">테스트 문항을 순서대로 눌러보세요.<br>고객님께 가장 잘 맞는 요기보를 추천해드릴게요!</div>
+            </div>
+
+            <div class="step active" id="step-start">
+                <div class="start-card" onclick="startQuiz()">
+                    <img src="https://yogibo.kr/web/img/survey/start.png" alt="START"
+                        style="width: 160px; height: auto; z-index: 2; position: relative;">
+                    <img class="start-dino" src="https://yogibo.kr/web/img/marketing/mate_icon_001.png" alt="">
+                </div>
+            </div>
+
+            <div class="step" id="step-quiz">
+                <div class="question-box">
+                    <p class="question-text" id="q-text"></p>
+                </div>
+                <div class="opts-wrap" id="opts-wrap"></div>
+            </div>
+
+            <div class="step" id="step-ready">
+                <div class="question-box">
+                    <p class="question-text" style="font-weight:600;">아래의 버튼을 눌러<br>결과를 확인해주세요!</p>
+                </div>
+                <img src="https://yogibo.kr/web/img/marketing/mate_icon_01.png" alt=""
+                    style="max-width: 140px; margin-bottom: 20px;">
+                <button class="btn-see-result" onclick="showResult()">결과보기</button>
+            </div>
+
+            <div class="step" id="step-result">
+                <div id="dynamic-result-container"></div>
+
+                <div class="result-footer">
+                    <div class="result-store-text">매장에서 직접 체험해보세요 🥰</div>
+                    <button class="btn-retry" onclick="restartQuiz()">테스트 다시 하기</button>
+                </div>
+            </div>
+
+            <div class="bottom-nav" id="bottom-nav">
+                <div class="nav-buttons">
+                    <button class="prev-btn" id="prev-btn" onclick="goPrev()">＜ 이전</button>
+                    <button class="next-btn" id="next-btn" onclick="goNext()">다음 ＞</button>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-1"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-2"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-3"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-4"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-5"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-6"></div>
+                    </div>
+                    <div class="progress-segment">
+                        <div class="progress-fill" id="fill-7"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        const MATE_POOL = ['02', '03', '04', '06', '07', '08', '09', '10', '11', '13'];
+        let mateIdx = 0;
+        function nextMate() { return `https://yogibo.kr/web/img/marketing/mate_icon_${MATE_POOL[mateIdx++ % MATE_POOL.length]}.png`; }
+
+        // 설문조사 데이터 배열
+        const QUESTIONS = [
+            { key: 'Q1', text: '반갑습니다 고객님!\n요기보의 어떤 제품에 관심이 있으신가요?', opts: ['빈백소파', '바디필로우', '리빙 액세서리', '인형', '골고루 관심있음'] },
+            { key: 'Q2', text: '주로 사용할 분은 누구인가요?', opts: ['성인', '미취학 ~ 초등학생', '청소년', '성인과 아이가 함께'] },
+            { key: 'Q3', text: '주로 어떤 공간에서 사용하실 건가요?', opts: ['거실', '침실', '아이 방', '서재', '야외', '기타'] },
+            {
+                key: 'Q4', text: '고객님께서\n선호하시는 컬러를 골라주세요!', opts: [
+                    { label: '레드 계열', color: '#FC2B01' },
+                    { label: '그린 계열', color: '#749804' },
+                    { label: '블루 계열', color: '#016DB5' },
+                    { label: '그레이 계열', color: '#C3B2AA' }
+                ]
+            },
+            {
+                key: 'Q5', multi: true, text: '요기보와 함께하는 일상을 상상해보세요.\n어떤 점이 중요하신가요?\n<span style="font-size: 14px; color: #888; font-weight: 500; display: block; margin-top: 6px;">(최대 3개 선택 가능)</span>',
+                opts: [
+                    '내 몸에 맞춰지는 편안함',
+                    '금세 꺼지지 않고\n오래 사용할 수 있는 내구성',
+                    '우리집 인테리어에 어울리는\n예쁘고 감각적인 디자인',
+                    '의자, 리클라이너, 침대, 소파 등\n다용도로 활용 기능',
+                    '공간을 많이 차지하지 않고,\n부담 없이 쓰는 것'
+                ]
+            },
+            { key: 'Q6', text: '고객님,\n어떤 용도로 요기보를 사용하고 싶으신가요?', opts: ['잠깐 앉거나 기대서 쉬는 용도', 'TV를 보거나 30분 이상 독서', '눕거나 잠들기 전 휴식', '아이가 앉아서 노는 용도', '아직 잘 모르겠어요'] },
+            { key: 'Q7', text: '이제 마지막!\n테스트에 참여하신 고객님의 연령대를 알려주세요.', opts: ['10대 이하', '20대', '30대', '40대', '50대 이상'] }
+        ];
+
+        let sessionId = null;
+        let step = 0;
+        let answers = {};
+        let currentSel = null; // 단일 선택 시 string, 다중 선택 시 array
+
+        async function startQuiz() {
+            step = 0; answers = {}; currentSel = null;
+
+            // 시작 시 타이틀 세팅 (자문 화면으로 넘어가므로 sub_title.png 구동)
+            const mainImg = document.getElementById('main-title-img');
+            if (mainImg) mainImg.src = "https://yogibo.kr/web/img/survey/sub_title.png";
+            document.getElementById('global-desc').style.display = 'none';
+
+            try {
+                const vid = localStorage.getItem('_yg_vid') || ('g_' + Date.now());
+                localStorage.setItem('_yg_vid', vid);
+                const r = await fetch(`${API}/api/event/session`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ visitorId: vid, userAgent: navigator.userAgent }), keepalive: true
+                });
+                const j = await r.json();
+                sessionId = j.success ? j.sessionId : ('l_' + Date.now());
+            } catch (e) { sessionId = 'l_' + Date.now(); }
+            renderQ();
+        }
+
+        function renderQ() {
+            const q = QUESTIONS[step];
+
+            if (answers[q.key]) {
+                currentSel = Array.isArray(answers[q.key]) ? [...answers[q.key]] : answers[q.key];
+            } else {
+                currentSel = q.multi ? [] : null;
+            }
+
+            // 메이트 이미지 관련 로직 제거
+            // document.getElementById('quiz-mate').src = nextMate();
+            document.getElementById('q-text').innerHTML = q.text.replace(/\n/g, '<br>');
+
+            const wrap = document.getElementById('opts-wrap');
+            wrap.innerHTML = '';
+
+            q.opts.forEach(opt => {
+                const btn = document.createElement('button');
+                let label = typeof opt === 'object' ? opt.label : opt;
+
+                if (typeof opt === 'object' && opt.color) {
+                    btn.className = 'opt-btn color-opt';
+                    btn.innerHTML = `<div class="color-box" style="background-color: ${opt.color};"></div><div class="color-text">${label.replace(/\n/g, '<br>')}</div>`;
+                } else {
+                    btn.className = 'opt-btn';
+                    btn.innerHTML = label.replace(/\n/g, '<br>');
+                }
+
+                if (q.multi) {
+                    if (currentSel.includes(label)) btn.classList.add('selected');
+                } else {
+                    if (currentSel === label) btn.classList.add('selected');
+                }
+
+                btn.onclick = () => {
+                    if (q.multi) toggleMultiOption(btn, label);
+                    else selectOption(btn, label);
+                };
+                wrap.appendChild(btn);
+            });
+
+            applyDimmingEffect();
+
+            updateProgressBar();
+            document.getElementById('prev-btn').style.visibility = step === 0 ? 'hidden' : 'visible';
+
+            if ((q.multi && currentSel.length > 0) || (!q.multi && currentSel)) {
+                document.getElementById('next-btn').classList.add('ready');
+            } else {
+                document.getElementById('next-btn').classList.remove('ready');
+            }
+
+            document.getElementById('bottom-nav').classList.add('active');
+            showScreen('step-quiz');
+        }
+
+        function selectOption(btn, value) {
+            const allBtns = document.querySelectorAll('.opt-btn');
+            allBtns.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+
+            currentSel = value;
+            applyDimmingEffect();
+            document.getElementById('next-btn').classList.add('ready');
+        }
+
+        function toggleMultiOption(btn, value) {
+            if (!Array.isArray(currentSel)) currentSel = [];
+
+            if (btn.classList.contains('selected')) {
+                btn.classList.remove('selected');
+                currentSel = currentSel.filter(v => v !== value);
+            } else {
+                if (currentSel.length >= 3) {
+                    alert('최대 3개까지만 선택 가능합니다.');
+                    return;
+                }
+                btn.classList.add('selected');
+                currentSel.push(value);
+            }
+
+            applyDimmingEffect();
+
+            if (currentSel.length > 0) {
+                document.getElementById('next-btn').classList.add('ready');
+            } else {
+                document.getElementById('next-btn').classList.remove('ready');
+            }
+        }
+
+        function applyDimmingEffect() {
+            const allBtns = document.querySelectorAll('.opt-btn');
+            const hasSelection = Array.from(allBtns).some(b => b.classList.contains('selected'));
+
+            allBtns.forEach(b => {
+                if (hasSelection) {
+                    if (!b.classList.contains('selected')) {
+                        b.classList.add('unselected');
+                    } else {
+                        b.classList.remove('unselected');
+                    }
+                } else {
+                    b.classList.remove('unselected');
+                }
+            });
+        }
+
+        function goNext() {
+            const q = QUESTIONS[step];
+            if (q.multi) {
+                if (currentSel.length === 0) return;
+            } else {
+                if (!currentSel) return;
+            }
+
+            answers[q.key] = currentSel;
+            recordStep(q.key, currentSel);
+
+            if (step < QUESTIONS.length - 1) {
+                step++;
+                renderQ();
+            } else {
+                document.getElementById('bottom-nav').classList.remove('active');
+                showScreen('step-ready');
+            }
+        }
+
+        function goPrev() {
+            if (step === 0) return;
+            step--;
+            renderQ();
+        }
+
+        function updateProgressBar() {
+            for (let i = 1; i <= 7; i++) {
+                const fill = document.getElementById(`fill-${i}`);
+                if (!fill) continue;
+                if (i <= step + 1) {
+                    fill.style.width = "100%";
+                    fill.style.backgroundColor = "var(--primary-color)";
+                } else {
+                    fill.style.width = "0%";
+                    fill.style.backgroundColor = "#eee";
+                }
+            }
+        }
+
+        /* 🔥 기획안 로직 기반 제품 도출 엔진 🔥 */
+        function computeResult() {
+            const q1_category = answers.Q1 || '';
+            const q2_user = answers.Q2 || '';
+            const q3_space = answers.Q3 || '';
+            const q4_color = answers.Q4 || '';
+            const q5_values = answers.Q5 || []; // Array
+            const q6_usage = answers.Q6 || '';
+
+            let result = {
+                category: '', productName: '', imgUrl: '', features: [], bead: '', coverType: 'Cotton', colors: []
+            };
+
+            if (q1_category === '빈백소파' || q1_category === '골고루 관심있음') {
+                result.category = 'BEANBAG';
+
+                if (q1_category === '골고루 관심있음') {
+                    if (q6_usage.includes('누워')) result.productName = '요기보 맥스';
+                    else result.productName = '요기보 미니';
+                } else {
+                    if (q6_usage.includes('아이')) {
+                        if (q2_user.includes('미취학')) result.productName = '요기보 피라미드';
+                        else if (q2_user.includes('청소년')) result.productName = '요기보 미니';
+                        else result.productName = '요기보 맥스';
+                    } else if (q6_usage.includes('누워')) {
+                        result.productName = '요기보 맥스';
+                    } else if (q6_usage.includes('30분')) {
+                        if (q2_user.includes('청소년')) result.productName = '요기보 미니';
+                        else result.productName = '요기보 맥스';
+                    } else if (q6_usage.includes('잠깐')) {
+                        result.productName = '요기보 미니';
+                    } else { // 잘 모르겠음
+                        if (q2_user.includes('아이') || q2_user.includes('청소년') || q2_user.includes('미취학') || q2_user.includes('함께')) result.productName = '요기보 미니';
+                        else result.productName = '요기보 맥스';
+                    }
+                }
+
+                const wantsSpace = q5_values.some(v => v.includes('공간'));
+                if (result.productName === '요기보 맥스' && wantsSpace) result.productName = '요기보 미니';
+
+                if (q3_space.includes('야외')) result.coverType = 'Zoola';
+
+                if (result.productName === '요기보 더블' && q3_space.includes('야외')) {
+                    result.productName = '요기보 맥스';
+                    result.coverType = 'Zoola';
+                }
+
+                if (result.productName === '요기보 피라미드') {
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/pyramid.png';
+                    result.features = ['요기보 빈백 BEST 입문템', '작은 공간에서도 안정적으로 앉을 수 있는 컴팩트한 형태예요', '가장 높은 복원력과 탄탄함으로 장시간 사용에 적합해요'];
+                } else if (result.productName === '요기보 미니') {
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/mini.png';
+                    result.features = ['아담한 사이즈로 공간을 효율적으로 활용해요', '어디서나 손쉽게 이동할 수 있는 가벼운 무게예요', '다양한 컬러로 나만의 인테리어를 완성해보세요'];
+                } else if (result.productName === '요기보 맥스') {
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/max.png';
+                    result.features = ['온몸을 감싸는 넉넉한 사이즈로 완벽한 릴랙스를 경험해요', '가장 높은 복원력으로 오랫동안 편안함을 유지해요', '가족 모두가 함께 사용하기에 완벽한 사이즈예요'];
+                }
+
+                const wantsDurable = q5_values.some(v => v.includes('내구성'));
+                if (q6_usage.includes('누워')) result.bead = '프리미엄 플러스';
+                else if (wantsDurable || q6_usage.includes('30분')) result.bead = '프리미엄';
+                else result.bead = '스탠다드';
+
+                if (result.coverType === 'Zoola') {
+                    result.productName = result.productName.replace('요기보', '줄라');
+                    if (q4_color.includes('블루')) result.colors = [{ name: '스카이' }, { name: '마린' }];
+                    else result.colors = [{ name: '오닉스' }];
+                } else {
+                    if (q4_color.includes('레드')) result.colors = [{ name: '스위트 오렌지' }, { name: '블라썸 핑크' }, { name: '라벤더 퍼플' }];
+                    else if (q4_color.includes('그린')) result.colors = [{ name: '아보카도 그린' }, { name: '올리브 그린' }];
+                    else if (q4_color.includes('블루')) result.colors = [{ name: '파스텔 블루' }, { name: '아쿠아 블루' }, { name: '네이비 블루' }];
+                    else result.colors = [{ name: '라이트 그레이' }, { name: '다크 그레이' }];
+                }
+
+            } else if (q1_category === '인형') {
+                result.category = 'DOLL';
+                if (q2_user.includes('미취학') || q2_user.includes('함께')) {
+                    result.productName = '요기보 메이트';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/mate.png';
+                    result.features = ['아이 정서 안정과 감각 발달에 좋은 애착인형', '요기보 패브릭 사용으로 아이 사용 시에도 안심할 수 있어요', '가볍고 부드러운 사용감의 비즈가 들어있어요'];
+                    
+                    if (q4_color.includes('레드')) result.colors = [{ name: '티렉스'}, { name: '팍스'}, { name: '옥토푸스'}];
+                    else if (q4_color.includes('그린')) result.colors = [{ name: '드래곤'}, { name: '써니'}, { name: '아로'}, { name: '스프라우트'}];
+                    else if (q4_color.includes('블루')) result.colors = [{ name: '돌핀'}, { name: '유니콘'}, { name: '디노'}, { name: '일각고래'}, { name: '우파루파'}];
+                    else result.colors = [{ name: '도그'}, { name: '샤크'}, { name: '엘리펀트'}];
+
+                } else {
+                    result.productName = '요기보 스퀴지보';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/squeezibo.png';
+                    result.features = ['주무르면 기분 좋아지는 스트레스 해소 볼이에요', '사무실이나 집에서 집중력 향상에도 도움을 줘요', '소근육 운동 및 스트레스 해소에 최적화됐어요'];
+                    
+                    if (q4_color.includes('레드')) result.colors = [{ name: '티렉스'}, { name: '팍스'}, { name: '옥토푸스'}];
+                    else if (q4_color.includes('그린')) result.colors = [{ name: '올리브그린'}, { name: '써니'}, { name: '아로'}, { name: '스프라우트'}];
+                    else if (q4_color.includes('블루')) result.colors = [{ name: '아쿠아블루'}, { name: '유니콘'}, { name: '일각고래'}, { name: '우파루파'}];
+                    else result.colors = [{ name: '다크그레이'}, { name: '도그'}, { name: '아울'}];
+                }
+            } else if (q1_category === '리빙 액세서리') {
+                result.category = 'ACC';
+                if (q6_usage.includes('30분') || q6_usage.includes('아이')) {
+                    result.productName = '요기보 트레이보 엑스';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/traybox.png';
+                    result.features = ['태블릿, 책, 무릎 위 테이블로 완벽한 거치대예요', '30분 이상 독서나 학습 시 자세를 편안하게 유지해줘요', '아이들 독서 및 영상 시청 테이블로도 최고예요'];
+                } else if (q6_usage.includes('누워')) {
+                    result.productName = '요기보 냅 엑스';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/napx.jpg';
+                    result.features = ['수면 안대가 내장된 프리미엄 목베개예요', '눕거나 잠들기 전 편안한 휴식에 최적화됐어요', '차, 비행기, 사무실 등 어디서든 빠른 회복을 도와요'];
+                } else {
+                    result.productName = '요기보 지퍼롤';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/zipparoll.png';
+                    result.features = ['지퍼로 변형되는 베개/방석/쿠션 다용도 액세서리예요', '상황에 따라 다양하게 활용할 수 있어요', '집, 사무실, 여행 어디서나 활용도 만점이에요'];
+                }
+            } else if (q1_category === '바디필로우') {
+                result.category = 'BODY';
+                if (q6_usage.includes('누워')) {
+                    result.productName = '요기보 롤 맥스';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/rollmax.png';
+                    result.features = ['전신을 감싸는 긴 바디필로우로 침대 대용으로도 완벽해요', '잠들기 전 온몸의 긴장을 풀어주는 포근한 쿠션이에요', '세탁 가능한 커버라 항상 청결하게 사용할 수 있어요'];
+                } else {
+                    result.productName = '요기보 서포트';
+                    result.imgUrl = 'https://yogibo.kr/web/img/survey/result/support.png';
+                    result.features = ['등과 허리를 완벽하게 받쳐주는 U자형 디자인이에요', '독서, TV 시청 시 상체를 최적으로 지지해요', '임산부 수유 쿠션 및 아이 가드로도 활용 가능해요'];
+                }
+            }
+
+            return result;
+        }
+
+        function showResult() {
+            const resultData = computeResult();
+            const container = document.getElementById('dynamic-result-container');
+
+            document.getElementById('global-title-text').innerHTML = `<span style="font-size: 24px; color: #111;">고객님에게 딱 맞는 요기보는<br><span style="color:var(--primary-color)">${resultData.productName}</span>입니다.</span>`;
+
+            let beadBadge = '';
+            let colorsHtml = '';
+
+            if (resultData.category === 'BEANBAG') {
+                if (resultData.bead) {
+                    let badgeClass = 'bead-badge';
+                    if (resultData.bead === '프리미엄 플러스') badgeClass += ' plus';
+                    else if (resultData.bead === '프리미엄') badgeClass += ' premium';
+                    beadBadge = `<div class="${badgeClass}">${resultData.bead}</div>`;
+                }
+                const colorLabel = resultData.coverType === 'Zoola' ? '추천 커버 & 컬러 (Zoola)' : '추천 커버 & 컬러 (Cotton)';
+                const colorChips = resultData.colors.map(c => `<img src="https://yogibo.kr/web/img/survey/color/${c.name.replace(/\s/g, '')}.png" class="color-chip" style="object-fit: cover; width:36px; height:36px;" title="${c.name}" alt="${c.name}">`).join('');
+                colorsHtml = `
+                    <div style="font-size: 13px; font-weight: 600; color: #666; margin-top: 14px; margin-bottom: 6px;">${colorLabel}</div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">${colorChips}</div>`;
+            } else if (resultData.category === 'DOLL') {
+                const isSqueeze = resultData.productName === '요기보 스퀴지보';
+                const folderPath = isSqueeze ? 'https://yogibo.kr/web/img/survey/color/sq' : 'https://yogibo.kr/web/img/survey/color';
+                const charHtml = resultData.colors.map(c => `<img src="${folderPath}/${c.name.replace(/\s/g, '')}.png" class="color-chip" style="object-fit: contain; width:44px; height:44px; border-radius:10px;" title="${c.name}" alt="${c.name}">`).join('');
+                colorsHtml = `
+                    <div style="font-size: 13px; font-weight: 600; color: #666; margin-top: 14px; margin-bottom: 6px;">추천 모델</div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">${charHtml}</div>`;
+            } else {
+                colorsHtml = `
+                    <div style="font-size: 13px; font-weight: 600; color: #666; margin-top: 14px; margin-bottom: 6px;">다양한 컬러 지원</div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <img src="https://yogibo.kr/web/img/survey/color/라이트그레이.png" class="color-chip" style="object-fit: cover; width:36px; height:36px;" title="라이트 그레이" alt="라이트 그레이">
+                        <img src="https://yogibo.kr/web/img/survey/color/다크그레이.png" class="color-chip" style="object-fit: cover; width:36px; height:36px;" title="다크 그레이" alt="다크 그레이">
+                    </div>`;
+            }
+
+            let html = `
+        <div class="result-card">
+            <div class="result-header">
+                <div class="result-img"><img src="${resultData.imgUrl}" alt="${resultData.productName}"></div>
+                <div class="result-info">
+                    <div class="result-tag">요기보 추천 상품</div>
+                    <div class="result-name" style="margin-bottom:0;">${resultData.productName}</div>
+                    ${beadBadge}
+                    ${colorsHtml}
+                </div>
+            </div>
+            
+            <ul class="result-features">
+                ${resultData.features.map(f => `
+                    <li>
+                        <img src="https://yogibo.kr/web/img/icon/Checkmark.png" style="width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px;" alt="체크아이콘">
+                        <span>${f}</span>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>`;
+
+            container.innerHTML = html;
+
+            document.getElementById('bottom-nav').classList.remove('active');
+            showScreen('step-result');
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function restartQuiz() {
+            // 다시 시작할 때 공통 타이틀 복구 및 초기화
+            const mainImg = document.getElementById('main-title-img');
+            if (mainImg) mainImg.src = "https://yogibo.kr/web/img/survey/title.png";
+            document.getElementById('global-desc').style.display = 'block';
+            step = 0; answers = {}; currentSel = null;
+            showScreen('step-start');
+        }
+
+        function recordStep(q, a) {
+            if (!sessionId) return;
+            fetch(`${API}/api/event/session/${sessionId}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: q, answer: a }), keepalive: true
+            }).catch(() => { });
+        }
+    </script>
+</body>
+
+</html>

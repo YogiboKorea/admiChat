@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제품 카탈로그 - Yogibo</title>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+
+    <!-- Swiper CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+    <style>
+        :root {
+            --primary-color: #55B5C9;
+            --bg-color: #f7f9fa;
+            --text-color: #1a1a1a;
+            --border-color: #e0e6ed;
+            --container-shadow: 0 15px 40px rgba(85, 181, 201, 0.1);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: var(--text-color);
+            position: relative;
+        }
+
+        /* -------------------------------------------
+           첫 화면 (썸네일) 스타일
+           ------------------------------------------- */
+        .survey-container {
+            width: 100%;
+            max-width: 480px;
+            background: #ffffff;
+            box-shadow: var(--container-shadow);
+            border-radius: 32px;
+            text-align: center;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            min-height: 70vh;
+            z-index: 1;
+        }
+
+        .content-wrap {
+            padding: 80px 24px 40px 24px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* 헤더 로고 */
+        .logo {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .logo img {
+            width: 130px;
+            height: auto;
+            display: block;
+            cursor: pointer;
+        }
+
+        /* 타이틀 */
+        .global-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #111;
+            margin-bottom: 20px;
+            line-height: 1.3;
+            letter-spacing: -0.5px;
+        }
+
+        /* 썸네일 카드 */
+        .catalog-card {
+            background-color: #fff;
+            border-radius: 14px;
+            border: 1px solid #eaeaea;
+            padding: 14px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+            user-select: none;
+            /* 드래그 방지 */
+        }
+
+        .catalog-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .catalog-card img.thumb {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+        }
+
+        /* 돋보기 / 터치 유도 문구 */
+        .zoom-guide {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+
+        /* 공유 버튼 영역 (우측 정렬 원형 아이콘) */
+        .share-wrap {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 16px;
+            width: 100%;
+        }
+
+        .share-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+            padding: 0;
+        }
+
+        .share-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-link {
+            background-color: #4e4a46;
+            color: #fff;
+        }
+
+        .btn-kakao {
+            background-color: #fae100;
+            color: #381e1f;
+        }
+
+        .share-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* 모바일 대응 (컨테이너 풀사이즈) */
+        @media (max-width: 500px) {
+            body {
+                padding: 0;
+            }
+
+            .survey-container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+
+            .content-wrap {
+                padding: 80px 20px 20px 20px;
+            }
+
+            .global-title {
+                font-size: 22px;
+            }
+        }
+
+        /* -------------------------------------------
+           팝업 뷰어 전체화면 스타일 (기존 코드 반영)
+           ------------------------------------------- */
+        #viewer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100%;
+            /* vh 대신 % 사용으로 모바일 브라우저 툴바 대응 */
+            background-color: #1a1a1a;
+            z-index: 9999;
+            display: none;
+            /* 기본 숨김 */
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .swiper {
+            width: 100vw;
+            height: 100%;
+        }
+
+        .swiper-slide.page {
+            height: 100%;
+        }
+
+        .swiper-slide.page img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .nav-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            color: white;
+            font-size: 22px;
+            line-height: 44px;
+            text-align: center;
+            z-index: 10;
+            transition: background-color 0.3s;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .nav-button:hover {
+                background-color: rgba(0, 0, 0, 0.7);
+            }
+        }
+
+        #prevBtn {
+            left: 20px;
+        }
+
+        #nextBtn {
+            right: 20px;
+        }
+
+        .swiper-pagination {
+            bottom: 25px !important;
+            color: white;
+            font-size: 16px;
+            z-index: 10;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.5);
+            width: fit-content !important;
+            padding: 4px 16px;
+            border-radius: 20px;
+            left: 50% !important;
+            transform: translateX(-50%);
+        }
+
+        /* 🏠 닫기 버튼 */
+        #closeBtn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 14px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #1a1a1a;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            z-index: 20;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 모바일 네비게이션 버튼 크기 */
+        @media (max-width: 768px) {
+            .nav-button {
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+                line-height: 32px;
+            }
+
+            #prevBtn {
+                left: 10px;
+            }
+
+            #nextBtn {
+                right: 10px;
+            }
+
+            #closeBtn {
+                top: 15px;
+                right: 15px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 1. 첫 화면 영역 -->
+    <div class="survey-container">
+        <div class="content-wrap">
+
+            <!-- 상단 로고 -->
+            <div class="logo" onclick="location.href='index.html'">
+                <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo Mark">
+            </div>
+
+            <div class="global-title">제품 카탈로그</div>
+
+            <!-- 카탈로그 썸네일 카드 (눌렀을 때 뷰어 오픈) -->
+            <div class="catalog-card" onclick="openViewer()">
+                <!-- 1번 이미지 섬네일 -->
+                <img class="thumb" src="https://yogibo.kr/web/img/magazine/1015/1.webp" alt="카탈로그 표지">
+                <div class="zoom-guide">🔍 터치해서 보기</div>
+            </div>
+
+            <!-- 공유 버튼 -->
+            <div class="share-wrap">
+                <button class="share-btn btn-link" onclick="copyLink()" title="링크 복사">
+                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                </button>
+                <button class="share-btn btn-kakao" onclick="executeKakaoShare()" title="카카오톡 공유">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 4c5.52 0 10 3.58 10 8 0 4.42-4.47 8-10 8-.63 0-1.24-.05-1.82-.15-.75.52-2.34 1.63-2.71 1.79-.45.2-.33-1.12-.24-1.68-.14-.2-1.75-2.61-1.75-5.42C2 7.58 6.48 4 12 4z" />
+                    </svg>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 2. 전체화면 뷰어 오버레이 영역 -->
+    <div id="viewer-overlay">
+        <!-- 닫기 버튼 -->
+        <button id="closeBtn">✕ 닫기</button>
+
+        <!-- 이전/다음 -->
+        <button id="prevBtn" class="nav-button">‹</button>
+        <button id="nextBtn" class="nav-button">›</button>
+
+        <!-- 스와이퍼 메인 -->
+        <main class="swiper mySwiper">
+            <div class="swiper-wrapper" id="swiper-container">
+                <!-- 자바스크립트로 24장 자동 생성됨 -->
+            </div>
+            <div class="swiper-pagination"></div>
+        </main>
+    </div>
+
+    <!-- Swiper JS -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <!-- Kakao JS SDK -->
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
+
+    <script>
+        // 카카오 SDK 초기화
+        const KAKAO_JS_KEY = '36f6c0f03cdd941bf5afd25f98f8092f';
+        if (typeof Kakao !== 'undefined') {
+            Kakao.init(KAKAO_JS_KEY);
+        }
+
+        /**
+         * 카카오 공유하기 실행
+         */
+        function executeKakaoShare() {
+            try {
+                Kakao.Share.sendDefault({
+                    objectType: 'feed',
+                    content: {
+                        title: '[Yogibo] 제품 카탈로그 확인하기',
+                        imageUrl: 'https://yogibo.kr/web/img/magazine/1015/1.webp',
+                        link: {
+                            mobileWebUrl: window.location.href,
+                            webUrl: window.location.href,
+                        },
+                    },
+                    buttons: [
+                        {
+                            title: '이벤트 참여하기',
+                            link: {
+                                mobileWebUrl: window.location.href,
+                                webUrl: window.location.href,
+                            },
+                        },
+                    ]
+                });
+            } catch (e) {
+                console.error('카카오 공유 실패', e);
+                alert('카카오 공유 중 오류가 발생했습니다.');
+            }
+        }
+
+        /**
+         * 링크 복사 기능
+         */
+        function copyLink() {
+            const tempElement = document.createElement("textarea");
+            tempElement.value = window.location.href;
+            document.body.appendChild(tempElement);
+            tempElement.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempElement);
+            alert("링크가 복사되었습니다.");
+        }
+
+        let swiperInstance = null;
+
+        // 이미지 엘리먼트 자동 생성 (1.webp 부터 24.webp 까지)
+        // lazy loading 적용으로 로딩 속도 최적화
+        const swiperWrapper = document.getElementById('swiper-container');
+        let slidesHtml = '';
+        for (let i = 1; i <= 24; i++) {
+            slidesHtml += `
+            <div class="swiper-slide page">
+                <div class="swiper-zoom-container">
+                    <img src="https://yogibo.kr/web/img/magazine/1015/${i}.webp" loading="lazy" alt="페이지 ${i}">
+                </div>
+            </div>
+        `;
+        }
+        swiperWrapper.innerHTML = slidesHtml;
+
+        // 뷰어 열기 함수
+        function openViewer() {
+            const overlay = document.getElementById('viewer-overlay');
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden'; // 배경 스크롤 막기
+
+            // Swiper 최초 1회만 초기화 (중복 생성 방지)
+            if (!swiperInstance) {
+                swiperInstance = new Swiper('.mySwiper', {
+                    direction: 'horizontal',
+                    slidesPerView: 1,
+                    loop: false,
+
+                    zoom: {
+                        maxRatio: 3,
+                        minRatio: 1,
+                        toggle: true,
+                    },
+
+                    pagination: {
+                        el: '.swiper-pagination',
+                        type: 'fraction',
+                    },
+
+                    navigation: {
+                        nextEl: '#nextBtn',
+                        prevEl: '#prevBtn',
+                    },
+                });
+            }
+        }
+
+        // 닫기 버튼 로직
+        document.getElementById('closeBtn').addEventListener('click', () => {
+            document.getElementById('viewer-overlay').style.display = 'none';
+            document.body.style.overflow = 'auto'; // 스크롤 다시 허용
+        });
+    </script>
+
+</body>
+
+</html>

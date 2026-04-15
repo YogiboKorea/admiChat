@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yogibo Event & Survey</title>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <style>
+        /* =========================================================
+           통합 CSS (다른 설문조사와 동일한 변수 및 기본 스타일 적용)
+           ========================================================= */
+        :root {
+            --primary-color: #55B5C9;
+            /* Yogibo Blue */
+            --bg-color: #f7f9fa;
+            --text-color: #1a1a1a;
+            --container-shadow: 0 15px 40px rgba(85, 181, 201, 0.1);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: var(--text-color);
+        }
+
+        .survey-container {
+            width: 100%;
+            max-width: 480px;
+            background: #ffffff;
+            box-shadow: var(--container-shadow);
+            border-radius: 32px;
+            text-align: center;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            min-height: 70vh;
+            padding-top: 20px;
+        }
+
+        .content-wrap {
+            padding: 80px 24px 40px 24px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* 로고 스타일 */
+        .logo {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .logo img {
+            width: 130px;
+            height: auto;
+            display: block;
+        }
+
+        /* 공통 타이틀 */
+        .global-title-area {
+            margin-bottom: 40px;
+        }
+
+        .global-title {
+            font-size: 19px;
+            font-weight: 500;
+            color: var(--text-color);
+            line-height: 1.5;
+            letter-spacing: -0.5px;
+        }
+
+        .global-title b {
+            font-weight: 800;
+        }
+
+        /* 배너 리스트 */
+        .banner-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+        }
+
+        /* 각 배너 카드 구조 */
+        .banner-card {
+            position: relative;
+            display: flex;
+            width: 100%;
+            border-radius: 20px;
+            background-color: var(--primary-color);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            /* 그림자 부드럽게 */
+            transition: all 0.2s ease;
+            cursor: pointer;
+            text-decoration: none;
+            overflow: hidden;
+            min-height: 100px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .banner-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 20px rgba(85, 181, 201, 0.25);
+            }
+        }
+
+        /* 배너 좌측 이미지 영역 (캐릭터) */
+        .banner-img-wrap {
+            width: 32%;
+            background-color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .banner-img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 배너 우측 텍스트 영역 */
+        .banner-text-wrap {
+            width: 68%;
+            padding: 22px 40px 22px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .banner-title {
+            font-size: 21px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+            word-break: keep-all;
+        }
+
+        .banner-sub {
+            font-size: 13px;
+            font-weight: 400;
+            color: #fff;
+            opacity: 0.95;
+            letter-spacing: -0.3px;
+            word-break: keep-all;
+        }
+
+        /* 배너 화살표 아이콘 */
+        .arrow-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+
+        .banner-card:hover .arrow-icon {
+            transform: translateY(-50%) translateX(4px);
+        }
+
+        .arrow-icon img {
+            width: 35px;
+            height: auto;
+        }
+
+        /* 모바일 대응 */
+        @media (max-width: 500px) {
+            body {
+                padding: 0;
+            }
+
+            .survey-container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+
+            .content-wrap {
+                padding: 80px 20px 30px 20px;
+            }
+
+            .banner-img-pc {
+                display: none;
+            }
+
+            .banner-sub {
+                font-size: 12px;
+            }
+
+            .banner-text-wrap {
+                padding: 20px 35px 20px 15px;
+            }
+
+            .arrow-icon {
+                right: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="survey-container">
+        <div class="content-wrap">
+            <!-- 로고 -->
+            <div class="logo" style="cursor: pointer;" onclick="location.href='index.html'"><img
+                    src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo"></div>
+
+            <!-- 타이틀 -->
+            <div class="global-title-area">
+                <div class="global-title">최상의 휴식 <b>요기보</b><br>모바일에서 먼저 경험해보세요.</div>
+            </div>
+
+            <!-- 배너 리스트 -->
+            <div class="banner-list">
+                <!-- 배너 01: 딱 맞는 요기보 테스트 -->
+                <a href="eventSurvey.html" class="banner-card">
+                    <div class="banner-img-wrap">
+                        <img src="https://yogibo.kr/web/img/survey/banner_01.png" alt="">
+                    </div>
+                    <div class="banner-text-wrap">
+                        <div class="banner-title">나에게 딱 맞는 요기보</div>
+                        <div class="banner-sub">간단한 TEST 시작해보세요!</div>
+                    </div>
+                    <div class="arrow-icon">
+                        <img src="https://yogibo.kr/web/img/survey/arrow.png" alt="이동">
+                    </div>
+                </a>
+
+                <!-- 배너 02 -->
+                <a href="guide.html" class="banner-card">
+                    <div class="banner-img-wrap">
+                        <img src="https://yogibo.kr/web/img/survey/banner_02.png" alt="">
+                    </div>
+                    <div class="banner-text-wrap">
+                        <div class="banner-title">요기보 사용법</div>
+                        <div class="banner-sub">영상으로 알아보는 요기보</div>
+                    </div>
+                    <div class="arrow-icon">
+                        <img src="https://yogibo.kr/web/img/survey/arrow.png" alt="이동">
+                    </div>
+                </a>
+
+                <!-- 배너 03 -->
+                <a href="catalog.html" class="banner-card">
+                    <div class="banner-img-wrap">
+                        <img src="https://yogibo.kr/web/img/survey/banner_03.png" alt="">
+                    </div>
+                    <div class="banner-text-wrap">
+                        <div class="banner-title">카탈로그</div>
+                        <div class="banner-sub">소파, 바디필로우, 액세서리, 인형까지</div>
+                    </div>
+                    <div class="arrow-icon">
+                        <img src="https://yogibo.kr/web/img/survey/arrow.png" alt="이동">
+                    </div>
+                </a>
+
+                <!-- 배너 04: 설문 참여하기 -->
+                <a href="survey.html" class="banner-card">
+                    <div class="banner-img-wrap">
+                        <img src="https://yogibo.kr/web/img/survey/banner_04.png" alt="">
+                    </div>
+                    <div class="banner-text-wrap">
+                        <div class="banner-title">설문 참여하기</div>
+                        <div class="banner-sub">설문하고 사탕 & 5% 즉시할인 GET!</div>
+                    </div>
+                    <div class="arrow-icon">
+                        <img src="https://yogibo.kr/web/img/survey/arrow.png" alt="이동">
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

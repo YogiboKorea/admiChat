@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>설문 응답 데이터 | Yogibo Admin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <style>
+        :root {
+            --primary: #55B5C9;
+            --primary-dark: #409aad;
+            --bg: #f0f4f8;
+            --white: #ffffff;
+            --text: #1a1a1a;
+            --sub: #666;
+            --border: #e2e8f0;
+            --radius: 16px;
+            --shadow: 0 4px 20px rgba(85,181,201,0.10);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 0 0 60px;
+        }
+
+        /* ── Header ── */
+        .header {
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
+            padding: 18px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .header img { width: 110px; height: auto; }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            border-left: 3px solid var(--primary);
+            padding-left: 12px;
+            letter-spacing: -0.04em;
+        }
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .total-badge {
+            background: var(--primary);
+            color: #fff;
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* ── Filter Bar ── */
+        .filter-bar {
+            background: var(--white);
+            margin: 24px 32px 0;
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+        .filter-bar label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--sub);
+            margin-right: 4px;
+        }
+        .filter-bar select,
+        .filter-bar input[type="date"] {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 14px;
+            font-family: 'Pretendard', sans-serif;
+            outline: none;
+            background: #f8fafc;
+            transition: border-color 0.2s;
+        }
+        .filter-bar select:focus,
+        .filter-bar input[type="date"]:focus { border-color: var(--primary); }
+
+        .btn {
+            padding: 9px 20px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-outline {
+            background: #fff;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+        .btn-outline:hover { background: #e9f6f8; }
+        .btn-reset { background: #f1f5f9; color: #555; }
+        .btn-reset:hover { background: #e2e8f0; }
+
+        /* ── Stats cards ── */
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin: 20px 32px 0;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 18px 24px;
+            flex: 1;
+            min-width: 160px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card .stat-num {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.04em;
+        }
+        .stat-card .stat-label {
+            font-size: 12px;
+            color: var(--sub);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* ── Table ── */
+        .table-wrap {
+            margin: 20px 32px 0;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .table-header {
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+        }
+        .table-header h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .table-header span {
+            font-size: 13px;
+            color: var(--sub);
+        }
+        .table-container { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        thead tr {
+            background: linear-gradient(135deg, #55B5C9 0%, #409aad 100%);
+        }
+        thead th {
+            color: #fff;
+            padding: 12px 14px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        tbody tr {
+            border-bottom: 1px solid #f0f4f8;
+            transition: background 0.15s;
+        }
+        tbody tr:hover { background: #f0f9fb; }
+        tbody tr:last-child { border-bottom: none; }
+        td {
+            padding: 11px 14px;
+            color: var(--text);
+            vertical-align: middle;
+            max-width: 220px;
+            word-break: break-all;
+        }
+        .coupon-badge {
+            background: var(--primary);
+            color: #fff;
+            border-radius: 8px;
+            padding: 3px 10px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            font-size: 13px;
+        }
+        .store-badge {
+            background: #e9f6f8;
+            color: var(--primary-dark);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .tag {
+            display: inline-block;
+            background: #f1f5f9;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 11px;
+            margin: 2px;
+            color: #444;
+        }
+
+        /* ── Loading / Empty ── */
+        .loading-wrap {
+            text-align: center;
+            padding: 60px 0;
+            color: var(--sub);
+            font-size: 15px;
+        }
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 4px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 14px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state {
+            text-align: center;
+            padding: 60px 0;
+            color: var(--sub);
+        }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+        /* ── Q5 cell ── */
+        .q5-text {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+            color: #444;
+        }
+        .q5-text:hover { text-decoration: underline; color: var(--primary); }
+
+        @media (max-width: 768px) {
+            .header { padding: 14px 16px; }
+            .filter-bar, .stats-row, .table-wrap { margin-left: 12px; margin-right: 12px; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .stats-row { gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo">
+    <h1>설문 응답 데이터</h1>
+    <div class="header-right">
+        <span class="total-badge" id="badge-total">전체 0건</span>
+        <button class="btn btn-outline" onclick="downloadExcel()">📥 엑셀 다운로드</button>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="filter-bar">
+    <label>매장</label>
+    <select id="filter-store">
+        <option value="">전체 매장</option>
+    </select>
+    <label>날짜</label>
+    <input type="date" id="filter-date">
+    <button class="btn btn-primary" onclick="loadData()">🔍 조회</button>
+    <button class="btn btn-reset" onclick="resetFilter()">↺ 초기화</button>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-num" id="stat-total">-</div>
+        <div class="stat-label">총 응답수</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" id="stat-bought">-</div>
+        <div class="stat-label">구매자 비율</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" id="stat-inconvenient">-</div>
+        <div class="stat-label">불편 경험 비율</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num" id="stat-has-comment">-</div>
+        <div class="stat-label">자유의견 작성율</div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+    <div class="table-header">
+        <h2>응답 목록</h2>
+        <span id="result-count">불러오는 중...</span>
+    </div>
+    <div class="table-container">
+        <table id="survey-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>제출일시</th>
+                    <th>매장</th>
+                    <th>Q1 구매여부</th>
+                    <th>Q2 불편여부</th>
+                    <th>Q3 불편사항/망설임</th>
+                    <th>Q4 개선점</th>
+                    <th>Q5 자유의견</th>
+                    <th>쿠폰코드</th>
+                </tr>
+            </thead>
+            <tbody id="survey-tbody">
+                <tr><td colspan="9">
+                    <div class="loading-wrap">
+                        <div class="spinner"></div>
+                        데이터를 불러오는 중...
+                    </div>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const SERVER = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    const MANAGER_SERVER = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app';
+
+    let allData = [];
+
+    window.onload = async () => {
+        await loadStores();
+        await loadData();
+    };
+
+    async function loadStores() {
+        try {
+            const res = await fetch(`${MANAGER_SERVER}/api/jwasu/admin/managers`);
+            const data = await res.json();
+            if (data.success) {
+                const active = data.managers.filter(m => m.isActive !== false);
+                const stores = [...new Set(active.map(m => m.storeName))].sort();
+                const sel = document.getElementById('filter-store');
+                stores.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s; opt.textContent = s;
+                    sel.appendChild(opt);
+                });
+            }
+        } catch (e) { console.error('매장 목록 로드 실패', e); }
+    }
+
+    async function loadData() {
+        const store = document.getElementById('filter-store').value;
+        const date = document.getElementById('filter-date').value;
+
+        const tbody = document.getElementById('survey-tbody');
+        tbody.innerHTML = `<tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div>데이터 조회 중...</div></td></tr>`;
+        document.getElementById('result-count').textContent = '불러오는 중...';
+
+        try {
+            const params = new URLSearchParams();
+            if (store) params.append('store', store);
+            if (date) params.append('date', date);
+
+            const res = await fetch(`${SERVER}/api/survey/list?${params.toString()}`);
+            const data = await res.json();
+
+            if (!data.success) throw new Error('조회 실패');
+
+            allData = data.responses || [];
+            renderTable(allData);
+            renderStats(allData);
+
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터를 불러오지 못했습니다.</div></td></tr>`;
+            document.getElementById('result-count').textContent = '오류 발생';
+        }
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('survey-tbody');
+        document.getElementById('result-count').textContent = `총 ${data.length}건`;
+        document.getElementById('badge-total').textContent = `전체 ${data.length}건`;
+
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>응답 데이터가 없습니다.</div></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.map((r, idx) => {
+            const dt = r.submittedAt ? formatDate(r.submittedAt) : '-';
+            const q3 = r.q2 === '네'
+                ? (r.q3_inconvenience || []).map(v => `<span class="tag">${v}</span>`).join('') || '-'
+                : (r.q3_hesitation ? `<span class="tag">${r.q3_hesitation}</span>` : '-');
+            const q5 = r.q5
+                ? `<span class="q5-text" title="${r.q5.replace(/"/g, '&quot;')}" onclick="alert(this.title)">${r.q5}</span>`
+                : '<span style="color:#ccc">-</span>';
+            return `
+            <tr>
+                <td style="color:#aaa;font-size:12px;">${data.length - idx}</td>
+                <td style="white-space:nowrap;font-size:12px;color:#666">${dt}</td>
+                <td><span class="store-badge">${r.store || '-'}</span></td>
+                <td>${r.q1 || '-'}</td>
+                <td>${r.q2 || '-'}</td>
+                <td>${q3}</td>
+                <td>${r.q4 ? `<span class="tag">${r.q4}</span>` : '-'}</td>
+                <td>${q5}</td>
+                <td><span class="coupon-badge">${r.couponCode || '-'}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderStats(data) {
+        const total = data.length;
+        document.getElementById('stat-total').textContent = total;
+
+        if (total === 0) {
+            ['stat-bought', 'stat-inconvenient', 'stat-has-comment'].forEach(id => {
+                document.getElementById(id).textContent = '-';
+            });
+            return;
+        }
+        const bought = data.filter(r => r.q1 === '네').length;
+        const inconvenient = data.filter(r => r.q2 === '네').length;
+        const commented = data.filter(r => r.q5 && r.q5.trim()).length;
+
+        document.getElementById('stat-bought').textContent = pct(bought, total);
+        document.getElementById('stat-inconvenient').textContent = pct(inconvenient, total);
+        document.getElementById('stat-has-comment').textContent = pct(commented, total);
+    }
+
+    function pct(num, total) {
+        return total === 0 ? '-' : Math.round(num / total * 100) + '%';
+    }
+
+    function formatDate(isoStr) {
+        const d = new Date(isoStr);
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}<br><span style="color:#aaa">${pad(d.getHours())}:${pad(d.getMinutes())}</span>`;
+    }
+
+    function resetFilter() {
+        document.getElementById('filter-store').value = '';
+        document.getElementById('filter-date').value = '';
+        loadData();
+    }
+
+    function downloadExcel() {
+        const store = document.getElementById('filter-store').value;
+        const date = document.getElementById('filter-date').value;
+        const params = new URLSearchParams();
+        if (store) params.append('store', store);
+        if (date) params.append('date', date);
+        window.open(`${SERVER}/api/survey/download?${params.toString()}`, '_blank');
+    }
+</script>
+</body>
+</html>

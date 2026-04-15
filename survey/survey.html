@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Yogibo 설문조사</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #55B5C9;
+            --primary-hover: #E9F6F8;
+            --bg-color: #f7f9fa;
+            --text-color: #1a1a1a;
+            --sub-text-color: #555;
+            --border-color: #e0e6ed;
+            --container-shadow: 0 15px 40px rgba(85, 181, 201, 0.1);
+        }
+
+        body { 
+            font-family: 'Pretendard', sans-serif; 
+            background-color: var(--bg-color); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+            padding: 20px; 
+            box-sizing: border-box;
+            color: var(--text-color);
+        }
+        
+        .survey-container { 
+            width: 100%; 
+            max-width: 480px; 
+            background: #ffffff; 
+            box-shadow: var(--container-shadow); 
+            border-radius: 32px; 
+            text-align: center; 
+            box-sizing: border-box; 
+            display: flex; 
+            flex-direction: column; 
+            position: relative; 
+            overflow: hidden; 
+            min-height: 70vh; 
+            padding-top: 20px;
+        }
+
+        @media (max-width: 500px) {
+            body { padding: 0; }
+            .survey-container { border-radius: 0; min-height: 100vh;}
+            button.btn-option { width: 100% !important; }
+        }
+        
+        .content-wrap { 
+            padding: 80px 24px 40px 24px; 
+            display: flex; 
+            flex-direction: column; 
+            flex-grow: 1; 
+            justify-content: center;
+        }
+
+        .logo { 
+            font-size: 28px; 
+            font-weight: 800; 
+            color: #3f4e58; 
+            margin-bottom: 20px; 
+            letter-spacing: -1.5px; 
+            position: absolute; 
+            top: 10px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10; 
+        }
+        .logo img { width: 130px; height: auto; display: block; }
+
+        .step { display: none; } 
+        .step.active { display: flex; flex-direction: column; align-items: center; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .mate-narrator {
+            margin-bottom: 20px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+        .mate-img {
+            max-width: 120px;
+            height: auto;
+            display: block;
+            will-change: transform;
+        }
+        .mate-shadow {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 50%;
+            filter: blur(2px);
+        }
+
+        .question-box {
+            background-color: #fff;
+            padding: 40px 25px;
+            border-radius: 20px;
+            position: relative;
+            width: 100%;
+            padding-top: 0px;
+        }
+
+        .question-text { 
+            font-size: clamp(19px, 5vw, 23px); 
+            letter-spacing: -0.03em; 
+            font-weight: 400; 
+            word-break: keep-all; 
+            line-height: 1.2; 
+            margin: 0;
+        }
+        .sub-text { font-size: clamp(13px, 3vw, 15px); color: var(--sub-text-color); margin-top: 8px; font-weight: 400; display: block; }
+        .highlight { color: #e74c3c; font-weight: bold; }
+
+        select, textarea { 
+            width: 100%; 
+            margin-bottom: 16px; 
+            display: block;
+            padding: 18px 20px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 16px; 
+            font-size: 16px; 
+            font-family: 'Pretendard', sans-serif; 
+            outline: none; 
+            box-sizing: border-box; 
+            transition: all 0.2s;
+            background-color: #fff;
+            color: #1a1a1a !important;
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 20px center;
+        }
+        select:focus, textarea:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(85, 181, 201, 0.1); }
+        textarea { height: 120px; resize: none;}
+        #store-select:disabled { background-color: #f5f5f5; color: #aaa; opacity: 0.7; }
+
+        button.btn-option { 
+            width: 80%; 
+            margin-bottom: 12px; 
+            min-height: 60px; 
+            padding: 18px 20px;
+            border: 1px solid var(--border-color); 
+            border-radius: 20px; 
+            font-size: 17px; 
+            font-weight: 500; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            background-color: #F5F5F5;
+            color: var(--text-color); 
+            word-break: keep-all;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        button.btn-option:hover { background-color: var(--primary-hover); border-color: rgba(85, 181, 201, 0.3); color: var(--primary-color); }
+        
+        button.btn-option.selected { 
+            background-color: var(--primary-color); 
+            color: white; 
+            border-color: var(--primary-color); 
+            font-weight: 700; 
+            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-start { 
+            width: 100%; 
+            margin-top: 10px;
+            display: block;
+            padding: 20px; 
+            border: none; 
+            border-radius: 50px; 
+            font-size: 26px; 
+            font-weight: 700; 
+            cursor: not-allowed; 
+            background-color: #e0e0e0; 
+            color: #fff; 
+            letter-spacing: -0.02em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.05); 
+        }
+        .btn-start.enabled { 
+            background-color: var(--primary-color); 
+            color: white; 
+            cursor: pointer; 
+            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3), 0 4px 0 #469AA9; 
+        }
+        .btn-start.enabled:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 10px rgba(85, 181, 201, 0.2), 0 2px 0 #469AA9;
+        }
+
+        .bottom-nav { margin-top: 20px; padding-top: 20px; display: none; flex-direction: column; width: 100%; } 
+        .bottom-nav.active { display: flex; }
+        
+        .next-btn { 
+            background: none; 
+            border: none; 
+            color: #aaa; 
+            font-size: 16px; 
+            letter-spacing: -0.02em; 
+            font-weight: 600; 
+            text-align: right; 
+            padding: 10px 0; 
+            cursor: pointer; 
+            margin-bottom: 15px; 
+            transition: all 0.2s;
+            margin-right: 5px;
+        }
+        .next-btn.ready { color: var(--primary-color); }
+        .next-btn.ready:hover { transform: translateX(3px); }
+
+        .progress-container { display: flex; justify-content: center; gap: 8px; width: 100%; }
+        .progress-segment { height: 6px; flex: 1; background-color: #eee; border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background-color: var(--primary-color); transition: width 0.4s ease-in-out; border-radius: 10px;}
+
+        .coupon-box { background-color: var(--primary-color); color: #ffffff; font-size: 30px; font-weight: 800; padding: 10px; border-radius: 20px; letter-spacing: 4px; margin-bottom: 20px; display: inline-block; width: 100%; box-sizing: border-box; margin: 0 auto; box-shadow: 0 10px 25px rgba(85, 181, 201, 0.3); }
+        .download-btn { background: none; border: none; cursor: pointer; color: #666; margin-top: 15px; transition: 0.2s; padding: 10px; }
+        .download-btn:hover { transform: translateY(-3px) scale(1.1); color: var(--primary-color); }
+
+        .button_choicd {
+            background: #f5f5f5 !important;
+            border-radius: 20px !important;
+            color: #000 !important;
+            font-weight: 500 !important;
+            font-size: 22px !important;
+            box-shadow: none !important;
+            border: 1px solid #f5f5f5 !important;
+            margin-top: 0px !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="survey-container" id="capture-area">
+    <div class="content-wrap">
+        <div class="logo" style="cursor: pointer;" onclick="location.href='index.html'"><img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo Logo"/></div>
+
+        <div id="step-0" class="step active">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_01.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text" style="font-weight: 400;">고객님의 <strong>솔직한 의견</strong>을 들려주세요.</p>
+            </div>
+            <select id="store-select" disabled style="margin-top:20px;">
+                <option value="" disabled selected>매장 목록을 불러오는 중...</option>
+            </select>
+            <button id="start-btn" class="btn-start" disabled>Start</button>
+        </div>
+
+        <div id="step-1" class="step" data-key="q1">
+            <div class="mate-narrator">
+                <div><img src="https://yogibo.kr/web/img/marketing/img_002.png" style="" class="mate-img" alt="메이트"/></div>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text" style="font-weight: 400;">제품을 구매 하셨나요?</p>
+            </div>
+            <button class="btn-option single-opt" data-value="네">네</button>
+            <button class="btn-option single-opt" data-value="아니오">아니오</button>
+        </div>
+
+        <div id="step-2" class="step" data-key="q2">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_03.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text" style="font-weight: 400;">제품 체험 시 <br/><strong>불편하게 느끼신 점</strong>이 있었나요?</p>
+            </div>
+            <button class="btn-option single-opt q2-btn" data-value="네">네 😐</button>
+            <button class="btn-option single-opt q2-btn" data-value="아니오">아니오 😍</button>
+        </div>
+
+        <div id="step-3a" class="step" data-key="q3_inconvenience">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_04.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text">
+                    <span style="font-weight: 800;">어떤 부분이 불편</span>하셨나요?
+                    <span style="font-size: clamp(13px, 3vw, 15px); color: #333; font-weight: 400; margin-left: 4px; display: inline-block;">(중복 가능 <span class="highlight">!</span> )</span>
+                </p>
+            </div>
+            <button class="btn-option multi-opt" data-value="제품 정보 부족">제품 정보 부족 (가격·용도)</button>
+            <button class="btn-option multi-opt" data-value="체험 방법">체험 방법</button>
+            <button class="btn-option multi-opt" data-value="체험 환경">체험 환경 (매장 정돈, 제품 상태)</button>
+            <button class="btn-option multi-opt" data-value="직원 응대">직원 응대</button>
+        </div>
+
+        <div id="step-3b" class="step" data-key="q3_hesitation">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_04.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text" style="font-weight: 400;"><strong>구매를 망설이게 된 이유</strong>가 있으신가요?</p>
+            </div>
+            <button class="btn-option single-opt" data-value="가격">가격</button>
+            <button class="btn-option single-opt" data-value="사이즈">사이즈</button>
+            <button class="btn-option single-opt" data-value="관리/세탁/AS">관리/세탁/AS</button>
+            <button class="btn-option single-opt" data-value="구매했어요">구매했어요 😍</button>
+        </div>
+
+        <div id="step-4" class="step" data-key="q4">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_05.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text">
+                    제품 및 서비스에서 <span style="font-weight: 800;">개선되면 좋을 점</span><br>한 가지는 무엇인가요?
+                </p>
+            </div>
+            <button class="btn-option single-opt" data-value="제품 정보 명확화">제품 정보 명확화<br/> (제품명, 가격, 프로모션 등)</button>
+            <button class="btn-option single-opt" data-value="매장 청결">매장 청결</button>
+            <button class="btn-option single-opt" data-value="제품 상태">제품 상태</button>
+            <button class="btn-option single-opt" data-value="매장 분위기">매장 분위기</button>
+            <button class="btn-option single-opt" data-value="직원 응대">직원 응대</button>
+        </div>
+
+        <div id="step-5" class="step" data-key="q5">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_01.png" class="mate-img" alt="메이트"/>
+                <div class="mate-shadow"></div>
+            </div>
+            <div class="question-box">
+                <p class="question-text" style="margin-bottom: 15px; font-weight: 400;">
+                    마지막으로, <strong>Yogibo에게</strong> 전하고 싶은<br><strong>한마디</strong>를 자유롭게 남겨주세요.
+                </p>
+                <p class="sub-text" style="color: #000; font-weight: normal;">좋은 소리도 좋지만, 쓴소리도 듣고 싶어요 🥺</p>
+            </div>
+            <textarea id="q5-text" placeholder="자유롭게 남겨주세요."></textarea>
+        </div>
+
+        <div id="step-done" class="step">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_06.png" class="mate-img" style="max-width: 140px;" alt="메이트"/>
+                <div class="mate-shadow" style="width: 80px;"></div>
+            </div>
+            <div class="question-box" style="border: none; box-shadow: none;">
+                <p class="question-text" style="margin-top: 10px; font-weight: 400;">감사합니다!<br><span style="font-size: 16px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
+            </div>
+            <button id="submit-btn" class="btn-option selected button_choicd" style="margin-top: 20px; border-radius: 50px; min-height: 60px;" 
+            onclick="submitSurvey()">5% 할인쿠폰 받기</button>
+        </div>
+
+        <div id="step-coupon-view" class="step" style="text-align: center; justify-content: center;">
+            <div class="mate-narrator">
+                <img src="https://yogibo.kr/web/img/marketing/img_06.png" class="mate-img" style="max-width: 140px;" alt="메이트"/>
+                <div class="mate-shadow" style="width: 80px;"></div>
+            </div>
+            <div class="question-box" style="border: none; box-shadow: none; padding-bottom: 10px;">
+                <p class="question-text" style="margin-top: 0; font-weight: 400;">감사합니다!<br><span style="font-size: 16px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
+            </div>
+            <div id="coupon-display" class="coupon-box">XXXXX</div>
+            <p style="font-size: 14px; font-weight: 500; margin-top: 10px; color: #666; line-height: 1.5;">이미지를 저장하신 후,<br>매장 직원에게 제시해 주세요.</p>
+            <button class="download-btn" onclick="downloadCouponImage()" title="쿠폰 이미지 저장">
+                <img src="https://yogibo.kr/web/img/event/marketing/down_icon.png" style="max-width:40px;" alt=""/>
+            </button>
+        </div>
+
+        <div class="bottom-nav" id="bottom-nav">
+            <button id="next-btn" class="next-btn">다음 ></button>
+            <div class="progress-container">
+                <div class="progress-segment"><div class="progress-fill" id="fill-1"></div></div>
+                <div class="progress-segment"><div class="progress-fill" id="fill-2"></div></div>
+                <div class="progress-segment"><div class="progress-fill" id="fill-3"></div></div>
+                <div class="progress-segment"><div class="progress-fill" id="fill-4"></div></div>
+                <div class="progress-segment"><div class="progress-fill" id="fill-5"></div></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const MANAGER_SERVER_URL = "https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app";
+    const SURVEY_SERVER_URL = "https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app";
+    
+    const surveyData = { store: "", q1: "", q2: "", q3_inconvenience: [], q3_hesitation: "", q4: "", q5: "", couponCode: "" };
+    let currentStep = 0; 
+
+    window.onload = async function() {
+        await loadStoreData();
+    };
+
+    async function loadStoreData() {
+        const sel = document.getElementById('store-select');
+        try {
+            const response = await fetch(`${MANAGER_SERVER_URL}/api/jwasu/admin/managers`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const activeManagers = data.managers.filter(m => m.isActive !== false);
+                const stores = [...new Set(activeManagers.map(m => m.storeName))].sort();
+                
+                sel.innerHTML = '<option value="" disabled selected>방문하신 매장을 선택해주세요</option>';
+                stores.forEach(store => sel.add(new Option(store, store)));
+                sel.disabled = false;
+            } else {
+                throw new Error("데이터 불러오기 실패");
+            }
+        } catch (error) {
+            console.error("매장 목록 로드 실패:", error);
+            sel.innerHTML = '<option value="" disabled selected>매장 목록을 불러올 수 없습니다.</option>';
+        }
+    }
+
+    document.getElementById('store-select').addEventListener('change', (e) => {
+        if (e.target.value) {
+            surveyData.store = e.target.value;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('start-btn').classList.add('enabled');
+        }
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => moveToStep(1));
+
+    document.querySelectorAll('.single-opt').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const parent = this.closest('.step');
+            const dataKey = parent.getAttribute('data-key');
+            
+            if(this.classList.contains('q2-btn')) {
+                const newVal = this.getAttribute('data-value');
+                if(surveyData.q2 !== newVal) {
+                    surveyData.q3_inconvenience = []; 
+                    surveyData.q3_hesitation = "";  
+                    document.querySelectorAll('#step-3a .btn-option, #step-3b .btn-option').forEach(b => b.classList.remove('selected'));
+                }
+            }
+
+            parent.querySelectorAll('.btn-option').forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+            surveyData[dataKey] = this.getAttribute('data-value');
+            
+            checkNextButtonState();
+        });
+    });
+
+    document.querySelectorAll('.multi-opt').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const parent = this.closest('.step');
+            const dataKey = parent.getAttribute('data-key');
+            
+            this.classList.toggle('selected');
+            surveyData[dataKey] = Array.from(parent.querySelectorAll('.btn-option.selected')).map(b => b.getAttribute('data-value'));
+            
+            checkNextButtonState();
+        });
+    });
+
+    document.getElementById('q5-text').addEventListener('input', function() {
+        surveyData.q5 = this.value;
+        checkNextButtonState();
+    });
+
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.addEventListener('click', () => {
+        if (nextBtn.classList.contains('ready')) {
+            moveToStep(currentStep + 1);
+        } else {
+            if (currentStep === 5) {
+                moveToStep(currentStep + 1);
+            } else {
+                alert("항목을 선택해주세요.");
+            }
+        }
+    });
+
+    function moveToStep(stepNum) {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        
+        currentStep = stepNum;
+
+        if (currentStep >= 1 && currentStep <= 5) {
+            document.getElementById('bottom-nav').classList.add('active');
+            
+            if (currentStep === 3) {
+                if (surveyData.q2 === '네') {
+                    document.getElementById('step-3a').classList.add('active');
+                } else {
+                    document.getElementById('step-3b').classList.add('active');
+                }
+            } else {
+                document.getElementById(`step-${currentStep}`).classList.add('active');
+            }
+
+            nextBtn.innerText = currentStep === 5 ? "제출하기 >" : "다음 >";
+            updateProgressBar();
+            checkNextButtonState();
+            
+            window.scrollTo(0, 0);
+
+        } else if (currentStep === 6) {
+            document.getElementById('bottom-nav').classList.remove('active');
+            document.getElementById('step-done').classList.add('active');
+        }
+    }
+
+    function checkNextButtonState() {
+        let isReady = false;
+        if (currentStep === 1 && surveyData.q1) isReady = true;
+        if (currentStep === 2 && surveyData.q2) isReady = true;
+        
+        if (currentStep === 3) {
+            if (surveyData.q2 === '네') {
+                if (surveyData.q3_inconvenience.length > 0) isReady = true;
+            } else {
+                if (surveyData.q3_hesitation) isReady = true;
+            }
+        }
+        
+        if (currentStep === 4 && surveyData.q4) isReady = true;
+        if (currentStep === 5) isReady = true; 
+        
+        if (isReady) {
+            nextBtn.classList.add('ready');
+        } else {
+            nextBtn.classList.remove('ready');
+        }
+    }
+
+    function updateProgressBar() {
+        for (let i = 1; i <= 5; i++) {
+            const fill = document.getElementById(`fill-${i}`);
+            if (i < currentStep) {
+                fill.style.width = "100%"; 
+            } else if (i === currentStep) {
+                fill.style.width = "100%"; 
+                fill.style.backgroundColor = "var(--primary-color)";
+            } else {
+                fill.style.width = "0%"; 
+                fill.style.backgroundColor = "#eee";
+            }
+        }
+    }
+
+    async function submitSurvey() {
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.innerText = "제출 중...";
+        submitBtn.disabled = true;
+
+        try {
+            const payload = {
+                store: surveyData.store,
+                q1: surveyData.q1,
+                q2: surveyData.q2,
+                q3_inconvenience: surveyData.q3_inconvenience,
+                q3_hesitation: surveyData.q3_hesitation,
+                q4: surveyData.q4,
+                q5: surveyData.q5,
+            };
+
+            const response = await fetch(`${SURVEY_SERVER_URL}/api/survey/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (!result.success) throw new Error(result.message || '제출 실패');
+
+            surveyData.couponCode = result.couponCode;
+            document.getElementById('coupon-display').innerText = surveyData.couponCode;
+            document.getElementById('step-done').classList.remove('active');
+            document.getElementById('step-coupon-view').classList.add('active');
+
+        } catch (error) {
+            console.error("제출 에러:", error);
+            alert("제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            submitBtn.innerText = "5% 할인쿠폰 받기";
+            submitBtn.disabled = false;
+        }
+    }
+
+    function downloadCouponImage() {
+        const downloadBtn = document.querySelector('.download-btn');
+        downloadBtn.style.display = 'none'; 
+
+        const captureArea = document.getElementById('capture-area');
+
+        html2canvas(captureArea, { 
+            scale: 2, 
+            backgroundColor: "#ffffff", 
+            useCORS: true,
+            onclone: function (clonedDoc) {
+                const activeSteps = clonedDoc.querySelectorAll('.step.active');
+                activeSteps.forEach(step => {
+                    step.style.animation = 'none';
+                    step.style.opacity = '1';
+                    step.style.transform = 'none';
+                });
+                
+                const mateIcons = clonedDoc.querySelectorAll('.mate-img');
+                mateIcons.forEach(icon => {
+                    icon.style.animation = 'none';
+                    icon.style.transform = 'translateY(0)';
+                });
+                const mateShadows = clonedDoc.querySelectorAll('.mate-shadow');
+                mateShadows.forEach(shadow => {
+                    shadow.style.animation = 'none';
+                    shadow.style.transform = 'translateX(-50%) scale(1)';
+                });
+            }
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `yogibo_coupon_${surveyData.couponCode}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            downloadBtn.style.display = 'inline-block'; 
+        });
+    }
+</script>
+</body>
+</html>
