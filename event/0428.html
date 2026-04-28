@@ -444,9 +444,11 @@
                     // ── [테스트용 콘솔 로그] ──
                     console.log('============ [0428 이벤트 테스트] ============');
                     console.log('접근 아이디   :', id);
-                    console.log('오늘 신규가입 :', res.isNewMember ? '✅ 예 (오늘 가입)' : '❌ 아니오 (기존 회원)');
-                    console.log('이미 참여여부 :', res.participated ? '✅ 이미 수령 완료' : '⬜ 미참여 (수령 가능)');
                     console.log('가입일        :', res.joinedDate || '정보 없음');
+                    console.log('[조건A] 오늘 신규가입 :', res.isNewMember ? '✅ 예 (오늘 가입)' : '❌ 아니오');
+                    console.log('[조건B] 구매이력 없음 :', res.hasNoPurchase ? '✅ 예 (구매 이력 없음)' : '❌ 아니오 (기존 구매자)');
+                    console.log('최종 지급 대상 :', res.isEligible ? '✅ 가능' : '❌ 불가 (조건 미충족)');
+                    console.log('이미 참여여부 :', res.participated ? '✅ 이미 수령 완료' : '⬜ 미참여 (수령 가능)');
                     console.log('=============================================');
 
                     hideLoading();

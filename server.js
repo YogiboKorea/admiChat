@@ -5359,16 +5359,16 @@ const NEW_MEMBER_EVENT_COLLECTION = 'yogiboNewMemberEvent0428';
 const NEW_MEMBER_COUPON_NO = '6084813679300001131';
 const NEW_MEMBER_POINT_AMOUNT = 3000; // ★ 적립금 금액 (필요 시 수정)
 
-// 참여 여부 조회 (+ 신규 가입 여부 포함 - 테스트용 콘솔 확인)
+// 참여 여부 조회 (신규 가입 여부 + 구매 이력 여부 - 테스트용 콘솔 확인)
 app.get('/api/event/newmember/status', async (req, res) => {
   const { memberId } = req.query;
   if (!memberId || memberId.startsWith('guest_')) {
-    return res.json({ participated: false, isNewMember: false, joinedDate: null });
+    return res.json({ participated: false, isNewMember: false, hasNoPurchase: false, joinedDate: null });
   }
   try {
     const doc = await db.collection(NEW_MEMBER_EVENT_COLLECTION).findOne({ memberId });
 
-    // 오늘 가입 여부 확인 (Cafe24 customers API)
+    // [조건 A] 오늘 가입 여부 확인
     let isNewMember = false;
     let joinedDate = null;
     try {
@@ -5387,12 +5387,35 @@ app.get('/api/event/newmember/status', async (req, res) => {
       console.warn('[신규회원이벤트] status - 가입일 조회 실패:', e.message);
     }
 
-    console.log(`[신규회원이벤트][STATUS] memberId=${memberId} | 가입일=${joinedDate} | 신규=${isNewMember} | 참여=${!!doc}`);
+    // [조건 B] 구매 이력 없는 회원 여부 확인
+    let hasNoPurchase = false;
+    try {
+      const ordersUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`;
+      const ordersRes = await apiRequest('GET', ordersUrl, {}, {
+        member_id: memberId,
+        limit: 1,
+        fields: 'order_id'
+      });
+      hasNoPurchase = (ordersRes.orders?.length === 0);
+    } catch (e) {
+      console.warn('[신규회원이벤트] status - 주문 조회 실패:', e.message);
+    }
 
-    res.json({ participated: !!doc, isNewMember, joinedDate });
+    const isEligible = isNewMember || hasNoPurchase;
+
+    console.log('============ [0428 이벤트 STATUS] ============');
+    console.log('접근 아이디   :', memberId);
+    console.log('가입일        :', joinedDate || '정보 없음');
+    console.log('[조건A] 오늘 신규가입 :', isNewMember ? '✅ 예' : '❌ 아니오');
+    console.log('[조건B] 구매이력 없음 :', hasNoPurchase ? '✅ 예' : '❌ 아니오');
+    console.log('최종 지급 대상 :', isEligible ? '✅ 가능' : '❌ 불가');
+    console.log('이미 참여여부 :', !!doc ? '✅ 이미 수령' : '⬜ 미참여');
+    console.log('==============================================');
+
+    res.json({ participated: !!doc, isNewMember, hasNoPurchase, isEligible, joinedDate });
   } catch (err) {
     console.error('[신규회원이벤트] status 오류:', err);
-    res.status(500).json({ participated: false, isNewMember: false, joinedDate: null });
+    res.status(500).json({ participated: false, isNewMember: false, hasNoPurchase: false, isEligible: false, joinedDate: null });
   }
 });
 
@@ -5414,7 +5437,7 @@ app.post('/api/event/newmember/reward', async (req, res) => {
       return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
     }
 
-    // 3. 오늘 가입 신규 회원 여부 확인 (Cafe24 customers API)
+    // 3. 지급 요건 확인 (A: 오늘 신규 가입 OR B: 구매 이력 없는 회원)
     const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
     const customerRes = await apiRequest('GET', customerUrl, {}, {
       member_id: memberId,
@@ -5426,13 +5449,31 @@ app.post('/api/event/newmember/reward', async (req, res) => {
       return res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다.' });
     }
 
-    // KST 기준 오늘 날짜 비교
+    // [조건 A] 오늘 가입 여부
     const todayKST = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
     const joinedDate = moment(customer.created_date).tz('Asia/Seoul').format('YYYY-MM-DD');
+    const isNewMember = (joinedDate === todayKST);
 
-    if (joinedDate !== todayKST) {
-      return res.status(400).json({ success: false, message: '오늘 가입한 신규 회원만 참여할 수 있습니다.' });
+    // [조건 B] 구매 이력 없는 회원 여부
+    let hasNoPurchase = false;
+    try {
+      const ordersUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`;
+      const ordersRes = await apiRequest('GET', ordersUrl, {}, {
+        member_id: memberId,
+        limit: 1,
+        fields: 'order_id'
+      });
+      hasNoPurchase = (ordersRes.orders?.length === 0);
+    } catch (e) {
+      console.warn('[신규회원이벤트] reward - 주문 조회 실패:', e.message);
     }
+
+    // A OR B 둘 다 해당 안 되면 차단
+    if (!isNewMember && !hasNoPurchase) {
+      return res.status(400).json({ success: false, message: '이벤트 참여 요건에 해당하지 않습니다.\n(오늘 신규 가입 또는 첫 구매 예정 회원 대상)' });
+    }
+
+    console.log(`[신규회원이벤트] ${memberId} | 신규=${isNewMember} | 구매없음=${hasNoPurchase} → 지급 진행`);
 
     // 4. 쿠폰 발급
     try {
