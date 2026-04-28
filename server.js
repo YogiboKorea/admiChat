@@ -5354,73 +5354,28 @@ app.get('/api/survey/download', async (req, res) => {
   }
 });
 
-// ========== [추가] 신규 회원 웰컴 이벤트 API (0428 쿠폰+적립금) ==========
-const NEW_MEMBER_EVENT_COLLECTION = 'yogiboNewMemberEvent0428';
-const NEW_MEMBER_COUPON_NO = '6084813679300001131';
-const NEW_MEMBER_POINT_AMOUNT = 3000; // ★ 적립금 금액 (필요 시 수정)
+// ========== [추가] 0428 전 고객 대상 적립금 이벤트 API ==========
+const EVENT_POINT_COLLECTION = 'yogiboPointEvent0428';
+const EVENT_POINT_AMOUNT = 5000; // 지급할 적립금
 
-// 참여 여부 조회 (신규 가입 여부 + 구매 이력 여부 - 테스트용 콘솔 확인)
-app.get('/api/event/newmember/status', async (req, res) => {
+// 참여 여부 조회 (로그인 시 페이지 로드에서 호출)
+app.get('/api/event/point0428/status', async (req, res) => {
   const { memberId } = req.query;
   if (!memberId || memberId.startsWith('guest_')) {
-    return res.json({ participated: false, isNewMember: false, hasNoPurchase: false, joinedDate: null });
+    return res.json({ participated: false });
   }
   try {
-    const doc = await db.collection(NEW_MEMBER_EVENT_COLLECTION).findOne({ memberId });
-
-    // [조건 A] 오늘 가입 여부 확인
-    let isNewMember = false;
-    let joinedDate = null;
-    try {
-      const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
-      const customerRes = await apiRequest('GET', customerUrl, {}, {
-        member_id: memberId,
-        fields: 'member_id,created_date'
-      });
-      const customer = customerRes.customers?.[0];
-      if (customer) {
-        const todayKST = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
-        joinedDate = moment(customer.created_date).tz('Asia/Seoul').format('YYYY-MM-DD');
-        isNewMember = (joinedDate === todayKST);
-      }
-    } catch (e) {
-      console.warn('[신규회원이벤트] status - 가입일 조회 실패:', e.message);
-    }
-
-    // [조건 B] 구매 이력 없는 회원 여부 확인
-    let hasNoPurchase = false;
-    try {
-      const ordersUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`;
-      const ordersRes = await apiRequest('GET', ordersUrl, {}, {
-        member_id: memberId,
-        limit: 1,
-        fields: 'order_id'
-      });
-      hasNoPurchase = (ordersRes.orders?.length === 0);
-    } catch (e) {
-      console.warn('[신규회원이벤트] status - 주문 조회 실패:', e.message);
-    }
-
-    const isEligible = isNewMember || hasNoPurchase;
-
-    console.log('============ [0428 이벤트 STATUS] ============');
-    console.log('접근 아이디   :', memberId);
-    console.log('가입일        :', joinedDate || '정보 없음');
-    console.log('[조건A] 오늘 신규가입 :', isNewMember ? '✅ 예' : '❌ 아니오');
-    console.log('[조건B] 구매이력 없음 :', hasNoPurchase ? '✅ 예' : '❌ 아니오');
-    console.log('최종 지급 대상 :', isEligible ? '✅ 가능' : '❌ 불가');
-    console.log('이미 참여여부 :', !!doc ? '✅ 이미 수령' : '⬜ 미참여');
-    console.log('==============================================');
-
-    res.json({ participated: !!doc, isNewMember, hasNoPurchase, isEligible, joinedDate });
+    const doc = await db.collection(EVENT_POINT_COLLECTION).findOne({ memberId });
+    console.log(`[0428적립금이벤트][STATUS] memberId=${memberId} | 참여여부=${!!doc}`);
+    res.json({ participated: !!doc });
   } catch (err) {
-    console.error('[신규회원이벤트] status 오류:', err);
-    res.status(500).json({ participated: false, isNewMember: false, hasNoPurchase: false, isEligible: false, joinedDate: null });
+    console.error('[0428적립금이벤트] status 오류:', err);
+    res.status(500).json({ participated: false });
   }
 });
 
-// 쿠폰 + 적립금 지급
-app.post('/api/event/newmember/reward', async (req, res) => {
+// 적립금 지급 (전 고객 대상 1회)
+app.post('/api/event/point0428/reward', async (req, res) => {
   const { memberId } = req.body;
 
   // 1. 유효성 검사
@@ -5429,103 +5384,39 @@ app.post('/api/event/newmember/reward', async (req, res) => {
   }
 
   try {
-    const collection = db.collection(NEW_MEMBER_EVENT_COLLECTION);
+    const collection = db.collection(EVENT_POINT_COLLECTION);
 
-    // 2. 중복 참여 확인
+    // 2. 중복 참여 확인 (1인 1회 한정)
     const alreadyDone = await collection.findOne({ memberId });
     if (alreadyDone) {
       return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
     }
 
-    // 3. 지급 요건 확인 (A: 오늘 신규 가입 OR B: 구매 이력 없는 회원)
-    const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
-    const customerRes = await apiRequest('GET', customerUrl, {}, {
-      member_id: memberId,
-      fields: 'member_id,created_date'
-    });
-
-    const customer = customerRes.customers?.[0];
-    if (!customer) {
-      return res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다.' });
-    }
-
-    // [조건 A] 오늘 가입 여부
-    const todayKST = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
-    const joinedDate = moment(customer.created_date).tz('Asia/Seoul').format('YYYY-MM-DD');
-    const isNewMember = (joinedDate === todayKST);
-
-    // [조건 B] 구매 이력 없는 회원 여부
-    let hasNoPurchase = false;
-    try {
-      const ordersUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`;
-      const ordersRes = await apiRequest('GET', ordersUrl, {}, {
-        member_id: memberId,
-        limit: 1,
-        fields: 'order_id'
-      });
-      hasNoPurchase = (ordersRes.orders?.length === 0);
-    } catch (e) {
-      console.warn('[신규회원이벤트] reward - 주문 조회 실패:', e.message);
-    }
-
-    // A OR B 둘 다 해당 안 되면 차단
-    if (!isNewMember && !hasNoPurchase) {
-      return res.status(400).json({ success: false, message: '이벤트 참여 요건에 해당하지 않습니다.\n(오늘 신규 가입 또는 첫 구매 예정 회원 대상)' });
-    }
-
-    console.log(`[신규회원이벤트] ${memberId} | 신규=${isNewMember} | 구매없음=${hasNoPurchase} → 지급 진행`);
-
-    // 4. 쿠폰 발급
-    try {
-      await apiRequest('POST', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons/issued`, {
-        shop_no: 1,
-        request: {
-          coupon_no: NEW_MEMBER_COUPON_NO,
-          member_id: memberId,
-          issued_place: 'F'
-        }
-      });
-      console.log(`[신규회원이벤트] ${memberId} 쿠폰 발급 완료`);
-    } catch (couponErr) {
-      console.error('[신규회원이벤트] 쿠폰 발급 오류:', couponErr.response?.data || couponErr.message);
-      return res.status(500).json({ success: false, message: '쿠폰 발급 중 오류가 발생했습니다.' });
-    }
-
-    // 5. 적립금 지급
+    // 3. 바로 적립금 지급 실행
     try {
       await apiRequest('POST', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`, {
         shop_no: 1,
         request: {
           member_id: memberId,
           order_id: null,
-          amount: NEW_MEMBER_POINT_AMOUNT,
+          amount: EVENT_POINT_AMOUNT,
           type: 'increase',
-          reason: '신규 가입 축하 적립금 지급'
+          reason: '0428 깜짝 적립금 지급 이벤트'
         }
       });
-      console.log(`[신규회원이벤트] ${memberId} 적립금 ${NEW_MEMBER_POINT_AMOUNT}원 지급 완료`);
+      console.log(`[0428적립금이벤트] ${memberId} 적립금 ${EVENT_POINT_AMOUNT}원 지급 완료`);
     } catch (pointErr) {
-      console.error('[신규회원이벤트] 적립금 지급 오류:', pointErr.response?.data || pointErr.message);
-      // 쿠폰은 발급됐으므로 참여 기록은 저장하되 포인트 오류 안내
-      const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-      await collection.insertOne({ memberId, couponNo: NEW_MEMBER_COUPON_NO, pointAmount: 0, pointError: true, participatedAt: nowKST });
-      return res.status(500).json({ success: false, message: '쿠폰은 발급됐으나 적립금 지급 중 오류가 발생했습니다. 관리자에게 문의해주세요.' });
+      console.error('[0428적립금이벤트] 적립금 발급 오류:', pointErr.response?.data || pointErr.message);
+      return res.status(500).json({ success: false, message: '적립금 지급 중 오류가 발생했습니다.' });
     }
 
-    // 6. 참여 기록 저장
+    // 4. 발급 이력 저장
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    await collection.insertOne({
-      memberId,
-      couponNo: NEW_MEMBER_COUPON_NO,
-      pointAmount: NEW_MEMBER_POINT_AMOUNT,
-      participatedAt: nowKST
-    });
+    await collection.insertOne({ memberId, pointAmount: EVENT_POINT_AMOUNT, participatedAt: nowKST });
 
-    console.log(`[신규회원이벤트] ${memberId} 모든 혜택 지급 완료`);
-    return res.json({ success: true, message: `🎉 쿠폰과 ${NEW_MEMBER_POINT_AMOUNT.toLocaleString()}원 적립금이 지급되었습니다!` });
-
+    return res.json({ success: true, message: `🎉 ${EVENT_POINT_AMOUNT.toLocaleString()}원 적립금이 발급되었습니다!` });
   } catch (err) {
-    console.error('[신규회원이벤트] 오류:', err);
+    console.error('[0428적립금이벤트] 오류:', err);
     if (err.code === 11000) {
       return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
     }

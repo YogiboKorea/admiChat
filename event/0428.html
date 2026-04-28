@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>신규 회원 웰컴 이벤트 - Yogibo</title>
+    <title>전 고객 대상 특별 적립금 이벤트 - Yogibo</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
     <style>
         :root {
@@ -160,20 +160,7 @@
             box-shadow: none;
         }
 
-        /* ── 상태 메시지 ── */
-        .msg-box {
-            display: none;
-            border-radius: 12px;
-            padding: 14px 16px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            text-align: center;
-            line-height: 1.5;
-        }
-        .msg-box.success { background: #e8f8ec; color: #1a7a35; border: 1px solid #b6e8c5; }
-        .msg-box.error   { background: #fff0f0; color: #c0392b; border: 1px solid #f5b7b1; }
-        .msg-box.info    { background: #f0f8ff; color: #2471a3; border: 1px solid #aed6f1; }
+        /* ── 삭제됨: 상태 메시지 CSS ── */
 
         /* ── 쿠폰 다운로드 공간 ── */
         /*
@@ -284,7 +271,7 @@
         <!-- ★ 아래 img 태그 src를 실제 이벤트 배너로 교체해 주세요 -->
         <div class="event-banner">
             <div class="event-banner-placeholder">이벤트 배너 이미지</div>
-            <!-- <img src="이벤트_배너_이미지_URL" alt="신규 회원 웰컴 이벤트"> -->
+            <!-- <img src="이벤트_배너_이미지_URL" alt="전 고객 대상 특별 적립금 이벤트"> -->
         </div>
 
         <!-- 로딩 상태 -->
@@ -298,30 +285,22 @@
 
             <!-- 혜택 안내 카드 -->
             <div class="benefit-card">
-                <div class="benefit-card-title">🎁 신규 회원 웰컴 혜택</div>
-                <div class="benefit-card-main">오늘 가입하셨나요?<br>특별한 혜택을 드려요!</div>
-                <div class="benefit-card-sub">오늘 가입한 신규 회원에게만 드리는 1회 한정 혜택입니다.</div>
+                <div class="benefit-card-title">🎁 Yogibo 특별 혜택</div>
+                <div class="benefit-card-main">전 고객 대상 깜짝 이벤트!</div>
+                <div class="benefit-card-sub">이벤트에 참여하시는 모든 분들께 즉시 사용 가능한 적립금을 드립니다.</div>
                 <hr class="benefit-divider">
                 <div class="benefit-list">
                     <div class="benefit-item">
-                        <div class="benefit-icon">🏷️</div>
-                        <div class="benefit-item-text">
-                            <strong>할인 쿠폰 즉시 발급</strong>
-                            <span>마이페이지 > 쿠폰함에서 확인하세요</span>
-                        </div>
-                    </div>
-                    <div class="benefit-item">
                         <div class="benefit-icon">💰</div>
                         <div class="benefit-item-text">
-                            <strong>적립금 즉시 지급</strong>
-                            <span>마이페이지 > 적립금에서 확인하세요</span>
+                            <strong>5,000원 적립금 즉시 지급</strong>
+                            <span>마이페이지 > 적립금 내역에서 확인하세요</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 상태 메시지 -->
-            <div id="msg-box" class="msg-box"></div>
+            <!-- 삭제됨: 상태 메시지 -->
 
             <!-- 혜택 받기 버튼 -->
             <button id="btn-reward" onclick="claimReward()">🎁 혜택 받기</button>
@@ -343,9 +322,9 @@
             <!-- 이벤트 안내 -->
             <div class="notice-box">
                 <ul>
-                    <li>본 이벤트는 당일 가입한 신규 회원에게만 제공됩니다.</li>
-                    <li>1인 1회에 한해 혜택이 지급됩니다.</li>
-                    <li>쿠폰 및 적립금은 마이페이지에서 확인하실 수 있습니다.</li>
+                    <li>본 이벤트는 전 고객 대상으로 누구나 참여하실 수 있습니다.</li>
+                    <li>1인 1회에 한해 적립금이 지급됩니다.</li>
+                    <li>지급받은 적립금은 마이페이지에서 확인하실 수 있습니다.</li>
                     <li>문의사항은 고객센터로 연락 주시기 바랍니다.</li>
                 </ul>
             </div>
@@ -379,14 +358,8 @@
         }
 
         // ==========================================
-        // [UI] 상태 메시지 표시
+        // [UI] 상태 메시지 표시 -> alert로 대체되어 삭제됨
         // ==========================================
-        function showMsg(text, type) {
-            var box = document.getElementById('msg-box');
-            box.textContent = text;
-            box.className = 'msg-box ' + type;
-            box.style.display = 'block';
-        }
 
         function hideLoading() {
             document.getElementById('loading-state').style.display = 'none';
@@ -420,7 +393,6 @@
                             memberId = null;
                             console.log('비로그인 상태');
                             hideLoading();
-                            showMsg('로그인 후 이벤트에 참여하실 수 있습니다.', 'info');
                             document.getElementById('btn-reward').textContent = '로그인하기';
                             document.getElementById('btn-reward').onclick = function () {
                                 location.href = getLoginUrlWithReturn();
@@ -438,16 +410,12 @@
         // [2] 참여 여부 조회
         // ==========================================
         function checkStatus(id) {
-            fetch(API_BASE_URL + '/api/event/newmember/status?memberId=' + encodeURIComponent(id))
+            fetch(API_BASE_URL + '/api/event/point0428/status?memberId=' + encodeURIComponent(id))
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     // ── [테스트용 콘솔 로그] ──
-                    console.log('============ [0428 이벤트 테스트] ============');
+                    console.log('============ [0428 적립금 이벤트] ============');
                     console.log('접근 아이디   :', id);
-                    console.log('가입일        :', res.joinedDate || '정보 없음');
-                    console.log('[조건A] 오늘 신규가입 :', res.isNewMember ? '✅ 예 (오늘 가입)' : '❌ 아니오');
-                    console.log('[조건B] 구매이력 없음 :', res.hasNoPurchase ? '✅ 예 (구매 이력 없음)' : '❌ 아니오 (기존 구매자)');
-                    console.log('최종 지급 대상 :', res.isEligible ? '✅ 가능' : '❌ 불가 (조건 미충족)');
                     console.log('이미 참여여부 :', res.participated ? '✅ 이미 수령 완료' : '⬜ 미참여 (수령 가능)');
                     console.log('=============================================');
 
@@ -457,7 +425,7 @@
                     }
                 })
                 .catch(function (err) {
-                    console.error('[0428 이벤트] status 조회 실패:', err);
+                    console.error('[0428 적립금 이벤트] status 조회 실패:', err);
                     hideLoading();
                 });
         }
@@ -475,7 +443,7 @@
             btn.disabled = true;
             btn.textContent = '처리 중...';
 
-            fetch(API_BASE_URL + '/api/event/newmember/reward', {
+            fetch(API_BASE_URL + '/api/event/point0428/reward', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ memberId: memberId })
@@ -483,17 +451,19 @@
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 if (res.success) {
-                    setSuccessUI(res.message);
+                    alert(res.message || '🎉 혜택이 지급되었습니다!');
+                    setSuccessUI();
                 } else if (res.alreadyDone) {
+                    alert('이미 혜택을 받으셨습니다. 마이페이지에서 확인해주세요.');
                     setAlreadyDoneUI();
                 } else {
-                    showMsg(res.message || '오류가 발생했습니다. 다시 시도해주세요.', 'error');
+                    alert(res.message || '오류가 발생했습니다. 다시 시도해주세요.');
                     btn.disabled = false;
                     btn.textContent = '🎁 혜택 받기';
                 }
             })
             .catch(function () {
-                showMsg('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                alert('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
                 btn.disabled = false;
                 btn.textContent = '🎁 혜택 받기';
             });
@@ -502,9 +472,7 @@
         // ==========================================
         // [4] 성공 UI
         // ==========================================
-        function setSuccessUI(message) {
-            showMsg(message || '🎉 혜택이 지급되었습니다!', 'success');
-
+        function setSuccessUI() {
             var btn = document.getElementById('btn-reward');
             btn.style.display = 'none';
 
@@ -516,7 +484,6 @@
         // [5] 이미 참여 UI
         // ==========================================
         function setAlreadyDoneUI() {
-            showMsg('이미 혜택을 받으셨습니다. 마이페이지에서 확인해주세요.', 'info');
             var btn = document.getElementById('btn-reward');
             btn.disabled = true;
             btn.textContent = '이미 혜택을 받으셨습니다';
