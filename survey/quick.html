@@ -1,0 +1,138 @@
+<style>
+/* 퀵 메뉴 오디오 버튼 (모든 페이지 공통) */
+.quick-menu {
+    position: absolute; /* PC 화면에서 백그라운드가 아닌 하얀 박스 컴포넌트를 기준으로 위치 계산 */
+    bottom: -25px;      /* 사진처럼 바닥 라인에 반쯤 걸치도록 내림 */
+    left: 0;            /* 왼쪽 라인에 딱 맞춤 */
+    z-index: 9999;
+    background: #ffffff;
+    border-radius: 50%;
+    width: 65px;
+    height: 65px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    -webkit-tap-highlight-color: transparent;
+}
+.quick-menu:active { transform: scale(0.9); }
+@media (hover: hover) and (pointer: fine) {
+    .quick-menu:hover { transform: scale(1.05); }
+}
+.quick-menu .icon {
+    width: 28px;
+    height: 28px;
+    fill: #55B5C9;
+    margin-left: 4px; /* 재생 세모 버튼일 때 약간 우측으로 치우친 것 보정 */
+    transition: all 0.2s;
+}
+.quick-menu.playing .icon { margin-left: 0; /* 일시정지 11자 버튼일 때는 보정 해제 */ }
+
+.playing-anim {
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    border: 2px solid #55B5C9;
+    box-sizing: border-box;
+    animation: ripple 1.8s infinite cubic-bezier(0.1, 0.5, 0.3, 1);
+}
+@keyframes ripple {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+.quick-menu.playing .playing-anim { display: block; }
+
+/* 모바일 화면일 때는 화면의 왼쪽 끝 기준으로 고정 */
+@media (max-width: 500px) {
+    .quick-menu {
+        position: fixed;
+        left: 20px;
+        bottom: 30px;
+    }
+}
+</style>
+
+<!-- 배경 오디오 -->
+<audio id="bg-audio" loop>
+    <source src="https://yogico.cafe24.com/mp3/okr.mp3" type="audio/mpeg">
+</audio>
+
+<!-- 플로팅 재생 버튼 -->
+<div class="quick-menu" id="audio-btn">
+    <div class="playing-anim"></div>
+    <svg class="icon" viewBox="0 0 24 24" id="audio-icon">
+        <path id="audio-icon-path" d="M8 5v14l11-7z" />
+    </svg>
+</div>
+
+<script>
+(function() {
+    const audioBtn = document.getElementById('audio-btn');
+    const bgAudio = document.getElementById('bg-audio');
+    const iconPath = document.getElementById('audio-icon-path');
+
+    // absolute 로 컨테이너 모서리에 걸쳐서 보여지게 하려면, 버튼을 컨테이너 내부로 쏙 넣고 overflow 속성을 해제합니다.
+    const container = document.querySelector('.survey-container');
+    if (container && audioBtn.parentNode !== container) {
+        container.style.overflow = 'visible';
+        container.appendChild(audioBtn);
+    }
+
+    let isPlaying = false;
+
+    // 세션 스토리지에서 이전 상태 복구
+    const savedTime = sessionStorage.getItem('bgAudioTime');
+    const savedPlaying = sessionStorage.getItem('bgAudioPlaying');
+
+    // 재생 상태 UI 업데이트 함수
+    const setUIPlaying = (playing) => {
+        isPlaying = playing;
+        if(playing) {
+            audioBtn.classList.add('playing');
+            iconPath.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'); // Pause Icon (11자 모양)
+        } else {
+            audioBtn.classList.remove('playing');
+            iconPath.setAttribute('d', 'M8 5v14l11-7z'); // Play Icon (세모 모양)
+        }
+    };
+
+    // 저장된 재생 위치가 있다면 해당 시간대로 이동
+    if (savedTime) {
+        bgAudio.currentTime = parseFloat(savedTime);
+    }
+
+    // 이전 페이지에서 음악이 재생 중이었다면 바로 이어서 재생
+    if (savedPlaying === 'true') {
+        setUIPlaying(true);
+        // 정책상 사용자 첫 클릭 전에는 자동 재생 에러가 날 수 있음
+        bgAudio.play().catch(err => {
+            console.log("Audio autoplay prevented by browser policy:", err);
+            setUIPlaying(false); // 재생 실패 시 다시 정지 상태로 표시
+        });
+    }
+
+    // 클릭 시 재생 / 일시정지 토글
+    audioBtn.addEventListener('click', () => {
+        if (isPlaying) {
+            bgAudio.pause();
+            setUIPlaying(false);
+        } else {
+            bgAudio.play().then(() => {
+                setUIPlaying(true);
+            }).catch(err => {
+                alert("브라우저 정책상 재생할 수 없거나 소스를 찾을 수 없습니다.");
+            });
+        }
+    });
+
+    // 페이지를 벗어날 때 현재 오디오 시간과 상태를 브라우저에 저장
+    window.addEventListener('beforeunload', () => {
+        sessionStorage.setItem('bgAudioTime', bgAudio.currentTime);
+        sessionStorage.setItem('bgAudioPlaying', isPlaying);
+    });
+})();
+</script>

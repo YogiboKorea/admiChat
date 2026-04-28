@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신규 회원 웰컴 이벤트 - Yogibo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <style>
+        :root {
+            --primary: #55B5C9;
+            --primary-dark: #3a9ab0;
+            --bg: #f5f8fa;
+            --white: #ffffff;
+            --text: #1a1a1a;
+            --sub: #666;
+            --border: #e8e8e8;
+            --shadow: 0 8px 30px rgba(85,181,201,0.12);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 0 60px;
+            color: var(--text);
+        }
+
+        /* ── 헤더 로고 ── */
+        .event-header {
+            width: 100%;
+            max-width: 480px;
+            padding: 24px 24px 0;
+            display: flex;
+            justify-content: center;
+        }
+        .event-header img { width: 110px; height: auto; }
+
+        /* ── 메인 컨테이너 ── */
+        .event-wrap {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px 20px 0;
+        }
+
+        /* ── 이벤트 배너 이미지 영역 ── */
+        /* ★ 이 div 안에 이벤트 배너 이미지를 넣어주세요 */
+        .event-banner {
+            width: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            background: var(--primary);
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .event-banner img {
+            width: 100%;
+            display: block;
+        }
+        .event-banner-placeholder {
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* ── 혜택 카드 ── */
+        .benefit-card {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 28px 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+        }
+        .benefit-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .benefit-card-main {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--text);
+            letter-spacing: -0.5px;
+            line-height: 1.3;
+            margin-bottom: 6px;
+        }
+        .benefit-card-sub {
+            font-size: 14px;
+            color: var(--sub);
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        .benefit-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 20px 0;
+        }
+        .benefit-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .benefit-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .benefit-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #f0f8ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .benefit-item-text strong {
+            display: block;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .benefit-item-text span {
+            font-size: 13px;
+            color: var(--sub);
+        }
+
+        /* ── 참여 버튼 ── */
+        #btn-reward {
+            width: 100%;
+            padding: 20px;
+            border: none;
+            border-radius: 16px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            letter-spacing: -0.3px;
+            transition: all 0.2s;
+            box-shadow: 0 6px 20px rgba(85,181,201,0.35);
+            margin-bottom: 16px;
+        }
+        #btn-reward:active { transform: scale(0.98); }
+        #btn-reward:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* ── 상태 메시지 ── */
+        .msg-box {
+            display: none;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .msg-box.success { background: #e8f8ec; color: #1a7a35; border: 1px solid #b6e8c5; }
+        .msg-box.error   { background: #fff0f0; color: #c0392b; border: 1px solid #f5b7b1; }
+        .msg-box.info    { background: #f0f8ff; color: #2471a3; border: 1px solid #aed6f1; }
+
+        /* ── 쿠폰 다운로드 공간 ── */
+        /*
+         * ★ 쿠폰 다운로드 영역입니다.
+         * 혜택 지급 성공 후 show-on-success 클래스가 추가되어 표시됩니다.
+         * 이 div 안에 쿠폰 다운로드 버튼 또는 컴포넌트를 삽입해 주세요.
+         */
+        #coupon-area {
+            display: none;
+            background: var(--white);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        #coupon-area.active { display: block; }
+        #coupon-area-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+        #coupon-area-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+
+        /* 쿠폰 다운로드 실제 컨텐츠 넣을 자리 */
+        #coupon-download-slot {
+            width: 100%;
+            min-height: 60px;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #bbb;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* ── 안내 문구 ── */
+        .notice-box {
+            background: #f8f8f8;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+        .notice-box ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .notice-box li {
+            font-size: 12px;
+            color: var(--sub);
+            line-height: 1.6;
+            padding-left: 12px;
+            position: relative;
+        }
+        .notice-box li::before {
+            content: '·';
+            position: absolute;
+            left: 0;
+            color: var(--sub);
+        }
+
+        /* ── 로딩 ── */
+        .loading-wrap {
+            width: 100%;
+            text-align: center;
+            padding: 40px 0;
+            color: var(--sub);
+            font-size: 14px;
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e0e0e0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 500px) {
+            body { padding-bottom: 40px; }
+            .event-header { padding: 20px 16px 0; }
+            .event-wrap { padding: 16px 16px 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 로고 -->
+    <div class="event-header">
+        <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo">
+    </div>
+
+    <div class="event-wrap">
+
+        <!-- 이벤트 배너 이미지 영역 -->
+        <!-- ★ 아래 img 태그 src를 실제 이벤트 배너로 교체해 주세요 -->
+        <div class="event-banner">
+            <div class="event-banner-placeholder">이벤트 배너 이미지</div>
+            <!-- <img src="이벤트_배너_이미지_URL" alt="신규 회원 웰컴 이벤트"> -->
+        </div>
+
+        <!-- 로딩 상태 -->
+        <div id="loading-state" class="loading-wrap">
+            <div class="spinner"></div>
+            <p>잠시만 기다려주세요...</p>
+        </div>
+
+        <!-- 이벤트 메인 콘텐츠 (로딩 후 표시) -->
+        <div id="event-content" style="display: none;">
+
+            <!-- 혜택 안내 카드 -->
+            <div class="benefit-card">
+                <div class="benefit-card-title">🎁 신규 회원 웰컴 혜택</div>
+                <div class="benefit-card-main">오늘 가입하셨나요?<br>특별한 혜택을 드려요!</div>
+                <div class="benefit-card-sub">오늘 가입한 신규 회원에게만 드리는 1회 한정 혜택입니다.</div>
+                <hr class="benefit-divider">
+                <div class="benefit-list">
+                    <div class="benefit-item">
+                        <div class="benefit-icon">🏷️</div>
+                        <div class="benefit-item-text">
+                            <strong>할인 쿠폰 즉시 발급</strong>
+                            <span>마이페이지 > 쿠폰함에서 확인하세요</span>
+                        </div>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">💰</div>
+                        <div class="benefit-item-text">
+                            <strong>적립금 즉시 지급</strong>
+                            <span>마이페이지 > 적립금에서 확인하세요</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 상태 메시지 -->
+            <div id="msg-box" class="msg-box"></div>
+
+            <!-- 혜택 받기 버튼 -->
+            <button id="btn-reward" onclick="claimReward()">🎁 혜택 받기</button>
+
+            <!-- 쿠폰 다운로드 공간 -->
+            <!--
+                ★ 혜택 지급 성공 후 이 영역이 .active 상태가 됩니다.
+                   #coupon-download-slot 안에 쿠폰 다운로드 기능을 넣어주세요.
+                   참고 URL: /exec/front/newcoupon/IssueDownload?coupon_no=6084813679300001131
+            -->
+            <div id="coupon-area">
+                <div id="coupon-area-label">쿠폰 다운로드</div>
+                <div id="coupon-area-title">쿠폰이 발급되었습니다 🎉</div>
+                <div id="coupon-download-slot">
+                    <!-- ★ 여기에 쿠폰 다운로드 버튼/컴포넌트를 삽입하세요 -->
+                </div>
+            </div>
+
+            <!-- 이벤트 안내 -->
+            <div class="notice-box">
+                <ul>
+                    <li>본 이벤트는 당일 가입한 신규 회원에게만 제공됩니다.</li>
+                    <li>1인 1회에 한해 혜택이 지급됩니다.</li>
+                    <li>쿠폰 및 적립금은 마이페이지에서 확인하실 수 있습니다.</li>
+                    <li>문의사항은 고객센터로 연락 주시기 바랍니다.</li>
+                </ul>
+            </div>
+
+        </div><!-- /event-content -->
+
+    </div><!-- /event-wrap -->
+
+    <script>
+        // ==========================================
+        // [설정]
+        // ==========================================
+        const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+        const API_BASE_URL   = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        const LOGIN_BASE     = '/member/login.html';
+
+        // ==========================================
+        // [전역 상태]
+        // ==========================================
+        var memberId = null;
+        var memberIdRetryCount = 0;
+        var maxRetryLimit = 5;
+
+        // ==========================================
+        // [유틸] 로그인 URL (returnUrl 포함)
+        // ==========================================
+        function getLoginUrlWithReturn() {
+            const fullPath = window.location.pathname + window.location.search + window.location.hash;
+            const cleanPath = fullPath.replace(/([?&])hmac=[^&]*(&?)/g, (_, p1, p2) => p2 ? p1 : '');
+            return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(cleanPath);
+        }
+
+        // ==========================================
+        // [UI] 상태 메시지 표시
+        // ==========================================
+        function showMsg(text, type) {
+            var box = document.getElementById('msg-box');
+            box.textContent = text;
+            box.className = 'msg-box ' + type;
+            box.style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('event-content').style.display = 'block';
+        }
+
+        // ==========================================
+        // [1] 페이지 로드 시 회원 ID 조회 시작
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeAndGetMemberId();
+        });
+
+        function initializeAndGetMemberId() {
+            if (typeof CAFE24API === 'undefined') {
+                setTimeout(initializeAndGetMemberId, 500);
+                return;
+            }
+            try {
+                CAFE24API.init(CAFE24_APP_KEY);
+                CAFE24API.getMemberID(function (res) {
+                    if (res) {
+                        memberId = res;
+                        console.log('✅ 회원ID:', memberId);
+                        checkStatus(memberId);
+                    } else {
+                        if (memberIdRetryCount < maxRetryLimit) {
+                            memberIdRetryCount++;
+                            setTimeout(initializeAndGetMemberId, 500);
+                        } else {
+                            memberId = null;
+                            console.log('비로그인 상태');
+                            hideLoading();
+                            showMsg('로그인 후 이벤트에 참여하실 수 있습니다.', 'info');
+                            document.getElementById('btn-reward').textContent = '로그인하기';
+                            document.getElementById('btn-reward').onclick = function () {
+                                location.href = getLoginUrlWithReturn();
+                            };
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error('Cafe24 API Error:', err);
+                hideLoading();
+            }
+        }
+
+        // ==========================================
+        // [2] 참여 여부 조회
+        // ==========================================
+        function checkStatus(id) {
+            fetch(API_BASE_URL + '/api/event/newmember/status?memberId=' + encodeURIComponent(id))
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    // ── [테스트용 콘솔 로그] ──
+                    console.log('============ [0428 이벤트 테스트] ============');
+                    console.log('접근 아이디   :', id);
+                    console.log('오늘 신규가입 :', res.isNewMember ? '✅ 예 (오늘 가입)' : '❌ 아니오 (기존 회원)');
+                    console.log('이미 참여여부 :', res.participated ? '✅ 이미 수령 완료' : '⬜ 미참여 (수령 가능)');
+                    console.log('가입일        :', res.joinedDate || '정보 없음');
+                    console.log('=============================================');
+
+                    hideLoading();
+                    if (res.participated) {
+                        setAlreadyDoneUI();
+                    }
+                })
+                .catch(function (err) {
+                    console.error('[0428 이벤트] status 조회 실패:', err);
+                    hideLoading();
+                });
+        }
+
+        // ==========================================
+        // [3] 혜택 받기 클릭
+        // ==========================================
+        function claimReward() {
+            if (!memberId) {
+                location.href = getLoginUrlWithReturn();
+                return;
+            }
+
+            var btn = document.getElementById('btn-reward');
+            btn.disabled = true;
+            btn.textContent = '처리 중...';
+
+            fetch(API_BASE_URL + '/api/event/newmember/reward', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ memberId: memberId })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.success) {
+                    setSuccessUI(res.message);
+                } else if (res.alreadyDone) {
+                    setAlreadyDoneUI();
+                } else {
+                    showMsg(res.message || '오류가 발생했습니다. 다시 시도해주세요.', 'error');
+                    btn.disabled = false;
+                    btn.textContent = '🎁 혜택 받기';
+                }
+            })
+            .catch(function () {
+                showMsg('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                btn.disabled = false;
+                btn.textContent = '🎁 혜택 받기';
+            });
+        }
+
+        // ==========================================
+        // [4] 성공 UI
+        // ==========================================
+        function setSuccessUI(message) {
+            showMsg(message || '🎉 혜택이 지급되었습니다!', 'success');
+
+            var btn = document.getElementById('btn-reward');
+            btn.style.display = 'none';
+
+            // 쿠폰 다운로드 영역 노출
+            document.getElementById('coupon-area').classList.add('active');
+        }
+
+        // ==========================================
+        // [5] 이미 참여 UI
+        // ==========================================
+        function setAlreadyDoneUI() {
+            showMsg('이미 혜택을 받으셨습니다. 마이페이지에서 확인해주세요.', 'info');
+            var btn = document.getElementById('btn-reward');
+            btn.disabled = true;
+            btn.textContent = '이미 혜택을 받으셨습니다';
+
+            // 이미 받은 경우에도 쿠폰 다운로드 영역 노출
+            document.getElementById('coupon-area').classList.add('active');
+        }
+    </script>
+</body>
+</html>

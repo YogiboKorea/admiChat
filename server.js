@@ -5181,6 +5181,9 @@ app.get('/api/survey/quiz-list', async (req, res) => {
   }
 });
 
+
+//업데이트
+
 // [eventSurvey] 퀴즈 엑셀 다운로드
 app.get('/api/survey/quiz-download', async (req, res) => {
   try {
@@ -5351,6 +5354,144 @@ app.get('/api/survey/download', async (req, res) => {
   }
 });
 
+// ========== [추가] 신규 회원 웰컴 이벤트 API (0428 쿠폰+적립금) ==========
+const NEW_MEMBER_EVENT_COLLECTION = 'yogiboNewMemberEvent0428';
+const NEW_MEMBER_COUPON_NO = '6084813679300001131';
+const NEW_MEMBER_POINT_AMOUNT = 3000; // ★ 적립금 금액 (필요 시 수정)
+
+// 참여 여부 조회 (+ 신규 가입 여부 포함 - 테스트용 콘솔 확인)
+app.get('/api/event/newmember/status', async (req, res) => {
+  const { memberId } = req.query;
+  if (!memberId || memberId.startsWith('guest_')) {
+    return res.json({ participated: false, isNewMember: false, joinedDate: null });
+  }
+  try {
+    const doc = await db.collection(NEW_MEMBER_EVENT_COLLECTION).findOne({ memberId });
+
+    // 오늘 가입 여부 확인 (Cafe24 customers API)
+    let isNewMember = false;
+    let joinedDate = null;
+    try {
+      const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+      const customerRes = await apiRequest('GET', customerUrl, {}, {
+        member_id: memberId,
+        fields: 'member_id,created_date'
+      });
+      const customer = customerRes.customers?.[0];
+      if (customer) {
+        const todayKST = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
+        joinedDate = moment(customer.created_date).tz('Asia/Seoul').format('YYYY-MM-DD');
+        isNewMember = (joinedDate === todayKST);
+      }
+    } catch (e) {
+      console.warn('[신규회원이벤트] status - 가입일 조회 실패:', e.message);
+    }
+
+    console.log(`[신규회원이벤트][STATUS] memberId=${memberId} | 가입일=${joinedDate} | 신규=${isNewMember} | 참여=${!!doc}`);
+
+    res.json({ participated: !!doc, isNewMember, joinedDate });
+  } catch (err) {
+    console.error('[신규회원이벤트] status 오류:', err);
+    res.status(500).json({ participated: false, isNewMember: false, joinedDate: null });
+  }
+});
+
+// 쿠폰 + 적립금 지급
+app.post('/api/event/newmember/reward', async (req, res) => {
+  const { memberId } = req.body;
+
+  // 1. 유효성 검사
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
+  }
+
+  try {
+    const collection = db.collection(NEW_MEMBER_EVENT_COLLECTION);
+
+    // 2. 중복 참여 확인
+    const alreadyDone = await collection.findOne({ memberId });
+    if (alreadyDone) {
+      return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+
+    // 3. 오늘 가입 신규 회원 여부 확인 (Cafe24 customers API)
+    const customerUrl = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customers`;
+    const customerRes = await apiRequest('GET', customerUrl, {}, {
+      member_id: memberId,
+      fields: 'member_id,created_date'
+    });
+
+    const customer = customerRes.customers?.[0];
+    if (!customer) {
+      return res.status(404).json({ success: false, message: '회원 정보를 찾을 수 없습니다.' });
+    }
+
+    // KST 기준 오늘 날짜 비교
+    const todayKST = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
+    const joinedDate = moment(customer.created_date).tz('Asia/Seoul').format('YYYY-MM-DD');
+
+    if (joinedDate !== todayKST) {
+      return res.status(400).json({ success: false, message: '오늘 가입한 신규 회원만 참여할 수 있습니다.' });
+    }
+
+    // 4. 쿠폰 발급
+    try {
+      await apiRequest('POST', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/coupons/issued`, {
+        shop_no: 1,
+        request: {
+          coupon_no: NEW_MEMBER_COUPON_NO,
+          member_id: memberId,
+          issued_place: 'F'
+        }
+      });
+      console.log(`[신규회원이벤트] ${memberId} 쿠폰 발급 완료`);
+    } catch (couponErr) {
+      console.error('[신규회원이벤트] 쿠폰 발급 오류:', couponErr.response?.data || couponErr.message);
+      return res.status(500).json({ success: false, message: '쿠폰 발급 중 오류가 발생했습니다.' });
+    }
+
+    // 5. 적립금 지급
+    try {
+      await apiRequest('POST', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`, {
+        shop_no: 1,
+        request: {
+          member_id: memberId,
+          order_id: null,
+          amount: NEW_MEMBER_POINT_AMOUNT,
+          type: 'increase',
+          reason: '신규 가입 축하 적립금 지급'
+        }
+      });
+      console.log(`[신규회원이벤트] ${memberId} 적립금 ${NEW_MEMBER_POINT_AMOUNT}원 지급 완료`);
+    } catch (pointErr) {
+      console.error('[신규회원이벤트] 적립금 지급 오류:', pointErr.response?.data || pointErr.message);
+      // 쿠폰은 발급됐으므로 참여 기록은 저장하되 포인트 오류 안내
+      const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      await collection.insertOne({ memberId, couponNo: NEW_MEMBER_COUPON_NO, pointAmount: 0, pointError: true, participatedAt: nowKST });
+      return res.status(500).json({ success: false, message: '쿠폰은 발급됐으나 적립금 지급 중 오류가 발생했습니다. 관리자에게 문의해주세요.' });
+    }
+
+    // 6. 참여 기록 저장
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await collection.insertOne({
+      memberId,
+      couponNo: NEW_MEMBER_COUPON_NO,
+      pointAmount: NEW_MEMBER_POINT_AMOUNT,
+      participatedAt: nowKST
+    });
+
+    console.log(`[신규회원이벤트] ${memberId} 모든 혜택 지급 완료`);
+    return res.json({ success: true, message: `🎉 쿠폰과 ${NEW_MEMBER_POINT_AMOUNT.toLocaleString()}원 적립금이 지급되었습니다!` });
+
+  } catch (err) {
+    console.error('[신규회원이벤트] 오류:', err);
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
@@ -5370,6 +5511,14 @@ app.get('/api/survey/download', async (req, res) => {
       console.log('✅ yogiboCartEvent Unique Index 확인 완료');
     } catch (idxErr) {
       console.warn('⚠️ yogiboCartEvent Index 생성 경고:', idxErr.message);
+    }
+
+    // [신규회원이벤트] yogiboNewMemberEvent0428 Unique Index
+    try {
+      await db.collection('yogiboNewMemberEvent0428').createIndex({ memberId: 1 }, { unique: true });
+      console.log('✅ yogiboNewMemberEvent0428 Unique Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ yogiboNewMemberEvent0428 Index 생성 경고:', idxErr.message);
     }
 
     // 3. 서버 리스닝

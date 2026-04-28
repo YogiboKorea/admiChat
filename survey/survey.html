@@ -23,7 +23,7 @@
             background-color: var(--bg-color); 
             display: flex; 
             justify-content: center; 
-            align-items: center; 
+            align-items: flex-start; 
             min-height: 100vh; 
             margin: 0; 
             padding: 20px; 
@@ -54,11 +54,11 @@
         }
         
         .content-wrap { 
-            padding: 80px 24px 40px 24px; 
+            padding: 0px 24px 40px 24px; 
             display: flex; 
             flex-direction: column; 
             flex-grow: 1; 
-            justify-content: center;
+            justify-content: flex-start;
         }
 
         .logo { 
@@ -67,13 +67,32 @@
             color: #3f4e58; 
             margin-bottom: 20px; 
             letter-spacing: -1.5px; 
-            position: absolute; 
-            top: 10px; 
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10; 
+            width: 100%;
+            height: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            position: relative;
         }
         .logo img { width: 130px; height: auto; display: block; }
+        .home-btn {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .home-btn:hover { background: rgba(85,181,201,0.1); }
+        .home-btn svg { width: 22px; height: 22px; color: #888; }
 
         .step { display: none; } 
         .step.active { display: flex; flex-direction: column; align-items: center; animation: fadeIn 0.4s ease; }
@@ -228,8 +247,26 @@
         .progress-segment { height: 6px; flex: 1; background-color: #eee; border-radius: 10px; overflow: hidden; position: relative; }
         .progress-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background-color: var(--primary-color); transition: width 0.4s ease-in-out; border-radius: 10px;}
 
-        .coupon-box { background-color: var(--primary-color); color: #ffffff; font-size: 30px; font-weight: 800; padding: 10px; border-radius: 20px; letter-spacing: 4px; margin-bottom: 20px; display: inline-block; width: 100%; box-sizing: border-box; margin: 0 auto; box-shadow: 0 10px 25px rgba(85, 181, 201, 0.3); }
-        .download-btn { background: none; border: none; cursor: pointer; color: #666; margin-top: 15px; transition: 0.2s; padding: 10px; }
+		.coupon-box {
+			background-color: #55b5c9;
+			color: #ffffff;
+			font-size: 20px;
+			font-weight: 800;
+			padding: 10px;
+			border-radius: 10px;
+			letter-spacing: 4px;
+			margin-bottom: 10px;
+			display: inline-block;
+			width: 74%;
+			height: 60px;
+			line-height: 45px;
+			box-sizing: border-box;
+			letter-spacing: 1px;
+			margin: 0 auto;
+		}
+				
+		
+        .download-btn { background: none; border: none; cursor: pointer; color: #666; margin-top: 5px; transition: 0.2s; padding: 10px; }
         .download-btn:hover { transform: translateY(-3px) scale(1.1); color: var(--primary-color); }
 
         .button_choicd {
@@ -245,10 +282,15 @@
     </style>
 </head>
 <body>
-
+<!--@import(/marketing/page/survey/quick.html)-->
 <div class="survey-container" id="capture-area">
     <div class="content-wrap">
-        <div class="logo" style="cursor: pointer;" onclick="location.href='index.html'"><img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo Logo"/></div>
+        <div class="logo">
+            <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo Logo"/>
+            <button class="home-btn" onclick="location.href='index.html'" title="홈으로">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </button>
+        </div>
 
         <div id="step-0" class="step active">
             <div class="mate-narrator">
@@ -266,7 +308,7 @@
 
         <div id="step-1" class="step" data-key="q1">
             <div class="mate-narrator">
-                <div><img src="https://yogibo.kr/web/img/marketing/img_002.png" style="" class="mate-img" alt="메이트"/></div>
+                <div><img src="https://yogibo.kr/web/img/marketing/img_002.png" class="mate-img" alt="메이트"/></div>
                 <div class="mate-shadow"></div>
             </div>
             <div class="question-box">
@@ -356,7 +398,7 @@
                 <div class="mate-shadow" style="width: 80px;"></div>
             </div>
             <div class="question-box" style="border: none; box-shadow: none;">
-                <p class="question-text" style="margin-top: 10px; font-weight: 400;">감사합니다!<br><span style="font-size: 16px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
+                <p class="question-text" style="margin-top: 10px; font-weight: 300;">감사합니다!<br><span style="font-size: 14px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
             </div>
             <button id="submit-btn" class="btn-option selected button_choicd" style="margin-top: 20px; border-radius: 50px; min-height: 60px;" 
             onclick="submitSurvey()">5% 할인쿠폰 받기</button>
@@ -364,14 +406,14 @@
 
         <div id="step-coupon-view" class="step" style="text-align: center; justify-content: center;">
             <div class="mate-narrator">
-                <img src="https://yogibo.kr/web/img/marketing/img_06.png" class="mate-img" style="max-width: 140px;" alt="메이트"/>
+                <img src="https://yogibo.kr/web/img/marketing/img_06_01.png" class="mate-img" style="max-width: 280px;" alt="메이트"/>
                 <div class="mate-shadow" style="width: 80px;"></div>
             </div>
             <div class="question-box" style="border: none; box-shadow: none; padding-bottom: 10px;">
-                <p class="question-text" style="margin-top: 0; font-weight: 400;">감사합니다!<br><span style="font-size: 16px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
+                <p class="question-text" style="margin-top: 0; font-weight: 400;">매장에서 <strong>선물 & 5% 할인 혜택</strong> 받아가세요!<br><span style="font-size: 16px; font-weight: 400; color:#000; display:block; margin-top:10px;">Thank you 😍</span></p>
             </div>
-            <div id="coupon-display" class="coupon-box">XXXXX</div>
-            <p style="font-size: 14px; font-weight: 500; margin-top: 10px; color: #666; line-height: 1.5;">이미지를 저장하신 후,<br>매장 직원에게 제시해 주세요.</p>
+            <div id="coupon-display" class="coupon-box" style="margin-top:20px;">XXXXX</div>
+            <p style="font-size: 16px; font-weight: 500; margin-top: 20px; color: #000; line-height: 1.5;">이미지를 저장하신 후,매장 직원에게 제시해 주세요.</p>
             <button class="download-btn" onclick="downloadCouponImage()" title="쿠폰 이미지 저장">
                 <img src="https://yogibo.kr/web/img/event/marketing/down_icon.png" style="max-width:40px;" alt=""/>
             </button>

@@ -77,14 +77,35 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: calc(100% - 48px);
         }
 
         .logo img {
             width: 130px;
             height: auto;
             display: block;
-            cursor: pointer;
         }
+
+        .home-btn {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .home-btn:hover { background: rgba(85,181,201,0.1); }
+        .home-btn svg { width: 22px; height: 22px; color: #888; }
 
         /* 타이틀 */
         .global-title {
@@ -329,8 +350,11 @@
         <div class="content-wrap">
 
             <!-- 상단 로고 -->
-            <div class="logo" onclick="location.href='index.html'">
+            <div class="logo">
                 <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo Mark">
+                <button class="home-btn" onclick="location.href='index.html'" title="홈으로">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </button>
             </div>
 
             <div class="global-title">제품 카탈로그</div>
