@@ -1,0 +1,222 @@
+<!--@layout(/layout/basic/layout.html)-->
+<style type="text/css">
+    .promotion_event {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        font-family: 'Noto Sans KR', sans-serif;
+    }
+
+    .event-section {
+        background-color: #000;
+        padding: 50px 20px;
+        text-align: center;
+        color: #fff;
+    }
+
+    .event-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 30px;
+        word-break: keep-all;
+    }
+
+    .btn-notify {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #fff;
+        color: #000;
+        font-size: 20px;
+        font-weight: 700;
+        padding: 15px 40px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        width: 90%;
+        max-width: 400px;
+        margin-bottom: 15px;
+        transition: transform 0.2s, background-color 0.2s;
+    }
+
+    .btn-notify:hover {
+        background-color: #f0f0f0;
+        transform: translateY(-2px);
+    }
+
+    .btn-notify svg {
+        margin-right: 10px;
+        width: 24px;
+        height: 24px;
+    }
+
+    .consent-wrap {
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: #ddd;
+    }
+
+    .consent-wrap input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .loading-wrap {
+        display: none;
+        padding: 20px;
+        text-align: center;
+        color: #888;
+    }
+
+    .spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid rgba(255,255,255,0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s ease-in-out infinite;
+        margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<div class="promotion_event">
+    <div class="event-section">
+        <div class="event-title">특별한 친구들을 가장 먼저 만나보고 싶다면?</div>
+        
+        <!-- 로딩 상태 -->
+        <div id="loading-state" class="loading-wrap">
+            <div class="spinner"></div>
+            <p>회원 정보를 확인 중입니다...</p>
+        </div>
+
+        <div id="event-content">
+            <button class="btn-notify" onclick="subscribeEvent()">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 22C13.1 22 14 21.1 14 20H10C10 21.1 10.89 22 12 22ZM18 16V11C18 7.93 16.36 5.36 13.5 4.68V4C13.5 3.17 12.83 2.5 12 2.5C11.17 2.5 10.5 3.17 10.5 4V4.68C7.63 5.36 6 7.92 6 11V16L4 18V19H20V18L18 16Z" fill="#000"/>
+                </svg>
+                제품 출시 알림 받기
+            </button>
+            <div class="consent-wrap">
+                <label for="marketing-consent">(필수)마케팅 목적의 개인정보 수집·이용 및 SMS 수신 동의</label>
+                <input type="checkbox" id="marketing-consent">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // [설정]
+    // ==========================================
+    const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    const LOGIN_BASE = '/member/login.html';
+
+    // ==========================================
+    // [전역 상태]
+    // ==========================================
+    var memberId = null;
+    var memberIdRetryCount = 0;
+    var maxRetryLimit = 5;
+
+    // ==========================================
+    // [유틸] 로그인 URL (returnUrl 포함)
+    // ==========================================
+    function getLoginUrlWithReturn() {
+        const fullPath = window.location.pathname + window.location.search + window.location.hash;
+        const cleanPath = fullPath.replace(/([?&])hmac=[^&]*(&?)/g, (_, p1, p2) => p2 ? p1 : '');
+        return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(cleanPath);
+    }
+
+    // ==========================================
+    // [1] 페이지 로드 시 회원 ID 조회 시작
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('event-content').style.display = 'none';
+        document.getElementById('loading-state').style.display = 'block';
+        initializeAndGetMemberId();
+    });
+
+    function initializeAndGetMemberId() {
+        if (typeof CAFE24API === 'undefined') {
+            setTimeout(initializeAndGetMemberId, 500);
+            return;
+        }
+        try {
+            CAFE24API.init(CAFE24_APP_KEY);
+            CAFE24API.getMemberID(function (res) {
+                if (res) {
+                    memberId = res;
+                    console.log('✅ 회원ID:', memberId);
+                    document.getElementById('loading-state').style.display = 'none';
+                    document.getElementById('event-content').style.display = 'block';
+                } else {
+                    if (memberIdRetryCount < maxRetryLimit) {
+                        memberIdRetryCount++;
+                        setTimeout(initializeAndGetMemberId, 500);
+                    } else {
+                        memberId = null;
+                        console.log('비로그인 상태');
+                        document.getElementById('loading-state').style.display = 'none';
+                        document.getElementById('event-content').style.display = 'block';
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Cafe24 API Error:', err);
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('event-content').style.display = 'block';
+        }
+    }
+
+    // ==========================================
+    // [2] 제품 출시 알림 받기 클릭
+    // ==========================================
+    function subscribeEvent() {
+        if (!memberId) {
+            if (confirm('로그인 후 알림 신청이 가능합니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                location.href = getLoginUrlWithReturn();
+            }
+            return;
+        }
+
+        const consentCheckbox = document.getElementById('marketing-consent');
+        if (!consentCheckbox.checked) {
+            alert('마케팅 수신 동의 체크 후 알림 신청이 가능합니다.');
+            return;
+        }
+
+        document.getElementById('loading-state').style.display = 'block';
+        document.getElementById('event-content').style.display = 'none';
+
+        fetch(API_BASE_URL + '/api/event/0429/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ memberId: memberId })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('event-content').style.display = 'block';
+
+            if (res.success) {
+                alert('알림 신청이 완료되었습니다!');
+            } else {
+                alert(res.error || '오류가 발생했습니다. 다시 시도해주세요.');
+            }
+        })
+        .catch(function () {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('event-content').style.display = 'block';
+            alert('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        });
+    }
+</script>

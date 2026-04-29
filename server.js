@@ -5424,6 +5424,129 @@ app.post('/api/event/point0428/reward', async (req, res) => {
   }
 });
 
+// ==============================
+// (1) 개인정보 수집·이용 동의(선택) 업데이트
+async function updatePrivacyConsent(memberId) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/privacyconsents`;
+  const payload = {
+    shop_no: 1,
+    request: {
+      member_id: memberId,
+      consent_type: 'marketing',
+      agree: 'T',
+      issued_at: new Date().toISOString()
+    }
+  };
+  try {
+    return await apiRequest('POST', url, payload);
+  } catch (err) {
+    if (err.response?.data?.error?.message.includes('No API found')) {
+      console.warn('privacyconsents 엔드포인트 미지원, 패스');
+      return;
+    }
+    throw err;
+  }
+}
+
+// ==============================
+// (2) SMS 수신동의 업데이트
+async function updateMarketingConsent(memberId) {
+  const url = `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/customersprivacy/${memberId}`;
+  const payload = {
+    request: {
+      shop_no: 1,
+      member_id: memberId,
+      sms: 'T'
+    }
+  };
+  return await apiRequest('PUT', url, payload);
+}
+
+// ========== [추가] 0429 제품 출시 알림 이벤트 API ==========
+const EVENT_0429_COLLECTION = 'event_0429_subscribers';
+
+// 1. 이벤트 참여 및 수신동의
+app.post('/api/event/0429/subscribe', async (req, res) => {
+  const { memberId } = req.body;
+
+  if (!memberId || memberId.startsWith('guest_')) {
+    return res.status(400).json({ error: '로그인 후 신청 가능합니다.' });
+  }
+
+  try {
+    const collection = db.collection(EVENT_0429_COLLECTION);
+
+    // 중복 참여 확인
+    const alreadySubscribed = await collection.findOne({ memberId });
+    if (alreadySubscribed) {
+      return res.status(400).json({ error: '이미 알림 신청을 완료하셨습니다.' });
+    }
+
+    // Cafe24 SMS 및 마케팅 수신동의 처리
+    try {
+      await updatePrivacyConsent(memberId);
+      console.log(`[0429이벤트] ${memberId} - 마케팅 수집 동의(Privacy) 완료`);
+    } catch (e) {
+      console.error(`[0429이벤트] 마케팅 수집 동의 실패:`, e.message);
+    }
+
+    try {
+      await updateMarketingConsent(memberId);
+      console.log(`[0429이벤트] ${memberId} - SMS 수신 동의 완료`);
+    } catch (e) {
+      console.error(`[0429이벤트] SMS 동의 실패:`, e.message);
+    }
+
+    // 자체 DB에 참여 기록 저장
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await collection.insertOne({
+      memberId,
+      consent: true,
+      createdAt: nowKST
+    });
+
+    res.json({ success: true, message: '제품 출시 알림 신청이 완료되었습니다!' });
+  } catch (err) {
+    console.error('[0429이벤트] 오류:', err);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 2. 관리자 엑셀 다운로드
+app.get('/api/event/0429/download', async (req, res) => {
+  try {
+    const collection = db.collection(EVENT_0429_COLLECTION);
+    const docs = await collection.find({}).toArray();
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('0429 알림 신청 내역');
+
+    ws.columns = [
+      { header: '신청 일시 (KST)', key: 'createdAt', width: 25 },
+      { header: '회원 아이디', key: 'memberId', width: 20 },
+      { header: '마케팅/SMS 동의', key: 'consent', width: 20 },
+    ];
+
+    docs.forEach(d => {
+      ws.addRow({
+        createdAt: d.createdAt ? moment(d.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-',
+        memberId: d.memberId,
+        consent: d.consent ? 'O (동의)' : 'X'
+      });
+    });
+
+    const filename = '0429_Subscribers.xlsx';
+    res.setHeader('Content-Disposition', `attachment; filename="0429_Subscribers.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('[0429이벤트] 엑셀 다운로드 오류:', err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  }
+});
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능

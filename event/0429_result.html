@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제품 출시 알림 이벤트 관리</title>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .btn-download {
+            display: inline-block;
+            background-color: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background-color 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-download:hover {
+            background-color: #2ecc71;
+        }
+
+        .info-panel {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>제품 출시 알림 이벤트(0429) 관리자 대시보드</h1>
+        
+        <div class="info-panel">
+            <strong>안내:</strong><br>
+            - 본 페이지는 0429 제품 출시 이벤트 알림 신청자 목록을 확인하는 관리자용 페이지입니다.<br>
+            - 고객이 신청 시 자동으로 Cafe24 SMS/마케팅 수신 동의 처리가 완료됩니다.<br>
+            - 아래 엑셀 다운로드 버튼을 클릭하여 전체 신청자 목록을 다운로드할 수 있습니다.
+        </div>
+
+        <button class="btn-download" onclick="downloadExcel()">
+            📥 엑셀 다운로드
+        </button>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+
+        function downloadExcel() {
+            window.location.href = API_BASE_URL + '/api/event/0429/download';
+        }
+    </script>
+</body>
+</html>
