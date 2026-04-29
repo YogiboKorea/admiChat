@@ -5512,11 +5512,44 @@ app.post('/api/event/0429/subscribe', async (req, res) => {
   }
 });
 
-// 2. 관리자 엑셀 다운로드
-app.get('/api/event/0429/download', async (req, res) => {
+// 2. 관리자 조회 (리스트 반환)
+app.get('/api/event/0429/list', async (req, res) => {
+  const { date } = req.query; // YYYY-MM-DD
+  
   try {
     const collection = db.collection(EVENT_0429_COLLECTION);
-    const docs = await collection.find({}).toArray();
+    let query = {};
+    
+    if (date) {
+      // 해당 날짜의 KST 시작점과 끝점 계산
+      const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+    
+    const docs = await collection.find(query).sort({ createdAt: -1 }).toArray();
+    res.json({ success: true, list: docs });
+  } catch (err) {
+    console.error('[0429이벤트] 리스트 조회 오류:', err);
+    res.status(500).json({ success: false, error: '리스트 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 3. 관리자 엑셀 다운로드
+app.get('/api/event/0429/download', async (req, res) => {
+  const { date } = req.query; // YYYY-MM-DD
+  
+  try {
+    const collection = db.collection(EVENT_0429_COLLECTION);
+    let query = {};
+    
+    if (date) {
+      const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      query.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    const docs = await collection.find(query).sort({ createdAt: -1 }).toArray();
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('0429 알림 신청 내역');
@@ -5535,7 +5568,8 @@ app.get('/api/event/0429/download', async (req, res) => {
       });
     });
 
-    const filename = '0429_Subscribers.xlsx';
+    const dateStr = date ? `_${date}` : '';
+    const filename = `0429_Subscribers${dateStr}.xlsx`;
     res.setHeader('Content-Disposition', `attachment; filename="0429_Subscribers.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 

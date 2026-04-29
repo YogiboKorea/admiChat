@@ -4,7 +4,6 @@
         width: 100%;
         max-width: 600px;
         margin: 0 auto;
-        font-family: 'Noto Sans KR', sans-serif;
     }
 
     .event-section {
@@ -15,7 +14,7 @@
     }
 
     .event-title {
-        font-size: 24px;
+        font-size: clamp(18px, 5vw, 24px);
         font-weight: 700;
         margin-bottom: 30px;
         word-break: keep-all;
@@ -27,7 +26,7 @@
         justify-content: center;
         background-color: #fff;
         color: #000;
-        font-size: 20px;
+        font-size: clamp(16px, 4.5vw, 20px);
         font-weight: 700;
         padding: 15px 40px;
         border-radius: 8px;
@@ -51,12 +50,13 @@
     }
 
     .consent-wrap {
-        font-size: 14px;
+        font-size: clamp(12px, 3.5vw, 14px);
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 10px;
         color: #ddd;
+        word-break: keep-all;
     }
 
     .consent-wrap input[type="checkbox"] {
@@ -75,7 +75,7 @@
     .spinner {
         width: 30px;
         height: 30px;
-        border: 3px solid rgba(255,255,255,0.3);
+        border: 3px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         border-top-color: #fff;
         animation: spin 1s ease-in-out infinite;
@@ -83,14 +83,17 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 </style>
 
 <div class="promotion_event">
+    <div><img src="/web/img/0429/goods_01.png" style="width:100%;" alt="" /></div>
     <div class="event-section">
         <div class="event-title">특별한 친구들을 가장 먼저 만나보고 싶다면?</div>
-        
+
         <!-- 로딩 상태 -->
         <div id="loading-state" class="loading-wrap">
             <div class="spinner"></div>
@@ -99,9 +102,7 @@
 
         <div id="event-content">
             <button class="btn-notify" onclick="subscribeEvent()">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 22C13.1 22 14 21.1 14 20H10C10 21.1 10.89 22 12 22ZM18 16V11C18 7.93 16.36 5.36 13.5 4.68V4C13.5 3.17 12.83 2.5 12 2.5C11.17 2.5 10.5 3.17 10.5 4V4.68C7.63 5.36 6 7.92 6 11V16L4 18V19H20V18L18 16Z" fill="#000"/>
-                </svg>
+                <img src="/web/img/0429/bell.png" style="width:100%;max-width:25px;" alt="" />&nbsp;
                 제품 출시 알림 받기
             </button>
             <div class="consent-wrap">
@@ -202,21 +203,21 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ memberId: memberId })
         })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-            document.getElementById('loading-state').style.display = 'none';
-            document.getElementById('event-content').style.display = 'block';
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                document.getElementById('loading-state').style.display = 'none';
+                document.getElementById('event-content').style.display = 'block';
 
-            if (res.success) {
-                alert('알림 신청이 완료되었습니다!');
-            } else {
-                alert(res.error || '오류가 발생했습니다. 다시 시도해주세요.');
-            }
-        })
-        .catch(function () {
-            document.getElementById('loading-state').style.display = 'none';
-            document.getElementById('event-content').style.display = 'block';
-            alert('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-        });
+                if (res.success) {
+                    alert('알림 신청이 완료되었습니다!');
+                } else {
+                    alert(res.error || '오류가 발생했습니다. 다시 시도해주세요.');
+                }
+            })
+            .catch(function () {
+                document.getElementById('loading-state').style.display = 'none';
+                document.getElementById('event-content').style.display = 'block';
+                alert('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            });
     }
 </script>

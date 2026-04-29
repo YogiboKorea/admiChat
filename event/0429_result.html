@@ -57,6 +57,66 @@
             line-height: 1.6;
             color: #2980b9;
         }
+
+        .search-wrap {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .search-wrap input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn-search {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-search:hover {
+            background-color: #2980b9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #2c3e50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .result-count {
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #555;
+        }
     </style>
 </head>
 <body>
@@ -70,16 +130,97 @@
             - 아래 엑셀 다운로드 버튼을 클릭하여 전체 신청자 목록을 다운로드할 수 있습니다.
         </div>
 
-        <button class="btn-download" onclick="downloadExcel()">
-            📥 엑셀 다운로드
-        </button>
+        <div class="search-wrap">
+            <label for="search-date"><strong>날짜 검색:</strong></label>
+            <input type="date" id="search-date">
+            <button class="btn-search" onclick="fetchList()">조회</button>
+            <button class="btn-download" onclick="downloadExcel()" style="margin-left: auto;">
+                📥 엑셀 다운로드
+            </button>
+        </div>
+
+        <div class="result-count" id="result-count">총 0건의 신청 내역이 있습니다.</div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>신청 일시 (KST)</th>
+                    <th>회원 아이디</th>
+                    <th>마케팅/SMS 동의 여부</th>
+                </tr>
+            </thead>
+            <tbody id="list-body">
+                <tr><td colspan="3">로딩 중...</td></tr>
+            </tbody>
+        </table>
     </div>
 
     <script>
         const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
 
+        // 페이지 로드 시 전체 리스트 가져오기
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchList();
+        });
+
+        function fetchList() {
+            const date = document.getElementById('search-date').value;
+            let url = API_BASE_URL + '/api/event/0429/list';
+            if (date) {
+                url += '?date=' + encodeURIComponent(date);
+            }
+
+            document.getElementById('list-body').innerHTML = '<tr><td colspan="3">데이터를 불러오는 중입니다...</td></tr>';
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        renderTable(data.list);
+                    } else {
+                        alert('리스트 조회 중 오류가 발생했습니다.');
+                    }
+                })
+                .catch(err => {
+                    console.error('Fetch error:', err);
+                    document.getElementById('list-body').innerHTML = '<tr><td colspan="3">서버 통신 오류</td></tr>';
+                });
+        }
+
+        function renderTable(list) {
+            const tbody = document.getElementById('list-body');
+            document.getElementById('result-count').innerText = `총 ${list.length}건의 신청 내역이 있습니다.`;
+
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">조회된 데이터가 없습니다.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            list.forEach(item => {
+                // 간단한 KST 포맷팅
+                const dateObj = new Date(item.createdAt);
+                const kstString = isNaN(dateObj) ? '-' : dateObj.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                const consentText = item.consent ? 'O (동의)' : 'X';
+                
+                html += `
+                    <tr>
+                        <td>${kstString}</td>
+                        <td>${item.memberId}</td>
+                        <td>${consentText}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
         function downloadExcel() {
-            window.location.href = API_BASE_URL + '/api/event/0429/download';
+            const date = document.getElementById('search-date').value;
+            let url = API_BASE_URL + '/api/event/0429/download';
+            if (date) {
+                url += '?date=' + encodeURIComponent(date);
+            }
+            window.location.href = url;
         }
     </script>
 </body>
