@@ -198,9 +198,9 @@
 
             let html = '';
             list.forEach(item => {
-                // 간단한 KST 포맷팅
+                // KST 포맷팅 (시간 제외, 날짜만)
                 const dateObj = new Date(item.createdAt);
-                const kstString = isNaN(dateObj) ? '-' : dateObj.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                const kstString = isNaN(dateObj) ? '-' : dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
                 const consentText = item.consent ? 'O (동의)' : 'X';
                 
                 html += `

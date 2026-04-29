@@ -5562,7 +5562,7 @@ app.get('/api/event/0429/download', async (req, res) => {
 
     docs.forEach(d => {
       ws.addRow({
-        createdAt: d.createdAt ? moment(d.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss') : '-',
+        createdAt: d.createdAt ? moment(d.createdAt).tz('Asia/Seoul').format('YYYY-MM-DD') : '-',
         memberId: d.memberId,
         consent: d.consent ? 'O (동의)' : 'X'
       });
