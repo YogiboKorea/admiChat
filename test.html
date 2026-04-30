@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이벤트</title>
+    <!-- Cafe24 스크립트가 필요한 경우 외부에서 주입되거나 아래 링크를 통해 로드됩니다 -->
+    <script src="https://eclogin.cafe24api.com/al/app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background: #f9f9f9;
+        }
+
+        #loading-state {
+            text-align: center;
+            padding: 50px;
+            font-size: 16px;
+            color: #666;
+        }
+
+        #event_choice {
+            cursor: pointer;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        #event_choice img {
+            width: 100%;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading-state">로그인 정보를 확인 중입니다...</div>
+
+    <div id="event-content" style="display:none;">
+        <div id="event_choice" onclick="handleClick()">
+            <!-- 기존의 a 태그 대신 onclick 이벤트에서 이동을 제어합니다. -->
+            <img src="/web/img/event/0428/sa_04.jpg" alt="삼성" />
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // [설정]
+        // ==========================================
+        const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        const LOGIN_BASE = '/member/login.html';
+        const TARGET_URL = '/md/2026/samsungEvent.html';
+
+        // ==========================================
+        // [전역 상태]
+        // ==========================================
+        var memberId = null;
+        var memberIdRetryCount = 0;
+        var maxRetryLimit = 5;
+
+        // ==========================================
+        // [유틸] 로그인 URL (returnUrl 포함)
+        // ==========================================
+        function getLoginUrlWithReturn() {
+            const fullPath = window.location.pathname + window.location.search + window.location.hash;
+            const cleanPath = fullPath.replace(/([?&])hmac=[^&]*(&?)/g, (_, p1, p2) => p2 ? p1 : '');
+            return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(cleanPath);
+        }
+
+        // ==========================================
+        // [1] 페이지 로드 시 회원 ID 조회 시작
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeAndGetMemberId();
+        });
+
+        function initializeAndGetMemberId() {
+            if (typeof CAFE24API === 'undefined') {
+                if (memberIdRetryCount < maxRetryLimit) {
+                    memberIdRetryCount++;
+                    setTimeout(initializeAndGetMemberId, 500);
+                } else {
+                    // Cafe24 환경이 아닐 때 (테스트용)
+                    document.getElementById('loading-state').style.display = 'none';
+                    document.getElementById('event-content').style.display = 'block';
+                }
+                return;
+            }
+            try {
+                CAFE24API.init(CAFE24_APP_KEY);
+                CAFE24API.getMemberID(function (res) {
+                    if (res) {
+                        memberId = res;
+                        console.log('✅ 회원ID:', memberId);
+                    } else {
+                        console.log('비로그인 상태');
+                    }
+                    document.getElementById('loading-state').style.display = 'none';
+                    document.getElementById('event-content').style.display = 'block';
+                });
+            } catch (err) {
+                console.error('Cafe24 API Error:', err);
+                document.getElementById('loading-state').style.display = 'none';
+                document.getElementById('event-content').style.display = 'block';
+            }
+        }
+
+        // ==========================================
+        // [2] 이미지 버튼 클릭 시
+        // ==========================================
+        function handleClick() {
+            if (!memberId) {
+                if (confirm('로그인 후 참여가 가능합니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                    location.href = getLoginUrlWithReturn();
+                }
+                return;
+            }
+
+            // DB 저장 API 호출
+            fetch(API_BASE_URL + '/api/event/samsung/click', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ memberId: memberId })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    // 성공 여부와 관계없이 지정된 URL로 이동
+                    location.href = TARGET_URL;
+                })
+                .catch(function (err) {
+                    console.error('DB 저장 실패:', err);
+                    location.href = TARGET_URL;
+                });
+        }
+    </script>
+</body>
+
+</html>

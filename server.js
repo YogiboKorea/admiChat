@@ -5238,6 +5238,29 @@ app.get('/api/survey/quiz-download', async (req, res) => {
   }
 });
 
+// ==========================================
+// [이벤트] 삼성 0428 이벤트 클릭 기록
+// ==========================================
+app.post('/api/event/samsung/click', async (req, res) => {
+  try {
+    const { memberId } = req.body;
+    if (!memberId) {
+      return res.status(400).json({ success: false, message: '회원 아이디가 없습니다.' });
+    }
+
+    const doc = {
+      memberId,
+      clickedAt: new Date()
+    };
+
+    await db.collection('samsung_event_clicks').insertOne(doc);
+
+    res.json({ success: true, message: '저장 완료' });
+  } catch (error) {
+    console.error('삼성 이벤트 클릭 저장 에러:', error);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
 
 // [v2] 4문항 설문 제출
 app.post('/api/survey/submit', async (req, res) => {
@@ -5516,18 +5539,18 @@ app.post('/api/event/0429/subscribe', async (req, res) => {
 // 2. 관리자 조회 (리스트 반환)
 app.get('/api/event/0429/list', async (req, res) => {
   const { date } = req.query; // YYYY-MM-DD
-  
+
   try {
     const collection = db.collection(EVENT_0429_COLLECTION);
     let query = {};
-    
+
     if (date) {
       // 해당 날짜의 KST 시작점과 끝점 계산
       const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
       const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
       query.createdAt = { $gte: startOfDay, $lte: endOfDay };
     }
-    
+
     const docs = await collection.find(query).sort({ createdAt: -1 }).toArray();
     res.json({ success: true, list: docs });
   } catch (err) {
@@ -5539,11 +5562,11 @@ app.get('/api/event/0429/list', async (req, res) => {
 // 3. 관리자 엑셀 다운로드
 app.get('/api/event/0429/download', async (req, res) => {
   const { date } = req.query; // YYYY-MM-DD
-  
+
   try {
     const collection = db.collection(EVENT_0429_COLLECTION);
     let query = {};
-    
+
     if (date) {
       const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
       const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
