@@ -5242,7 +5242,7 @@ app.get('/api/survey/quiz-download', async (req, res) => {
 // [v2] 4문항 설문 제출
 app.post('/api/survey/submit', async (req, res) => {
   try {
-    const { store, q1, q2, q3_inconvenience, q3_improvement, q4 } = req.body;
+    const { store, q1, q1_hesitation, q2, q3_inconvenience, q3_improvement, q4 } = req.body;
     if (!store) return res.status(400).json({ success: false, message: '매장 정보가 없습니다.' });
 
     // 쿠폰 코드 생성 (5자리 영숫자 대문자)
@@ -5252,6 +5252,7 @@ app.post('/api/survey/submit', async (req, res) => {
     const doc = {
       store,
       q1: q1 || '',                                                          // Q1: 제품 구매 여부 (네/아니오)
+      q1_hesitation: q1_hesitation || '',                                    // Q1(아니오): 구매 망설임 이유
       q2: q2 || '',                                                          // Q2: 불편한 점 여부 (네/아니오)
       q3_inconvenience: Array.isArray(q3_inconvenience) ? q3_inconvenience : [],  // Q3(네): 불편한 부분 복수선택
       q3_improvement: q3_improvement || '',                                  // Q3(아니오): 개선 필요 부분 단일선택
@@ -5314,6 +5315,7 @@ app.get('/api/survey/download', async (req, res) => {
       { header: '제출일시', key: 'submittedAt', width: 22 },
       { header: '매장', key: 'store', width: 20 },
       { header: 'Q1 제품구매여부', key: 'q1', width: 16 },
+      { header: 'Q1(아니오) 구매망설임 이유', key: 'q1_hesitation', width: 22 },
       { header: 'Q2 불편점 여부', key: 'q2', width: 16 },
       { header: 'Q3(네) 불편한 부분 (복수)', key: 'q3_inconvenience', width: 35 },
       { header: 'Q3(아니오) 개선 필요 부분', key: 'q3_improvement', width: 30 },
@@ -5333,6 +5335,7 @@ app.get('/api/survey/download', async (req, res) => {
         submittedAt: moment(r.submittedAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss'),
         store: r.store,
         q1: r.q1,
+        q1_hesitation: r.q1_hesitation || '',
         q2: r.q2,
         q3_inconvenience: Array.isArray(r.q3_inconvenience) ? r.q3_inconvenience.join(', ') : '',
         q3_improvement: r.q3_improvement || '',

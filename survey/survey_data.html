@@ -194,9 +194,9 @@
         <div class="table-container">
             <table>
                 <thead><tr>
-                    <th>#</th><th>제출일시</th><th>매장</th><th>Q1 구매</th>
-                    <th>Q2 불편</th><th>Q3 불편/망설임</th><th>Q4 개선점</th>
-                    <th>Q5 자유의견</th><th>쿠폰코드</th>
+                    <th>#</th><th>제출일시</th><th>매장</th><th>Q1 구매</th><th>Q1(아니오) 망설임</th>
+                    <th>Q2 불편</th><th>Q3 불편(네)/개선필요(아니오)</th>
+                    <th>Q4 자유의견</th><th>쿠폰코드</th>
                 </tr></thead>
                 <tbody id="survey-tbody">
                     <tr><td colspan="9"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>
@@ -318,20 +318,23 @@
         document.getElementById('s-result-count').textContent = `총 ${data.length}건`;
         if (!data.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>데이터 없음</div></td></tr>`; return; }
         tbody.innerHTML = data.map((r, i) => {
+            // Q1=아니오이면 망설임 이유 표시
+            const q1h = r.q1_hesitation ? `<span class="tag">${r.q1_hesitation}</span>` : '<span style="color:#ccc">-</span>';
+            // Q3: q2가 '네'면 불편한 부분(복수), '아니오'면 개선 필요 부분(단일)
             const q3 = r.q2 === '네'
                 ? (r.q3_inconvenience || []).map(v => `<span class="tag">${v}</span>`).join('') || '-'
-                : (r.q3_hesitation ? `<span class="tag">${r.q3_hesitation}</span>` : '-');
-            const q5 = r.q5
-                ? `<span class="q5-text" title="${r.q5.replace(/"/g,'&quot;')}" onclick="alert(this.title)">${r.q5}</span>`
+                : (r.q3_improvement ? `<span class="tag">${r.q3_improvement}</span>` : '-');
+            // Q4: 자유의견
+            const q4text = r.q4
+                ? `<span class="q5-text" title="${r.q4.replace(/"/g,'&quot;')}" onclick="alert(this.title)">${r.q4}</span>`
                 : '<span style="color:#ccc">-</span>';
             return `<tr>
                 <td style="color:#aaa">${data.length - i}</td>
                 <td style="white-space:nowrap;font-size:11px;color:#666">${fmtDate(r.submittedAt)}</td>
                 <td><span class="store-badge">${r.store||'-'}</span></td>
-                <td>${r.q1||'-'}</td><td>${r.q2||'-'}</td>
+                <td>${r.q1||'-'}</td><td>${q1h}</td><td>${r.q2||'-'}</td>
                 <td>${q3}</td>
-                <td>${r.q4?`<span class="tag">${r.q4}</span>`:'-'}</td>
-                <td>${q5}</td>
+                <td>${q4text}</td>
                 <td><span class="coupon-badge">${r.couponCode||'-'}</span></td>
             </tr>`;
         }).join('');
@@ -343,7 +346,7 @@
         if (!t) { ['s-bought','s-inconvenient','s-comment'].forEach(id => document.getElementById(id).textContent = '-'); return; }
         document.getElementById('s-bought').textContent = pct(data.filter(r => r.q1==='네').length, t);
         document.getElementById('s-inconvenient').textContent = pct(data.filter(r => r.q2==='네').length, t);
-        document.getElementById('s-comment').textContent = pct(data.filter(r => r.q5&&r.q5.trim()).length, t);
+        document.getElementById('s-comment').textContent = pct(data.filter(r => r.q4&&r.q4.trim()).length, t);
     }
 
     function resetSurveyFilter() {
