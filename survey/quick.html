@@ -1,14 +1,15 @@
 <style>
 /* 퀵 메뉴 오디오 버튼 (모든 페이지 공통) */
 .quick-menu {
-    position: absolute; /* PC 화면에서 백그라운드가 아닌 하얀 박스 컴포넌트를 기준으로 위치 계산 */
-    bottom: -25px;      /* 사진처럼 바닥 라인에 반쯤 걸치도록 내림 */
-    left: 0;            /* 왼쪽 라인에 딱 맞춤 */
+    position: fixed;
+    bottom: 15%;
+    left: 50%;
+    margin-left: -220px; /* 컨테이너 가로(480px) 안쪽 왼쪽 하단에 맞춤 */
     z-index: 9999;
     background: #ffffff;
     border-radius: 50%;
-    width: 65px;
-    height: 65px;
+    width: 40px;
+    height: 40px;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
     display: flex;
     justify-content: center;
@@ -24,11 +25,49 @@
 .quick-menu .icon {
     width: 28px;
     height: 28px;
-    fill: #55B5C9;
-    margin-left: 4px; /* 재생 세모 버튼일 때 약간 우측으로 치우친 것 보정 */
+    background-image: url('https://yogibo.kr/web/img/0429/play_on.png');
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
     transition: all 0.2s;
 }
-.quick-menu.playing .icon { margin-left: 0; /* 일시정지 11자 버튼일 때는 보정 해제 */ }
+.quick-menu.playing .icon {
+    background-image: url('https://yogibo.kr/web/img/0429/play_off.png');
+}
+
+.quick-menu::after {
+    content: "MUSIC";
+    position: absolute;
+    top: -24px;
+    right: -10px;
+    background: #e2e2e2;
+    color: #111;
+    padding: 4px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: sans-serif;
+    letter-spacing: -0.2px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.quick-menu::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    right: 14px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #e2e2e2 transparent transparent transparent;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.quick-menu.playing::after,
+.quick-menu.playing::before {
+    display: none;
+}
 
 .playing-anim {
     display: none;
@@ -49,8 +88,8 @@
 /* 모바일 화면일 때는 화면의 왼쪽 끝 기준으로 고정 */
 @media (max-width: 500px) {
     .quick-menu {
-        position: fixed;
         left: 20px;
+        margin-left: 0;
         bottom: 30px;
     }
 }
@@ -64,23 +103,15 @@
 <!-- 플로팅 재생 버튼 -->
 <div class="quick-menu" id="audio-btn">
     <div class="playing-anim"></div>
-    <svg class="icon" viewBox="0 0 24 24" id="audio-icon">
-        <path id="audio-icon-path" d="M8 5v14l11-7z" />
-    </svg>
+    <div class="icon" id="audio-icon"></div>
 </div>
 
 <script>
 (function() {
     const audioBtn = document.getElementById('audio-btn');
     const bgAudio = document.getElementById('bg-audio');
-    const iconPath = document.getElementById('audio-icon-path');
 
-    // absolute 로 컨테이너 모서리에 걸쳐서 보여지게 하려면, 버튼을 컨테이너 내부로 쏙 넣고 overflow 속성을 해제합니다.
-    const container = document.querySelector('.survey-container');
-    if (container && audioBtn.parentNode !== container) {
-        container.style.overflow = 'visible';
-        container.appendChild(audioBtn);
-    }
+
 
     let isPlaying = false;
 
@@ -93,10 +124,8 @@
         isPlaying = playing;
         if(playing) {
             audioBtn.classList.add('playing');
-            iconPath.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'); // Pause Icon (11자 모양)
         } else {
             audioBtn.classList.remove('playing');
-            iconPath.setAttribute('d', 'M8 5v14l11-7z'); // Play Icon (세모 모양)
         }
     };
 

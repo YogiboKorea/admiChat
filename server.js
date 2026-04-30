@@ -5239,9 +5239,10 @@ app.get('/api/survey/quiz-download', async (req, res) => {
 });
 
 
+// [v2] 4문항 설문 제출
 app.post('/api/survey/submit', async (req, res) => {
   try {
-    const { store, q1, q2, q3_inconvenience, q3_hesitation, q4, q5 } = req.body;
+    const { store, q1, q2, q3_inconvenience, q3_improvement, q4 } = req.body;
     if (!store) return res.status(400).json({ success: false, message: '매장 정보가 없습니다.' });
 
     // 쿠폰 코드 생성 (5자리 영숫자 대문자)
@@ -5250,26 +5251,25 @@ app.post('/api/survey/submit', async (req, res) => {
 
     const doc = {
       store,
-      q1: q1 || '',
-      q2: q2 || '',
-      q3_inconvenience: Array.isArray(q3_inconvenience) ? q3_inconvenience : [],
-      q3_hesitation: q3_hesitation || '',
-      q4: q4 || '',
-      q5: q5 || '',
+      q1: q1 || '',                                                          // Q1: 제품 구매 여부 (네/아니오)
+      q2: q2 || '',                                                          // Q2: 불편한 점 여부 (네/아니오)
+      q3_inconvenience: Array.isArray(q3_inconvenience) ? q3_inconvenience : [],  // Q3(네): 불편한 부분 복수선택
+      q3_improvement: q3_improvement || '',                                  // Q3(아니오): 개선 필요 부분 단일선택
+      q4: q4 || '',                                                          // Q4: 자유의견
       couponCode,
       submittedAt: nowKST
     };
 
-    await db.collection('survey_responses').insertOne(doc);
-    console.log(`[SURVEY] 설문 저장 완료 - 매장: ${store}, 쿠폰: ${couponCode}`);
+    await db.collection('survey_responses_v2').insertOne(doc);
+    console.log(`[SURVEY v2] 설문 저장 완료 - 매장: ${store}, 쿠폰: ${couponCode}`);
     res.json({ success: true, couponCode });
   } catch (err) {
-    console.error('[SURVEY] 저장 오류:', err);
+    console.error('[SURVEY v2] 저장 오류:', err);
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
 
-// 설문 응답 목록 조회 (관리자용)
+// [v2] 설문 응답 목록 조회 (관리자용)
 app.get('/api/survey/list', async (req, res) => {
   try {
     const { store, date } = req.query;
@@ -5280,19 +5280,19 @@ app.get('/api/survey/list', async (req, res) => {
       const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
       filter.submittedAt = { $gte: start, $lte: end };
     }
-    const responses = await db.collection('survey_responses')
+    const responses = await db.collection('survey_responses_v2')
       .find(filter)
       .sort({ submittedAt: -1 })
       .limit(500)
       .toArray();
     res.json({ success: true, responses });
   } catch (err) {
-    console.error('[SURVEY] 목록 조회 오류:', err);
+    console.error('[SURVEY v2] 목록 조회 오류:', err);
     res.status(500).json({ success: false, message: '서버 오류' });
   }
 });
 
-// 설문 엑셀 다운로드
+// [v2] 설문 엑셀 다운로드
 app.get('/api/survey/download', async (req, res) => {
   try {
     const { store, date } = req.query;
@@ -5303,7 +5303,7 @@ app.get('/api/survey/download', async (req, res) => {
       const end = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
       filter.submittedAt = { $gte: start, $lte: end };
     }
-    const responses = await db.collection('survey_responses')
+    const responses = await db.collection('survey_responses_v2')
       .find(filter)
       .sort({ submittedAt: -1 })
       .toArray();
@@ -5315,10 +5315,9 @@ app.get('/api/survey/download', async (req, res) => {
       { header: '매장', key: 'store', width: 20 },
       { header: 'Q1 제품구매여부', key: 'q1', width: 16 },
       { header: 'Q2 불편점 여부', key: 'q2', width: 16 },
-      { header: 'Q3 불편사항 (복수)', key: 'q3_inconvenience', width: 30 },
-      { header: 'Q3 구매망설임 이유', key: 'q3_hesitation', width: 20 },
-      { header: 'Q4 개선점', key: 'q4', width: 20 },
-      { header: 'Q5 자유의견', key: 'q5', width: 40 },
+      { header: 'Q3(네) 불편한 부분 (복수)', key: 'q3_inconvenience', width: 35 },
+      { header: 'Q3(아니오) 개선 필요 부분', key: 'q3_improvement', width: 30 },
+      { header: 'Q4 자유의견', key: 'q4', width: 40 },
       { header: '쿠폰코드', key: 'couponCode', width: 12 },
     ];
 
@@ -5336,20 +5335,19 @@ app.get('/api/survey/download', async (req, res) => {
         q1: r.q1,
         q2: r.q2,
         q3_inconvenience: Array.isArray(r.q3_inconvenience) ? r.q3_inconvenience.join(', ') : '',
-        q3_hesitation: r.q3_hesitation,
+        q3_improvement: r.q3_improvement || '',
         q4: r.q4,
-        q5: r.q5,
         couponCode: r.couponCode,
       });
     });
 
-    const filename = `survey_${moment().tz('Asia/Seoul').format('YYYYMMDD')}.xlsx`;
+    const filename = `survey_v2_${moment().tz('Asia/Seoul').format('YYYYMMDD')}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    console.error('[SURVEY] 엑셀 다운로드 오류:', err);
+    console.error('[SURVEY v2] 엑셀 다운로드 오류:', err);
     res.status(500).send('Excel Error');
   }
 });
