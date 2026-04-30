@@ -110,7 +110,7 @@
         }
 
         // ==========================================
-        // [2] 이미지 버튼 클릭 시
+        // [2] 이미지 버튼 클릭 시 (이벤트 응모)
         // ==========================================
         function handleClick() {
             if (!memberId) {
@@ -120,21 +120,30 @@
                 return;
             }
 
+            const TARGET_URL = '/md/2026/samsungEvent.html';
+
             // DB 저장 API 호출
             fetch(API_BASE_URL + '/api/event/samsung/click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ memberId: memberId })
             })
-                .then(function (r) { return r.json(); })
-                .then(function (res) {
-                    // 성공 여부와 관계없이 지정된 URL로 이동
-                    location.href = TARGET_URL;
-                })
-                .catch(function (err) {
-                    console.error('DB 저장 실패:', err);
-                    location.href = TARGET_URL;
-                });
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.success) {
+                    alert('이벤트 응모 완료!🦁⚾💙');
+                } else if (res.message === 'already_applied') {
+                    alert('이미 응모했습니다.');
+                } else {
+                    alert('응모 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+                }
+                location.href = TARGET_URL;
+            })
+            .catch(function (err) {
+                console.error('DB 저장 실패:', err);
+                alert('응모 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+                location.href = TARGET_URL;
+            });
         }
     </script>
 </body>

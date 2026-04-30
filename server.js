@@ -5248,17 +5248,71 @@ app.post('/api/event/samsung/click', async (req, res) => {
       return res.status(400).json({ success: false, message: '회원 아이디가 없습니다.' });
     }
 
+    const collection = db.collection('samsung_event_clicks');
+
+    // 중복 확인
+    const existing = await collection.findOne({ memberId });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'already_applied' });
+    }
+
     const doc = {
       memberId,
       clickedAt: new Date()
     };
 
-    await db.collection('samsung_event_clicks').insertOne(doc);
+    await collection.insertOne(doc);
 
     res.json({ success: true, message: '저장 완료' });
   } catch (error) {
     console.error('삼성 이벤트 클릭 저장 에러:', error);
     res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// [삼성 이벤트] 리스트 조회
+app.get('/api/event/samsung/list', async (req, res) => {
+  try {
+    const docs = await db.collection('samsung_event_clicks').find({}).sort({ clickedAt: -1 }).toArray();
+    res.json({ success: true, list: docs });
+  } catch (err) {
+    console.error('삼성 이벤트 리스트 조회 에러:', err);
+    res.status(500).json({ success: false, message: '서버 오류' });
+  }
+});
+
+// [삼성 이벤트] 엑셀 다운로드
+app.get('/api/event/samsung/download', async (req, res) => {
+  try {
+    const docs = await db.collection('samsung_event_clicks').find({}).sort({ clickedAt: -1 }).toArray();
+
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('응모자');
+    ws.columns = [
+      { header: '응모일시', key: 'clickedAt', width: 22 },
+      { header: '회원ID', key: 'memberId', width: 20 }
+    ];
+    
+    ws.getRow(1).eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF55B5C9' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    });
+
+    docs.forEach(r => {
+      ws.addRow({
+        clickedAt: moment(r.clickedAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss'),
+        memberId: r.memberId
+      });
+    });
+
+    const filename = `samsung_event_${moment().tz('Asia/Seoul').format('YYYYMMDD')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('삼성 이벤트 엑셀 다운로드 에러:', err);
+    res.status(500).send('Excel Error');
   }
 });
 
