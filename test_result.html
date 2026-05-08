@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>삼성 이벤트 응모자 현황</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+    <style>
+        :root {
+            --primary: #55B5C9;
+            --primary-dark: #3a97ab;
+            --bg: #f4f7fa;
+            --white: #ffffff;
+            --text: #1f2937;
+            --sub: #6b7280;
+            --border: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --radius: 12px;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--white);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+            z-index: 10;
+        }
+        .logo {
+            padding: 24px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo img { height: 35px; }
+        .nav-menu { padding: 20px 0; flex: 1; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 28px;
+            color: var(--sub);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .nav-item:hover {
+            background: #f8fafc;
+            color: var(--primary);
+        }
+        .nav-item.active {
+            background: #f0f9fb;
+            color: var(--primary);
+            border-left-color: var(--primary);
+        }
+        .nav-icon { margin-right: 12px; font-size: 18px; }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .header {
+            background: var(--white);
+            padding: 20px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+        .header-actions { display: flex; gap: 12px; }
+
+        /* Buttons */
+        .btn { padding: 8px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-outline { background: #fff; color: var(--primary); border: 2px solid var(--primary); }
+        .btn-outline:hover { background: #f0f9fb; }
+
+        /* Stats */
+        .stats-row { display: flex; gap: 20px; padding: 24px 32px; }
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 24px;
+            flex: 1;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .stat-num { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: -0.04em; }
+        .stat-label { font-size: 14px; color: var(--sub); margin-top: 8px; font-weight: 500; }
+
+        /* Table */
+        .table-wrap {
+            margin: 0 32px 32px;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .table-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .table-header h2 { margin: 0; font-size: 16px; font-weight: 700; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: center; }
+        thead tr { background: #f8fafc; }
+        thead th { color: var(--sub); padding: 14px 24px; font-weight: 600; white-space: nowrap; border-bottom: 1px solid var(--border); }
+        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+        tbody tr:hover { background: #f9fafb; }
+        tbody tr:last-child { border-bottom: none; }
+        td { padding: 14px 24px; vertical-align: middle; }
+
+        .tag { background: #e9f6f8; color: var(--primary-dark); border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 600; display: inline-block; }
+
+        .loading-wrap, .empty-state { padding: 60px 0; text-align: center; color: var(--sub); font-size: 15px; }
+        .spinner { border: 3px solid rgba(85,181,201,0.2); width: 30px; height: 30px; border-radius: 50%; border-left-color: var(--primary); animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">
+            <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo">
+        </div>
+        <nav class="nav-menu">
+            <!-- 기존 어드민 링크 (필요 시 수정) -->
+            <a href="/survey/survey_data.html" class="nav-item">
+                <span class="nav-icon">📊</span> 매장 설문조사
+            </a>
+            <a href="#" class="nav-item active">
+                <span class="nav-icon">🎁</span> 삼성 이벤트 응모자
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <h1>삼성 이벤트 응모 현황</h1>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="loadData()">새로고침</button>
+                <button class="btn btn-primary" onclick="downloadExcel()">엑셀 다운로드</button>
+            </div>
+        </header>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-num" id="total-count">-</div>
+                <div class="stat-label">총 응모자 수</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-num" id="today-count">-</div>
+                <div class="stat-label">오늘 신규 응모자</div>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <div class="table-header">
+                <h2>전체 응모자 리스트</h2>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">No</th>
+                            <th style="width: 200px;">회원 아이디</th>
+                            <th>응모 일시</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-tbody">
+                        <tr>
+                            <td colspan="3">
+                                <div class="loading-wrap">
+                                    <div class="spinner"></div>
+                                    데이터를 불러오는 중입니다...
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+
+        document.addEventListener('DOMContentLoaded', loadData);
+
+        async function loadData() {
+            const tbody = document.getElementById('data-tbody');
+            tbody.innerHTML = `<tr><td colspan="3"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>`;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/event/samsung/list`);
+                const data = await response.json();
+
+                if (!data.success) throw new Error(data.message || '불러오기 실패');
+                
+                renderTable(data.list || []);
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state">데이터를 불러오는 중 오류가 발생했습니다.</div></td></tr>`;
+            }
+        }
+
+        function renderTable(list) {
+            const tbody = document.getElementById('data-tbody');
+            
+            // 통계 업데이트
+            document.getElementById('total-count').textContent = list.length.toLocaleString();
+            
+            // 오늘 응모자 수 계산
+            const todayStr = new Date().toLocaleDateString('ko-KR');
+            const todayCount = list.filter(item => new Date(item.clickedAt).toLocaleDateString('ko-KR') === todayStr).length;
+            document.getElementById('today-count').textContent = todayCount.toLocaleString();
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state">응모 내역이 없습니다.</div></td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map((item, index) => {
+                const dateObj = new Date(item.clickedAt);
+                // 날짜 포맷 (YYYY-MM-DD HH:mm:ss)
+                const pad = n => String(n).padStart(2, '0');
+                const formattedDate = `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())} ${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}:${pad(dateObj.getSeconds())}`;
+
+                return `
+                    <tr>
+                        <td style="color:#aaa">${list.length - index}</td>
+                        <td><span class="tag">${item.memberId}</span></td>
+                        <td>${formattedDate}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function downloadExcel() {
+            window.open(`${API_BASE_URL}/api/event/samsung/download`, '_blank');
+        }
+    </script>
+</body>
+</html>
