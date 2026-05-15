@@ -243,12 +243,12 @@
         <div class="table-container">
             <table>
                 <thead><tr>
-                    <th>#</th><th>제출일시</th><th>추천제품</th><th>Q1 관심제품</th>
+                    <th>#</th><th>제출일시</th><th>매장</th><th>추천제품</th><th>Q1 관심제품</th>
                     <th>Q2 사용자</th><th>Q3 공간</th><th>Q4 컬러</th>
                     <th>Q5 중요가치</th><th>Q6 용도</th><th>Q7 연령대</th>
                 </tr></thead>
                 <tbody id="quiz-tbody">
-                    <tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>
+                    <tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -369,7 +369,7 @@
         const product = document.getElementById('quiz-filter-product').value;
         const date = document.getElementById('quiz-filter-date').value;
         const tbody = document.getElementById('quiz-tbody');
-        tbody.innerHTML = `<tr><td colspan="10"><div class="loading-wrap"><div class="spinner"></div>조회 중...</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div>조회 중...</div></td></tr>`;
 
         try {
             const p = new URLSearchParams();
@@ -382,19 +382,20 @@
             renderQuizStats(data.responses || []);
             document.getElementById('badge-quiz').textContent = data.responses.length;
         } catch(e) {
-            tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터 불러오기 실패</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">⚠️</div>데이터 불러오기 실패</div></td></tr>`;
         }
     }
 
     function renderQuizTable(data) {
         const tbody = document.getElementById('quiz-tbody');
         document.getElementById('q-result-count').textContent = `총 ${data.length}건`;
-        if (!data.length) { tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🎯</div>데이터 없음</div></td></tr>`; return; }
+        if (!data.length) { tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">🎯</div>데이터 없음</div></td></tr>`; return; }
         tbody.innerHTML = data.map((r, i) => {
             const q5 = Array.isArray(r.Q5) ? r.Q5.map(v => `<span class="tag">${v.substring(0,10)}${v.length>10?'…':''}</span>`).join('') : '-';
             return `<tr>
                 <td style="color:#aaa">${data.length - i}</td>
                 <td style="white-space:nowrap;font-size:11px;color:#666">${fmtDate(r.submittedAt)}</td>
+                <td><span class="store-badge">${r.store || 'null'}</span></td>
                 <td><span class="product-badge">${r.recommendedProduct||'-'}</span></td>
                 <td>${r.Q1||'-'}</td><td>${r.Q2||'-'}</td><td>${r.Q3||'-'}</td>
                 <td>${r.Q4?`<span class="tag">${r.Q4}</span>`:'-'}</td>

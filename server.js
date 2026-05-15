@@ -5142,18 +5142,19 @@ app.post('/api/event/cart-reward', async (req, res) => {
 // [eventSurvey] 요기보 퀴즈 결과 저장
 app.post('/api/survey/quiz-submit', async (req, res) => {
   try {
-    const { Q1, Q2, Q3, Q4, Q5, Q6, Q7, recommendedProduct, category } = req.body;
+    const { Q1, Q2, Q3, Q4, Q5, Q6, Q7, store, recommendedProduct, category } = req.body;
     const nowKST = moment().tz('Asia/Seoul').toDate();
     const doc = {
       Q1: Q1 || '', Q2: Q2 || '', Q3: Q3 || '', Q4: Q4 || '',
       Q5: Array.isArray(Q5) ? Q5 : [],
       Q6: Q6 || '', Q7: Q7 || '',
+      store: store || '',
       recommendedProduct: recommendedProduct || '',
       category: category || '',
       submittedAt: nowKST
     };
     await db.collection('event_quiz_responses').insertOne(doc);
-    console.log(`[QUIZ] 저장 완료 - 추천제품: ${recommendedProduct}`);
+    console.log(`[QUIZ] 저장 완료 - 매장: ${store}, 추천제품: ${recommendedProduct}`);
     res.json({ success: true });
   } catch (err) {
     console.error('[QUIZ] 저장 오류:', err);
@@ -5202,6 +5203,7 @@ app.get('/api/survey/quiz-download', async (req, res) => {
     const ws = workbook.addWorksheet('퀴즈 응답');
     ws.columns = [
       { header: '제출일시', key: 'submittedAt', width: 22 },
+      { header: '매장', key: 'store', width: 15 },
       { header: '추천제품', key: 'recommendedProduct', width: 20 },
       { header: '카테고리', key: 'category', width: 12 },
       { header: 'Q1 관심제품', key: 'Q1', width: 18 },
@@ -5220,6 +5222,7 @@ app.get('/api/survey/quiz-download', async (req, res) => {
     responses.forEach(r => {
       ws.addRow({
         submittedAt: moment(r.submittedAt).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss'),
+        store: r.store || 'null',
         recommendedProduct: r.recommendedProduct,
         category: r.category,
         Q1: r.Q1, Q2: r.Q2, Q3: r.Q3, Q4: r.Q4,

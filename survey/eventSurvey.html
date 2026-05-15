@@ -203,6 +203,39 @@
             z-index: 3;
         }
 
+        select {
+            width: 100%;
+            margin-bottom: 16px;
+            display: block;
+            padding: 18px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            font-size: 16px;
+            font-family: 'Pretendard', sans-serif;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.2s;
+            background-color: #fff;
+            color: #1a1a1a !important;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 20px center;
+        }
+
+        select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(85, 181, 201, 0.1);
+        }
+
+        #store-select:disabled {
+            background-color: #f5f5f5;
+            color: #aaa;
+            opacity: 0.7;
+        }
+
         /* 질문 텍스트 스타일 (말풍선 제거됨) */
         .question-box {
             position: relative;
@@ -675,7 +708,10 @@
             </div>
 
             <div class="step active" id="step-start">
-                <div class="start-card" onclick="startQuiz()">
+                <select id="store-select" disabled>
+                    <option value="" disabled selected>매장 목록을 불러오는 중...</option>
+                </select>
+                <div class="start-card" id="start-btn" onclick="startQuiz()" style="opacity: 0.5; pointer-events: none;">
                     <img src="https://yogibo.kr/web/img/survey/start.png" alt="START"
                         style="width: 160px; height: auto; z-index: 2; position: relative;">
                     <img class="start-dino" src="https://yogibo.kr/web/img/marketing/mate_icon_001.png" alt="">
@@ -741,9 +777,47 @@
 
     <script>
         const API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+        const MANAGER_SERVER_URL = "https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app";
         const MATE_POOL = ['02', '03', '04', '06', '07', '08', '09', '10', '11', '13'];
         let mateIdx = 0;
         function nextMate() { return `https://yogibo.kr/web/img/marketing/mate_icon_${MATE_POOL[mateIdx++ % MATE_POOL.length]}.png`; }
+
+        let selectedStore = "";
+
+        window.onload = async function () {
+            await loadStoreData();
+        };
+
+        async function loadStoreData() {
+            const sel = document.getElementById('store-select');
+            try {
+                const response = await fetch(`${MANAGER_SERVER_URL}/api/jwasu/admin/managers`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const activeManagers = data.managers.filter(m => m.isActive !== false);
+                    const stores = [...new Set(activeManagers.map(m => m.storeName))].sort();
+
+                    sel.innerHTML = '<option value="" disabled selected>방문하신 매장을 선택해주세요</option>';
+                    stores.forEach(store => sel.add(new Option(store, store)));
+                    sel.disabled = false;
+                } else {
+                    throw new Error("데이터 불러오기 실패");
+                }
+            } catch (error) {
+                console.error("매장 목록 로드 실패:", error);
+                sel.innerHTML = '<option value="" disabled selected>매장 목록을 불러올 수 없습니다.</option>';
+            }
+        }
+
+        document.getElementById('store-select').addEventListener('change', (e) => {
+            if (e.target.value) {
+                selectedStore = e.target.value;
+                const startBtn = document.getElementById('start-btn');
+                startBtn.style.opacity = '1';
+                startBtn.style.pointerEvents = 'auto';
+            }
+        });
 
         // 설문조사 데이터 배열
         const QUESTIONS = [
@@ -1088,6 +1162,7 @@
                     Q5: answers.Q5 || [],
                     Q6: answers.Q6 || '',
                     Q7: answers.Q7 || '',
+                    store: selectedStore,
                     recommendedProduct: resultData.productName,
                     category: resultData.category
                 }),
