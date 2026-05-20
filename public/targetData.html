@@ -22,7 +22,51 @@
         h1 { 
             text-align: center; 
             color: #333; 
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #eaeaea;
+        }
+        .date-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="date"] {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .btn-search {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-search:hover {
+            background-color: #0056b3;
+        }
+        .btn-excel {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-excel:hover {
+            background-color: #218838;
         }
         table { 
             width: 100%; 
@@ -51,10 +95,20 @@
 <body>
     <div class="container">
         <h1>아이콘 클릭 수 통계</h1>
+        
+        <div class="controls">
+            <div class="date-picker-group">
+                <label for="dateInput"><strong>조회 날짜:</strong></label>
+                <input type="date" id="dateInput">
+                <button class="btn-search" onclick="fetchStats()">조회하기</button>
+            </div>
+            <button class="btn-excel" onclick="downloadExcel()">엑셀 다운로드</button>
+        </div>
+
         <table>
             <thead>
                 <tr>
-                    <th>타겟 ID</th>
+                    <th>조회 날짜</th>
                     <th>항목 설명</th>
                     <th>총 클릭 수</th>
                 </tr>
@@ -75,39 +129,73 @@
             'target_survey': '설문조사 연결 아이콘'
         };
 
+        const targetKeys = ['target_game_01', 'target_game_02', 'target_survey'];
+
+        // 날짜를 YYYY-MM-DD 포맷으로 변환하는 함수
+        function getFormattedDate(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // 초기 날짜 세팅 (오늘)
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            document.getElementById('dateInput').value = getFormattedDate(today);
+            fetchStats();
+        });
+
         // 데이터 불러오기 함수
         async function fetchStats() {
+            const dateStr = document.getElementById('dateInput').value;
+            const tableBody = document.getElementById('dataTable');
+            
+            tableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">데이터를 불러오는 중입니다...</td></tr>';
+
             try {
-                // 현재 도메인에서 API 호출 (로컬 개발 및 실서버 모두 대응)
-                const response = await fetch('/api/target/data');
+                const response = await fetch(`/api/target/data?date=${dateStr}`);
                 const result = await response.json();
                 
-                const tableBody = document.getElementById('dataTable');
                 tableBody.innerHTML = '';
 
-                if (result.success && result.data.length > 0) {
-                    result.data.forEach(item => {
+                if (result.success) {
+                    // 서버 응답 데이터를 객체로 맵핑 (검색을 빠르게 하기 위해)
+                    const counts = {};
+                    if (result.data) {
+                        result.data.forEach(item => {
+                            counts[item._id] = item.totalClicks;
+                        });
+                    }
+
+                    // 3개의 타겟 항목을 무조건 출력, 없으면 0
+                    targetKeys.forEach(key => {
                         const tr = document.createElement('tr');
-                        const name = targetNames[item._id] || '기타 항목';
-                        
+                        const name = targetNames[key];
+                        const count = counts[key] || 0; // 데이터가 없으면 0회
+
                         tr.innerHTML = `
-                            <td><span style="background:#eee; padding:4px 8px; border-radius:4px; font-family:monospace;">${item._id}</span></td>
+                            <td>${dateStr}</td>
                             <td>${name}</td>
-                            <td class="total-clicks">${item.totalClicks.toLocaleString()} 회</td>
+                            <td class="total-clicks" style="color: ${count === 0 ? '#999' : '#007bff'}">${count.toLocaleString()} 회</td>
                         `;
                         tableBody.appendChild(tr);
                     });
+
                 } else {
-                    tableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">아직 클릭 데이터가 없습니다.</td></tr>';
+                    tableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">데이터를 불러오지 못했습니다.</td></tr>';
                 }
             } catch (error) {
                 console.error('데이터를 불러오는데 실패했습니다:', error);
-                document.getElementById('dataTable').innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 30px;">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 30px;">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
             }
         }
 
-        // 페이지 로드 시 즉시 데이터 호출
-        fetchStats();
+        // 엑셀 다운로드 함수
+        function downloadExcel() {
+            const dateStr = document.getElementById('dateInput').value;
+            window.location.href = `/api/target/download?date=${dateStr}`;
+        }
     </script>
 </body>
 </html>

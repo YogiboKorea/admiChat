@@ -5684,7 +5684,21 @@ app.post('/api/target/click', async (req, res) => {
 // 클릭 데이터 통계 조회
 app.get('/api/target/data', async (req, res) => {
   try {
+    const { date } = req.query; // YYYY-MM-DD
+    let matchQuery = {};
+
+    if (date) {
+      const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      matchQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    } else {
+      const startOfDay = moment.tz('Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz('Asia/Seoul').endOf('day').toDate();
+      matchQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+
     const stats = await db.collection('tagetData2026').aggregate([
+      { $match: matchQuery },
       {
         $group: {
           _id: "$targetId",
@@ -5697,6 +5711,70 @@ app.get('/api/target/data', async (req, res) => {
   } catch (error) {
     console.error('클릭 데이터 조회 오류:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 클릭 데이터 엑셀 다운로드
+app.get('/api/target/download', async (req, res) => {
+  try {
+    const { date } = req.query; // YYYY-MM-DD
+    let matchQuery = {};
+
+    if (date) {
+      const startOfDay = moment.tz(date, 'Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz(date, 'Asia/Seoul').endOf('day').toDate();
+      matchQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    } else {
+      const startOfDay = moment.tz('Asia/Seoul').startOf('day').toDate();
+      const endOfDay = moment.tz('Asia/Seoul').endOf('day').toDate();
+      matchQuery.createdAt = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    const stats = await db.collection('tagetData2026').aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: "$targetId",
+          totalClicks: { $sum: 1 }
+        }
+      },
+      { $sort: { totalClicks: -1 } }
+    ]).toArray();
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('클릭 데이터 통계');
+
+    ws.columns = [
+      { header: '조회 날짜', key: 'date', width: 20 },
+      { header: '항목 설명', key: 'name', width: 30 },
+      { header: '총 클릭 수', key: 'totalClicks', width: 15 },
+    ];
+
+    const targetNames = {
+      'target_game_01': '퀵메뉴 게임 아이콘',
+      'target_game_02': '팝업 게임 아이콘',
+      'target_survey': '설문조사 연결 아이콘'
+    };
+
+    const displayDate = date || moment.tz('Asia/Seoul').format('YYYY-MM-DD');
+
+    stats.forEach(item => {
+      ws.addRow({
+        date: displayDate,
+        name: targetNames[item._id] || '기타 항목',
+        totalClicks: item.totalClicks
+      });
+    });
+
+    const filename = `ClickData_${displayDate}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="ClickData.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('클릭 데이터 엑셀 다운로드 오류:', err);
+    res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
   }
 });
 
