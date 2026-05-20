@@ -5662,6 +5662,44 @@ app.get('/api/event/0429/download', async (req, res) => {
   }
 });
 
+// ========== [TARGET CLICK DATA API] ==========
+// 클릭 데이터 수집 (tagetData2026)
+app.post('/api/target/click', async (req, res) => {
+  const { targetId } = req.body;
+  if (!targetId) return res.status(400).json({ error: 'targetId is required' });
+
+  try {
+    const createdAtKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await db.collection('tagetData2026').insertOne({
+      targetId: targetId,
+      createdAt: createdAtKST
+    });
+    res.json({ success: true, message: 'Click data saved' });
+  } catch (error) {
+    console.error('클릭 데이터 저장 오류:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 클릭 데이터 통계 조회
+app.get('/api/target/data', async (req, res) => {
+  try {
+    const stats = await db.collection('tagetData2026').aggregate([
+      {
+        $group: {
+          _id: "$targetId",
+          totalClicks: { $sum: 1 }
+        }
+      },
+      { $sort: { totalClicks: -1 } }
+    ]).toArray();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('클릭 데이터 조회 오류:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능

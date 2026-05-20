@@ -319,12 +319,11 @@
         }
 
         .opt-btn.selected {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-            border: 2px solid #fff;
-            color: #fff;
+            border: 2px solid var(--primary-color);
+            background-color: #fff;
+            color: var(--primary-color);
             font-weight: 700;
-            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.3);
+            box-shadow: 0 5px 15px rgba(85, 181, 201, 0.2);
             transform: translateY(-2px);
         }
 
@@ -964,19 +963,7 @@
 
         function applyDimmingEffect() {
             const allBtns = document.querySelectorAll('.opt-btn');
-            const hasSelection = Array.from(allBtns).some(b => b.classList.contains('selected'));
-
-            allBtns.forEach(b => {
-                if (hasSelection) {
-                    if (!b.classList.contains('selected')) {
-                        b.classList.add('unselected');
-                    } else {
-                        b.classList.remove('unselected');
-                    }
-                } else {
-                    b.classList.remove('unselected');
-                }
-            });
+            allBtns.forEach(b => b.classList.remove('unselected'));
         }
 
         function goNext() {

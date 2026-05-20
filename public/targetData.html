@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이벤트 아이콘 클릭 통계 (tagetData2026)</title>
+    <style>
+        body { 
+            font-family: 'Noto Sans KR', sans-serif; 
+            background-color: #f4f7f6; 
+            padding: 20px; 
+            margin: 0;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        h1 { 
+            text-align: center; 
+            color: #333; 
+            margin-bottom: 30px;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        th, td { 
+            padding: 15px; 
+            text-align: left; 
+            border-bottom: 1px solid #eaeaea; 
+        }
+        th { 
+            background-color: #f8f9fa; 
+            font-weight: bold; 
+            color: #555;
+        }
+        tr:hover {
+            background-color: #fafafa;
+        }
+        .total-clicks { 
+            font-size: 1.2em; 
+            font-weight: bold; 
+            color: #007bff; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>아이콘 클릭 수 통계</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>타겟 ID</th>
+                    <th>항목 설명</th>
+                    <th>총 클릭 수</th>
+                </tr>
+            </thead>
+            <tbody id="dataTable">
+                <tr>
+                    <td colspan="3" style="text-align: center; padding: 30px;">데이터를 불러오는 중입니다...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 타겟 ID별 이름 매핑
+        const targetNames = {
+            'target_game_01': '퀵메뉴 게임 아이콘',
+            'target_game_02': '팝업 게임 아이콘',
+            'target_survey': '설문조사 연결 아이콘'
+        };
+
+        // 데이터 불러오기 함수
+        async function fetchStats() {
+            try {
+                // 현재 도메인에서 API 호출 (로컬 개발 및 실서버 모두 대응)
+                const response = await fetch('/api/target/data');
+                const result = await response.json();
+                
+                const tableBody = document.getElementById('dataTable');
+                tableBody.innerHTML = '';
+
+                if (result.success && result.data.length > 0) {
+                    result.data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        const name = targetNames[item._id] || '기타 항목';
+                        
+                        tr.innerHTML = `
+                            <td><span style="background:#eee; padding:4px 8px; border-radius:4px; font-family:monospace;">${item._id}</span></td>
+                            <td>${name}</td>
+                            <td class="total-clicks">${item.totalClicks.toLocaleString()} 회</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 30px;">아직 클릭 데이터가 없습니다.</td></tr>';
+                }
+            } catch (error) {
+                console.error('데이터를 불러오는데 실패했습니다:', error);
+                document.getElementById('dataTable').innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 30px;">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</td></tr>';
+            }
+        }
+
+        // 페이지 로드 시 즉시 데이터 호출
+        fetchStats();
+    </script>
+</body>
+</html>

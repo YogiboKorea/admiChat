@@ -1,0 +1,43 @@
+<!-- 
+  이 코드를 layout.html 안의 <head> 태그 안이나 </body> 태그 직전에 삽입해주시면 됩니다.
+-->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 실제 서버가 구동중인 주소
+    const SERVER_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+
+    // 클릭 데이터를 서버로 전송하는 함수
+    function sendClickData(targetId) {
+        fetch(`${SERVER_URL}/api/target/click`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ targetId: targetId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.success) {
+                console.log(`[Click Logged] ${targetId}`);
+            }
+        })
+        .catch(error => console.error('Error logging click:', error));
+    }
+
+    // 대상 아이콘 요소 찾기
+    const game01 = document.getElementById('target_game_01');
+    const game02 = document.getElementById('target_game_02');
+    const survey = document.getElementById('target_survey');
+
+    // 이벤트 리스너 등록
+    if (game01) {
+        game01.addEventListener('click', () => sendClickData('target_game_01'));
+    }
+    if (game02) {
+        game02.addEventListener('click', () => sendClickData('target_game_02'));
+    }
+    if (survey) {
+        survey.addEventListener('click', () => sendClickData('target_survey'));
+    }
+});
+</script>
