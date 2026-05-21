@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B2B 게시판 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --orange:#FF6B35; --orange-dark:#E05520;
+  --dark:#1a1a1a; --bg:#F2F3F5; --white:#fff;
+  --gray-100:#F8F9FA; --gray-200:#ECEEF1; --gray-300:#D1D5DB;
+  --gray-400:#9CA3AF; --gray-500:#6B7280; --gray-600:#4B5563; --gray-700:#374151;
+  --danger:#EF4444; --danger-dark:#DC2626;
+  --green:#10B981;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08);
+  --shadow-md:0 4px 16px rgba(0,0,0,.1);
+  --shadow-lg:0 12px 40px rgba(0,0,0,.18);
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg);color:var(--dark);font-size:13px;line-height:1.6;}
+
+/* HEADER */
+.header{background:var(--dark);color:#fff;padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25);}
+.header-left{display:flex;align-items:center;gap:12px;}
+.logo{width:36px;height:36px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#fff;}
+.header-title{font-size:17px;font-weight:700;letter-spacing:-.3px;}
+.header-sub{font-size:11px;color:#999;margin-top:1px;}
+.btn-add{background:var(--orange);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px;font-family:inherit;}
+.btn-add:hover{background:var(--orange-dark);}
+
+/* FILTER */
+.filter-bar{background:#fff;border-bottom:1px solid var(--gray-200);padding:0 32px;position:sticky;top:60px;z-index:90;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.filter-inner{display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none;}
+.filter-inner::-webkit-scrollbar{display:none;}
+.filter-btn{padding:14px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--gray-400);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:.15s;display:flex;align-items:center;gap:6px;font-family:inherit;}
+.filter-btn:hover{color:var(--orange);}
+.filter-btn.active{color:var(--orange);border-bottom-color:var(--orange);}
+.filter-btn .cnt{background:var(--gray-100);color:var(--gray-600);border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
+.filter-btn.active .cnt{background:rgba(255,107,53,.15);color:var(--orange);}
+
+/* GRID */
+.grid-container{padding:24px 32px 40px;}
+.stats-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.stats-text{font-size:12px;color:var(--gray-600);}
+.stats-text strong{color:var(--dark);font-weight:700;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+
+.card{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);border:1.5px solid transparent;transition:.2s;}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--orange);}
+.card-thumb-wrap{overflow:hidden;height:168px;background:#f0f0f0;cursor:pointer;}
+.card-thumb{width:100%;height:168px;object-fit:cover;display:block;transition:.3s;}
+.card:hover .card-thumb{transform:scale(1.03);}
+.card-body{padding:12px 14px 14px;}
+.card-title{font-size:13px;font-weight:700;color:var(--dark);margin-bottom:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px;}
+.card-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.cat-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.cat-hotel{background:#ede7f6;color:#4a148c;}
+.cat-resort{background:#e0f2f1;color:#00695c;}
+.cat-sports{background:#fff3e0;color:#e65100;}
+.cat-event{background:#e3f2fd;color:#0d47a1;}
+.cat-brand{background:#e8f5e9;color:#1b5e20;}
+.cat-lifestyle{background:#fffde7;color:#827717;}
+.img-count{font-size:11px;color:var(--gray-400);font-weight:500;}
+.card-actions{display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--gray-200);}
+.btn-sm{flex:1;padding:7px 10px;border:1px solid var(--gray-200);background:#fff;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;color:var(--gray-700);}
+.btn-sm:hover{background:var(--gray-100);}
+.btn-sm.edit:hover{background:rgba(255,107,53,.1);color:var(--orange);border-color:var(--orange);}
+.btn-sm.delete:hover{background:rgba(239,68,68,.08);color:var(--danger);border-color:var(--danger);}
+
+.empty{text-align:center;padding:80px 20px;color:var(--gray-400);}
+.empty .icon{font-size:48px;margin-bottom:12px;}
+.empty p{font-size:15px;font-weight:600;margin-bottom:6px;color:var(--gray-600);}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:960px;box-shadow:var(--shadow-lg);overflow:hidden;}
+.modal-head{padding:18px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;}
+.modal-head h2{font-size:16px;font-weight:700;}
+.modal-close{background:none;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;color:var(--gray-500);display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{background:var(--gray-100);}
+.modal-body{padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.modal-foot{padding:14px 24px;border-top:1px solid var(--gray-200);display:flex;justify-content:flex-end;gap:8px;background:var(--gray-100);}
+
+.form-grp{margin-bottom:16px;}
+.form-label{display:block;font-size:12px;font-weight:700;color:var(--gray-700);margin-bottom:6px;}
+.form-input,.form-select{width:100%;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:.15s;}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--orange);}
+
+.uploader{border:2px dashed var(--gray-300);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:.15s;background:var(--gray-100);}
+.uploader:hover{border-color:var(--orange);background:rgba(255,107,53,.04);}
+.uploader.drag{border-color:var(--orange);background:rgba(255,107,53,.08);}
+.uploader .icon{font-size:28px;margin-bottom:4px;}
+.uploader .txt{font-size:12px;color:var(--gray-600);font-weight:600;}
+.uploader .sub{font-size:11px;color:var(--gray-400);margin-top:2px;}
+
+.thumb-preview{margin-top:12px;}
+.thumb-canvas{width:100%;border-radius:8px;background:#000;display:block;box-shadow:var(--shadow-sm);}
+.thumb-empty{padding:60px 20px;text-align:center;color:var(--gray-400);background:var(--gray-100);border-radius:8px;font-size:12px;}
+
+.gallery-list{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;}
+.gallery-item{position:relative;border-radius:6px;overflow:hidden;background:#f0f0f0;aspect-ratio:1;}
+.gallery-item img{width:100%;height:100%;object-fit:cover;display:block;}
+.gallery-item .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:none;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+.gallery-item .rm:hover{background:var(--danger);}
+.gallery-item .order{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;}
+
+.title-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.title-controls label{font-size:11px;color:var(--gray-600);font-weight:600;display:flex;flex-direction:column;gap:4px;}
+.title-controls input,.title-controls select{padding:6px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;font-family:inherit;}
+
+.btn{padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;border:none;transition:.15s;}
+.btn-primary{background:var(--orange);color:#fff;}
+.btn-primary:hover{background:var(--orange-dark);}
+.btn-primary:disabled{background:var(--gray-300);cursor:not-allowed;}
+.btn-ghost{background:#fff;border:1px solid var(--gray-200);color:var(--gray-700);}
+.btn-ghost:hover{background:var(--gray-100);}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);z-index:9999;opacity:0;transition:opacity .2s;}
+.toast.show{opacity:1;}
+.toast.error{background:var(--danger);}
+.toast.success{background:var(--green);}
+
+.loading{position:fixed;inset:0;background:rgba(255,255,255,.7);display:none;align-items:center;justify-content:center;z-index:9998;}
+.loading.show{display:flex;}
+.spinner{width:42px;height:42px;border:3px solid var(--gray-200);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media (max-width:768px){
+  .modal-body{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">Y</div>
+    <div>
+      <div class="header-title">B2B 게시판 관리</div>
+      <div class="header-sub">B2B Board Admin · /web/img/b2b</div>
+    </div>
+  </div>
+  <button class="btn-add" onclick="openModal()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    게시판 등록하기
+  </button>
+</header>
+
+<div class="filter-bar">
+  <div class="filter-inner" id="filter-bar">
+    <button class="filter-btn active" data-cat="all" onclick="setFilter('all')">전체 <span class="cnt" id="cnt-all">0</span></button>
+    <button class="filter-btn" data-cat="hotel" onclick="setFilter('hotel')">🏨 호텔·숙박 <span class="cnt" id="cnt-hotel">0</span></button>
+    <button class="filter-btn" data-cat="resort" onclick="setFilter('resort')">🌊 리조트·스파 <span class="cnt" id="cnt-resort">0</span></button>
+    <button class="filter-btn" data-cat="sports" onclick="setFilter('sports')">⚽ 스포츠 <span class="cnt" id="cnt-sports">0</span></button>
+    <button class="filter-btn" data-cat="event" onclick="setFilter('event')">🎪 이벤트·전시 <span class="cnt" id="cnt-event">0</span></button>
+    <button class="filter-btn" data-cat="brand" onclick="setFilter('brand')">🏢 기업·브랜드 <span class="cnt" id="cnt-brand">0</span></button>
+    <button class="filter-btn" data-cat="lifestyle" onclick="setFilter('lifestyle')">✨ 라이프스타일 <span class="cnt" id="cnt-lifestyle">0</span></button>
+  </div>
+</div>
+
+<div class="grid-container">
+  <div class="stats-row">
+    <div class="stats-text" id="stats-text">불러오는 중...</div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">
+    <div class="icon">📋</div>
+    <p>등록된 게시글이 없습니다</p>
+    <small>우측 상단 "게시판 등록하기" 버튼으로 추가하세요</small>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal" onclick="modalBgClick(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">게시판 등록</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- LEFT: 입력 폼 -->
+      <div>
+        <div class="form-grp">
+          <label class="form-label">카테고리 *</label>
+          <select class="form-select" id="f-category">
+            <option value="hotel">🏨 호텔·숙박</option>
+            <option value="resort">🌊 리조트·스파</option>
+            <option value="sports">⚽ 스포츠</option>
+            <option value="event">🎪 이벤트·전시</option>
+            <option value="brand">🏢 기업·브랜드</option>
+            <option value="lifestyle">✨ 라이프스타일</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label class="form-label">타이틀 (이미지에 합성됨) *</label>
+          <input type="text" class="form-input" id="f-title" placeholder="예: Yogibo X 롯데호텔 월드" maxlength="60" oninput="renderThumb()">
+        </div>
+
+        <div class="form-grp">
+          <label class="form-label">대표 이미지 (타이틀 합성용) *</label>
+          <div class="uploader" id="thumb-uploader">
+            <div class="icon">🖼️</div>
+            <div class="txt">대표 이미지 선택 / 드래그</div>
+            <div class="sub">JPG · PNG · WEBP (최대 10MB)</div>
+            <input type="file" id="f-thumb-file" accept="image/*" hidden>
+          </div>
+          <div class="title-controls">
+            <label>위치
+              <select id="f-pos">
+                <option value="bottom">하단</option>
+                <option value="top">상단</option>
+                <option value="center">중앙</option>
+              </select>
+            </label>
+            <label>색상
+              <input type="color" id="f-color" value="#ffffff">
+            </label>
+            <label>오버레이
+              <select id="f-overlay">
+                <option value="dark">어두운 그라데이션</option>
+                <option value="light">밝은 그라데이션</option>
+                <option value="solid">반투명 박스</option>
+                <option value="none">없음</option>
+              </select>
+            </label>
+            <label>글자 크기
+              <select id="f-size">
+                <option value="56">크게</option>
+                <option value="46" selected>보통</option>
+                <option value="36">작게</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-grp">
+          <label class="form-label">갤러리 이미지 (슬라이드용, 여러장 가능)</label>
+          <div class="uploader" id="gallery-uploader">
+            <div class="icon">🖼️➕</div>
+            <div class="txt">갤러리 이미지 선택 / 드래그</div>
+            <div class="sub">여러 파일 선택 가능 · 자동으로 슬라이딩됨</div>
+            <input type="file" id="f-gallery-file" accept="image/*" multiple hidden>
+          </div>
+          <div class="gallery-list" id="gallery-list"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: 미리보기 -->
+      <div>
+        <div class="form-grp">
+          <label class="form-label">대표 이미지 미리보기 (서버에 저장될 모습)</label>
+          <div class="thumb-preview">
+            <canvas id="thumb-canvas" class="thumb-canvas" width="960" height="600"></canvas>
+            <div id="thumb-empty" class="thumb-empty">대표 이미지를 선택하면 미리보기가 표시됩니다</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" id="btn-save" onclick="save()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="loading" id="loading"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+const API = API_BASE + '/api/b2b-board';
+const CATS = {
+  hotel:'호텔·숙박', resort:'리조트·스파', sports:'스포츠',
+  event:'이벤트·전시', brand:'기업·브랜드', lifestyle:'라이프스타일'
+};
+
+let posts = [];
+let currentCat = 'all';
+let editing = null;          // 편집중인 doc (null이면 신규)
+let thumbImage = null;       // 사용자가 선택한 원본 이미지(Image)
+let gallery = [];            // {file?, url?, src(blob/url)} - 신규+기존 혼합
+let thumbCanvas, thumbCtx;
+
+document.addEventListener('DOMContentLoaded', () => {
+  thumbCanvas = document.getElementById('thumb-canvas');
+  thumbCtx = thumbCanvas.getContext('2d');
+  bindUploaders();
+  bindStyleInputs();
+  load();
+});
+
+function bindStyleInputs(){
+  ['f-pos','f-color','f-overlay','f-size'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', renderThumb);
+    document.getElementById(id).addEventListener('input', renderThumb);
+  });
+}
+
+function bindUploaders(){
+  const tU = document.getElementById('thumb-uploader');
+  const tF = document.getElementById('f-thumb-file');
+  tU.addEventListener('click', ()=>tF.click());
+  tF.addEventListener('change', e => { if(e.target.files[0]) loadThumbFile(e.target.files[0]); });
+  dnd(tU, files => { if(files[0]) loadThumbFile(files[0]); });
+
+  const gU = document.getElementById('gallery-uploader');
+  const gF = document.getElementById('f-gallery-file');
+  gU.addEventListener('click', ()=>gF.click());
+  gF.addEventListener('change', e => { addGalleryFiles([...e.target.files]); gF.value=''; });
+  dnd(gU, files => addGalleryFiles(files));
+}
+
+function dnd(el, cb){
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{e.preventDefault();e.stopPropagation();el.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev, e=>{e.preventDefault();e.stopPropagation();el.classList.remove('drag');}));
+  el.addEventListener('drop', e=>{
+    const files = [...(e.dataTransfer?.files || [])].filter(f=>f.type.startsWith('image/'));
+    if (files.length) cb(files);
+  });
+}
+
+function loadThumbFile(file){
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { thumbImage = img; document.getElementById('thumb-empty').style.display='none'; renderThumb(); };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function addGalleryFiles(files){
+  for (const f of files){
+    const url = URL.createObjectURL(f);
+    gallery.push({ file:f, src:url, isNew:true });
+  }
+  renderGallery();
+}
+
+function renderGallery(){
+  const list = document.getElementById('gallery-list');
+  list.innerHTML = gallery.map((g,i)=>`
+    <div class="gallery-item">
+      <span class="order">${i+1}</span>
+      <img src="${g.src}" alt="">
+      <button class="rm" onclick="removeGallery(${i})" title="삭제">✕</button>
+    </div>
+  `).join('');
+}
+function removeGallery(i){
+  const g = gallery[i];
+  if (g.file && g.src.startsWith('blob:')) URL.revokeObjectURL(g.src);
+  gallery.splice(i,1);
+  renderGallery();
+}
+
+function renderThumb(){
+  if (!thumbImage) return;
+  const W = 960, H = 600;
+  thumbCanvas.width = W; thumbCanvas.height = H;
+  const ctx = thumbCtx;
+  ctx.clearRect(0,0,W,H);
+
+  // cover-fit
+  const ir = thumbImage.width / thumbImage.height;
+  const cr = W / H;
+  let sx=0, sy=0, sw=thumbImage.width, sh=thumbImage.height;
+  if (ir > cr){ sw = thumbImage.height * cr; sx = (thumbImage.width - sw)/2; }
+  else { sh = thumbImage.width / cr; sy = (thumbImage.height - sh)/2; }
+  ctx.drawImage(thumbImage, sx, sy, sw, sh, 0, 0, W, H);
+
+  const title = (document.getElementById('f-title').value || '').trim();
+  if (!title) return;
+
+  const pos = document.getElementById('f-pos').value;
+  const color = document.getElementById('f-color').value;
+  const overlay = document.getElementById('f-overlay').value;
+  const size = parseInt(document.getElementById('f-size').value, 10) || 46;
+
+  // overlay
+  if (overlay === 'dark'){
+    const grd = ctx.createLinearGradient(0,0,0,H);
+    if (pos==='top'){ grd.addColorStop(0,'rgba(0,0,0,.65)'); grd.addColorStop(.45,'rgba(0,0,0,0)'); }
+    else if (pos==='center'){ grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(.5,'rgba(0,0,0,.55)'); grd.addColorStop(1,'rgba(0,0,0,0)'); }
+    else { grd.addColorStop(.55,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,.75)'); }
+    ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
+  } else if (overlay === 'light'){
+    const grd = ctx.createLinearGradient(0,0,0,H);
+    if (pos==='top'){ grd.addColorStop(0,'rgba(255,255,255,.65)'); grd.addColorStop(.45,'rgba(255,255,255,0)'); }
+    else if (pos==='center'){ grd.addColorStop(0,'rgba(255,255,255,0)'); grd.addColorStop(.5,'rgba(255,255,255,.55)'); grd.addColorStop(1,'rgba(255,255,255,0)'); }
+    else { grd.addColorStop(.55,'rgba(255,255,255,0)'); grd.addColorStop(1,'rgba(255,255,255,.75)'); }
+    ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
+  } else if (overlay === 'solid'){
+    const boxH = size * 2.2;
+    let y;
+    if (pos==='top') y = 0;
+    else if (pos==='center') y = (H-boxH)/2;
+    else y = H - boxH;
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(0,y,W,boxH);
+  }
+
+  // text
+  ctx.fillStyle = color;
+  ctx.font = `800 ${size}px Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,.4)';
+  ctx.shadowBlur = 6;
+  let ty;
+  if (pos==='top') ty = size + 24;
+  else if (pos==='center') ty = H/2;
+  else ty = H - size - 24;
+
+  // line wrap (2줄)
+  const maxW = W - 80;
+  const lines = wrapLines(ctx, title, maxW, 2);
+  const lineH = size * 1.15;
+  const startY = ty - ((lines.length-1) * lineH)/2;
+  lines.forEach((ln,i)=>ctx.fillText(ln, W/2, startY + i*lineH));
+  ctx.shadowBlur = 0;
+}
+
+function wrapLines(ctx, text, maxW, maxLines){
+  const words = text.split(/(\s+)/);
+  const lines = [];
+  let cur = '';
+  for (const w of words){
+    const test = cur + w;
+    if (ctx.measureText(test).width > maxW && cur){
+      lines.push(cur.trim());
+      cur = w;
+      if (lines.length === maxLines - 1){
+        // 마지막 라인은 ... 처리
+        const rest = (cur + words.slice(words.indexOf(w)+1).join('')).trim();
+        let trim = rest;
+        while (ctx.measureText(trim + '…').width > maxW && trim.length){
+          trim = trim.slice(0,-1);
+        }
+        lines.push(trim + (trim !== rest ? '…' : ''));
+        return lines;
+      }
+    } else cur = test;
+  }
+  if (cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+
+function canvasToBlob(){
+  return new Promise(resolve => thumbCanvas.toBlob(b => resolve(b), 'image/jpeg', 0.92));
+}
+
+// ── CRUD ──
+async function load(){
+  showLoading(true);
+  try {
+    const res = await fetch(API);
+    const json = await res.json();
+    posts = json.data || [];
+    renderCounts();
+    render();
+  } catch (e){
+    toast('목록 불러오기 실패', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function renderCounts(){
+  const counts = { all: posts.length, hotel:0, resort:0, sports:0, event:0, brand:0, lifestyle:0 };
+  posts.forEach(p => { if (counts[p.category] != null) counts[p.category]++; });
+  Object.entries(counts).forEach(([k,v]) => {
+    const el = document.getElementById('cnt-'+k); if (el) el.textContent = v;
+  });
+}
+
+function setFilter(cat){
+  currentCat = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  render();
+}
+
+function render(){
+  const list = currentCat === 'all' ? posts : posts.filter(p => p.category === currentCat);
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  const stats = document.getElementById('stats-text');
+  if (!list.length){
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    stats.textContent = '';
+    return;
+  }
+  empty.style.display = 'none';
+  stats.innerHTML = `<strong>${list.length}건</strong> · 전체 <strong>${posts.length}건</strong>`;
+  grid.innerHTML = list.map(p => `
+    <div class="card">
+      <div class="card-thumb-wrap" onclick="previewPost('${p._id}')">
+        <img class="card-thumb" src="${p.thumbnail}" alt="${escapeHtml(p.title)}" loading="lazy">
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escapeHtml(p.title)}</div>
+        <div class="card-meta">
+          <span class="cat-badge cat-${p.category}">${CATS[p.category]||p.category}</span>
+          <span class="img-count">📷 ${(p.images||[]).length}장</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn-sm edit" onclick="openModal('${p._id}')">수정</button>
+          <button class="btn-sm delete" onclick="del('${p._id}')">삭제</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function previewPost(id){
+  const p = posts.find(x => x._id === id);
+  if (!p) return;
+  // 갤러리 라이트박스: 새 창에 열어 확인
+  const w = window.open('', '_blank');
+  const imgs = [p.thumbnail, ...(p.images||[])];
+  w.document.write(`
+    <html><head><title>${escapeHtml(p.title)}</title>
+    <style>body{background:#111;color:#fff;margin:0;padding:24px;font-family:Pretendard,sans-serif;}h1{font-size:18px;margin-bottom:16px;}img{max-width:100%;display:block;margin:0 auto 12px;border-radius:8px;}</style>
+    </head><body><h1>${escapeHtml(p.title)} · ${CATS[p.category]||p.category}</h1>${imgs.map(u=>`<img src="${u}">`).join('')}</body></html>
+  `);
+  w.document.close();
+}
+
+function openModal(id){
+  editing = id ? posts.find(p => p._id === id) : null;
+  document.getElementById('modal-title').textContent = editing ? '게시판 수정' : '게시판 등록';
+  // reset
+  document.getElementById('f-title').value = editing ? editing.title : '';
+  document.getElementById('f-category').value = editing ? editing.category : 'hotel';
+  document.getElementById('f-pos').value = 'bottom';
+  document.getElementById('f-color').value = '#ffffff';
+  document.getElementById('f-overlay').value = 'dark';
+  document.getElementById('f-size').value = '46';
+  document.getElementById('f-thumb-file').value = '';
+  document.getElementById('f-gallery-file').value = '';
+  thumbImage = null;
+  thumbCtx.clearRect(0,0,thumbCanvas.width, thumbCanvas.height);
+  gallery.forEach(g => { if (g.file && g.src.startsWith('blob:')) URL.revokeObjectURL(g.src); });
+  gallery = [];
+
+  if (editing){
+    // 기존 썸네일 로드해서 캔버스에 그려둠 (단, 이미 합성된 이미지이므로 다시 합성하지 않음)
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => {
+      thumbCanvas.width = 960; thumbCanvas.height = 600;
+      thumbCtx.drawImage(im, 0, 0, 960, 600);
+      document.getElementById('thumb-empty').style.display = 'none';
+    };
+    im.onerror = () => { /* cors 등으로 실패 가능 - 무시 */ };
+    im.src = editing.thumbnail;
+    // 기존 갤러리
+    gallery = (editing.images||[]).map(u => ({ url:u, src:u, isNew:false }));
+    renderGallery();
+    document.getElementById('thumb-empty').style.display = 'none';
+  } else {
+    document.getElementById('thumb-empty').style.display = 'block';
+    renderGallery();
+  }
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+function modalBgClick(e){ if (e.target.id === 'modal') closeModal(); }
+
+async function save(){
+  const title = document.getElementById('f-title').value.trim();
+  const category = document.getElementById('f-category').value;
+  if (!title){ return toast('타이틀을 입력해주세요', 'error'); }
+  if (!category){ return toast('카테고리를 선택해주세요', 'error'); }
+
+  // 신규: 대표 이미지 필수
+  if (!editing && !thumbImage){ return toast('대표 이미지를 선택해주세요', 'error'); }
+
+  const btn = document.getElementById('btn-save'); btn.disabled = true; showLoading(true);
+  try {
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('category', category);
+
+    // 썸네일: 사용자가 새로 이미지를 골랐을 때만 canvas blob 전송
+    if (thumbImage){
+      const blob = await canvasToBlob();
+      fd.append('thumbnail', blob, 'thumb.jpg');
+    }
+
+    // 갤러리: 신규 파일과 기존 URL 분리
+    const keepUrls = [];
+    for (const g of gallery){
+      if (g.isNew && g.file) fd.append('images', g.file, g.file.name);
+      else if (g.url) keepUrls.push(g.url);
+    }
+    if (editing) fd.append('keepImages', JSON.stringify(keepUrls));
+
+    const url = editing ? `${API}/${editing._id}` : API;
+    const method = editing ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, body: fd });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.message || '저장 실패');
+    toast(editing ? '수정 완료' : '등록 완료', 'success');
+    closeModal();
+    await load();
+  } catch (e){
+    toast(e.message || '저장 실패', 'error');
+  } finally {
+    btn.disabled = false; showLoading(false);
+  }
+}
+
+async function del(id){
+  const p = posts.find(x => x._id === id);
+  if (!confirm(`"${p?.title || ''}" 게시글을 삭제하시겠습니까?\nFTP 이미지도 함께 삭제됩니다.`)) return;
+  showLoading(true);
+  try {
+    const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.message || '삭제 실패');
+    toast('삭제 완료', 'success');
+    await load();
+  } catch (e){
+    toast(e.message || '삭제 실패', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function toast(msg, kind=''){
+  const t = document.getElementById('toast');
+  t.className = 'toast show ' + (kind || '');
+  t.textContent = msg;
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function showLoading(on){ document.getElementById('loading').classList.toggle('show', !!on); }
+</script>
+</body>
+</html>

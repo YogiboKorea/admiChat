@@ -3135,6 +3135,246 @@ app.delete('/api/brand-knowledge/:id', async (req, res) => {
   }
 });
 
+
+// =================================================================
+// 🏢 B2B 게시판 관리 API (yogibo.b2b 컬렉션)
+// =================================================================
+// 카테고리: hotel | resort | sports | event | brand | lifestyle
+
+const B2B_FTP_DIR = '/web/img/b2b';
+const B2B_PUBLIC_PREFIX = 'https://yogibo.kr/web/img/b2b';
+
+async function uploadB2BBuffer(buffer, filename) {
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
+      port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      secure: 'explicit',
+    });
+    await client.ensureDir('web/img/b2b');
+    const stream = Readable.from(buffer);
+    await client.uploadFrom(stream, filename);
+  } finally {
+    client.close();
+  }
+  return `${B2B_PUBLIC_PREFIX}/${filename}`;
+}
+
+async function deleteB2BFile(url) {
+  if (!url || typeof url !== 'string' || !url.includes('/web/img/b2b/')) return;
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
+      port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      secure: 'explicit',
+    });
+    const urlObj = new URL(url);
+    await client.remove(urlObj.pathname);
+  } catch (err) {
+    console.warn('[B2B FTP Delete] 실패:', url, err.message);
+  } finally {
+    client.close();
+  }
+}
+
+async function processAndUpload(filePath, kind /* 'thumb' | 'gallery' */, baseName) {
+  let pipeline = sharp(filePath);
+  if (kind === 'thumb') {
+    pipeline = pipeline.resize(960, 600, { fit: 'cover', position: 'center' });
+  } else {
+    pipeline = pipeline.resize(1400, null, { fit: 'inside', withoutEnlargement: true });
+  }
+  const buf = await pipeline.webp({ quality: 85 }).toBuffer();
+  try { fs.unlinkSync(filePath); } catch (_) {}
+  const hex = crypto.randomBytes(5).toString('hex');
+  const filename = `${baseName}-${Date.now()}-${hex}.webp`;
+  return await uploadB2BBuffer(buf, filename);
+}
+
+// 목록 조회 (?category=all|hotel|...)
+app.get('/api/b2b-board', async (req, res) => {
+  try {
+    const { category } = req.query;
+    const query = (category && category !== 'all') ? { category } : {};
+    const docs = await db.collection('b2b')
+      .find(query)
+      .sort({ order: 1, createdAt: -1 })
+      .toArray();
+    res.json({ success: true, data: docs });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 단건 조회
+app.get('/api/b2b-board/:id', async (req, res) => {
+  try {
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: '잘못된 ID' });
+    }
+    const doc = await db.collection('b2b').findOne({ _id: new ObjectId(req.params.id) });
+    if (!doc) return res.status(404).json({ success: false, message: '게시글 없음' });
+    res.json({ success: true, data: doc });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 등록 (thumbnail: 타이틀이 합성된 이미지 1장, images: 추가 갤러리 이미지들)
+app.post('/api/b2b-board', upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'images', maxCount: 30 }
+]), async (req, res) => {
+  try {
+    const { title, category } = req.body;
+    if (!title || !category) {
+      return res.status(400).json({ success: false, message: '타이틀과 카테고리는 필수입니다.' });
+    }
+    const thumbFile = req.files?.thumbnail?.[0];
+    const galleryFiles = req.files?.images || [];
+    if (!thumbFile) {
+      return res.status(400).json({ success: false, message: '썸네일 이미지는 필수입니다.' });
+    }
+
+    const thumbnailUrl = await processAndUpload(thumbFile.path, 'thumb', 'b2b-thumb');
+    const galleryUrls = [];
+    for (const f of galleryFiles) {
+      const url = await processAndUpload(f.path, 'gallery', 'b2b-img');
+      galleryUrls.push(url);
+    }
+
+    const doc = {
+      title: String(title).trim(),
+      category: String(category).trim(),
+      thumbnail: thumbnailUrl,
+      images: galleryUrls,
+      order: 9999,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    const result = await db.collection('b2b').insertOne(doc);
+    res.json({ success: true, data: { _id: result.insertedId, ...doc } });
+  } catch (e) {
+    console.error('[B2B 등록 오류]', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 수정 (제목/카테고리 변경, 신규 이미지 추가, 기존 이미지 일부 제거, 썸네일 교체 옵션)
+app.put('/api/b2b-board/:id', upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'images', maxCount: 30 }
+]), async (req, res) => {
+  try {
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: '잘못된 ID' });
+    }
+    const _id = new ObjectId(req.params.id);
+    const existing = await db.collection('b2b').findOne({ _id });
+    if (!existing) return res.status(404).json({ success: false, message: '게시글 없음' });
+
+    const { title, category, keepImages } = req.body;
+    let keepList = [];
+    if (keepImages) {
+      try { keepList = JSON.parse(keepImages); } catch (_) { keepList = []; }
+    }
+    // keepImages 가 빈 배열로 전달되면 모두 제거 의도. 미전달이면 기존 유지.
+    const keepSet = new Set(keepList);
+    const toDelete = (existing.images || []).filter(u => !keepSet.has(u));
+
+    const thumbFile = req.files?.thumbnail?.[0];
+    const galleryFiles = req.files?.images || [];
+
+    const newGalleryUrls = [];
+    for (const f of galleryFiles) {
+      const url = await processAndUpload(f.path, 'gallery', 'b2b-img');
+      newGalleryUrls.push(url);
+    }
+
+    let nextThumb = existing.thumbnail;
+    if (thumbFile) {
+      const url = await processAndUpload(thumbFile.path, 'thumb', 'b2b-thumb');
+      if (existing.thumbnail) await deleteB2BFile(existing.thumbnail);
+      nextThumb = url;
+    }
+
+    const finalImages = keepImages !== undefined
+      ? (existing.images || []).filter(u => keepSet.has(u)).concat(newGalleryUrls)
+      : (existing.images || []).concat(newGalleryUrls);
+
+    const update = {
+      thumbnail: nextThumb,
+      images: finalImages,
+      updatedAt: new Date()
+    };
+    if (title !== undefined) update.title = String(title).trim();
+    if (category !== undefined) update.category = String(category).trim();
+
+    await db.collection('b2b').updateOne({ _id }, { $set: update });
+
+    // FTP 에서 제거된 이미지 정리 (실패해도 응답엔 영향 없음)
+    for (const u of toDelete) await deleteB2BFile(u);
+
+    const updated = await db.collection('b2b').findOne({ _id });
+    res.json({ success: true, data: updated });
+  } catch (e) {
+    console.error('[B2B 수정 오류]', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 삭제
+app.delete('/api/b2b-board/:id', async (req, res) => {
+  try {
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: '잘못된 ID' });
+    }
+    const _id = new ObjectId(req.params.id);
+    const doc = await db.collection('b2b').findOne({ _id });
+    if (!doc) return res.status(404).json({ success: false, message: '게시글 없음' });
+
+    await db.collection('b2b').deleteOne({ _id });
+    if (doc.thumbnail) await deleteB2BFile(doc.thumbnail);
+    for (const u of doc.images || []) await deleteB2BFile(u);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[B2B 삭제 오류]', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// 순서 변경 (드래그 정렬 등) - [{id, order}, ...]
+app.put('/api/b2b-board/order/bulk', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'items 배열 필요' });
+    }
+    const ops = items
+      .filter(it => it && ObjectId.isValid(it.id))
+      .map(it => ({
+        updateOne: {
+          filter: { _id: new ObjectId(it.id) },
+          update: { $set: { order: Number(it.order) || 0, updatedAt: new Date() } }
+        }
+      }));
+    if (ops.length) await db.collection('b2b').bulkWrite(ops);
+    res.json({ success: true, updated: ops.length });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+
 // 1. server.js 최상단 (모듈 불러오는 곳)에 아래 두 줄을 추가/수정해주세요.
 // 기존 const pdfParse = require('pdf-parse'); 부분은 삭제합니다.
 
