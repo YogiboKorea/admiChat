@@ -279,7 +279,9 @@
       listContainer.innerHTML = '';
       allBoards.forEach(board => {
         const cover = board.images && board.images.length > 0 ? board.images[0] : '';
-        const coverUrl = cover ? `https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app${cover}` : 'https://via.placeholder.com/220x150';
+        const coverUrl = cover 
+          ? (cover.startsWith('http') ? cover : `https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app${cover}`) 
+          : 'https://via.placeholder.com/220x150';
         
         const item = document.createElement('div');
         item.className = 'list-item';
@@ -315,10 +317,11 @@
       
       // Render retained images (for edit mode)
       retainedImages.forEach((url, index) => {
+        const fullUrl = url.startsWith('http') ? url : `https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app${url}`;
         const div = document.createElement('div');
         div.className = 'preview-item';
         div.innerHTML = `
-          <img src="https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app${url}" alt="old">
+          <img src="${fullUrl}" alt="old">
           <button type="button" class="remove-btn" onclick="removeRetained(${index})">X</button>
         `;
         previewContainer.appendChild(div);

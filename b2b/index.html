@@ -216,7 +216,8 @@
         let imagesHtml = '';
         if (item.images && item.images.length > 0) {
           item.images.forEach(img => {
-            imagesHtml += `<div class="swiper-slide"><img src="${API_BASE_URL}${img}" alt="${item.title}"></div>`;
+            const fullImg = img.startsWith('http') ? img : `${API_BASE_URL}${img}`;
+            imagesHtml += `<div class="swiper-slide"><img src="${fullImg}" alt="${item.title}"></div>`;
           });
         } else {
           imagesHtml = `<div class="swiper-slide"><img src="https://via.placeholder.com/400x300?text=No+Image" alt="No image"></div>`;
@@ -271,9 +272,10 @@
       modalSwiperWrapper.innerHTML = '';
       
       item.images.forEach(imgPath => {
+        const fullImg = imgPath.startsWith('http') ? imgPath : `${API_BASE_URL}${imgPath}`;
         const div = document.createElement('div');
         div.className = 'swiper-slide';
-        div.innerHTML = `<img src="${API_BASE_URL}${imgPath}" alt="${item.title}">`;
+        div.innerHTML = `<img src="${fullImg}" alt="${item.title}">`;
         modalSwiperWrapper.appendChild(div);
       });
 

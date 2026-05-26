@@ -123,14 +123,8 @@ async function migrate() {
                 let ext = path.extname(parsedUrl.pathname) || '.jpg';
                 if(ext.length > 5) ext = '.jpg';
 
-                const filename = `b2b-mig-${ref.no}-${index}${ext}`;
-                const filepath = path.join(uploadDir, filename);
-                
-                await downloadImage(parsedUrl.href, filepath);
-                localImagesPaths.push(`/yogibo/b2b/${filename}`);
-                index++;
-                console.log(`  Downloaded ${imgUrl}`);
-            } catch (err) {
+                // FTP 경로 등 외부 주소를 그대로 사용하기 위해 원래 URL을 저장
+                localImagesPaths.push(imgUrl);
                 console.error(`  Failed to download ${imgUrl}:`, err.message);
             }
         }
