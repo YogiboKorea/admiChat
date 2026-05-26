@@ -6075,10 +6075,31 @@ app.post('/api/b2b/board', b2bUpload.array('images', 10), async (req, res) => {
 
 app.get('/api/b2b/boards', async (req, res) => {
   try {
-    const boards = await db.collection('b2b_boards').find().sort({ createdAt: -1 }).toArray();
+    const boards = await db.collection('b2b_boards').find().sort({ sortOrder: 1, createdAt: -1 }).toArray();
     res.json({ success: true, data: boards });
   } catch (err) {
     console.error('B2B Board Fetch Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// 순서 일괄 저장
+app.post('/api/b2b/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, message: 'orderedIds must be an array' });
+    }
+    const bulkOps = orderedIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(id) },
+        update: { $set: { sortOrder: index } }
+      }
+    }));
+    await db.collection('b2b_boards').bulkWrite(bulkOps);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('B2B Reorder Error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
