@@ -1,22 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose');
 const https = require('https');
 const http = require('http');
-
-// MongoDB 연결 정보 (server.js와 동일)
-const url = 'mongodb+srv://yogibo:yogibo@cluster0.o5ngs7n.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
-const dbName = 'adminchat';
-
-// B2B Board Schema
-const b2bBoardSchema = new mongoose.Schema({
-    title: String,
-    category: String,
-    images: [String],
-    createdAt: { type: Date, default: Date.now }
-}, { collection: 'b2b_boards' });
-
-const B2bBoard = mongoose.model('B2bBoard', b2bBoardSchema);
 
 const COMMERCIAL_REFS = [
     { no: "14080", title: "Yogibo X ROBLOX", cat: "brand", thumb: "https://yogibo.kr/file_data/yogibo//2025/08/13/a332f8cd0d17e7d6d1752885a51c6769.png", url: "https://yogibo.kr/board/gallery/read.html?no=14080&board_no=15", imgs: ["https://yogibo.kr/web/upload/NNEditor/20250813/copy-1755066836-people.png", "https://yogibo.kr/web/upload/NNEditor/20250813/copy-1755066847-color.png", "https://yogibo.kr/web/upload/NNEditor/20250813/copy-1755066857-people2.png"] },
@@ -110,13 +95,8 @@ const downloadImage = (url, filepath) => {
 };
 
 async function migrate() {
-    console.log('Connecting to MongoDB...');
-    await mongoose.connect(url, {
-        serverSelectionTimeoutMS: 5000
-    });
-    console.log('Connected to MongoDB via Mongoose!');
-
-    // 업로드 경로
+    console.log('Starting migration to Cloudtype API...');
+    
     const uploadDir = path.join(__dirname, 'public', 'yogibo', 'b2b');
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
@@ -127,10 +107,9 @@ async function migrate() {
     for (const ref of COMMERCIAL_REFS) {
         console.log(`Processing: ${ref.title}`);
         
-        let localImages = [];
+        let localImagesPaths = [];
         let index = 0;
         
-        // 썸네일과 이미지 배열 합치기 (중복 제거)
         let imagesToDownload = [];
         if (ref.imgs && ref.imgs.length > 0) {
             imagesToDownload = [...ref.imgs];
@@ -142,14 +121,13 @@ async function migrate() {
             try {
                 const parsedUrl = new URL(imgUrl);
                 let ext = path.extname(parsedUrl.pathname) || '.jpg';
-                // 간혹 확장자가 이상하게 파싱될 수 있으므로 정제
                 if(ext.length > 5) ext = '.jpg';
 
                 const filename = `b2b-mig-${ref.no}-${index}${ext}`;
                 const filepath = path.join(uploadDir, filename);
                 
                 await downloadImage(parsedUrl.href, filepath);
-                localImages.push(`/yogibo/b2b/${filename}`);
+                localImagesPaths.push(filepath);
                 index++;
                 console.log(`  Downloaded ${imgUrl}`);
             } catch (err) {
@@ -159,18 +137,36 @@ async function migrate() {
 
         const category = catMap[ref.cat] || '기타';
         
-        await B2bBoard.create({
-            title: ref.title,
-            category: category,
-            images: localImages,
-            createdAt: new Date()
-        });
-        
-        insertedCount++;
-        console.log(`  Inserted to DB: ${ref.title}`);
+        try {
+            const formData = new FormData();
+            formData.append('title', ref.title);
+            formData.append('category', category);
+            
+            for (const imgPath of localImagesPaths) {
+                const fileData = fs.readFileSync(imgPath);
+                const blob = new Blob([fileData]);
+                const filename = path.basename(imgPath);
+                formData.append('images', blob, filename);
+            }
+            
+            const API_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/api/b2b_boards';
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`Upload failed: ${response.status} ${text}`);
+            }
+            
+            insertedCount++;
+            console.log(`  Uploaded to Cloudtype Server: ${ref.title}`);
+        } catch (err) {
+             console.error(`  Failed to upload ${ref.title} to server:`, err.message);
+        }
     }
 
-    await mongoose.disconnect();
     console.log(`Migration completed! Successfully processed ${insertedCount} records.`);
 }
 

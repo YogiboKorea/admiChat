@@ -6134,7 +6134,7 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
 
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
-  const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
+  const client = new MongoClient(process.env.MONGODB_URI); // 옵션 생략 가능
 
   try {
     // 1. 서버 시작 전 DB 연결 (싱글톤)
