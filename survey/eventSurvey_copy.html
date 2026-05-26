@@ -643,6 +643,24 @@
             color: var(--primary-color);
         }
 
+        .btn-buy {
+            display: inline-block;
+            padding: 16px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            background: var(--primary-color);
+            cursor: pointer;
+            font-family: 'Pretendard', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .btn-buy:hover {
+            background: #45a0b5;
+        }
+
         /* 🔥 모바일 최적화 (500px 이하) 🔥 */
         @media (max-width: 500px) {
             body {
@@ -693,7 +711,7 @@
         <div class="content-wrap">
             <div class="logo">
                 <img src="https://yogibo.kr/web/img/icon/logo3_on.png" alt="Yogibo">
-                <button class="home-btn" onclick="location.href='index.html'" title="홈으로">
+                <button class="home-btn" onclick="location.href='https://yogibo.cafe24.com/'" title="홈으로">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                 </button>
             </div>
@@ -733,9 +751,10 @@
             <div class="step" id="step-result">
                 <div id="dynamic-result-container"></div>
 
-                <div class="result-footer">
+                <div class="result-footer" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
                     <div class="result-store-text">매장에서 직접 체험해보세요 🥰</div>
-                    <button class="btn-retry" onclick="restartQuiz()">테스트 다시 하기</button>
+                    <button class="btn-buy" onclick="goToProduct()" style="width: 80%; max-width: 280px;">상품 구매하러 가기</button>
+                    <button class="btn-retry" onclick="restartQuiz()" style="width: 80%; max-width: 280px;">테스트 다시 하기</button>
                 </div>
             </div>
 
@@ -812,6 +831,28 @@
         let step = 0;
         let answers = {};
         let currentSel = null; // 단일 선택 시 string, 다중 선택 시 array
+        let currentProductLink = 'https://yogibo.cafe24.com/';
+
+        function getProductLink(productName, category) {
+            let url = 'https://yogibo.cafe24.com/';
+            if (productName.includes('더블')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1267';
+            else if (productName.includes('맥스') && category !== 'BODY') url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1268';
+            else if (productName.includes('슬림')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1269';
+            else if (productName.includes('미니')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1270';
+            else if (productName.includes('드롭')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1271';
+            else if (productName.includes('라운저')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1272';
+            else if (productName.includes('피라미드')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1273';
+            else if (productName.includes('서포트')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1276';
+            else if (category === 'BODY' || productName.includes('롤')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1277';
+            else if (category === 'DOLL' || productName.includes('메이트') || productName.includes('스퀴지보')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1274';
+            else if (category === 'ACC' || productName.includes('트레이보') || productName.includes('냅 엑스') || productName.includes('지퍼롤')) url = 'https://yogibo.cafe24.com/product/list.html?cate_no=1275';
+            
+            return url;
+        }
+
+        function goToProduct() {
+            window.location.href = currentProductLink;
+        }
 
         async function startQuiz() {
             step = 0; answers = {}; currentSel = null;
@@ -1089,6 +1130,7 @@
 
         function showResult() {
             const resultData = computeResult();
+            currentProductLink = getProductLink(resultData.productName, resultData.category);
             const container = document.getElementById('dynamic-result-container');
 
             // DB 저장 과정 생략 (매장선택 없는 버전)

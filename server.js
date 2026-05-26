@@ -72,6 +72,7 @@ app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/b2b", express.static(path.join(__dirname, "b2b")));
 const corsOptions = {
   origin: [
     'https://yogibo.kr',
@@ -6015,6 +6016,61 @@ app.get('/api/target/download', async (req, res) => {
   } catch (err) {
     console.error('클릭 데이터 엑셀 다운로드 오류:', err);
     res.status(500).send('엑셀 생성 중 오류가 발생했습니다.');
+  }
+});
+// ========== [8] B2B Board APIs ==========
+const b2bUploadDir = path.join(__dirname, 'public', 'yogibo', 'b2b');
+if (!fs.existsSync(b2bUploadDir)) {
+  fs.mkdirSync(b2bUploadDir, { recursive: true });
+}
+
+const b2bUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, b2bUploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, 'b2b-' + uniqueSuffix + ext);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+app.post('/api/b2b/board', b2bUpload.array('images', 10), async (req, res) => {
+  try {
+    const { title, category } = req.body;
+    const files = req.files;
+    
+    if (!title || !category) {
+      return res.status(400).json({ success: false, message: 'Title and Category are required' });
+    }
+
+    const imageUrls = files ? files.map(f => `/yogibo/b2b/${f.filename}`) : [];
+
+    const newBoard = {
+      title,
+      category,
+      images: imageUrls,
+      createdAt: new Date()
+    };
+
+    const result = await db.collection('b2b_boards').insertOne(newBoard);
+    res.json({ success: true, insertedId: result.insertedId, data: newBoard });
+  } catch (err) {
+    console.error('B2B Board Upload Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.get('/api/b2b/boards', async (req, res) => {
+  try {
+    const boards = await db.collection('b2b_boards').find().sort({ createdAt: -1 }).toArray();
+    res.json({ success: true, data: boards });
+  } catch (err) {
+    console.error('B2B Board Fetch Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

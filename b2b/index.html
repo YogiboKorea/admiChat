@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B2B 레퍼런스</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Swiper CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  
+  <style>
+    :root {
+      --primary: #00B2B2;
+      --bg: #F8F9FA;
+      --surface: #FFFFFF;
+      --text: #111111;
+      --text-muted: #767676;
+      --border: #E5E5E5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Pretendard', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 4rem 1.5rem;
+    }
+
+    .header {
+      margin-bottom: 3rem;
+    }
+
+    .header-label {
+      color: var(--primary);
+      font-size: 0.875rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .header-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1.5rem;
+      word-break: keep-all;
+    }
+
+    .header-desc {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .tab-btn {
+      padding: 0.75rem 1.5rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 999px;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    .card-img-wrap {
+      position: relative;
+      width: 100%;
+      padding-top: 65%;
+      overflow: hidden;
+    }
+
+    .card-img-wrap img {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.5s;
+    }
+
+    .card:hover .card-img-wrap img {
+      transform: scale(1.05);
+    }
+
+    .card-badge {
+      position: absolute;
+      top: 1rem; left: 1rem;
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--primary);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      z-index: 1;
+      backdrop-filter: blur(4px);
+    }
+
+    .card-content {
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      position: relative;
+      width: 90%;
+      max-width: 1000px;
+      background: transparent;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: -40px; right: 0;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .swiper {
+      width: 100%;
+      height: 70vh;
+      max-height: 800px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .swiper-slide {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+    }
+
+    .swiper-slide img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .swiper-button-next, .swiper-button-prev {
+      color: white !important;
+    }
+    
+    .swiper-pagination-bullet {
+      background: white !important;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 4rem;
+      color: var(--text-muted);
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 768px) {
+      .header-title { font-size: 2rem; }
+      .swiper { height: 50vh; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <div class="header-label">CASE STUDY</div>
+      <h1 class="header-title">대한민국 어디서나<br>Yogibo와 함께</h1>
+      <p class="header-desc">각 카드를 클릭하면 해당 공간의 실제 도입 사진을 슬라이드로 확인할 수 있습니다.</p>
+    </div>
+
+    <div class="tabs" id="tabsContainer">
+      <button class="tab-btn active" data-category="전체">전체</button>
+      <button class="tab-btn" data-category="여행·숙박">여행·숙박</button>
+      <button class="tab-btn" data-category="스포츠">스포츠</button>
+      <button class="tab-btn" data-category="쇼핑·팝업">쇼핑·팝업</button>
+      <button class="tab-btn" data-category="문화·전시">문화·전시</button>
+      <button class="tab-btn" data-category="기업·오피스">기업·오피스</button>
+    </div>
+
+    <div class="grid" id="gridContainer">
+      <div class="loading">데이터를 불러오는 중입니다...</div>
+    </div>
+  </div>
+
+  <!-- Modal for Swiper -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">&times;</button>
+      <div class="swiper mySwiper">
+        <div class="swiper-wrapper" id="swiperWrapper">
+          <!-- Slides will be appended here dynamically -->
+        </div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Swiper JS -->
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" onload="this.media='all'"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  
+  <script>
+    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    let allData = [];
+    let swiperInstance = null;
+
+    const gridContainer = document.getElementById('gridContainer');
+    const tabsContainer = document.getElementById('tabsContainer');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalClose = document.getElementById('modalClose');
+    const swiperWrapper = document.getElementById('swiperWrapper');
+
+    async function fetchData() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/b2b/boards`);
+        const result = await response.json();
+        
+        if (result.success) {
+          allData = result.data;
+          renderGrid(allData);
+        } else {
+          gridContainer.innerHTML = '<div class="empty-state">데이터를 불러오는데 실패했습니다.</div>';
+        }
+      } catch (error) {
+        console.error('Fetch error:', error);
+        gridContainer.innerHTML = '<div class="empty-state">서버 통신 오류가 발생했습니다.</div>';
+      }
+    }
+
+    function renderGrid(data) {
+      gridContainer.innerHTML = '';
+
+      if (data.length === 0) {
+        gridContainer.innerHTML = '<div class="empty-state">등록된 레퍼런스가 없습니다.</div>';
+        return;
+      }
+
+      data.forEach(item => {
+        // Use first image as cover, fallback if no image
+        const coverImgUrl = item.images && item.images.length > 0 
+          ? `${API_BASE_URL}${item.images[0]}` 
+          : 'https://via.placeholder.com/400x300?text=No+Image';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.onclick = () => openModal(item);
+
+        card.innerHTML = `
+          <div class="card-img-wrap">
+            <div class="card-badge">${item.category}</div>
+            <img src="${coverImgUrl}" alt="${item.title}">
+          </div>
+          <div class="card-content">
+            <h3 class="card-title">${item.title}</h3>
+          </div>
+        `;
+        gridContainer.appendChild(card);
+      });
+    }
+
+    function openModal(item) {
+      if (!item.images || item.images.length === 0) return;
+
+      swiperWrapper.innerHTML = '';
+      
+      item.images.forEach(imgPath => {
+        const slide = document.createElement('div');
+        slide.className = 'swiper-slide';
+        slide.innerHTML = `<img src="${API_BASE_URL}${imgPath}" alt="${item.title}">`;
+        swiperWrapper.appendChild(slide);
+      });
+
+      modalOverlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+
+      if (swiperInstance) {
+        swiperInstance.destroy();
+      }
+
+      swiperInstance = new Swiper(".mySwiper", {
+        navigation: {
+          nextEl: ".swiper-button-next",
+          prevEl: ".swiper-button-prev",
+        },
+        pagination: {
+          el: ".swiper-pagination",
+          clickable: true,
+        },
+        keyboard: true,
+        loop: item.images.length > 1
+      });
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+      if (swiperInstance) {
+        swiperInstance.destroy();
+        swiperInstance = null;
+      }
+    }
+
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+    
+    // Escape key handling
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalOverlay.classList.contains('active')) {
+        closeModal();
+      }
+    });
+
+    // Tab Filtering
+    tabsContainer.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-btn')) {
+        // Update active class
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+
+        // Filter data
+        const category = e.target.getAttribute('data-category');
+        if (category === '전체') {
+          renderGrid(allData);
+        } else {
+          const filtered = allData.filter(item => item.category === category);
+          renderGrid(filtered);
+        }
+      }
+    });
+
+    // Initial load
+    fetchData();
+  </script>
+</body>
+</html>
