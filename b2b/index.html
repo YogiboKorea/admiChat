@@ -138,18 +138,26 @@
       border-radius: 6px;
       font-size: 0.8125rem;
       font-weight: 600;
-      z-index: 1;
+      z-index: 2;
       backdrop-filter: blur(4px);
     }
 
-    .card-content {
-      padding: 1.5rem;
+    .card-title-overlay {
+      position: absolute;
+      bottom: 0; left: 0; width: 100%;
+      padding: 4rem 1.5rem 1.5rem 1.5rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
     }
 
     .card-title {
       font-size: 1.25rem;
       font-weight: 700;
-      color: var(--text);
+      color: #FFFFFF;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      word-break: keep-all;
     }
 
     /* Modal Styles */
@@ -330,9 +338,9 @@
           <div class="card-img-wrap">
             <div class="card-badge">${item.category}</div>
             <img src="${coverImgUrl}" alt="${item.title}">
-          </div>
-          <div class="card-content">
-            <h3 class="card-title">${item.title}</h3>
+            <div class="card-title-overlay">
+              <h3 class="card-title">${item.title}</h3>
+            </div>
           </div>
         `;
         gridContainer.appendChild(card);

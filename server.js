@@ -6074,6 +6074,64 @@ app.get('/api/b2b/boards', async (req, res) => {
   }
 });
 
+app.delete('/api/b2b/board/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+    const result = await db.collection('b2b_boards').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 1) {
+      res.json({ success: true, message: 'Deleted successfully' });
+    } else {
+      res.status(404).json({ success: false, message: 'Not found' });
+    }
+  } catch (err) {
+    console.error('B2B Board Delete Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, category, retainedImages } = req.body;
+    const files = req.files;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID' });
+    }
+
+    let parsedRetainedImages = [];
+    if (retainedImages) {
+      try {
+        parsedRetainedImages = JSON.parse(retainedImages);
+      } catch (e) {
+        parsedRetainedImages = Array.isArray(retainedImages) ? retainedImages : [retainedImages];
+      }
+    }
+
+    const newImageUrls = files ? files.map(f => `/yogibo/b2b/${f.filename}`) : [];
+    const updatedImages = [...parsedRetainedImages, ...newImageUrls].slice(0, 10); // cap at 10
+
+    const updateDoc = {
+      $set: {
+        title,
+        category,
+        images: updatedImages,
+        updatedAt: new Date()
+      }
+    };
+
+    const result = await db.collection('b2b_boards').updateOne({ _id: new ObjectId(id) }, updateDoc);
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error('B2B Board Update Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(MONGODB_URI); // 옵션 생략 가능
