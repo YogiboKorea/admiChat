@@ -127,7 +127,7 @@ async function migrate() {
                 const filepath = path.join(uploadDir, filename);
                 
                 await downloadImage(parsedUrl.href, filepath);
-                localImagesPaths.push(filepath);
+                localImagesPaths.push(`/yogibo/b2b/${filename}`);
                 index++;
                 console.log(`  Downloaded ${imgUrl}`);
             } catch (err) {
@@ -141,15 +141,9 @@ async function migrate() {
             const formData = new FormData();
             formData.append('title', ref.title);
             formData.append('category', category);
+            formData.append('existingImages', JSON.stringify(localImagesPaths));
             
-            for (const imgPath of localImagesPaths) {
-                const fileData = fs.readFileSync(imgPath);
-                const blob = new Blob([fileData]);
-                const filename = path.basename(imgPath);
-                formData.append('images', blob, filename);
-            }
-            
-            const API_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/api/b2b_boards';
+            const API_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app/api/b2b/board';
             const response = await fetch(API_URL, {
                 method: 'POST',
                 body: formData

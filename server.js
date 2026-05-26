@@ -6042,12 +6042,21 @@ app.post('/api/b2b/board', b2bUpload.array('images', 10), async (req, res) => {
   try {
     const { title, category } = req.body;
     const files = req.files;
+    let existingImages = [];
+    if (req.body.existingImages) {
+      try {
+        existingImages = JSON.parse(req.body.existingImages);
+      } catch(e) {
+        existingImages = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
+      }
+    }
     
     if (!title || !category) {
       return res.status(400).json({ success: false, message: 'Title and Category are required' });
     }
 
-    const imageUrls = files ? files.map(f => `/yogibo/b2b/${f.filename}`) : [];
+    const uploadedUrls = files ? files.map(f => `/yogibo/b2b/${f.filename}`) : [];
+    const imageUrls = [...existingImages, ...uploadedUrls].slice(0, 10);
 
     const newBoard = {
       title,
