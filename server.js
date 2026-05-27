@@ -3207,7 +3207,7 @@ async function processAndUpload(filePath, kind /* 'thumb' | 'gallery' */, baseNa
     pipeline = pipeline.resize(1400, null, { fit: 'inside', withoutEnlargement: true });
   }
   const buf = await pipeline.webp({ quality: 85 }).toBuffer();
-  try { fs.unlinkSync(filePath); } catch (_) {}
+  try { fs.unlinkSync(filePath); } catch (_) { }
   const hex = crypto.randomBytes(5).toString('hex');
   const filename = `${baseName}-${Date.now()}-${hex}.webp`;
   return await uploadB2BBuffer(buf, filename);
@@ -5549,7 +5549,7 @@ app.get('/api/event/samsung/download', async (req, res) => {
       { header: '응모일시', key: 'clickedAt', width: 22 },
       { header: '회원ID', key: 'memberId', width: 20 }
     ];
-    
+
     ws.getRow(1).eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF55B5C9' } };
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -6059,11 +6059,11 @@ app.post('/api/b2b/board', b2bUpload.array('images', 10), async (req, res) => {
     if (req.body.existingImages) {
       try {
         existingImages = JSON.parse(req.body.existingImages);
-      } catch(e) {
+      } catch (e) {
         existingImages = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
       }
     }
-    
+
     if (!title || !category) {
       return res.status(400).json({ success: false, message: 'Title and Category are required' });
     }
@@ -6344,7 +6344,8 @@ app.post('/api/b2b/inquiry', b2bInquiryUpload.array('files', 5), async (req, res
 
     const mailOptions = {
       from: `"요기보 B2B 문의" <${process.env.SMTP_USER || 'fe@yogico.kr'}>`,
-      to: ['hjs@yogico.kr', 'b2b@yogico.kr'],
+      //to: ['hjs@yogico.kr', 'b2b@yogico.kr'],
+      to: ['fe@yogico.kr'],
       replyTo: email,  // 답장 시 고객 이메일로 전달
       subject: `[B2B 문의] ${company} / ${name} 담당자`,
       html: htmlBody,
@@ -6355,7 +6356,7 @@ app.post('/api/b2b/inquiry', b2bInquiryUpload.array('files', 5), async (req, res
 
     // 임시 파일 삭제
     (req.files || []).forEach(file => {
-      try { require('fs').unlinkSync(file.path); } catch (e) {}
+      try { require('fs').unlinkSync(file.path); } catch (e) { }
     });
 
     console.log(`✅ [B2B 문의] ${company} / ${name} (${email}) 메일 발송 완료`);

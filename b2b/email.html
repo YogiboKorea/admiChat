@@ -364,6 +364,9 @@
         if (!phone)   return showMsg('휴대폰번호를 입력해주세요.', 'error');
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
                       return showMsg('올바른 이메일 주소를 입력해주세요.', 'error');
+        // 제출 시점에 DOM에서 직접 읽기 (변수 의존 제거)
+        var activeBudgetEl = document.querySelector('.budget-card.active .bud-main');
+        var selectedBudget = activeBudgetEl ? activeBudgetEl.textContent.trim() : '';
         if (!selectedBudget) return showMsg('예산 구간을 선택해주세요.', 'error');
         if (!care)    return showMsg('케어서비스 포함 여부를 선택해주세요.', 'error');
 
