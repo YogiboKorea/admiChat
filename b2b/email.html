@@ -1,4 +1,914 @@
+<!--@layout(/layout/basic/layout.html)-->
 <style>
+    :root {
+        --yogibo-blue: #12BDD4;
+        --yogibo-blue-dark: #0A9BAF;
+        --yogibo-blue-light: #E8FAFA;
+        --yogibo-blue-mid: #B4EEF5;
+        --yogibo-dark: #1A1A2E;
+        --yogibo-gray: #F5F7FA;
+        --yogibo-gray-mid: #E8ECF0;
+        --yogibo-text: #2D3748;
+        --yogibo-text-muted: #718096;
+        --yogibo-white: #FFFFFF;
+        --yogibo-accent: #FF6B6B;
+        --radius-lg: 16px;
+        --radius-xl: 16px;
+        --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.08);
+        --shadow-hover: 0 12px 40px rgba(18, 189, 212, 0.18);
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        font-family: 'Noto Sans KR', sans-serif;
+        color: var(--yogibo-text);
+        background: var(--yogibo-white);
+        overflow-x: hidden;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--yogibo-gray-mid);
+        padding: 0 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+    }
+
+    .nav-logo {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 24px;
+        font-weight: 900;
+        color: var(--yogibo-blue);
+        letter-spacing: -1px;
+    }
+
+    .nav-logo span {
+        color: var(--yogibo-dark);
+    }
+
+    .nav-links {
+        display: flex;
+        gap: 32px;
+        list-style: none;
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: var(--yogibo-text);
+        font-size: 14px;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+        color: var(--yogibo-blue);
+    }
+
+    .nav-cta {
+        background: var(--yogibo-blue);
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 10px 24px;
+        border-radius: 50px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: 'Noto Sans KR', sans-serif;
+        transition: all 0.2s;
+    }
+
+    .nav-cta:hover {
+        background: var(--yogibo-blue-dark);
+        transform: translateY(-1px);
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+        min-height: 100vh;
+        padding-top: 64px;
+        background: linear-gradient(135deg, #F0FBFF 0%, #E8F8FE 40%, #FFF5F5 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero::before {
+        content: '';
+        position: absolute;
+        top: -200px;
+        right: -200px;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(0, 174, 239, 0.12) 0%, transparent 70%);
+    }
+
+    .hero::after {
+        content: '';
+        position: absolute;
+        bottom: -150px;
+        left: -100px;
+        width: 400px;
+        height: 400px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 107, 107, 0.08) 0%, transparent 70%);
+    }
+
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: white;
+        border: 1.5px solid var(--yogibo-blue-mid);
+        color: var(--yogibo-blue-dark);
+        font-size: 13px;
+        font-weight: 600;
+        padding: 6px 18px;
+        border-radius: 50px;
+        margin-bottom: 32px;
+        box-shadow: 0 2px 12px rgba(0, 174, 239, 0.12);
+    }
+
+    .hero-badge::before {
+        content: '✦';
+        font-size: 10px;
+    }
+
+    .hero h1 {
+        font-family: 'Noto Sans KR', sans-serif;
+        font-size: clamp(36px, 5vw, 64px);
+        font-weight: 900;
+        line-height: 1.2;
+        color: var(--yogibo-dark);
+        letter-spacing: -2px;
+        margin-bottom: 20px;
+        max-width: 760px;
+    }
+
+    .hero h1 .highlight {
+        color: var(--yogibo-blue);
+        position: relative;
+    }
+
+    .hero-sub {
+        font-size: clamp(15px, 2vw, 18px);
+        color: var(--yogibo-text-muted);
+        line-height: 1.8;
+        max-width: 580px;
+        margin-bottom: 40px;
+        font-weight: 400;
+    }
+
+    .hero-cta-group {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary {
+        background: var(--yogibo-blue);
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 16px 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        font-weight: 700;
+        font-family: 'Noto Sans KR', sans-serif;
+        transition: all 0.25s;
+        box-shadow: 0 6px 24px rgba(0, 174, 239, 0.35);
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-primary:hover {
+        background: var(--yogibo-blue-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 32px rgba(0, 174, 239, 0.45);
+    }
+
+    .btn-secondary {
+        background: white;
+        color: var(--yogibo-text);
+        border: 2px solid var(--yogibo-gray-mid);
+        padding: 14px 32px;
+        border-radius: 50px;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: 'Noto Sans KR', sans-serif;
+        cursor: pointer;
+        transition: all 0.25s;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-secondary:hover {
+        border-color: var(--yogibo-blue);
+        color: var(--yogibo-blue);
+    }
+
+    /* Hero visual grid */
+    .hero-visual {
+        margin-top: 64px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        max-width: 900px;
+        width: 90%;
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-card {
+        background: white;
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-card);
+        transition: transform 0.3s;
+        aspect-ratio: 3/4;
+        position: relative;
+    }
+
+    .hero-card:nth-child(2) {
+        margin-top: -24px;
+    }
+
+    .hero-card:nth-child(4) {
+        margin-top: -24px;
+    }
+
+    .hero-card:hover {
+        transform: translateY(-6px);
+    }
+
+    .hero-card-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: linear-gradient(135deg, var(--yogibo-blue-mid), var(--yogibo-blue));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+    }
+
+    .hero-card-label {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--yogibo-dark);
+        word-break: keep-all;
+        line-height: 1.5;
+    }
+
+    /* hero 3열 변형 (B2B 페이지 전용) */
+    .hero-visual--3col {
+        grid-template-columns: repeat(3, 1fr);
+        max-width: 700px;
+    }
+
+    /* ─── STATS STRIP ─── */
+    .stats-strip {
+        background: var(--yogibo-dark);
+        padding: 40px 80px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 80px;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-num {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 40px;
+        font-weight: 900;
+        color: var(--yogibo-blue);
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 6px;
+        font-weight: 400;
+    }
+
+    .stat-divider {
+        width: 1px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* ─── SECTION SHARED ─── */
+    section {
+        padding: 100px 40px;
+    }
+
+    .section-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .section-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: var(--yogibo-blue);
+        margin-bottom: 12px;
+    }
+
+    .section-title {
+        font-size: clamp(28px, 3.5vw, 44px);
+        font-weight: 900;
+        color: var(--yogibo-dark);
+        letter-spacing: -1.5px;
+        line-height: 1.25;
+        margin-bottom: 14px;
+    }
+
+    .section-desc {
+        font-size: 16px;
+        color: var(--yogibo-text-muted);
+        line-height: 1.8;
+        max-width: 520px;
+        font-weight: 400;
+    }
+
+    .section-head {
+        margin-bottom: 56px;
+    }
+
+    /* ─── CASE STUDIES ─── */
+    .cases-section {
+        background: var(--yogibo-gray);
+    }
+
+    .case-filters {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 40px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 20px;
+        border-radius: 50px;
+        border: 1.5px solid var(--yogibo-gray-mid);
+        background: white;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--yogibo-text-muted);
+        font-family: 'Noto Sans KR', sans-serif;
+        transition: all 0.2s;
+    }
+
+    .filter-btn.active,
+    .filter-btn:hover {
+        background: var(--yogibo-blue);
+        border-color: var(--yogibo-blue);
+        color: white;
+    }
+
+    .cases-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 24px;
+    }
+
+    .case-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        box-shadow: var(--shadow-card);
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+
+    .case-card:hover {
+        transform: translateY(-6px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .case-card-img {
+        height: 200px;
+        background: linear-gradient(135deg, #B4EEF5, #12BDD4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .case-card-img::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.15));
+    }
+
+    .case-card-tag {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border-radius: 50px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--yogibo-blue-dark);
+        padding: 4px 12px;
+        z-index: 1;
+    }
+
+    .case-card-body {
+        padding: 22px 24px;
+    }
+
+    .case-card-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--yogibo-dark);
+        margin-bottom: 8px;
+    }
+
+    .case-card-desc {
+        font-size: 13px;
+        color: var(--yogibo-text-muted);
+        line-height: 1.7;
+    }
+
+    /* Large case card */
+    .case-card.large {
+        grid-column: span 2;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .case-card.large .case-card-img {
+        height: 100%;
+    }
+
+    .case-card.large .case-card-body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 36px;
+    }
+
+    /* ─── VALUE PROPS ─── */
+    .value-section {
+        background: white;
+    }
+
+    .value-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+    }
+
+    .value-card {
+        background: var(--yogibo-gray);
+        border-radius: var(--radius-xl);
+        padding: 40px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .value-card:hover {
+        background: var(--yogibo-blue-light);
+        transform: translateY(-4px);
+    }
+
+    .value-card::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(0, 174, 239, 0.06);
+    }
+
+    .value-icon {
+        width: 56px;
+        height: 56px;
+        background: var(--yogibo-blue-light);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        margin-bottom: 20px;
+        border: 1.5px solid var(--yogibo-blue-mid);
+    }
+
+    .value-card h3 {
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--yogibo-dark);
+        margin-bottom: 10px;
+        letter-spacing: -0.5px;
+    }
+
+    .value-card p {
+        font-size: 14px;
+        color: var(--yogibo-text-muted);
+        line-height: 1.8;
+    }
+
+    /* ─── BANNER ─── */
+    .banner-section {
+        background: linear-gradient(135deg, #00AEEF 0%, #0078B8 100%);
+        padding: 80px 40px;
+        text-align: center;
+    }
+
+    .banner-section h2 {
+        font-size: clamp(26px, 3.5vw, 42px);
+        font-weight: 900;
+        color: white;
+        letter-spacing: -1.5px;
+        margin-bottom: 16px;
+    }
+
+    .banner-section p {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 36px;
+        line-height: 1.8;
+    }
+
+    .btn-white {
+        background: white;
+        color: var(--yogibo-blue);
+        border: none;
+        cursor: pointer;
+        padding: 16px 40px;
+        border-radius: 50px;
+        font-size: 16px;
+        font-weight: 700;
+        font-family: 'Noto Sans KR', sans-serif;
+        transition: all 0.25s;
+        text-decoration: none;
+        display: inline-block;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-white:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ─── PROCESS ─── */
+    .process-section {
+        background: var(--yogibo-gray);
+    }
+
+    .process-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        position: relative;
+    }
+
+    .process-grid::before {
+        content: '';
+        position: absolute;
+        top: 44px;
+        left: calc(12.5% + 20px);
+        right: calc(12.5% + 20px);
+        height: 2px;
+        background: repeating-linear-gradient(90deg, var(--yogibo-blue-mid) 0, var(--yogibo-blue-mid) 10px,
+                transparent 10px, transparent 20px);
+        z-index: 0;
+    }
+
+    .process-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 36px 28px;
+        text-align: center;
+        box-shadow: var(--shadow-card);
+        position: relative;
+        z-index: 1;
+        transition: all 0.3s;
+    }
+
+    .process-card:hover {
+        transform: translateY(-6px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .process-num {
+        width: 52px;
+        height: 52px;
+        background: var(--yogibo-blue);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 20px;
+        font-weight: 900;
+        color: white;
+        margin: 0 auto 20px;
+        box-shadow: 0 4px 16px rgba(0, 174, 239, 0.35);
+    }
+
+    .process-icon {
+        font-size: 28px;
+        margin-bottom: 12px;
+    }
+
+    .process-card h3 {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--yogibo-dark);
+        margin-bottom: 10px;
+        letter-spacing: -0.3px;
+    }
+
+    .process-card p {
+        font-size: 13px;
+        color: var(--yogibo-text-muted);
+        line-height: 1.7;
+    }
+
+
+    /* ─── PARTNER LOGO 이미지 ─── */
+    .partner-logo {
+        background: var(--yogibo-gray);
+        border-radius: 14px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        border: 1.5px solid transparent;
+        padding: 10px 14px;
+        overflow: hidden;
+    }
+
+    .partner-logo img {
+        max-width: 100%;
+        max-height: 44px;
+        object-fit: contain;
+        filter: none;
+        opacity: 1;
+        transition: all 0.25s;
+    }
+
+    .partner-logo:hover {
+        background: var(--yogibo-blue-light);
+        border-color: var(--yogibo-blue-mid);
+    }
+
+    .partner-logo:hover img {
+        filter: none;
+        opacity: 1;
+    }
+
+    .partner-logo svg {
+        max-width: 100%;
+        max-height: 36px;
+    }
+
+    .partner-logo {
+        position: relative;
+    }
+
+    .partner-logo span {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--yogibo-text-muted);
+        text-align: center;
+        line-height: 1.3;
+    }
+
+    /* ─── PARTNERS ─── */
+    .partners-section {
+        background: white;
+    }
+
+    .partners-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+    }
+
+    /* 파트너 로고 그리드 (아이콘 28개) */
+    .partner-logo-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-top: 48px;
+    }
+    .partner-logo-item {
+        background: #fff;
+        border: 1px solid #E8ECF0;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px 16px;
+        aspect-ratio: 2 / 1;
+    }
+    .partner-logo-item img {
+        max-width: 100%;
+        max-height: 44px;
+        object-fit: contain;
+        display: block;
+    }
+    @media (max-width: 900px) {
+        .partner-logo-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+    @media (max-width: 600px) {
+        .partner-logo-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .partner-logo {
+        background: var(--yogibo-gray);
+        border-radius: 14px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--yogibo-text-muted);
+        transition: all 0.2s;
+        border: 1.5px solid transparent;
+        text-align: center;
+        padding: 0 12px;
+    }
+
+    .partner-logo:hover {
+        background: var(--yogibo-blue-light);
+        border-color: var(--yogibo-blue-mid);
+        color: var(--yogibo-blue-dark);
+    }
+
+
+    /* ─── OPTION BUTTONS (상품/케어) ─── */
+    .opt-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    .opt-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 8px 16px;
+        border: 1.5px solid var(--yogibo-gray-mid);
+        border-radius: 50px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--yogibo-text-muted);
+        cursor: pointer;
+        transition: all .18s;
+        background: var(--yogibo-white);
+        font-family: 'Noto Sans KR', sans-serif;
+        user-select: none;
+    }
+
+    .opt-btn:hover {
+        border-color: var(--yogibo-blue);
+        color: var(--yogibo-blue);
+    }
+
+    .opt-btn.selected {
+        background: var(--yogibo-blue);
+        border-color: var(--yogibo-blue);
+        color: #fff;
+    }
+
+    .opt-btn input {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        position: absolute !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .file-upload-zone input[type="file"] {
+        display: none !important;
+        width: 0 !important;
+        position: absolute !important;
+    }
+
+    /* 예산 카드 */
+    .budget-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    .budget-card {
+        border: 1.5px solid var(--yogibo-gray-mid);
+        border-radius: 12px;
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: all .18s;
+        background: var(--yogibo-white);
+        text-align: left;
+    }
+
+    .budget-card:hover {
+        border-color: var(--yogibo-blue);
+        background: var(--yogibo-blue-light);
+    }
+
+    .budget-card.selected {
+        border-color: var(--yogibo-blue);
+        background: var(--yogibo-blue);
+    }
+
+    .budget-card.selected .bud-main,
+    .budget-card.selected .bud-sub {
+        color: #fff;
+    }
+
+    .bud-main {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--yogibo-dark);
+        display: block;
+    }
+
+    .bud-sub {
+        font-size: 10px;
+        color: var(--yogibo-text-muted);
+        margin-top: 2px;
+        display: block;
+    }
+
+    .form-field-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--yogibo-dark);
+        margin-bottom: 8px;
+    }
+
+    .form-field-label .req {
+        color: var(--yogibo-blue);
+        margin-left: 2px;
+    }
+
+    .form-field-label .opt-note {
+        font-weight: 400;
+        color: var(--yogibo-text-muted);
+        font-size: 12px;
+        margin-left: 4px;
+    }
+
     /* ─── INQUIRY FORM ─── */
     .inquiry-section {
         background: var(--yogibo-gray);
@@ -156,263 +1066,1358 @@
         margin-top: 16px;
         text-align: center;
     }
+
     .inquiry-result-msg.success {
         background: #e6f9f0;
         color: #1a7a4a;
         border: 1.5px solid #b2e8d0;
     }
+
     .inquiry-result-msg.error {
         background: #fff0f0;
         color: #c0392b;
         border: 1.5px solid #f5c6c6;
     }
+
+
+    /* ─── FOOTER ─── */
+    footer {
+        background: var(--yogibo-dark);
+        padding: 60px 40px 40px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .footer-logo {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 28px;
+        font-weight: 900;
+        color: var(--yogibo-blue);
+        margin-bottom: 4px;
+    }
+
+    .footer-tagline {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.3);
+        margin-bottom: 32px;
+    }
+
+    .footer-links {
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+        flex-wrap: wrap;
+        list-style: none;
+        margin-bottom: 20px;
+    }
+
+    .footer-links a {
+        text-decoration: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 13px;
+        transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+        color: var(--yogibo-blue);
+    }
+
+    .footer-contact {
+        font-size: 22px;
+        font-weight: 900;
+        color: white;
+        margin-bottom: 6px;
+    }
+
+    .footer-hours {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.4);
+        margin-bottom: 32px;
+    }
+
+    .footer-divider {
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin: 24px 0;
+    }
+
+    .footer-copy {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes fadeUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .hero-badge {
+        animation: fadeUp 0.6s ease both;
+    }
+
+    .hero h1 {
+        animation: fadeUp 0.6s 0.1s ease both;
+    }
+
+    .hero-sub {
+        animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .hero-cta-group {
+        animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .hero-visual {
+        animation: fadeUp 0.8s 0.4s ease both;
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+        nav {
+            padding: 0 20px;
+        }
+
+        .nav-links {
+            display: none;
+        }
+
+        /* 섹션 패딩 통일 */
+        section {
+            padding: 60px 24px;
+        }
+
+        /* stats strip → 2×2 그리드 */
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0;
+            padding: 0;
+        }
+
+        .stat-item {
+            padding: 32px 20px;
+            border-right: 1px solid rgba(255,255,255,0.08);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .stat-item:nth-child(odd) {
+            border-left: none;
+        }
+
+        .stat-item:nth-child(3),
+        .stat-item:nth-child(4) {
+            border-bottom: none;
+        }
+
+        .stat-divider {
+            display: none;
+        }
+
+        .hero-visual,
+        .hero-visual--3col {
+            grid-template-columns: repeat(2, 1fr);
+            max-width: 100%;
+        }
+
+        .hero-card:nth-child(2),
+        .hero-card:nth-child(4) {
+            margin-top: 0;
+        }
+
+        .value-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .process-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .process-grid::before {
+            display: none;
+        }
+
+        .partners-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .partner-logo-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .inquiry-layout {
+            grid-template-columns: 1fr;
+            gap: 40px;
+        }
+
+        .case-card.large {
+            grid-column: span 1;
+            display: block;
+        }
+
+        .case-card.large .case-card-img {
+            height: 200px;
+        }
+
+        .form-two-col {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 600px) {
+        /* 섹션 패딩 더 좁게 */
+        section {
+            padding: 48px 16px;
+        }
+
+        .hero-visual,
+        .hero-visual--3col {
+            grid-template-columns: repeat(2, 1fr);
+            max-width: 100%;
+        }
+
+        /* 프로세스 카드 텍스트 줄바꾸 방지 */
+        .process-card h3,
+        .process-card p {
+            word-break: keep-all;
+        }
+
+        .process-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .partners-grid,
+        .partner-logo-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .budget-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .inquiry-form {
+            padding: 24px 16px;
+        }
+
+        .form-submit {
+            font-size: 14px;
+            padding: 14px;
+        }
+    }
+
+    /* ─── FILE UPLOAD ─── */
+    .file-upload-zone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        width: 100%;
+        padding: 20px;
+        border: 1.5px dashed var(--yogibo-blue-mid);
+        border-radius: 12px;
+        background: var(--yogibo-blue-light);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .file-upload-zone:hover {
+        border-color: var(--yogibo-blue);
+        background: #E0F7FA;
+    }
+
+    .file-upload-icon {
+        font-size: 24px;
+    }
+
+    .file-upload-main {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--yogibo-blue);
+    }
+
+    .file-upload-sub {
+        font-size: 11px;
+        color: var(--yogibo-text-muted);
+    }
+
+    /* ─── LIGHTBOX ─── */
+    .case-open-hint {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(18, 189, 212, 0.92);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 4px;
+        z-index: 2;
+        opacity: 0;
+        transition: opacity 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .case-card:hover .case-open-hint {
+        opacity: 1;
+    }
+
+    .lightbox {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(10, 20, 28, 0.88);
+        backdrop-filter: blur(6px);
+        align-items: center;
+        justify-content: center;
+    }
+
+    .lightbox.open {
+        display: flex;
+    }
+
+    .lb-box {
+        background: #fff;
+        border-radius: 16px;
+        width: 92%;
+        max-width: 860px;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        animation: lbIn .25s ease both;
+    }
+
+    @keyframes lbIn {
+        from {
+            opacity: 0;
+            transform: scale(.96)
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1)
+        }
+    }
+
+    .lb-header {
+        padding: 20px 24px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-shrink: 0;
+    }
+
+    .lb-tag {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--yogibo-blue);
+        margin-bottom: 4px;
+    }
+
+    .lb-title {
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--yogibo-dark);
+    }
+
+    .lb-close {
+        width: 34px;
+        height: 34px;
+        border: none;
+        background: var(--yogibo-gray);
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        color: var(--yogibo-text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .18s;
+        flex-shrink: 0;
+    }
+
+    .lb-close:hover {
+        background: var(--yogibo-gray-mid);
+        color: var(--yogibo-dark);
+    }
+
+    .lb-slider {
+        position: relative;
+        height: 400px;
+        overflow: hidden;
+        margin-top: 14px;
+        flex-shrink: 0;
+    }
+
+    .lb-slides {
+        display: flex;
+        height: 100%;
+        transition: transform .38s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .lb-slide {
+        min-width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 80px;
+    }
+
+    .lb-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 44px;
+        height: 44px;
+        background: rgba(255, 255, 255, 0.92);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 22px;
+        color: var(--yogibo-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+        transition: all .18s;
+        z-index: 10;
+    }
+
+    .lb-arrow:hover {
+        background: #fff;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+    }
+
+    .lb-arrow.prev {
+        left: 14px;
+    }
+
+    .lb-arrow.next {
+        right: 14px;
+    }
+
+    .lb-counter {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        background: rgba(0, 0, 0, 0.38);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 4px;
+        z-index: 10;
+    }
+
+    .lb-dots {
+        display: flex;
+        justify-content: center;
+        gap: 7px;
+        padding: 12px 0 4px;
+        flex-shrink: 0;
+    }
+
+    .lb-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--yogibo-gray-mid);
+        border: none;
+        cursor: pointer;
+        transition: all .2s;
+        padding: 0;
+    }
+
+    .lb-dot.active {
+        background: var(--yogibo-blue);
+        width: 20px;
+        border-radius: 4px;
+    }
+
+    .lb-desc {
+        padding: 12px 24px 20px;
+        font-size: 13px;
+        color: var(--yogibo-text-muted);
+        line-height: 1.7;
+        flex-shrink: 0;
+        border-top: 1px solid var(--yogibo-gray);
+    }
+
+
+    /* ── ICON SYSTEM ── */
+    .space-icon svg,
+    .value-icon svg,
+    .contact-icon svg,
+    .ci-icon svg,
+    .proc-icon svg,
+    .process-icon svg {
+        width: 22px;
+        height: 22px;
+        stroke: var(--yogibo-blue);
+        display: block;
+    }
+
+    .fu-icon svg,
+    .file-upload-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--yogibo-blue);
+        display: block;
+    }
+
+    /* ── NAV 리파인 ── */
+    nav {
+        border-bottom: 1px solid #E2E8EE;
+        height: 60px;
+    }
+
+    .nav-links a {
+        font-size: 13px;
+        font-weight: 500;
+        color: #444;
+        letter-spacing: -.1px;
+    }
+
+    /* ── HERO 리파인 ── */
+    .hero-eyebrow {
+        font-size: 10px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 700;
+        border-radius: 2px;
+        padding: 5px 12px;
+    }
+
+    .hero h1 {
+        font-family: 'Noto Sans KR', sans-serif;
+        letter-spacing: -3px;
+        line-height: 1.12;
+    }
+
+    /* ── SECTION 라벨 ── */
+    .section-label,
+    .sec-label {
+        font-size: 10px;
+        letter-spacing: 3px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .section-title,
+    .sec-title {
+        letter-spacing: -1.5px;
+        font-weight: 900;
+    }
+
+    /* ── STATS STRIP 리파인 ── */
+    .stat-num {
+        font-family: 'Noto Sans KR', sans-serif;
+        font-weight: 900;
+        letter-spacing: -2px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        letter-spacing: .3px;
+    }
+
+    /* ── CASE CARD 리파인 ── */
+    .case-card-tag {
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        border-radius: 2px;
+        font-weight: 700;
+    }
+
+    .case-title {
+        font-weight: 800;
+        letter-spacing: -.4px;
+    }
+
+    .case-open-hint {
+        font-size: 9px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border-radius: 2px;
+        font-weight: 700;
+    }
+
+    /* ── VALUE CARD 리파인 ── */
+    .value-card,
+    .val-card {
+        border-radius: 8px;
+    }
+
+    .value-icon,
+    .val-icon {
+        border-radius: 8px;
+        width: 44px;
+        height: 44px;
+    }
+
+    .value-card h3,
+    .val-card h3 {
+        font-weight: 800;
+        letter-spacing: -.5px;
+    }
+
+    /* ── PROCESS 리파인 ── */
+    .process-card,
+    .proc-card {
+        border-radius: 8px;
+    }
+
+    .proc-icon,
+    .process-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 12px;
+        background: var(--yogibo-blue-light, #EAF9FB);
+        border: 1px solid var(--yogibo-blue-mid, #B4EEF5);
+        border-radius: 8px;
+    }
+
+    .proc-icon svg,
+    .process-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* ── PARTNER 로고 리파인 ── */
+    .partner-logo {
+        border-radius: 6px;
+        background: #FAFAFA;
+        border: 1px solid #E8ECF0;
+    }
+
+    /* ── FORM 리파인 ── */
+    .form-row input,
+    .form-row select,
+    .form-row textarea {
+        border-radius: 6px;
+        font-size: 13px;
+        background: #F8F9FA;
+    }
+
+    .budget-card {
+        border-radius: 6px;
+    }
+
+    .opt-btn {
+        border-radius: 4px;
+    }
+
+    .file-upload-zone {
+        border-radius: 6px;
+    }
+
+    .form-submit {
+        border-radius: 6px;
+    }
+
+    /* ── BANNER 리파인 ── */
+    .banner-section {
+        background: #1C2B35;
+    }
+
+    .banner-section h2 {
+        letter-spacing: -2px;
+    }
+
+    /* ── INQUIRY INFO 리파인 ── */
+    .contact-icon,
+    .ci-icon {
+        border-radius: 6px;
+        width: 38px;
+        height: 38px;
+        flex-shrink: 0;
+    }
+
+    /* ── 전체 섹션 여백 ── */
+    section {
+        padding: 88px 10vw;
+    }
 </style>
+</head>
 
-<!-- INQUIRY FORM -->
-<section class="inquiry-section" id="inquiry">
-    <div class="section-inner">
-        <div class="inquiry-layout">
-            <div class="inquiry-info">
-                <div class="section-label">CONTACT US</div>
-                <h2>대량구매 문의를<br>남겨주세요</h2>
-                <p>기업·기관·상업시설 담당자분들의 대량구매 및 납품 문의를 접수합니다. 양식 작성 후 제출하시면 영업일 기준 1~2일 내 담당자가 연락드립니다.</p>
-                <div class="inquiry-contact-item">
-                    <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="1.6">
-                            <path d="M3 22h18M3 10h18M5 6l7-4 7 4M4 10v12M20 10v12M8 10v12M12 10v12M16 10v12" />
-                        </svg></div>
-                    <div class="contact-text">
-                        <strong>BANK INFO</strong>
-                        <span>하나은행 591-910034-05004</span>
-                    </div>
-                </div>
+<body>
+
+
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-badge">B2B 대량구매 · 기업 납품 전용</div>
+        <h1>우리 공간에 <span class="highlight">요기보를</span><br>들이세요</h1>
+        <p class="hero-sub">기업·기관·상업시설 담당자분들을 위한 대량구매 전용 채널입니다.<br>공간 특성에 맞는 제품 구성부터 납품까지 전담 담당자가 함께합니다.</p>
+        <div class="hero-cta-group">
+            <a href="#inquiry" class="btn-primary">구매 문의하기</a>
+            <a href="#cases" class="btn-secondary">도입 사례 보기 →</a>
+        </div>
+        <div class="hero-visual hero-visual--3col">
+            <div class="hero-card">
+                <div class="hero-card-img" style="background:linear-gradient(135deg,#B4EEF5,#12BDD4);">🏢</div>
+                <div class="hero-card-label">사무실<br>(사내 휴게 라운지 / 직원 쉼터)</div>
             </div>
-
-            <div class="inquiry-form">
-                <div class="form-two-col">
-                    <div class="form-row">
-                        <label>담당자명 <span class="req">*</span></label>
-                        <input type="text" id="inq-name" placeholder="홍길동">
-                    </div>
-                    <div class="form-row">
-                        <label>회사/기관명 <span class="req">*</span></label>
-                        <input type="text" id="inq-company" placeholder="(주)회사명">
-                    </div>
-                </div>
-                <div class="form-two-col">
-                    <div class="form-row">
-                        <label>휴대폰번호 <span class="req">*</span></label>
-                        <input type="tel" id="inq-phone" placeholder="010-1234-5678">
-                    </div>
-                    <div class="form-row">
-                        <label>이메일주소 <span class="req">*</span></label>
-                        <input type="email" id="inq-email" placeholder="example@example.com">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <label>납품 주소</label>
-                    <input type="text" id="inq-address" placeholder="납품 받으실 주소를 입력해 주세요">
-                </div>
-
-                <!-- 예산 구간 -->
-                <div class="form-row">
-                    <span class="form-field-label">예산 구간 (단위: 만원)<span class="req">*</span></span>
-                    <div class="budget-grid">
-                        <div class="budget-card" onclick="selectBudget(this)">
-                            <span class="bud-main">300 ~ 500만원</span>
-                            <span class="bud-sub">소규모 · 1~2개 공간</span>
-                        </div>
-                        <div class="budget-card" onclick="selectBudget(this)">
-                            <span class="bud-main">500 ~ 1,000만원</span>
-                            <span class="bud-sub">중규모 · 복수 공간</span>
-                        </div>
-                        <div class="budget-card" onclick="selectBudget(this)">
-                            <span class="bud-main">1,000 ~ 3,000만원</span>
-                            <span class="bud-sub">대규모 · 다층 시설</span>
-                        </div>
-                        <div class="budget-card" onclick="selectBudget(this)">
-                            <span class="bud-main">3,000만원 이상</span>
-                            <span class="bud-sub">엔터프라이즈 · 별도 협의</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 관심 상품 -->
-                <div class="form-row">
-                    <span class="form-field-label">관심 있는 상품<span class="opt-note">(복수 선택 가능)</span></span>
-                    <div class="opt-group" id="productsGroup">
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">맥스</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">서포트</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">슬림</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">팟</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">드롭</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">피라미드</label>
-                        <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)">아직 모르겠어요</label>
-                    </div>
-                </div>
-
-                <!-- 케어서비스 -->
-                <div class="form-row">
-                    <span class="form-field-label">케어서비스<span class="req">*</span></span>
-                    <div class="opt-group" id="careGroup">
-                        <label class="opt-btn"><input type="radio" name="care"
-                                onchange="toggleRadio(this,'careGroup')">포함</label>
-                        <label class="opt-btn"><input type="radio" name="care"
-                                onchange="toggleRadio(this,'careGroup')">미포함</label>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <label>추가 문의</label>
-                    <textarea id="inq-message" placeholder="공간 규모, 납기 희망일, 기타 요청사항 등 자유롭게 작성해 주세요."></textarea>
-                </div>
-                <div class="form-row">
-                    <label>첨부파일</label>
-                    <label class="file-upload-zone">
-                        <input type="file" id="inq-files" multiple accept=".pdf,.jpg,.jpeg,.png,.ppt,.pptx"
-                            style="display:none;" onchange="updateFileLabel(this)">
-                        <span class="file-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="1.6">
-                                <path
-                                    d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                            </svg></span>
-                        <span class="file-upload-main" id="inq-file-label">파일 선택 또는 드래그 앤 드롭</span>
-                        <span class="file-upload-sub">도면, 공간 사진, 견적 요청서 등 · PDF, JPG, PNG, PPT 최대 10MB</span>
-                    </label>
-                </div>
-                <button class="form-submit" id="inq-submit-btn" onclick="submitInquiry()">문의 제출하기 →</button>
-                <div class="inquiry-result-msg" id="inq-result-msg"></div>
+            <div class="hero-card" style="margin-top:-24px;">
+                <div class="hero-card-img" style="background:linear-gradient(135deg,#D4F5E9,#45C97E);">📚</div>
+                <div class="hero-card-label">도서관 / 학교<br>/ 교육 시설</div>
+            </div>
+            <div class="hero-card">
+                <div class="hero-card-img" style="background:linear-gradient(135deg,#FFE8D6,#FF9A5C);">🚪</div>
+                <div class="hero-card-label">로비 / 대기실<br>/ 웰컴 존</div>
             </div>
         </div>
+    </section>
+
+    <!-- STATS STRIP -->
+    <div class="stats-strip">
+        <div class="stat-item">
+            <div class="stat-num">50+</div>
+            <div class="stat-label">대량구매 레퍼런스</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">7년+</div>
+            <div class="stat-label">국내 기업납품 경험</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">전국</div>
+            <div class="stat-label">배송 가능 지역(화물비 별도)</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <div class="stat-num">맞춤형</div>
+            <div class="stat-label">공간별 제품 제안</div>
+        </div>
     </div>
-</section>
+    <!-- CASE STUDIES -->
+    <!--@import(/b2b/board/index.html)-->
 
-<script>
-(function () {
-    var selectedBudget = '';
 
-    // 파일 선택 시 라벨 업데이트
-    window.updateFileLabel = function (input) {
-        var label = document.getElementById('inq-file-label');
-        if (input.files && input.files.length > 0) {
-            label.textContent = input.files.length + '개 파일 선택됨: ' +
-                Array.from(input.files).map(function (f) { return f.name; }).join(', ');
-        } else {
-            label.textContent = '파일 선택 또는 드래그 앤 드롭';
-        }
-    };
+    <!-- VALUE PROPS -->
+    <section class="value-section" id="value">
+        <div class="section-inner">
+            <div class="section-head">
+                <div class="section-label">WHY YOGIBO</div>
+                <h2 class="section-title">대량구매가 가져오는<br>확실한 변화</h2>
+                <p class="section-desc">Yogibo 대량구매는 단순한 제품 납품이 아닌, 공간 경험의 질적 향상이 비즈니스 성과로 이어집니다.</p>
+            </div>
+            <div class="value-grid">
+                <div class="value-card">
+                    <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <circle cx="12" cy="13" r="8" />
+                            <path d="M12 9v4l3 3" />
+                            <path d="M9 2h6M12 2v3" />
+                        </svg></div>
+                    <h3>공간 체류 시간 증가</h3>
+                    <p>편안한 휴식 환경은 방문객이 더 오래 머물게 합니다. 평균 체류 시간 증가는 구매 전환율과 브랜드 경험 깊이에 직결됩니다.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" />
+                        </svg></div>
+                    <h3>브랜드 경험 강화</h3>
+                    <p>Yogibo의 독특한 디자인과 다채로운 컬러는 공간의 개성을 살리고, 방문객에게 기억에 남는 브랜드 경험을 선사합니다.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                            <circle cx="12" cy="13" r="4" />
+                        </svg></div>
+                    <h3>포토존 & SNS 확산 효과</h3>
+                    <p>Yogibo가 있는 공간은 자연스러운 포토존이 됩니다. 방문객의 SNS 공유로 브랜드 인지도가 유기적으로 확산됩니다.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <circle cx="12" cy="12" r="10" />
+                            <circle cx="12" cy="12" r="6" />
+                            <circle cx="12" cy="12" r="2" />
+                        </svg></div>
+                    <h3>유연한 맞춤 납품 제안</h3>
+                    <p>공간 규모·환경·예산에 맞게 최적화된 제품 구성을 제안합니다. 전담 담당자가 견적부터 납품, 설치까지 함께합니다.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    // 예산 카드 선택
-    window.selectBudget = function (el) {
-        document.querySelectorAll('.budget-card').forEach(function (c) { c.classList.remove('active'); });
-        el.classList.add('active');
-        selectedBudget = el.querySelector('.bud-main').textContent.trim();
-    };
 
-    // 결과 메시지 표시
-    function showMsg(msg, type) {
-        var el = document.getElementById('inq-result-msg');
-        el.textContent = msg;
-        el.className = 'inquiry-result-msg ' + type;
-        el.style.display = 'block';
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    <!-- LIGHTBOX -->
+    <div class="lightbox" id="lightbox">
+        <div class="lb-box">
+            <div class="lb-header">
+                <div>
+                    <div class="lb-tag" id="lb-tag"></div>
+                    <div class="lb-title" id="lb-title"></div>
+                </div>
+                <button class="lb-close" onclick="closeLightbox()"><svg viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.2" width="14" height="14">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                    </svg></button>
+            </div>
+            <div class="lb-slider">
+                <div class="lb-slides" id="lb-slides"></div>
+                <button class="lb-arrow prev" onclick="lbMove(-1)">&#8249;</button>
+                <button class="lb-arrow next" onclick="lbMove(1)">&#8250;</button>
+                <div class="lb-counter" id="lb-counter"></div>
+            </div>
+            <div class="lb-dots" id="lb-dots"></div>
+            <div class="lb-desc" id="lb-desc"></div>
+        </div>
+    </div>
 
-    // 폼 초기화
-    function resetForm() {
-        ['inq-name', 'inq-company', 'inq-phone', 'inq-email', 'inq-address', 'inq-message'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-        document.getElementById('inq-file-label').textContent = '파일 선택 또는 드래그 앤 드롭';
-        var fileInput = document.getElementById('inq-files');
-        if (fileInput) fileInput.value = '';
-        document.querySelectorAll('.budget-card').forEach(function (c) { c.classList.remove('active'); });
-        document.querySelectorAll('#productsGroup input[type="checkbox"]').forEach(function (cb) {
-            cb.checked = false;
-            cb.closest('label').classList.remove('active');
-        });
-        document.querySelectorAll('input[name="care"]').forEach(function (r) {
-            r.checked = false;
-            r.closest('label').classList.remove('active');
-        });
-        selectedBudget = '';
-    }
+    <!-- BANNER -->
+    <section class="banner-section">
+        <h2>지금 바로 대량구매를 시작하세요</h2>
+        <p>문의 접수 후 영업일 기준 1~2일 내로 전담 담당자가 연락드립니다.<br>담당자가 직접 공간에 맞는 제품 구성과 수량을 함께 검토해 드립니다.</p>
+        <a href="#inquiry" class="btn-white">무료 견적 받기 →</a>
+    </section>
 
-    // 문의 제출
-    window.submitInquiry = async function () {
-        var name    = (document.getElementById('inq-name').value || '').trim();
-        var company = (document.getElementById('inq-company').value || '').trim();
-        var phone   = (document.getElementById('inq-phone').value || '').trim();
-        var email   = (document.getElementById('inq-email').value || '').trim();
-        var address = (document.getElementById('inq-address').value || '').trim();
-        var message = (document.getElementById('inq-message').value || '').trim();
-        var fileInput = document.getElementById('inq-files');
+    <!-- PROCESS -->
+    <section class="process-section" id="process">
+        <div class="section-inner">
+            <div class="section-head" style="text-align:center;">
+                <div class="section-label" style="text-align:center;">HOW IT WORKS</div>
+                <h2 class="section-title" style="text-align:center;">간단한 3단계로<br>납품이 시작됩니다</h2>
+                <p class="section-desc" style="margin:0 auto;">복잡한 절차 없이, 담당자 한 분이 처음부터 끝까지 함께합니다.</p>
+            </div>
+            <div class="process-grid">
+                <div class="process-card">
+                    <div class="process-num">1</div>
+                    <div class="process-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                            <line x1="8" y1="2" x2="8" y2="18" />
+                            <line x1="16" y1="6" x2="16" y2="22" />
+                        </svg></div>
+                    <h3>공간 · 예산 목적 확인</h3>
+                    <p>도입 공간의 특성, 규모, 예산 범위를 파악합니다. 어떤 환경에 어떤 제품이 필요한지 자유롭게 이야기해 주세요.</p>
+                </div>
+                <div class="process-card">
+                    <div class="process-num">2</div>
+                    <div class="process-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path d="M9 2H5a2 2 0 00-2 2v16a2 2 0 002 2h14a2 2 0 002-2V8z" />
+                            <polyline points="17 2 17 8 23 8" />
+                            <line x1="9" y1="12" x2="15" y2="12" />
+                            <line x1="9" y1="16" x2="13" y2="16" />
+                        </svg></div>
+                    <h3>문의 접수 & 견적 제안</h3>
+                    <p>문의 폼 작성 후 영업일 기준 1~2일 내 전담 담당자가 연락드리고 맞춤 견적을 제안드립니다.</p>
+                </div>
+                <div class="process-card">
+                    <div class="process-num">3</div>
+                    <div class="process-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.6">
+                            <path
+                                d="M9 18h6M10 22h4M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17H8v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z" />
+                        </svg></div>
+                    <h3>제품 확정 & 납품</h3>
+                    <p>제품 구성 확정 후 납기 일정을 조율하여 납품합니다.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-        // 케어서비스
-        var careRadio = document.querySelector('input[name="care"]:checked');
-        var care = careRadio ? careRadio.closest('label').textContent.trim() : '';
+    <!-- PARTNERS -->
+    <section class="partners-section" id="partners">
+        <div class="section-inner">
+            <div class="section-head" style="text-align:center;">
+                <div class="section-label" style="text-align:center;">PARTNERS</div>
+                <h2 class="section-title" style="text-align:center;">요기보와 함께 한 기업</h2>
+                <p class="section-desc" style="margin:0 auto; text-align:center;">다양한 업종의 기업·기관이 Yogibo 대량구매로 공간을 바꿨습니다.</p>
+            </div>
+            <div class="partner-logo-grid">
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_01.png" alt="partner 01">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_02.png" alt="partner 02">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_03.png" alt="partner 03">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_04.png" alt="partner 04">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_05.png" alt="partner 05">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_06.png" alt="partner 06">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_07.png" alt="partner 07">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_08.png" alt="partner 08">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_09.png" alt="partner 09">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_10.png" alt="partner 10">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_11.png" alt="partner 11">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_12.png" alt="partner 12">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_13.png" alt="partner 13">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_14.png" alt="partner 14">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_15.png" alt="partner 15">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_16.png" alt="partner 16">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_17.png" alt="partner 17">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_18.png" alt="partner 18">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_19.png" alt="partner 19">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_20.png" alt="partner 20">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_21.png" alt="partner 21">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_22.png" alt="partner 22">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_23.png" alt="partner 23">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_24.png" alt="partner 24">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_25.png" alt="partner 25">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_26.png" alt="partner 26">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_27.png" alt="partner 27">
+                </div>
+                <div class="partner-logo-item">
+                    <img src="/web/icon/icon_28.png" alt="partner 28">
+                </div>
+            </div>
+        </div>
+    </section>
 
-        // 관심 상품
-        var products = Array.from(
-            document.querySelectorAll('#productsGroup input[type="checkbox"]:checked')
-        ).map(function (cb) { return cb.closest('label').textContent.trim(); }).join(', ');
+    <!-- INQUIRY FORM -->
 
-        // 유효성 검사
-        if (!name)    return showMsg('담당자명을 입력해주세요.', 'error');
-        if (!company) return showMsg('회사/기관명을 입력해주세요.', 'error');
-        if (!phone)   return showMsg('휴대폰번호를 입력해주세요.', 'error');
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-                      return showMsg('올바른 이메일 주소를 입력해주세요.', 'error');
-        // 제출 시점에 DOM에서 직접 읽기 (변수 의존 제거)
-        var activeBudgetEl = document.querySelector('.budget-card.active .bud-main');
-        var selectedBudget = activeBudgetEl ? activeBudgetEl.textContent.trim() : '';
-        if (!selectedBudget) return showMsg('예산 구간을 선택해주세요.', 'error');
-        if (!care)    return showMsg('케어서비스 포함 여부를 선택해주세요.', 'error');
 
-        var btn = document.getElementById('inq-submit-btn');
-        btn.disabled = true;
-        btn.textContent = '전송 중...';
-        document.getElementById('inq-result-msg').style.display = 'none';
 
-        try {
-            var formData = new FormData();
-            formData.append('name', name);
-            formData.append('company', company);
-            formData.append('phone', phone);
-            formData.append('email', email);
-            formData.append('address', address);
-            formData.append('budget', selectedBudget);
-            formData.append('products', products);
-            formData.append('care', care);
-            formData.append('message', message);
+    <!-- INQUIRY FORM -->
 
-            if (fileInput && fileInput.files) {
-                Array.from(fileInput.files).forEach(function (file) {
-                    formData.append('files', file);
-                });
+    <!-- INQUIRY FORM -->
+    <section class="inquiry-section" id="inquiry">
+        <div class="section-inner">
+            <div class="inquiry-layout">
+                <div class="inquiry-info">
+                    <div class="section-label">CONTACT US</div>
+                    <h2>대량구매 문의를<br>남겨주세요</h2>
+                    <p>기업·기관·상업시설 담당자분들의 대량구매 및 납품 문의를 접수합니다. 양식 작성 후 제출하시면 영업일 기준 1~2일 내 담당자가 연락드립니다.</p>
+                    <div class="inquiry-contact-item">
+                        <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.6">
+                                <path d="M3 22h18M3 10h18M5 6l7-4 7 4M4 10v12M20 10v12M8 10v12M12 10v12M16 10v12" />
+                            </svg></div>
+                        <div class="contact-text">
+                            <strong>BANK INFO</strong>
+                            <span>하나은행 591-910034-05004</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inquiry-form">
+                    <div class="form-two-col">
+                        <div class="form-row">
+                            <label>담당자명 <span class="req">*</span></label>
+                            <input type="text" id="inq-name" placeholder="홍길동">
+                        </div>
+                        <div class="form-row">
+                            <label>회사/기관명 <span class="req">*</span></label>
+                            <input type="text" id="inq-company" placeholder="(주)회사명">
+                        </div>
+                    </div>
+                    <div class="form-two-col">
+                        <div class="form-row">
+                            <label>휴대폰번호 <span class="req">*</span></label>
+                            <input type="tel" id="inq-phone" placeholder="010-1234-5678">
+                        </div>
+                        <div class="form-row">
+                            <label>이메일주소 <span class="req">*</span></label>
+                            <input type="email" id="inq-email" placeholder="example@example.com">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>납품 주소</label>
+                        <div style="display:flex; gap:8px; margin-bottom:8px;">
+                            <input type="text" id="inq-address" placeholder="주소 검색 버튼을 눌러주세요" readonly
+                                style="flex:1; cursor:pointer; background:#F8F9FA;"
+                                onclick="searchAddress()">
+                            <button type="button" onclick="searchAddress()"
+                                style="flex-shrink:0; padding:0 18px; background:var(--yogibo-blue); color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:700; font-family:'Noto Sans KR',sans-serif; cursor:pointer; white-space:nowrap; transition:background 0.2s;"
+                                onmouseover="this.style.background='var(--yogibo-blue-dark)'"
+                                onmouseout="this.style.background='var(--yogibo-blue)'">
+                                🔍 주소 검색
+                            </button>
+                        </div>
+                        <input type="text" id="inq-address-detail" placeholder="상세주소를 입력해 주세요 (동/호수 등)"
+                            style="width:100%;">
+                    </div>
+
+                    <!-- 예산 구간 -->
+                    <div class="form-row">
+                        <span class="form-field-label">예산 구간 (단위: 만원)<span class="req">*</span></span>
+                        <div class="budget-grid">
+                            <div class="budget-card" onclick="selectBudget(this)">
+                                <span class="bud-main">300 ~ 500만원</span>
+                                <span class="bud-sub">소규모 · 1~2개 공간</span>
+                            </div>
+                            <div class="budget-card" onclick="selectBudget(this)">
+                                <span class="bud-main">500 ~ 1,000만원</span>
+                                <span class="bud-sub">중규모 · 복수 공간</span>
+                            </div>
+                            <div class="budget-card" onclick="selectBudget(this)">
+                                <span class="bud-main">1,000 ~ 3,000만원</span>
+                                <span class="bud-sub">대규모 · 다층 시설</span>
+                            </div>
+                            <div class="budget-card" onclick="selectBudget(this)">
+                                <span class="bud-main">3,000만원 이상</span>
+                                <span class="bud-sub">엔터프라이즈 · 별도 협의</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 관심 상품 -->
+                    <div class="form-row">
+                        <span class="form-field-label">관심 있는 상품<span class="opt-note">(복수 선택 가능)</span></span>
+                        <div class="opt-group" id="productsGroup">
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">맥스</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">서포트</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">슬림</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">팟</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">드롭</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">피라미드</label>
+                            <label class="opt-btn"><input type="checkbox" onchange="toggleOpt(this)" style="display:none!important;width:0;height:0;position:absolute;">아직 모르겠어요</label>
+                        </div>
+                    </div>
+
+                    <!-- 케어서비스 -->
+                    <div class="form-row">
+                        <span class="form-field-label">케어서비스<span class="req">*</span></span>
+                        <div class="opt-group" id="careGroup">
+                            <label class="opt-btn"><input type="radio" name="care"
+                                    onchange="toggleRadio(this,'careGroup')" style="display:none!important;width:0;height:0;position:absolute;">포함</label>
+                            <label class="opt-btn"><input type="radio" name="care"
+                                    onchange="toggleRadio(this,'careGroup')" style="display:none!important;width:0;height:0;position:absolute;">미포함</label>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label>추가 문의</label>
+                        <textarea id="inq-message" placeholder="공간 규모, 납기 희망일, 기타 요청사항 등 자유롭게 작성해 주세요."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <label>첨부파일</label>
+                        <label class="file-upload-zone">
+                            <input type="file" id="inq-files" multiple accept=".pdf,.jpg,.jpeg,.png,.ppt,.pptx"
+                                style="display:none;" onchange="updateFileLabel(this)">
+                            <span class="file-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1.6">
+                                    <path
+                                        d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                                </svg></span>
+                            <span class="file-upload-main" id="inq-file-label">파일 선택 또는 드래그 앤 드롭</span>
+                            <span class="file-upload-sub">도면, 공간 사진, 견적 요청서 등 · PDF, JPG, PNG, PPT 최대 10MB</span>
+                        </label>
+                    </div>
+                    <button class="form-submit" id="inq-submit-btn" onclick="submitInquiry()">문의 제출하기 →</button>
+                    <div class="inquiry-result-msg" id="inq-result-msg"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // ── 카카오 주소 검색 (동적 로드) ──
+        window.searchAddress = function () {
+            function run() {
+                new daum.Postcode({
+                    oncomplete: function (data) {
+                        var addr = data.roadAddress || data.jibunAddress;
+                        document.getElementById('inq-address').value = addr;
+                        var d = document.getElementById('inq-address-detail');
+                        if (d) d.focus();
+                    }
+                }).open();
             }
-
-            var BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-            var res = await fetch(BASE_URL + '/api/b2b/inquiry', {
-                method: 'POST',
-                body: formData
-            });
-            var data = await res.json();
-
-            if (data.success) {
-                showMsg('✅ 문의가 접수되었습니다! 영업일 1~2일 내 담당자가 연락드립니다.', 'success');
-                resetForm();
+            if (window.daum && window.daum.Postcode) {
+                run();
             } else {
-                showMsg('❌ ' + (data.message || '오류가 발생했습니다. 다시 시도해주세요.'), 'error');
+                var s = document.createElement('script');
+                s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+                s.onload = run;
+                document.head.appendChild(s);
             }
-        } catch (e) {
-            console.error('[B2B 문의 오류]', e);
-            showMsg('❌ 네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '문의 제출하기 →';
+        };
+
+        (function () {
+            var selectedBudget = '';
+
+            // 파일 선택 시 라벨 업데이트
+            window.updateFileLabel = function (input) {
+                var label = document.getElementById('inq-file-label');
+                if (input.files && input.files.length > 0) {
+                    label.textContent = input.files.length + '개 파일 선택됨: ' +
+                        Array.from(input.files).map(function (f) { return f.name; }).join(', ');
+                } else {
+                    label.textContent = '파일 선택 또는 드래그 앤 드롭';
+                }
+            };
+
+            // 예산 카드 선택
+            window.selectBudget = function (el) {
+                document.querySelectorAll('.budget-card').forEach(function (c) { c.classList.remove('active'); });
+                el.classList.add('active');
+                selectedBudget = el.querySelector('.bud-main').textContent.trim();
+            };
+
+            // 결과 메시지 표시
+            function showMsg(msg, type) {
+                var el = document.getElementById('inq-result-msg');
+                el.textContent = msg;
+                el.className = 'inquiry-result-msg ' + type;
+                el.style.display = 'block';
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // 폼 초기화
+            function resetForm() {
+                ['inq-name', 'inq-company', 'inq-phone', 'inq-email', 'inq-address', 'inq-message'].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                document.getElementById('inq-file-label').textContent = '파일 선택 또는 드래그 앤 드롭';
+                var fileInput = document.getElementById('inq-files');
+                if (fileInput) fileInput.value = '';
+                document.querySelectorAll('.budget-card').forEach(function (c) { c.classList.remove('active'); });
+                document.querySelectorAll('#productsGroup input[type="checkbox"]').forEach(function (cb) {
+                    cb.checked = false;
+                    cb.closest('label').classList.remove('active');
+                });
+                document.querySelectorAll('input[name="care"]').forEach(function (r) {
+                    r.checked = false;
+                    r.closest('label').classList.remove('active');
+                });
+                selectedBudget = '';
+            }
+
+            // 문의 제출
+            window.submitInquiry = async function () {
+                var name = (document.getElementById('inq-name').value || '').trim();
+                var company = (document.getElementById('inq-company').value || '').trim();
+                var phone = (document.getElementById('inq-phone').value || '').trim();
+                var email = (document.getElementById('inq-email').value || '').trim();
+                var address = (document.getElementById('inq-address').value || '').trim();
+                var addressDetail = (document.getElementById('inq-address-detail') ? document.getElementById('inq-address-detail').value : '' || '').trim();
+                var fullAddress = address + (addressDetail ? ' ' + addressDetail : '');
+                var message = (document.getElementById('inq-message').value || '').trim();
+                var fileInput = document.getElementById('inq-files');
+
+                // 케어서비스
+                var careRadio = document.querySelector('input[name="care"]:checked');
+                var care = careRadio ? careRadio.closest('label').textContent.trim() : '';
+
+                // 관심 상품
+                var products = Array.from(
+                    document.querySelectorAll('#productsGroup input[type="checkbox"]:checked')
+                ).map(function (cb) { return cb.closest('label').textContent.trim(); }).join(', ');
+
+                // 유효성 검사
+                if (!name) return showMsg('담당자명을 입력해주세요.', 'error');
+                if (!company) return showMsg('회사/기관명을 입력해주세요.', 'error');
+                if (!phone) return showMsg('휴대폰번호를 입력해주세요.', 'error');
+                if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+                    return showMsg('올바른 이메일 주소를 입력해주세요.', 'error');
+                // 제출 시점에 DOM에서 직접 읽기 (전역 selectBudget은 'selected' 클래스 사용)
+                var activeBudgetEl = document.querySelector('.budget-card.selected .bud-main');
+                var selectedBudget = activeBudgetEl ? activeBudgetEl.textContent.trim() : '';
+                if (!selectedBudget) return showMsg('예산 구간을 선택해주세요.', 'error');
+                if (!care) return showMsg('케어서비스 포함 여부를 선택해주세요.', 'error');
+
+                var btn = document.getElementById('inq-submit-btn');
+                btn.disabled = true;
+                btn.textContent = '전송 중...';
+                document.getElementById('inq-result-msg').style.display = 'none';
+
+                try {
+                    var formData = new FormData();
+                    formData.append('name', name);
+                    formData.append('company', company);
+                    formData.append('phone', phone);
+                    formData.append('email', email);
+                    formData.append('address', fullAddress);
+                    formData.append('budget', selectedBudget);
+                    formData.append('products', products);
+                    formData.append('care', care);
+                    formData.append('message', message);
+
+                    if (fileInput && fileInput.files) {
+                        Array.from(fileInput.files).forEach(function (file) {
+                            formData.append('files', file);
+                        });
+                    }
+
+                    var BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+                    var res = await fetch(BASE_URL + '/api/b2b/inquiry', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    var data = await res.json();
+
+                    if (data.success) {
+                        showMsg('✅ 문의가 접수되었습니다! 영업일 1~2일 내 담당자가 연락드립니다.', 'success');
+                        resetForm();
+                    } else {
+                        showMsg('❌ ' + (data.message || '오류가 발생했습니다. 다시 시도해주세요.'), 'error');
+                    }
+                } catch (e) {
+                    console.error('[B2B 문의 오류]', e);
+                    showMsg('❌ 네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '문의 제출하기 →';
+                }
+            };
+        })();
+    </script>
+
+
+
+    <script>
+
+        // ── Filter ──
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const f = btn.dataset.filter;
+                document.querySelectorAll('.case-card').forEach(c => {
+                    c.style.display = (f === 'all' || c.dataset.cat === f) ? '' : 'none';
+                });
+            });
+        });
+
+        // ── Lightbox ──
+        let lbIndex = 0, lbSlides = [];
+        function openLightbox(card) {
+            lbSlides = JSON.parse(card.dataset.slides || '[]');
+            lbIndex = 0;
+            document.getElementById('lb-tag').textContent = card.dataset.tag || '';
+            document.getElementById('lb-title').textContent = card.dataset.title || '';
+            document.getElementById('lb-desc').textContent = card.dataset.desc || '';
+            renderSlides();
+            document.getElementById('lightbox').classList.add('open');
+            document.body.style.overflow = 'hidden';
         }
-    };
-})();
-</script>
+        function renderSlides() {
+            const el = document.getElementById('lb-slides');
+            el.innerHTML = '';
+            el.style.transform = 'translateX(0)';
+            lbSlides.forEach(key => {
+                const s = document.createElement('div');
+                s.className = 'lb-slide';
+                s.style.background = '#111';
+                s.innerHTML = imgMap[key] ? `<img src="${imgMap[key]}" style="width:100%;height:100%;object-fit:cover;">` : '';
+                el.appendChild(s);
+            });
+            const dots = document.getElementById('lb-dots');
+            dots.innerHTML = '';
+            lbSlides.forEach((_, i) => {
+                const d = document.createElement('button');
+                d.className = 'lb-dot' + (i === 0 ? ' active' : '');
+                d.onclick = () => goSlide(i);
+                dots.appendChild(d);
+            });
+            updateLb();
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+        function lbMove(d) { lbIndex = (lbIndex + d + lbSlides.length) % lbSlides.length; updateLb(); }
+        function goSlide(i) { lbIndex = i; updateLb(); }
+        function updateLb() {
+            document.getElementById('lb-slides').style.transform = 'translateX(-' + lbIndex * 100 + '%)';
+            document.querySelectorAll('.lb-dot').forEach((d, i) => d.classList.toggle('active', i === lbIndex));
+            document.getElementById('lb-counter').textContent = (lbIndex + 1) + ' / ' + lbSlides.length;
+        }
+        document.querySelectorAll('.case-card').forEach(c => c.addEventListener('click', () => openLightbox(c)));
+        document.getElementById('lightbox').addEventListener('click', e => { if (e.target === e.currentTarget) closeLightbox(); });
+        document.addEventListener('keydown', e => {
+            if (!document.getElementById('lightbox').classList.contains('open')) return;
+            if (e.key === 'ArrowRight') lbMove(1);
+            if (e.key === 'ArrowLeft') lbMove(-1);
+            if (e.key === 'Escape') closeLightbox();
+        });
+        // ── Budget ──
+        function selectBudget(el) {
+            document.querySelectorAll('.budget-card').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+        function toggleOpt(input) { input.parentElement.classList.toggle('selected', input.checked); }
+        function toggleRadio(input, groupId) {
+            document.querySelectorAll('#' + groupId + ' .opt-btn').forEach(el => el.classList.remove('selected'));
+            input.parentElement.classList.add('selected');
+        }
+        // ── Scroll reveal ──
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) { e.target.style.opacity = '1'; e.target.style.transform = 'translateY(0)'; }
+            });
+        }, { threshold: 0.08 });
+        document.querySelectorAll('.case-card, .val-card, .proc-card, .partner-logo, .gallery-thumb').forEach(el => {
+            el.style.opacity = '0'; el.style.transform = 'translateY(18px)';
+            el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            observer.observe(el);
+        });
+    </script>

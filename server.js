@@ -6344,8 +6344,8 @@ app.post('/api/b2b/inquiry', b2bInquiryUpload.array('files', 5), async (req, res
 
     const mailOptions = {
       from: `"요기보 B2B 문의" <${process.env.SMTP_USER || 'fe@yogico.kr'}>`,
-      //to: ['hjs@yogico.kr', 'b2b@yogico.kr'],
-      to: ['fe@yogico.kr'],
+      to: ['hjs@yogico.kr', 'b2b@yogico.kr'],
+      //to: ['fe@yogico.kr'],
       replyTo: email,  // 답장 시 고객 이메일로 전달
       subject: `[B2B 문의] ${company} / ${name} 담당자`,
       html: htmlBody,
