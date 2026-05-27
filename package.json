@@ -27,6 +27,7 @@
     "multer": "^2.1.1",
     "natural": "^8.0.1",
     "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.9",
     "nodemon": "^3.1.9",
     "openai": "^4.85.3",
     "pdf.js-extract": "^0.2.1",

@@ -21,6 +21,19 @@ const os = require('os');
 const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
+// ========== [SMTP] B2B 문의 메일 설정 ==========
+const smtpTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'wsmtp.ecount.com',
+  port: 587,
+  secure: false, // TLS
+  auth: {
+    user: process.env.SMTP_USER || 'fe@yogico.kr',
+    pass: process.env.SMTP_PASS
+  },
+  tls: { rejectUnauthorized: false }
+});
 
 
 // multer 설정 (임시 디스크에 저장하여 메모리 폭발 방지)
@@ -6201,4 +6214,156 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
     console.error("서버 시작 실패:", err);
   }
 })();
+
+
+// ========== [B2B] 대량구매 문의 이메일 발송 API ==========
+const b2bInquiryUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, os.tmpdir()),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      // 한글 파일명 처리
+      const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      cb(null, uniqueSuffix + '-' + originalName);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'image/jpeg', 'image/png', 'application/pdf',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('허용되지 않는 파일 형식입니다. (PDF, JPG, PNG, PPT만 가능)'));
+    }
+  }
+});
+
+app.post('/api/b2b/inquiry', b2bInquiryUpload.array('files', 5), async (req, res) => {
+  try {
+    const {
+      name,        // 담당자명
+      company,     // 회사/기관명
+      phone,       // 휴대폰번호
+      email,       // 고객 이메일
+      address,     // 납품 주소
+      budget,      // 예산 구간
+      products,    // 관심 상품 (콤마 구분 문자열)
+      care,        // 케어서비스
+      message      // 추가 문의
+    } = req.body;
+
+    // 필수값 검증
+    if (!name || !company || !phone || !email || !budget || !care) {
+      return res.status(400).json({ success: false, message: '필수 항목을 모두 입력해주세요.' });
+    }
+
+    // 첨부파일 처리
+    const attachments = (req.files || []).map(file => ({
+      filename: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+      path: file.path
+    }));
+
+    // 이메일 본문 (HTML)
+    const htmlBody = `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Malgun Gothic', sans-serif; background:#f4f7fb; margin:0; padding:20px;">
+  <div style="max-width:620px; margin:0 auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 16px rgba(0,0,0,0.08);">
+    <div style="background:#00aeef; padding:28px 36px;">
+      <h1 style="color:#fff; margin:0; font-size:22px; font-weight:700;">📋 B2B 대량구매 문의 접수</h1>
+      <p style="color:rgba(255,255,255,0.85); margin:8px 0 0; font-size:13px;">
+        접수일시: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+      </p>
+    </div>
+    <div style="padding:32px 36px;">
+
+      <h3 style="font-size:15px; color:#333; border-bottom:2px solid #00aeef; padding-bottom:8px; margin-bottom:20px;">
+        📌 담당자 정보
+      </h3>
+      <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:28px;">
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; width:130px; background:#f9f9f9;">담당자명</td>
+          <td style="padding:10px 12px; color:#222;">${name}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">회사/기관명</td>
+          <td style="padding:10px 12px; color:#222;">${company}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">휴대폰번호</td>
+          <td style="padding:10px 12px; color:#222;">${phone}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">이메일</td>
+          <td style="padding:10px 12px; color:#222;"><a href="mailto:${email}" style="color:#00aeef;">${email}</a></td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">납품 주소</td>
+          <td style="padding:10px 12px; color:#222;">${address || '-'}</td>
+        </tr>
+      </table>
+
+      <h3 style="font-size:15px; color:#333; border-bottom:2px solid #00aeef; padding-bottom:8px; margin-bottom:20px;">
+        💰 문의 상세
+      </h3>
+      <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:28px;">
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; width:130px; background:#f9f9f9;">예산 구간</td>
+          <td style="padding:10px 12px; color:#222; font-weight:700; color:#00aeef;">${budget}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">관심 상품</td>
+          <td style="padding:10px 12px; color:#222;">${products || '미선택'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">케어서비스</td>
+          <td style="padding:10px 12px; color:#222;">${care}</td>
+        </tr>
+      </table>
+
+      ${message ? `
+      <h3 style="font-size:15px; color:#333; border-bottom:2px solid #00aeef; padding-bottom:8px; margin-bottom:16px;">
+        💬 추가 문의
+      </h3>
+      <div style="background:#f9f9f9; border-radius:8px; padding:16px 20px; font-size:14px; color:#444; line-height:1.8; margin-bottom:28px; white-space:pre-wrap;">${message}</div>
+      ` : ''}
+
+    </div>
+    <div style="background:#f4f7fb; padding:16px 36px; text-align:center; font-size:12px; color:#999;">
+      본 메일은 요기보 코리아 B2B 문의 시스템에서 자동 발송된 메일입니다.<br>
+      고객에게 답장 시 <strong style="color:#00aeef;">${email}</strong> 로 전달됩니다.
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const mailOptions = {
+      from: `"요기보 B2B 문의" <${process.env.SMTP_USER || 'fe@yogico.kr'}>`,
+      to: ['hjs@yogico.kr', 'b2b@yogico.kr'],
+      replyTo: email,  // 답장 시 고객 이메일로 전달
+      subject: `[B2B 문의] ${company} / ${name} 담당자`,
+      html: htmlBody,
+      attachments
+    };
+
+    await smtpTransporter.sendMail(mailOptions);
+
+    // 임시 파일 삭제
+    (req.files || []).forEach(file => {
+      try { require('fs').unlinkSync(file.path); } catch (e) {}
+    });
+
+    console.log(`✅ [B2B 문의] ${company} / ${name} (${email}) 메일 발송 완료`);
+    res.json({ success: true, message: '문의가 접수되었습니다. 담당자가 영업일 1~2일 내 연락드립니다.' });
+
+  } catch (err) {
+    console.error('❌ [B2B 문의] 메일 발송 오류:', err);
+    res.status(500).json({ success: false, message: '메일 발송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+  }
+});
 
