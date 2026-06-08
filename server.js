@@ -92,7 +92,9 @@ const corsOptions = {
     'https://www.yogibo.kr',
     'http://yogibo.kr',
     'http://www.yogibo.kr',
-    'https://skin-skin123.yogibo.cafe24.com' // 사용 중인 스킨 도메인
+    'https://skin-skin123.yogibo.cafe24.com', // 사용 중인 스킨 도메인
+    'https://yogico.kr',                      // yogico 사이트
+    'https://www.yogico.kr'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -6368,3 +6370,103 @@ app.post('/api/b2b/inquiry', b2bInquiryUpload.array('files', 5), async (req, res
   }
 });
 
+
+// ========== [yogico.kr] Contact 문의 이메일 발송 API ==========
+const yogicoContactUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, os.tmpdir()),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      cb(null, uniqueSuffix + '-' + originalName);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('허용되지 않는 파일 형식입니다. (jpg/png/webp/gif/pdf만 가능)'));
+    }
+  }
+});
+
+app.post('/send-email', yogicoContactUpload.single('attachment'), async (req, res) => {
+  try {
+    const companyEmail = req.body.companyEmail || '';
+    const companyName  = req.body.companyName  || '';
+    const message      = req.body.message      || '';
+
+    if (!companyEmail) {
+      return res.status(400).json({ success: false, error: '이메일 주소가 필요합니다.' });
+    }
+
+    const attachments = [];
+    if (req.file) {
+      attachments.push({
+        filename: Buffer.from(req.file.originalname, 'latin1').toString('utf8'),
+        path: req.file.path
+      });
+    }
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Malgun Gothic', sans-serif; background:#f4f7fb; margin:0; padding:20px;">
+  <div style="max-width:620px; margin:0 auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 16px rgba(0,0,0,0.08);">
+    <div style="background:#1a1a2e; padding:28px 36px;">
+      <h1 style="color:#fff; margin:0; font-size:22px; font-weight:700;">📩 Yogico Contact 문의 접수</h1>
+      <p style="color:rgba(255,255,255,0.75); margin:8px 0 0; font-size:13px;">
+        접수일시: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+      </p>
+    </div>
+    <div style="padding:32px 36px;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; width:130px; background:#f9f9f9;">이름 / 회사</td>
+          <td style="padding:10px 12px; color:#333;">${companyName || '(미입력)'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #eee;">
+          <td style="padding:10px 12px; color:#666; font-weight:600; background:#f9f9f9;">회신 이메일</td>
+          <td style="padding:10px 12px; color:#333;">${companyEmail}</td>
+        </tr>
+      </table>
+      ${message ? `
+      <h3 style="font-size:15px; color:#333; border-bottom:2px solid #1a1a2e; padding-bottom:8px; margin-bottom:16px;">💬 문의 내용</h3>
+      <div style="background:#f9f9f9; border-radius:8px; padding:16px 20px; font-size:14px; color:#444; line-height:1.8; white-space:pre-wrap;">${message}</div>
+      ` : ''}
+    </div>
+    <div style="background:#f4f7fb; padding:16px 36px; text-align:center; font-size:12px; color:#999;">
+      본 메일은 yogico.kr 문의 폼에서 자동 발송된 메일입니다.<br>
+      고객에게 답장 시 <strong style="color:#1a1a2e;">${companyEmail}</strong> 로 전달됩니다.
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const mailOptions = {
+      from: `"Yogico Contact" <${process.env.SMTP_USER || 'fe@yogico.kr'}>`,
+      to: ['biz@yogico.kr'],
+      replyTo: companyEmail,
+      subject: `[Yogico 문의] ${companyName || companyEmail}`,
+      html: htmlBody,
+      attachments
+    };
+
+    await smtpTransporter.sendMail(mailOptions);
+
+    // 임시 파일 삭제
+    if (req.file) {
+      try { require('fs').unlinkSync(req.file.path); } catch (e) { }
+    }
+
+    console.log(`✅ [Yogico Contact] ${companyName} (${companyEmail}) 메일 발송 완료 → biz@yogico.kr`);
+    res.json({ success: true, message: '문의가 성공적으로 접수되었습니다.' });
+
+  } catch (err) {
+    console.error('❌ [Yogico Contact] 메일 발송 오류:', err);
+    res.status(500).json({ success: false, error: '메일 발송 중 오류가 발생했습니다.' });
+  }
+});
