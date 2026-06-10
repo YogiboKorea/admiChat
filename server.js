@@ -4078,20 +4078,35 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
     };
 
     let allOrders = [];
-    let orderHasMore = true;
-    let orderOffset = 0;
 
-    // 카페24에서 해당 기간의 주문 긁어오기
-    while (orderHasMore && orderOffset < 5000) {
-      const orderRes = await fetchFromCafe24(
-        `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
-        { shop_no: 1, start_date: startDate, end_date: endDate, date_type: 'pay_date', limit: 100, offset: orderOffset, embed: 'items' }
-      );
-      const orders = orderRes.data.orders || [];
-      allOrders = allOrders.concat(orders);
+    // 카페24 주문 조회 API는 검색 기간이 최대 약 3개월(90일)로 제한되어,
+    // 기간이 길면 422 에러가 발생한다. 90일 이하 구간으로 분할해서 조회한다.
+    const CHUNK_DAYS = 90;
+    let chunkStart = moment(startDate).tz('Asia/Seoul');
+    const rangeEnd = moment(endDate).tz('Asia/Seoul');
 
-      if (orders.length < 100) orderHasMore = false;
-      else orderOffset += 100;
+    while (chunkStart.isSameOrBefore(rangeEnd)) {
+      const chunkEnd = moment.min(chunkStart.clone().add(CHUNK_DAYS - 1, 'days'), rangeEnd);
+      const sDate = chunkStart.format('YYYY-MM-DD');
+      const eDate = chunkEnd.format('YYYY-MM-DD');
+
+      let orderHasMore = true;
+      let orderOffset = 0;
+
+      // 각 구간의 주문 긁어오기 (페이지네이션)
+      while (orderHasMore && orderOffset < 5000) {
+        const orderRes = await fetchFromCafe24(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/orders`,
+          { shop_no: 1, start_date: sDate, end_date: eDate, date_type: 'pay_date', limit: 100, offset: orderOffset, embed: 'items' }
+        );
+        const orders = orderRes.data.orders || [];
+        allOrders = allOrders.concat(orders);
+
+        if (orders.length < 100) orderHasMore = false;
+        else orderOffset += 100;
+      }
+
+      chunkStart = chunkEnd.clone().add(1, 'days');
     }
 
     const uniqueBuyers = new Set();
@@ -4118,8 +4133,8 @@ app.get('/api/cafe24/awesome-buyers', async (req, res) => {
 
     res.json({ success: true, count: uniqueBuyers.size, buyers: Array.from(uniqueBuyers) });
   } catch (error) {
-    console.error('Cafe24 구매자 조회 에러:', error.message);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error('Cafe24 구매자 조회 에러:', error.message, error.response?.data || '');
+    res.status(500).json({ success: false, message: 'Server Error', detail: error.response?.data || error.message });
   }
 });
 
