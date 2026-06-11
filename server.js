@@ -5776,6 +5776,239 @@ app.post('/api/event/point0428/reward', async (req, res) => {
   }
 });
 
+// ========== [추가] 응원 페스타(슛 챌린지) 프로모션 API ==========
+// 정책: 5골 이상 → 적립금 5,000원 즉시 지급(1인 1회), 7골 이상도 적립금만(빈백 자동지급 없음)
+// MongoDB: 참여자 1인 1문서(중복차단) + 적립금 수령여부 / 난이도(확률) 설정 단일문서
+const CHEERFESTA_PARTICIPANTS = 'cheerfesta_participants';
+const CHEERFESTA_CONFIG = 'cheerfesta_config';
+const CHEERFESTA_CREDIT_AMOUNT = 5000; // 지급 적립금
+const CHEERFESTA_MIN_GOALS = 5;        // 적립금 자격 최소 골 수
+const CHEERFESTA_DEFAULT_DIFFICULTY = { accuracy: 0.35, lateAccuracy: 0.4, reactionMs: 70, noise: 130, lateNoise: 100 };
+
+// KST 현재시각
+const cfNowKST = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+// 숫자 보정(범위 클램프)
+const cfClamp = (v, min, max, def) => { const n = Number(v); if (!isFinite(n)) return def; return Math.min(max, Math.max(min, n)); };
+// 회원 여부 판정(비회원 guest_ 필터)
+const cfIsMember = (memberId) => !!memberId && typeof memberId === 'string' && !memberId.startsWith('guest_') && memberId !== 'GUEST' && memberId !== 'null';
+
+// 1) 참여여부/적립금 수령여부 조회 (게임 로드 시 호출 → 버튼 "지급 완료" 초기표시)
+app.get('/api/event/cheer-festa/status', async (req, res) => {
+  const { memberId } = req.query;
+  if (!cfIsMember(memberId)) {
+    return res.json({ success: true, participated: false, creditClaimed: false, bestGoals: 0 });
+  }
+  try {
+    const doc = await db.collection(CHEERFESTA_PARTICIPANTS).findOne({ memberId });
+    return res.json({
+      success: true,
+      participated: !!doc,
+      creditClaimed: !!(doc && doc.creditClaimed),
+      bestGoals: doc ? (doc.bestGoals || 0) : 0
+    });
+  } catch (err) {
+    console.error('[응원페스타] status 오류:', err);
+    return res.status(500).json({ success: false, participated: false, creditClaimed: false, bestGoals: 0 });
+  }
+});
+
+// 2) 참여 기록 (결과 표시 직후 호출) — 회원/비회원 모두 1인 1문서 upsert
+app.post('/api/event/cheer-festa/participate', async (req, res) => {
+  const { memberId, guestId, goals, tier, hasCredit, hasDraw } = req.body || {};
+  const g = cfClamp(goals, 0, 10, 0);
+  const isMember = cfIsMember(memberId);
+  if (!isMember && !guestId) {
+    return res.status(400).json({ success: false, message: '식별자(memberId/guestId)가 필요합니다.' });
+  }
+  try {
+    const col = db.collection(CHEERFESTA_PARTICIPANTS);
+    const filter = isMember ? { memberId } : { guestId, isMember: false };
+    const now = cfNowKST();
+    const setOnInsert = { firstPlayedAt: now, creditClaimed: false, creditAmount: 0 };
+    if (isMember) { setOnInsert.memberId = memberId; if (guestId) setOnInsert.guestId = guestId; }
+    else { setOnInsert.guestId = guestId; }
+
+    await col.updateOne(
+      filter,
+      {
+        $set: { isMember, lastPlayedAt: now, lastGoals: g, lastTier: tier || (hasDraw ? 'draw' : hasCredit ? 'credit' : 'none') },
+        $setOnInsert: setOnInsert,
+        $max: { bestGoals: g },
+        $inc: { playCount: 1 }
+      },
+      { upsert: true }
+    );
+    const doc = await col.findOne(filter);
+    return res.json({
+      success: true,
+      participated: true,
+      creditClaimed: !!(doc && doc.creditClaimed),
+      bestGoals: doc ? (doc.bestGoals || g) : g
+    });
+  } catch (err) {
+    // 동시성으로 인한 unique 충돌 시 1회 재조회
+    if (err.code === 11000 && isMember) {
+      try {
+        const doc = await db.collection(CHEERFESTA_PARTICIPANTS).findOne({ memberId });
+        return res.json({ success: true, participated: true, creditClaimed: !!(doc && doc.creditClaimed), bestGoals: doc ? (doc.bestGoals || g) : g });
+      } catch (e) {}
+    }
+    console.error('[응원페스타] participate 오류:', err);
+    return res.status(500).json({ success: false, message: '참여 기록 중 오류가 발생했습니다.' });
+  }
+});
+
+// 3) 적립금 지급 (5골 이상, 1인 1회) — 원자적 선점 후 지급, 실패 시 롤백
+app.post('/api/event/cheer-festa/reward', async (req, res) => {
+  const { memberId, goals } = req.body || {};
+  if (!cfIsMember(memberId)) {
+    return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
+  }
+  try {
+    const col = db.collection(CHEERFESTA_PARTICIPANTS);
+    const now = cfNowKST();
+
+    // 자격 확인: 참여 기록상 최고 골 수(또는 이번 결과) 5골 이상
+    const p = await col.findOne({ memberId });
+    const best = Math.max(p ? (p.bestGoals || 0) : 0, cfClamp(goals, 0, 10, 0));
+    if (best < CHEERFESTA_MIN_GOALS) {
+      return res.status(400).json({ success: false, message: `${CHEERFESTA_MIN_GOALS}골 이상 기록이 필요합니다.` });
+    }
+
+    // 원자적 선점: creditClaimed !== true 인 문서만 true 로 전환(없으면 upsert 생성)
+    let upd;
+    try {
+      upd = await col.updateOne(
+        { memberId, creditClaimed: { $ne: true } },
+        {
+          $set: { creditClaimed: true, claimedAt: now, creditAmount: CHEERFESTA_CREDIT_AMOUNT, isMember: true },
+          $setOnInsert: { memberId, firstPlayedAt: now, lastPlayedAt: now, playCount: 0 },
+          $max: { bestGoals: best }
+        },
+        { upsert: true }
+      );
+    } catch (claimErr) {
+      // 삽입 경합(unique 충돌): 다른 요청이 먼저 문서를 만든 경우 → 실제 수령여부 재확인
+      if (claimErr.code === 11000) {
+        const cur = await col.findOne({ memberId });
+        if (cur && cur.creditClaimed) {
+          return res.status(400).json({ success: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+        }
+        // 아직 미수령(예: participate가 먼저 false로 생성) → 원자적 전환 재시도
+        upd = await col.updateOne(
+          { memberId, creditClaimed: { $ne: true } },
+          { $set: { creditClaimed: true, claimedAt: now, creditAmount: CHEERFESTA_CREDIT_AMOUNT, isMember: true }, $max: { bestGoals: best } }
+        );
+        if (upd.modifiedCount === 0) {
+          return res.status(400).json({ success: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+        }
+      } else {
+        throw claimErr;
+      }
+    }
+    // 변경/생성이 없으면 이미 지급된 상태
+    if (upd.modifiedCount === 0 && upd.upsertedCount === 0) {
+      return res.status(400).json({ success: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+    }
+
+    // 적립금 지급 (Cafe24 Admin Points API)
+    try {
+      await apiRequest('POST', `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`, {
+        shop_no: 1,
+        request: {
+          member_id: memberId,
+          order_id: null,
+          amount: CHEERFESTA_CREDIT_AMOUNT,
+          type: 'increase',
+          reason: '응원 페스타 슛 챌린지 적립금'
+        }
+      });
+    } catch (payErr) {
+      // 지급 실패 → 선점 롤백(다시 받을 수 있도록)
+      await col.updateOne({ memberId }, { $set: { creditClaimed: false }, $unset: { claimedAt: '', creditAmount: '' } });
+      console.error('[응원페스타] 적립금 지급 오류:', payErr.response?.data || payErr.message);
+      return res.status(500).json({ success: false, message: '적립금 지급 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+    }
+
+    console.log(`[응원페스타] ${memberId} 적립금 ${CHEERFESTA_CREDIT_AMOUNT}원 지급 완료 (best=${best})`);
+    return res.json({ success: true, message: `🎉 ${CHEERFESTA_CREDIT_AMOUNT.toLocaleString()}원 적립금이 지급되었습니다!` });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+    }
+    console.error('[응원페스타] reward 오류:', err);
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 4) 난이도(확률) 설정 조회 — 게임/관리자 공용
+app.get('/api/event/cheer-festa/config', async (req, res) => {
+  try {
+    const doc = await db.collection(CHEERFESTA_CONFIG).findOne({ key: 'difficulty' });
+    const difficulty = (doc && doc.difficulty) ? { ...CHEERFESTA_DEFAULT_DIFFICULTY, ...doc.difficulty } : CHEERFESTA_DEFAULT_DIFFICULTY;
+    return res.json({ success: true, difficulty, updatedAt: doc ? doc.updatedAt : null });
+  } catch (err) {
+    console.error('[응원페스타] config get 오류:', err);
+    return res.json({ success: true, difficulty: CHEERFESTA_DEFAULT_DIFFICULTY });
+  }
+});
+
+// 5) 난이도(확률) 설정 저장 — 관리자
+app.post('/api/event/cheer-festa/config', async (req, res) => {
+  const { difficulty } = req.body || {};
+  if (!difficulty || typeof difficulty !== 'object') {
+    return res.status(400).json({ success: false, message: 'difficulty 객체가 필요합니다.' });
+  }
+  const clean = {
+    accuracy: cfClamp(difficulty.accuracy, 0, 1, CHEERFESTA_DEFAULT_DIFFICULTY.accuracy),
+    lateAccuracy: cfClamp(difficulty.lateAccuracy, 0, 1, CHEERFESTA_DEFAULT_DIFFICULTY.lateAccuracy),
+    reactionMs: cfClamp(difficulty.reactionMs, 0, 2000, CHEERFESTA_DEFAULT_DIFFICULTY.reactionMs),
+    noise: cfClamp(difficulty.noise, 0, 1000, CHEERFESTA_DEFAULT_DIFFICULTY.noise),
+    lateNoise: cfClamp(difficulty.lateNoise, 0, 1000, CHEERFESTA_DEFAULT_DIFFICULTY.lateNoise),
+  };
+  try {
+    await db.collection(CHEERFESTA_CONFIG).updateOne(
+      { key: 'difficulty' },
+      { $set: { key: 'difficulty', difficulty: clean, updatedAt: cfNowKST() } },
+      { upsert: true }
+    );
+    return res.json({ success: true, difficulty: clean });
+  } catch (err) {
+    console.error('[응원페스타] config post 오류:', err);
+    return res.status(500).json({ success: false, message: '설정 저장에 실패했습니다.' });
+  }
+});
+
+// 6) 참여자 목록 + 요약 (관리자 통계: 참여자 / 적립금 수령여부만)
+app.get('/api/event/cheer-festa/participants', async (req, res) => {
+  try {
+    const col = db.collection(CHEERFESTA_PARTICIPANTS);
+    const list = await col.find({}).sort({ lastPlayedAt: -1 }).limit(5000).toArray();
+    const summary = {
+      total: list.length,
+      members: list.filter(d => d.isMember).length,
+      qualified: list.filter(d => (d.bestGoals || 0) >= CHEERFESTA_MIN_GOALS).length,
+      claimed: list.filter(d => d.creditClaimed).length,
+      creditTotal: list.filter(d => d.creditClaimed).length * CHEERFESTA_CREDIT_AMOUNT
+    };
+    const participants = list.map(d => ({
+      memberId: d.isMember ? (d.memberId || null) : null,
+      guestId: d.isMember ? null : (d.guestId || null),
+      isMember: !!d.isMember,
+      bestGoals: d.bestGoals || 0,
+      playCount: d.playCount || 0,
+      creditClaimed: !!d.creditClaimed,
+      creditAmount: d.creditAmount || 0,
+      claimedAt: d.claimedAt || null,
+      lastPlayedAt: d.lastPlayedAt || null
+    }));
+    return res.json({ success: true, summary, participants });
+  } catch (err) {
+    console.error('[응원페스타] participants 오류:', err);
+    return res.status(500).json({ success: false, message: '참여자 조회 실패' });
+  }
+});
+
 // ==============================
 // (1) 개인정보 수집·이용 동의(선택) 업데이트
 async function updatePrivacyConsent(memberId) {
@@ -6219,6 +6452,14 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
       console.log('✅ yogiboNewMemberEvent0428 Unique Index 확인 완료');
     } catch (idxErr) {
       console.warn('⚠️ yogiboNewMemberEvent0428 Index 생성 경고:', idxErr.message);
+    }
+
+    // [응원페스타] cheerfesta_participants 회원 Unique Index (sparse: 비회원 guest 문서는 제외)
+    try {
+      await db.collection('cheerfesta_participants').createIndex({ memberId: 1 }, { unique: true, sparse: true });
+      console.log('✅ cheerfesta_participants Unique Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ cheerfesta_participants Index 생성 경고:', idxErr.message);
     }
 
     // 3. 서버 리스닝
