@@ -615,6 +615,80 @@ app.get('/api/event/download', async (req, res) => {
 });
 
 
+// ========== [NEW] 투표 이벤트 API ==========
+
+// 투표 현황 조회
+app.get('/api/vote/status', async (req, res) => {
+  try {
+    const products = await db.collection('vote_counts').find({}).toArray();
+    
+    // 기본 상품 4개 초기 데이터가 없다면 임시로 매핑
+    const defaultProducts = [
+      { productId: 'product1', name: '상품 A', count: 0 },
+      { productId: 'product2', name: '상품 B', count: 0 },
+      { productId: 'product3', name: '상품 C', count: 0 },
+      { productId: 'product4', name: '상품 D', count: 0 }
+    ];
+
+    let result = products.length > 0 ? products : defaultProducts;
+    
+    // DB에서 불러온 데이터가 일부 상품만 있을 경우 기본값과 머지
+    if (products.length > 0) {
+      result = defaultProducts.map(dp => {
+        const found = products.find(p => p.productId === dp.productId);
+        return found ? { ...dp, count: found.count } : dp;
+      });
+    }
+
+    // count 기준으로 내림차순 정렬 (순위 표시용)
+    result.sort((a, b) => b.count - a.count);
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('투표 현황 조회 오류:', error);
+    res.status(500).json({ success: false, error: '서버 내부 오류' });
+  }
+});
+
+// 투표 참여
+app.post('/api/vote/submit', async (req, res) => {
+  const { memberId, productId } = req.body;
+  if (!memberId || !productId) {
+    return res.status(400).json({ success: false, message: '회원 ID와 상품 ID가 필요합니다.' });
+  }
+
+  try {
+    const entriesCollection = db.collection('vote_entries');
+    const countsCollection = db.collection('vote_counts');
+
+    // 1. 중복 참여 확인
+    const existingEntry = await entriesCollection.findOne({ memberId });
+    if (existingEntry) {
+      return res.json({ success: false, message: '이미 투표에 참여하셨습니다.' });
+    }
+
+    // 2. 투표 기록 저장
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await entriesCollection.insertOne({
+      memberId,
+      productId,
+      createdAt: nowKST
+    });
+
+    // 3. 상품 득표수 증가
+    await countsCollection.updateOne(
+      { productId },
+      { $inc: { count: 1 } },
+      { upsert: true }
+    );
+
+    res.json({ success: true, message: '투표가 완료되었습니다!' });
+  } catch (error) {
+    console.error('투표 참여 오류:', error);
+    res.status(500).json({ success: false, error: '서버 내부 오류' });
+  }
+});
+
 // ========== [7] 로그 수집 및 통계 API (전역 db 사용) ==========
 
 // 로그 수집
