@@ -5,114 +5,139 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>정품인증 관리자 · A/S 상담</title>
   <style>
-    :root { --bg:#0f1115; --card:#181b22; --line:#262a33; --txt:#e7eaf0; --sub:#9aa3b2; --accent:#4f8cff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:-apple-system,'Malgun Gothic','Segoe UI',sans-serif; background:var(--bg); color:var(--txt); padding:22px; }
-    h1 { font-size:19px; margin:0 0 16px; }
-    .tabs { display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--line); }
-    .tab { padding:10px 16px; cursor:pointer; color:var(--sub); font-weight:600; font-size:14px; border-bottom:2px solid transparent; }
-    .tab.on { color:var(--txt); border-bottom-color:var(--accent); }
+    :root {
+      --bg:#f2f4f6; --card:#fff; --primary:#3182f6; --primary-d:#1b64da;
+      --txt:#191f28; --txt2:#4e5968; --txt3:#8b95a1; --line:#e5e8eb;
+      --ok:#00c471; --warn:#ff9500; --bad:#f04452;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; background:var(--bg); color:var(--txt);
+      font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Segoe UI',sans-serif;
+      -webkit-font-smoothing:antialiased; }
+    .wrap { max-width:840px; margin:0 auto; padding:28px 20px 80px; }
+    h1 { font-size:24px; font-weight:800; letter-spacing:-0.5px; margin:0 0 20px; }
+    .tabs { display:flex; gap:6px; background:#e9ecef; padding:5px; border-radius:14px; margin-bottom:20px; }
+    .tab { flex:1; text-align:center; padding:11px; cursor:pointer; color:var(--txt2); font-weight:700; font-size:14px; border-radius:10px; transition:.15s; }
+    .tab.on { color:var(--primary); background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     .panel { display:none; } .panel.on { display:block; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:14px; }
+
+    .card { background:var(--card); border-radius:18px; padding:20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
     .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    input, select { background:#0f1115; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:10px 12px; font-size:14px; }
-    input.big { font-size:18px; letter-spacing:1px; font-weight:700; text-transform:uppercase; }
-    button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; }
-    button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
-    button.danger { background:transparent; border:1px solid var(--bad); color:var(--bad); }
-    button:disabled { opacity:.5; cursor:not-allowed; }
-    .msg { padding:11px 13px; border-radius:8px; margin:12px 0; font-size:13px; display:none; }
-    .msg.show { display:block; } .msg.ok { background:rgba(34,197,94,.12); border:1px solid var(--ok); } .msg.err { background:rgba(239,68,68,.12); border:1px solid var(--bad); }
-    .kv { display:grid; grid-template-columns:110px 1fr; gap:8px 14px; font-size:14px; margin-top:6px; }
-    .kv .k { color:var(--sub); }
-    .badge { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; }
-    .b-접수 { background:rgba(79,140,255,.18); color:var(--accent); }
-    .b-처리중 { background:rgba(245,158,11,.18); color:var(--warn); }
-    .b-완료 { background:rgba(34,197,94,.18); color:var(--ok); }
-    .b-반려 { background:rgba(239,68,68,.18); color:var(--bad); }
-    .b-expired { background:rgba(239,68,68,.18); color:var(--bad); }
-    .b-valid { background:rgba(34,197,94,.18); color:var(--ok); }
-    .b-now { background:rgba(245,158,11,.2); color:var(--warn); }
-    table { width:100%; border-collapse:collapse; font-size:13px; }
-    th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
-    th { color:var(--sub); font-weight:600; }
-    .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:60vh; }
-    .hist { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
-    .hist .item { font-size:13px; padding:7px 0; border-bottom:1px dashed var(--line); }
-    .hist .item .t { color:var(--sub); font-size:11px; }
-    .muted { color:var(--sub); font-size:13px; }
-    .cert { font-family:monospace; font-weight:700; letter-spacing:1px; }
+    input, select { border:1px solid var(--line); background:#fff; color:var(--txt); border-radius:12px; padding:12px 14px; font-size:15px; font-family:inherit; }
+    input:focus, select:focus { outline:2px solid var(--primary); border-color:transparent; }
+    input.big { font-size:19px; letter-spacing:2px; font-weight:800; text-transform:uppercase; }
+    .btn { border:none; border-radius:12px; font-weight:700; cursor:pointer; font-size:15px; font-family:inherit; padding:12px 18px; transition:.15s; }
+    .btn-primary { background:var(--primary); color:#fff; }
+    .btn-primary:active { background:var(--primary-d); transform:scale(.98); }
+    .btn-ghost { background:#f2f4f6; color:var(--txt); }
+    .btn-danger { background:#fde8ea; color:var(--bad); }
+    .muted { color:var(--txt3); font-size:14px; }
+
+    .msg { padding:13px 15px; border-radius:12px; margin:12px 0; font-size:14px; display:none; }
+    .msg.show { display:block; } .msg.ok { background:#e7f9f1; color:#00a35f; } .msg.err { background:#fde8ea; color:#c0303c; }
+
+    .kv { display:grid; grid-template-columns:88px 1fr; gap:10px 14px; font-size:15px; margin-top:4px; }
+    .kv .k { color:var(--txt3); }
+    .pill { font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:20px; display:inline-block; }
+    .p-접수 { background:#eef5ff; color:var(--primary); }
+    .p-처리중 { background:#fff4e6; color:#d97706; }
+    .p-완료 { background:#e7f9f1; color:#00a35f; }
+    .p-반려 { background:#fde8ea; color:var(--bad); }
+    .p-expired { background:#fde8ea; color:var(--bad); }
+    .p-valid { background:#e7f9f1; color:#00a35f; }
+    .p-now { background:#fff4e6; color:#d97706; }
+
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:12px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { color:var(--txt3); font-weight:700; font-size:13px; }
+    tr:last-child td { border-bottom:none; }
+    .tablewrap { background:var(--card); border-radius:18px; padding:6px 8px; box-shadow:0 1px 3px rgba(0,0,0,.04); overflow:auto; max-height:62vh; }
+
+    .hist { margin-top:16px; border-top:1px solid var(--line); padding-top:14px; }
+    .hist .item { font-size:14px; padding:9px 0; border-bottom:1px dashed var(--line); }
+    .hist .item:last-child { border-bottom:none; }
+    .hist .item .t { color:var(--txt3); font-size:12px; margin-top:2px; }
+    .cert { font-family:'SF Mono',monospace; font-weight:800; letter-spacing:1px; }
+    .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:6px; }
+    @keyframes s { to { transform:rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h1>정품인증 관리자</h1>
-  <div class="tabs">
-    <div class="tab on" data-t="as" onclick="tab('as')">A/S 상담 (난수번호)</div>
-    <div class="tab" data-t="list" onclick="tab('list')">인증현황</div>
-    <div class="tab" data-t="promo" onclick="tab('promo')">프로모션 기간</div>
-  </div>
+  <div class="wrap">
+    <h1>정품인증 관리자</h1>
+    <div class="tabs">
+      <div class="tab on" data-t="as" onclick="tab('as')">A/S 상담</div>
+      <div class="tab" data-t="list" onclick="tab('list')">인증현황</div>
+      <div class="tab" data-t="promo" onclick="tab('promo')">프로모션 기간</div>
+    </div>
 
-  <!-- ===== A/S 상담 ===== -->
-  <div class="panel on" id="p-as">
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px">고객이 콜로 불러준 인증번호를 입력하세요.</div>
-      <div class="row">
-        <input class="big" id="certInput" placeholder="YGB-XXXXX-XXXXX" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')findCert()" />
-        <button onclick="findCert()">조회</button>
+    <!-- A/S 상담 -->
+    <div class="panel on" id="p-as">
+      <div class="card">
+        <div class="muted" style="margin-bottom:12px">고객이 콜로 불러준 인증번호를 입력하세요.</div>
+        <div class="row">
+          <input class="big" id="certInput" placeholder="YGB-XXXXX-XXXXX" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')findCert()" />
+          <button class="btn btn-primary" onclick="findCert()">조회</button>
+        </div>
+      </div>
+      <div id="as-msg" class="msg"></div>
+      <div id="as-result"></div>
+    </div>
+
+    <!-- 인증현황 -->
+    <div class="panel" id="p-list">
+      <div class="card">
+        <div class="row">
+          <input id="listQ" placeholder="이름 / 휴대폰 / 인증번호 / 아이디" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')loadList(1)" />
+          <select id="listStatus">
+            <option value="">A/S 전체</option><option>접수</option><option>처리중</option><option>완료</option><option>반려</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadList(1)">검색</button>
+        </div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>인증번호</th><th>고객</th><th>제품</th><th>구매일</th><th>인증일</th><th>보증만료</th><th>보증</th><th>A/S</th></tr></thead>
+          <tbody id="list-rows"><tr><td colspan="8" class="muted" style="padding:20px;text-align:center">검색하세요.</td></tr></tbody>
+        </table>
       </div>
     </div>
-    <div id="as-msg" class="msg"></div>
-    <div id="as-result"></div>
-  </div>
 
-  <!-- ===== 인증현황 ===== -->
-  <div class="panel" id="p-list">
-    <div class="card">
-      <div class="row">
-        <input id="listQ" placeholder="이름 / 휴대폰 / 인증번호 / 아이디" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')loadList(1)" />
-        <select id="listStatus">
-          <option value="">A/S 전체</option>
-          <option>접수</option><option>처리중</option><option>완료</option><option>반려</option>
-        </select>
-        <button onclick="loadList(1)">검색</button>
+    <!-- 프로모션 기간 -->
+    <div class="panel" id="p-promo">
+      <div class="card">
+        <div class="muted" style="margin-bottom:12px">설정한 기간 안에 정품인증하면 보증이 자동으로 해당 개월(기본 18개월=1년 6개월)로 계산됩니다.</div>
+        <div class="row">
+          <input id="pmName" placeholder="프로모션 이름" style="flex:1;min-width:160px" />
+          <input id="pmStart" type="date" />
+          <span class="muted">~</span>
+          <input id="pmEnd" type="date" />
+          <input id="pmMonths" type="number" value="18" style="width:76px" title="보증 개월" />
+          <button class="btn btn-primary" onclick="savePromo()">저장</button>
+          <input type="hidden" id="pmId" />
+        </div>
       </div>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>인증번호</th><th>고객</th><th>제품</th><th>구매일</th><th>인증일</th><th>보증만료</th><th>보증</th><th>A/S</th></tr></thead>
-        <tbody id="list-rows"><tr><td colspan="8" class="muted" style="padding:18px;text-align:center">검색하세요.</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ===== 프로모션 기간 ===== -->
-  <div class="panel" id="p-promo">
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px">설정한 기간 안에 정품인증하면 보증이 자동으로 해당 개월(기본 18개월=1년6개월)로 계산됩니다.</div>
-      <div class="row">
-        <input id="pmName" placeholder="프로모션 이름 (예: 여름 정품인증 프로모션)" style="flex:1;min-width:180px" />
-        <input id="pmStart" type="date" />
-        <span class="muted">~</span>
-        <input id="pmEnd" type="date" />
-        <input id="pmMonths" type="number" value="18" style="width:80px" title="보증 개월" />
-        <button onclick="savePromo()">추가</button>
-        <input type="hidden" id="pmId" />
+      <div id="promo-msg" class="msg"></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>이름</th><th>기간</th><th>개월</th><th>상태</th><th></th></tr></thead>
+          <tbody id="promo-rows"></tbody>
+        </table>
       </div>
-    </div>
-    <div id="promo-msg" class="msg"></div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>이름</th><th>기간</th><th>개월</th><th>상태</th><th></th></tr></thead>
-        <tbody id="promo-rows"></tbody>
-      </table>
     </div>
   </div>
 
 <script>
-const API = '';
+const ADMIN_SERVER = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+const API = (location.origin === ADMIN_SERVER || location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '' : ADMIN_SERVER;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
 function msg(el, text, type) { const b = $(el); if (!text) { b.className='msg'; return; } b.textContent=text; b.className='msg show '+(type||'ok'); }
+async function jsonFetch(url, opts) {
+  const r = await fetch(url, opts); const t = await r.text();
+  if (!t) throw new Error('서버 응답이 비어 있습니다. (' + r.status + ')');
+  try { return JSON.parse(t); } catch (e) { throw new Error('서버 응답 형식 오류 (' + r.status + ')'); }
+}
 function tab(t) {
   document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.t === t));
   document.querySelectorAll('.panel').forEach(e => e.classList.remove('on'));
@@ -120,41 +145,41 @@ function tab(t) {
   if (t === 'list') loadList(1);
   if (t === 'promo') loadPromos();
 }
+function statusBadge(s) { return s ? `<span class="pill p-${s}">${s}</span>` : '<span class="muted">미접수</span>'; }
 
-/* ---------- A/S 상담 ---------- */
+/* A/S 상담 */
 let currentCert = null;
 async function findCert() {
   const certNo = $('certInput').value.trim().toUpperCase();
   if (!certNo) return;
-  msg('as-msg',''); $('as-result').innerHTML = '<div class="muted">조회중...</div>';
+  msg('as-msg',''); $('as-result').innerHTML = '<div class="muted" style="padding:10px">조회중...</div>';
   try {
-    const r = await fetch(API + '/api/warranty/cert?certNo=' + encodeURIComponent(certNo)).then(r => r.json());
+    const r = await jsonFetch(API + '/api/warranty/cert?certNo=' + encodeURIComponent(certNo));
     if (!r.success) { $('as-result').innerHTML=''; msg('as-msg', r.message, 'err'); return; }
     renderCert(r.warranty);
   } catch (e) { $('as-result').innerHTML=''; msg('as-msg', e.message, 'err'); }
 }
-function statusBadge(s) { return s ? `<span class="badge b-${s}">${s}</span>` : '<span class="muted">미접수</span>'; }
 function renderCert(w) {
   currentCert = w.certNo;
-  const validBadge = w.expired ? '<span class="badge b-expired">보증만료</span>' : '<span class="badge b-valid">보증유효</span>';
-  const hist = (w.asHistory || []).slice().reverse().map(h =>
+  const valid = w.expired ? '<span class="pill p-expired">보증만료</span>' : '<span class="pill p-valid">보증유효</span>';
+  const hist = (w.asHistory||[]).slice().reverse().map(h =>
     `<div class="item"><div><b>${esc(h.status)}</b> ${esc(h.memo||'')} <span class="muted">— ${esc(h.by||'')}</span></div><div class="t">${new Date(h.at).toLocaleString('ko-KR')}</div></div>`
   ).join('') || '<div class="muted">A/S 이력 없음</div>';
   $('as-result').innerHTML = `<div class="card">
-    <div class="row" style="justify-content:space-between"><div class="cert" style="font-size:18px">${esc(w.certNo)}</div><div>${validBadge} ${statusBadge(w.asStatus)}</div></div>
-    <div class="kv">
+    <div class="row" style="justify-content:space-between"><div class="cert" style="font-size:19px">${esc(w.certNo)}</div><div>${valid} ${statusBadge(w.asStatus)}</div></div>
+    <div class="kv" style="margin-top:14px">
       <div class="k">고객</div><div>${esc(w.customerName)} · ${esc(w.phone)} <span class="muted">(${esc(w.memberId)})</span></div>
-      <div class="k">제품</div><div>${esc(w.productName)} <span class="muted">${esc(w.spec)}</span> · ${esc(w.productCode)}</div>
+      <div class="k">제품</div><div>${esc(w.productName)} <span class="muted">${esc(w.spec)}</span></div>
       <div class="k">구매</div><div>${esc(w.saleDateStr)} · ${esc(w.channel)}</div>
-      <div class="k">보증</div><div>${w.months}개월 · 만료 <b>${esc(w.endDate)}</b>${w.promotionName?` <span class="badge b-now">${esc(w.promotionName)}</span>`:''}</div>
+      <div class="k">보증</div><div><b>${w.months}개월</b> · 만료 ${esc(w.endDate)}${w.promotionName?` <span class="pill p-now">${esc(w.promotionName)}</span>`:''}</div>
     </div>
     <div class="hist"><div class="muted" style="margin-bottom:6px">A/S 이력</div>${hist}</div>
-    <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
       <div class="row">
         <select id="asStatus"><option>접수</option><option>처리중</option><option>완료</option><option>반려</option></select>
-        <input id="asMemo" placeholder="처리 메모 (증상/조치 내용)" style="flex:1;min-width:200px" />
-        <input id="asBy" placeholder="상담원" style="width:100px" />
-        <button onclick="submitAs()">A/S 기록</button>
+        <input id="asMemo" placeholder="처리 메모 (증상 / 조치 내용)" style="flex:1;min-width:200px" />
+        <input id="asBy" placeholder="상담원" style="width:96px" />
+        <button class="btn btn-primary" onclick="submitAs()">A/S 기록</button>
       </div>
     </div>
   </div>`;
@@ -163,61 +188,61 @@ async function submitAs() {
   if (!currentCert) return;
   const body = { certNo: currentCert, status: $('asStatus').value, memo: $('asMemo').value, by: $('asBy').value };
   try {
-    const r = await fetch(API + '/api/warranty/as', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r=>r.json());
+    const r = await jsonFetch(API + '/api/warranty/as', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (!r.success) { msg('as-msg', r.message, 'err'); return; }
     msg('as-msg', '✅ A/S 기록 완료', 'ok'); renderCert(r.warranty);
   } catch (e) { msg('as-msg', e.message, 'err'); }
 }
 
-/* ---------- 인증현황 ---------- */
+/* 인증현황 */
 async function loadList(page) {
   const qs = new URLSearchParams({ page: page||1, limit: 100 });
   const q = $('listQ').value.trim(); if (q) qs.set('q', q);
   const st = $('listStatus').value; if (st) qs.set('asStatus', st);
-  const tbody = $('list-rows'); tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:18px;text-align:center">불러오는 중...</td></tr>';
+  const tbody = $('list-rows'); tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">불러오는 중...</td></tr>';
   try {
-    const r = await fetch(API + '/api/warranty/list?' + qs).then(r=>r.json());
-    if (!r.success || !r.items.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:18px;text-align:center">결과 없음</td></tr>'; return; }
+    const r = await jsonFetch(API + '/api/warranty/list?' + qs);
+    if (!r.success || !r.items.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">결과 없음</td></tr>'; return; }
     tbody.innerHTML = r.items.map(w => `<tr>
       <td class="cert">${esc(w.certNo)}</td>
       <td>${esc(w.customerName)}<br><span class="muted">${esc(w.phone)}</span></td>
       <td>${esc(w.productName)}<br><span class="muted">${esc(w.spec)}</span></td>
       <td>${esc(w.saleDateStr)}</td>
       <td>${w.authAt ? new Date(w.authAt).toLocaleDateString('ko-KR') : '-'}</td>
-      <td>${esc(w.endDate)} ${w.expired?'<span class="badge b-expired">만료</span>':''}</td>
+      <td>${esc(w.endDate)} ${w.expired?'<span class="pill p-expired">만료</span>':''}</td>
       <td>${w.months}개월${w.promotionName?' 🎁':''}</td>
       <td>${statusBadge(w.asStatus)}</td>
     </tr>`).join('');
-  } catch (e) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--bad);padding:18px;text-align:center">'+e.message+'</td></tr>'; }
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--bad);padding:20px;text-align:center">'+e.message+'</td></tr>'; }
 }
 
-/* ---------- 프로모션 기간 ---------- */
+/* 프로모션 */
 async function loadPromos() {
   try {
-    const r = await fetch(API + '/api/warranty/promotions').then(r=>r.json());
+    const r = await jsonFetch(API + '/api/warranty/promotions');
     const tbody = $('promo-rows');
-    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:18px;text-align:center">등록된 프로모션 없음</td></tr>'; return; }
+    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:20px;text-align:center">등록된 프로모션 없음</td></tr>'; return; }
     tbody.innerHTML = r.items.map(p => `<tr>
-      <td>${esc(p.name)}</td>
+      <td><b>${esc(p.name)}</b></td>
       <td>${esc(p.startDate)} ~ ${esc(p.endDate)}</td>
       <td>${p.months}개월</td>
-      <td>${p.isNow?'<span class="badge b-now">진행중</span>':(p.active?'<span class="muted">대기/종료</span>':'<span class="muted">비활성</span>')}</td>
+      <td>${p.isNow?'<span class="pill p-now">진행중</span>':(p.active?'<span class="muted">대기/종료</span>':'<span class="muted">비활성</span>')}</td>
       <td>
-        <button class="ghost" onclick='editPromo(${JSON.stringify(p)})'>수정</button>
-        <button class="danger" onclick="delPromo('${p._id}')">삭제</button>
+        <button class="btn btn-ghost" style="padding:8px 12px" onclick='editPromo(${JSON.stringify(p)})'>수정</button>
+        <button class="btn btn-danger" style="padding:8px 12px" onclick="delPromo('${p._id}')">삭제</button>
       </td>
     </tr>`).join('');
   } catch (e) { msg('promo-msg', e.message, 'err'); }
 }
 function editPromo(p) {
-  $('pmId').value = p._id; $('pmName').value = p.name; $('pmStart').value = p.startDate; $('pmEnd').value = p.endDate; $('pmMonths').value = p.months;
-  msg('promo-msg', '수정 모드: 값 변경 후 추가 버튼', 'ok');
+  $('pmId').value=p._id; $('pmName').value=p.name; $('pmStart').value=p.startDate; $('pmEnd').value=p.endDate; $('pmMonths').value=p.months;
+  msg('promo-msg', '수정 모드: 값 변경 후 저장', 'ok');
 }
 async function savePromo() {
-  const body = { _id: $('pmId').value || undefined, name: $('pmName').value.trim(), startDate: $('pmStart').value, endDate: $('pmEnd').value, months: Number($('pmMonths').value) };
+  const body = { _id: $('pmId').value||undefined, name: $('pmName').value.trim(), startDate: $('pmStart').value, endDate: $('pmEnd').value, months: Number($('pmMonths').value) };
   if (!body.name || !body.startDate || !body.endDate) { msg('promo-msg', '이름·기간을 입력하세요.', 'err'); return; }
   try {
-    const r = await fetch(API + '/api/warranty/promotions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r=>r.json());
+    const r = await jsonFetch(API + '/api/warranty/promotions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (!r.success) { msg('promo-msg', r.message, 'err'); return; }
     msg('promo-msg', '✅ 저장 완료', 'ok');
     $('pmId').value=''; $('pmName').value=''; $('pmStart').value=''; $('pmEnd').value=''; $('pmMonths').value=18;
@@ -226,10 +251,8 @@ async function savePromo() {
 }
 async function delPromo(id) {
   if (!confirm('이 프로모션 기간을 삭제할까요?')) return;
-  try {
-    const r = await fetch(API + '/api/warranty/promotions/' + id, { method:'DELETE' }).then(r=>r.json());
-    if (r.success) loadPromos();
-  } catch (e) { msg('promo-msg', e.message, 'err'); }
+  try { const r = await jsonFetch(API + '/api/warranty/promotions/' + id, { method:'DELETE' }); if (r.success) loadPromos(); }
+  catch (e) { msg('promo-msg', e.message, 'err'); }
 }
 </script>
 </body>
