@@ -22,6 +22,8 @@ const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const erp = require('./erp'); // 이카운트 판매현황 적재 모듈
+const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
 const smtpTransporter = nodemailer.createTransport({
@@ -6266,6 +6268,376 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
 });
 
 
+// ========== [ERP] 이카운트 판매현황 적재 (정품인증/보증 기반 데이터) ==========
+
+// 업로드용 multer (xlsx 전용, 메모리 아닌 임시 디스크 저장)
+const erpUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, os.tmpdir()),
+    filename: (req, file, cb) => cb(null, 'erp-' + Date.now() + '.xlsx'),
+  }),
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB
+});
+
+// 공통: 파일 파싱 + Mongo 적재
+async function runErpIngest(filePath) {
+  const { rows, stats, headerRow } = await erp.parseErpWorkbook(filePath);
+  const ingest = await erp.ingestErpSales(db, rows);
+  // 적재 이력 기록
+  await db.collection('erp_sync_log').insertOne({
+    at: new Date(), filePath, headerRow, stats, ingest,
+  });
+  return { headerRow, stats, ingest };
+}
+
+// [ERP-1] 고정 경로(data.xlsx) 동기화 — 매크로가 내려받은 파일을 그대로 적재
+app.post('/api/erp/sync', async (req, res) => {
+  try {
+    const filePath = (req.body && req.body.path) || erp.DEFAULT_ERP_FILE;
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: `파일을 찾을 수 없습니다: ${filePath}` });
+    }
+    const result = await runErpIngest(filePath);
+    res.json({ success: true, filePath, ...result });
+  } catch (err) {
+    console.error('🔥 ERP 동기화 실패:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [ERP-2] 파일 업로드 방식 적재
+app.post('/api/erp/upload', erpUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: '파일이 없습니다.' });
+    const result = await runErpIngest(req.file.path);
+    fs.unlink(req.file.path, () => {});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('🔥 ERP 업로드 적재 실패:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [ERP-3] 적재 현황 통계
+app.get('/api/erp/stats', async (req, res) => {
+  try {
+    const col = db.collection(erp.ERP_COLLECTION);
+    const [total, matchable, uniquePhones, lastLog] = await Promise.all([
+      col.countDocuments(),
+      col.countDocuments({ matchable: true }),
+      col.distinct('phone', { matchable: true }),
+      db.collection('erp_sync_log').find().sort({ at: -1 }).limit(1).next(),
+    ]);
+    const byChannel = await col.aggregate([
+      { $group: { _id: '$channel', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]).toArray();
+    res.json({
+      success: true,
+      total,
+      matchable,
+      uniqueMatchablePhones: uniquePhones.length,
+      byChannel,
+      lastSync: lastLog ? { at: lastLog.at, stats: lastLog.stats, ingest: lastLog.ingest } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [ERP-4] 판매 라인 조회 (연락처/고객명 검색 + 페이지네이션)
+app.get('/api/erp/sales', async (req, res) => {
+  try {
+    const { phone, name, page = 1, limit = 50 } = req.query;
+    const q = {};
+    if (phone) q.phone = erp.normalizePhone(phone).digits;
+    if (name) q.customerName = new RegExp(String(name).trim(), 'i');
+    const lim = Math.min(Number(limit) || 50, 200);
+    const skip = (Math.max(Number(page) || 1, 1) - 1) * lim;
+    const col = db.collection(erp.ERP_COLLECTION);
+    const [items, count] = await Promise.all([
+      col.find(q).sort({ saleDate: -1 }).skip(skip).limit(lim).toArray(),
+      col.countDocuments(q),
+    ]);
+    res.json({ success: true, count, page: Number(page), limit: lim, items });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ========== [정품인증] 회원 구매내역 매칭 & 보증기간 ==========
+function maskPhoneNum(p) {
+  const d = String(p || '').replace(/[^0-9]/g, '');
+  if (d.length < 7) return d ? '***' : '';
+  return d.slice(0, 3) + '****' + d.slice(-4);
+}
+
+// [W-1] 회원 아이디 → 휴대폰 매칭 → erp_sales 구매내역 + 보증 미리보기
+app.get('/api/warranty/lookup', async (req, res) => {
+  try {
+    const memberId = String(req.query.memberId || '').trim();
+    if (!memberId) return res.status(400).json({ success: false, message: 'memberId 파라미터가 필요합니다.' });
+
+    const data = await getCustomerDataByMemberId(memberId);
+    let cp = data && data.customersprivacy;
+    if (Array.isArray(cp)) cp = cp[0];
+    if (!cp) return res.status(404).json({ success: false, message: '해당 회원을 찾을 수 없습니다.' });
+
+    const { digits: phone, type: phoneType } = erp.normalizePhone(cp.cellphone);
+    const matchable = phoneType === 'mobile';
+
+    const sales = matchable
+      ? await db.collection(erp.ERP_COLLECTION).find({ phone }).sort({ saleDate: -1 }).toArray()
+      : [];
+
+    // 이미 인증 완료된 항목(rowHash 기준)
+    const authed = await db.collection(warranty.WARRANTY_COLLECTION).find({ memberId }).toArray();
+    const authByHash = new Map(authed.map(a => [a.rowHash, a]));
+
+    const items = [];
+    for (const s of sales) {
+      const w = await warranty.computeWarranty(db, s.saleDate); // 지금 인증한다고 가정한 미리보기
+      const ex = authByHash.get(s.rowHash);
+      items.push({
+        rowHash: s.rowHash,
+        saleDateStr: s.saleDateStr,
+        orderKey: s.orderKey,
+        channel: s.channel,
+        productCode: s.productCode,
+        productName: s.productName,
+        spec: s.spec,
+        qty: s.qty,
+        preview: { months: w.months, endDate: warranty.ymd(w.endDate), promotion: w.promotion },
+        authorized: ex ? { at: ex.authAt, months: ex.months, endDate: warranty.ymd(ex.endDate), certNo: ex.certNo } : null,
+      });
+    }
+
+    res.json({
+      success: true,
+      member: { memberId: cp.member_id, name: cp.name, phone: maskPhoneNum(phone), phoneType, matchable },
+      count: items.length,
+      items,
+    });
+  } catch (err) {
+    console.error('🔥 정품인증 조회 실패:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [W-2] 정품인증 처리 — 인증 시점 기준으로 보증개월 확정 후 warranties 기록
+app.post('/api/warranty/register', async (req, res) => {
+  try {
+    const { memberId, rowHashes } = req.body || {};
+    if (!memberId) return res.status(400).json({ success: false, message: 'memberId가 필요합니다.' });
+    if (!Array.isArray(rowHashes) || !rowHashes.length) {
+      return res.status(400).json({ success: false, message: '인증할 제품(rowHashes)이 필요합니다.' });
+    }
+
+    // 회원 휴대폰 재확인 (위변조 방지: 실제 회원 번호와 판매기록 번호가 일치해야 인증)
+    const data = await getCustomerDataByMemberId(memberId);
+    let cp = data && data.customersprivacy;
+    if (Array.isArray(cp)) cp = cp[0];
+    if (!cp) return res.status(404).json({ success: false, message: '회원을 찾을 수 없습니다.' });
+    const { digits: phone, type: phoneType } = erp.normalizePhone(cp.cellphone);
+    if (phoneType !== 'mobile') {
+      return res.status(400).json({ success: false, message: '휴대폰번호(010)가 확인되지 않아 정품인증이 불가합니다.' });
+    }
+
+    const now = new Date();
+    const results = [];
+    for (const rowHash of rowHashes) {
+      // 반드시 "그 회원의 휴대폰"과 일치하는 판매기록만 인증 가능
+      const sale = await db.collection(erp.ERP_COLLECTION).findOne({ rowHash, phone });
+      if (!sale) { results.push({ rowHash, ok: false, reason: '본인 구매기록과 일치하지 않음' }); continue; }
+
+      const w = await warranty.computeWarranty(db, sale.saleDate, now);
+      const doc = {
+        memberId, phone,
+        customerName: cp.name,
+        rowHash,
+        productCode: sale.productCode,
+        productName: sale.productName,
+        spec: sale.spec,
+        channel: sale.channel,
+        saleDate: sale.saleDate,
+        saleDateStr: sale.saleDateStr,
+        authAt: now,
+        months: w.months,
+        endDate: w.endDate,
+        promotionName: w.promotion ? w.promotion.name : null,
+      };
+      // rowHash 당 1회만 인증 (신규면 난수번호 발급, 최초 인증 시점 고정)
+      const saved = await warranty.insertWarranty(db, doc);
+      const finalDoc = saved.inserted ? doc : saved.existing;
+      results.push({
+        rowHash, ok: true, alreadyAuthed: !saved.inserted,
+        certNo: saved.certNo,
+        months: finalDoc.months,
+        endDate: warranty.ymd(finalDoc.endDate),
+        promotionName: finalDoc.promotionName,
+      });
+    }
+
+    res.json({ success: true, results });
+  } catch (err) {
+    console.error('🔥 정품인증 처리 실패:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ---------- [관리자] 난수번호(인증번호) 조회 → A/S 상담 ----------
+function warrantyView(w) {
+  if (!w) return null;
+  return {
+    certNo: w.certNo,
+    memberId: w.memberId,
+    customerName: w.customerName || '',
+    phone: maskPhoneNum(w.phone),
+    productCode: w.productCode,
+    productName: w.productName,
+    spec: w.spec,
+    channel: w.channel,
+    saleDateStr: w.saleDateStr,
+    authAt: w.authAt,
+    months: w.months,
+    endDate: warranty.ymd(w.endDate),
+    expired: w.endDate ? new Date(w.endDate) < new Date() : false,
+    promotionName: w.promotionName || null,
+    asStatus: w.asStatus || null,
+    asHistory: w.asHistory || [],
+  };
+}
+
+// [W-3] 난수번호로 인증/보증 + A/S 이력 조회
+app.get('/api/warranty/cert', async (req, res) => {
+  try {
+    const certNo = String(req.query.certNo || '').trim().toUpperCase();
+    if (!certNo) return res.status(400).json({ success: false, message: '인증번호가 필요합니다.' });
+    const w = await db.collection(warranty.WARRANTY_COLLECTION).findOne({ certNo });
+    if (!w) return res.status(404).json({ success: false, message: '해당 인증번호를 찾을 수 없습니다.' });
+    res.json({ success: true, warranty: warrantyView(w) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [W-4] A/S 접수·처리 (상담원이 콜 받으며 상태/메모 기록)
+const AS_STATUSES = ['접수', '처리중', '완료', '반려'];
+app.post('/api/warranty/as', async (req, res) => {
+  try {
+    const { certNo, status, memo, by } = req.body || {};
+    const cert = String(certNo || '').trim().toUpperCase();
+    if (!cert) return res.status(400).json({ success: false, message: '인증번호가 필요합니다.' });
+    if (!AS_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, message: `상태값은 ${AS_STATUSES.join('/')} 중 하나여야 합니다.` });
+    }
+    const entry = { at: new Date(), status, memo: (memo || '').trim(), by: (by || '상담원').trim() };
+    const r = await db.collection(warranty.WARRANTY_COLLECTION).findOneAndUpdate(
+      { certNo: cert },
+      { $set: { asStatus: status }, $push: { asHistory: entry } },
+      { returnDocument: 'after' }
+    );
+    // 드라이버 버전 호환: v6는 문서 직접 반환, 구버전은 {value}
+    const doc = r ? (r.value !== undefined ? r.value : r) : null;
+    if (!doc || !doc.certNo) return res.status(404).json({ success: false, message: '해당 인증번호를 찾을 수 없습니다.' });
+    res.json({ success: true, warranty: warrantyView(doc) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [W-5] 인증현황 목록 (검색: 이름/휴대폰/인증번호/A/S상태)
+app.get('/api/warranty/list', async (req, res) => {
+  try {
+    const { q, asStatus, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (q) {
+      const s = String(q).trim();
+      const phone = erp.normalizePhone(s).digits;
+      filter.$or = [
+        { customerName: new RegExp(s, 'i') },
+        { certNo: new RegExp(s, 'i') },
+        { memberId: new RegExp(s, 'i') },
+      ];
+      if (phone) filter.$or.push({ phone });
+    }
+    if (asStatus) filter.asStatus = asStatus;
+    const lim = Math.min(Number(limit) || 50, 200);
+    const skip = (Math.max(Number(page) || 1, 1) - 1) * lim;
+    const col = db.collection(warranty.WARRANTY_COLLECTION);
+    const [docs, count] = await Promise.all([
+      col.find(filter).sort({ authAt: -1 }).skip(skip).limit(lim).toArray(),
+      col.countDocuments(filter),
+    ]);
+    res.json({ success: true, count, page: Number(page), limit: lim, items: docs.map(warrantyView) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ---------- [관리자] 보증연장 프로모션 기간 관리 ----------
+// [W-6] 목록
+app.get('/api/warranty/promotions', async (req, res) => {
+  try {
+    const list = await db.collection(warranty.PROMO_COLLECTION).find().sort({ startDate: -1 }).toArray();
+    const now = new Date();
+    res.json({
+      success: true,
+      items: list.map(p => ({
+        _id: p._id, name: p.name,
+        startDate: warranty.ymd(p.startDate), endDate: warranty.ymd(p.endDate),
+        months: p.months || warranty.PROMO_MONTHS,
+        active: p.active !== false,
+        isNow: p.active !== false && new Date(p.startDate) <= now && new Date(p.endDate) >= now,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [W-7] 등록/수정 (_id 있으면 수정)
+app.post('/api/warranty/promotions', async (req, res) => {
+  try {
+    const { _id, name, startDate, endDate, months, active } = req.body || {};
+    if (!name || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: '이름·시작일·종료일이 필요합니다.' });
+    }
+    // 날짜는 KST 자정~자정 기준으로 저장
+    const start = new Date(`${startDate}T00:00:00+09:00`);
+    const end = new Date(`${endDate}T23:59:59+09:00`);
+    if (isNaN(start) || isNaN(end) || start > end) {
+      return res.status(400).json({ success: false, message: '기간이 올바르지 않습니다.' });
+    }
+    const doc = {
+      name: String(name).trim(),
+      startDate: start, endDate: end,
+      months: Number(months) || warranty.PROMO_MONTHS,
+      active: active !== false,
+      updatedAt: new Date(),
+    };
+    const col = db.collection(warranty.PROMO_COLLECTION);
+    if (_id) {
+      await col.updateOne({ _id: new ObjectId(_id) }, { $set: doc });
+    } else {
+      await col.insertOne({ ...doc, createdAt: new Date() });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// [W-8] 삭제
+app.delete('/api/warranty/promotions/:id', async (req, res) => {
+  try {
+    await db.collection(warranty.PROMO_COLLECTION).deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ========== [9] 서버 초기화 및 시작 (가장 중요) ==========
 (async function initialize() {
   const client = new MongoClient(process.env.MONGODB_URI); // 옵션 생략 가능
@@ -6293,6 +6665,17 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
       console.log('✅ yogiboNewMemberEvent0428 Unique Index 확인 완료');
     } catch (idxErr) {
       console.warn('⚠️ yogiboNewMemberEvent0428 Index 생성 경고:', idxErr.message);
+    }
+
+    // [정품인증] warranties 인덱스 (제품 1건당 1회 인증 + 난수번호 유니크)
+    try {
+      await db.collection(warranty.WARRANTY_COLLECTION).createIndex({ rowHash: 1 }, { unique: true });
+      await db.collection(warranty.WARRANTY_COLLECTION).createIndex({ certNo: 1 }, { unique: true });
+      await db.collection(warranty.WARRANTY_COLLECTION).createIndex({ memberId: 1 });
+      await db.collection(warranty.WARRANTY_COLLECTION).createIndex({ phone: 1 });
+      console.log('✅ warranties Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ warranties Index 생성 경고:', idxErr.message);
     }
 
     // 3. 서버 리스닝

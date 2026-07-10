@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>요기보 정품인증 · 보증기간 연장</title>
+  <style>
+    :root { --bg:#f5f6f8; --card:#fff; --line:#e6e8ec; --txt:#1a1d24; --sub:#6b7280; --accent:#2f6bff; --ok:#16a34a; --warn:#d97706; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,'Malgun Gothic','Segoe UI',sans-serif; background:var(--bg); color:var(--txt); }
+    .wrap { max-width:640px; margin:0 auto; padding:20px 16px 60px; }
+    h1 { font-size:20px; margin:8px 0 2px; }
+    .lead { color:var(--sub); font-size:13px; margin-bottom:18px; }
+    .searchbar { display:flex; gap:8px; margin-bottom:16px; }
+    input { flex:1; border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:15px; }
+    button { background:var(--accent); color:#fff; border:0; border-radius:10px; padding:12px 18px; font-size:15px; font-weight:600; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .member { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+    .member .nm { font-size:17px; font-weight:700; }
+    .member .ph { color:var(--sub); font-size:13px; margin-top:4px; }
+    .banner { border-radius:10px; padding:12px 14px; font-size:13px; margin-bottom:14px; display:none; }
+    .banner.show { display:block; }
+    .banner.warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
+    .banner.err { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
+    .card .top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+    .pname { font-size:15px; font-weight:700; }
+    .pspec { color:var(--sub); font-size:13px; margin-top:3px; }
+    .meta { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--sub); }
+    .warr { margin-top:12px; padding:11px 13px; border-radius:10px; background:#f0f6ff; font-size:13px; }
+    .warr.done { background:#f0fdf4; }
+    .warr b { color:var(--txt); }
+    .badge { font-size:11px; font-weight:700; padding:4px 9px; border-radius:20px; white-space:nowrap; }
+    .badge.ok { background:#dcfce7; color:var(--ok); }
+    .badge.promo { background:#fef3c7; color:var(--warn); }
+    .btn-auth { width:100%; margin-top:12px; }
+    .empty { text-align:center; color:var(--sub); padding:40px 0; }
+    .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:6px; }
+    @keyframes s { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>요기보 정품인증</h1>
+    <div class="lead">구매하신 제품을 정품인증하면 보증기간이 연장됩니다. (기본 1년 · 프로모션 기간 인증 시 1년 6개월)</div>
+
+    <div class="searchbar">
+      <input type="text" id="memberId" placeholder="회원 아이디 입력" onkeydown="if(event.key==='Enter')lookup()" />
+      <button id="btn-search" onclick="lookup()">조회</button>
+    </div>
+
+    <div id="banner" class="banner"></div>
+    <div id="member"></div>
+    <div id="list"></div>
+  </div>
+
+<script>
+const API = '';
+const $ = (id) => document.getElementById(id);
+function banner(text, type) { const b = $('banner'); if (!text) { b.className = 'banner'; return; } b.textContent = text; b.className = 'banner show ' + (type || 'warn'); }
+function esc(s) { return String(s ?? '').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c])); }
+
+// URL ?memberId= 있으면 자동 조회 (Cafe24 로그인 연동 시 여기에 주입)
+window.addEventListener('DOMContentLoaded', () => {
+  const q = new URLSearchParams(location.search).get('memberId');
+  if (q) { $('memberId').value = q; lookup(); }
+});
+
+let currentMember = null;
+
+async function lookup() {
+  const memberId = $('memberId').value.trim();
+  if (!memberId) return;
+  banner(''); $('member').innerHTML = ''; currentMember = memberId;
+  const btn = $('btn-search'); btn.disabled = true; btn.textContent = '조회중';
+  $('list').innerHTML = '<div class="empty">불러오는 중...</div>';
+  try {
+    const r = await fetch(API + '/api/warranty/lookup?memberId=' + encodeURIComponent(memberId)).then(r => r.json());
+    if (!r.success) { banner(r.message || '조회 실패', 'err'); $('list').innerHTML = ''; return; }
+    $('member').innerHTML = `<div class="member"><div class="nm">${esc(r.member.name)} 님</div><div class="ph">${esc(r.member.memberId)} · ${esc(r.member.phone)}</div></div>`;
+    if (!r.member.matchable) {
+      banner('가입하신 휴대폰번호(010)가 확인되지 않아 자동 정품인증이 어렵습니다. 고객센터로 문의해 주세요.', 'warn');
+    }
+    renderList(r.items);
+  } catch (e) { banner(e.message, 'err'); $('list').innerHTML = ''; }
+  btn.disabled = false; btn.textContent = '조회';
+}
+
+function renderList(items) {
+  if (!items || !items.length) { $('list').innerHTML = '<div class="empty">매칭되는 구매 제품이 없습니다.</div>'; return; }
+  $('list').innerHTML = items.map(it => {
+    const done = it.authorized;
+    const promo = it.preview.promotion;
+    const warrHtml = done
+      ? `<div class="warr done">✅ <b>정품인증 완료</b> · 보증 ${done.months}개월 · 만료 <b>${done.endDate}</b></div>`
+      : `<div class="warr">예상 보증: <b>${it.preview.months}개월</b> · 만료 <b>${it.preview.endDate}</b>${promo ? ` <span class="badge promo">${esc(promo.name || '프로모션')} 적용</span>` : ''}</div>`;
+    const btn = done
+      ? `<span class="badge ok">인증완료</span>`
+      : `<button class="btn-auth" onclick="authOne('${it.rowHash}', this)">이 제품 정품인증하기</button>`;
+    return `<div class="card">
+      <div class="top">
+        <div><div class="pname">${esc(it.productName)}</div><div class="pspec">${esc(it.spec)}</div></div>
+        ${done ? '<span class="badge ok">인증완료</span>' : ''}
+      </div>
+      <div class="meta"><span>구매일 ${esc(it.saleDateStr)}</span><span>${esc(it.channel)}</span><span>수량 ${it.qty}</span></div>
+      ${warrHtml}
+      ${done ? '' : btn}
+    </div>`;
+  }).join('');
+}
+
+async function authOne(rowHash, btnEl) {
+  if (!currentMember) return;
+  btnEl.disabled = true; btnEl.innerHTML = '<span class="spin"></span>인증 처리중';
+  try {
+    const r = await fetch(API + '/api/warranty/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: currentMember, rowHashes: [rowHash] }),
+    }).then(r => r.json());
+    if (!r.success) { banner(r.message || '인증 실패', 'err'); btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; return; }
+    lookup(); // 갱신
+  } catch (e) { banner(e.message, 'err'); btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>이카운트 판매현황 적재 (정품인증 기반)</title>
+  <style>
+    :root { --bg:#0f1115; --card:#181b22; --line:#262a33; --txt:#e7eaf0; --sub:#9aa3b2; --accent:#4f8cff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:'Segoe UI',-apple-system,'Malgun Gothic',sans-serif; background:var(--bg); color:var(--txt); padding:24px; }
+    h1 { font-size:20px; margin:0 0 4px; }
+    .sub { color:var(--sub); font-size:13px; margin-bottom:20px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    .card .k { color:var(--sub); font-size:12px; }
+    .card .v { font-size:24px; font-weight:700; margin-top:6px; }
+    .v.ok { color:var(--ok); } .v.warn { color:var(--warn); }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+    button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+    button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    input[type=text] { background:var(--card); border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:9px 12px; font-size:14px; }
+    .msg { padding:12px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; display:none; white-space:pre-wrap; }
+    .msg.show { display:block; }
+    .msg.ok { background:rgba(34,197,94,.12); border:1px solid var(--ok); }
+    .msg.err { background:rgba(239,68,68,.12); border:1px solid var(--bad); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { color:var(--sub); font-weight:600; position:sticky; top:0; background:var(--card); }
+    .tag { font-size:11px; padding:2px 7px; border-radius:20px; }
+    .tag.mobile { background:rgba(34,197,94,.15); color:var(--ok); }
+    .tag.safe,.tag.other,.tag.empty { background:rgba(245,158,11,.15); color:var(--warn); }
+    .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:55vh; }
+    .spin { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+    @keyframes s { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>이카운트 판매현황 적재</h1>
+  <div class="sub">data.xlsx (매크로 다운로드본) → MongoDB · 휴대폰번호 기준 정품인증 매칭 데이터</div>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="grid" id="stats">
+    <div class="card"><div class="k">전체 판매 라인</div><div class="v" id="s-total">-</div></div>
+    <div class="card"><div class="k">매칭 가능(010)</div><div class="v ok" id="s-match">-</div></div>
+    <div class="card"><div class="k">고유 매칭 고객</div><div class="v ok" id="s-uniq">-</div></div>
+    <div class="card"><div class="k">최근 동기화</div><div class="v" id="s-last" style="font-size:14px;">-</div></div>
+  </div>
+
+  <div class="toolbar">
+    <button id="btn-sync" onclick="doSync()">🔄 data.xlsx 동기화</button>
+    <label class="ghost" style="padding:10px 16px; border-radius:8px; border:1px solid var(--line); cursor:pointer;">
+      📁 파일 업로드<input type="file" id="file" accept=".xlsx" style="display:none" onchange="doUpload(this)" />
+    </label>
+    <span style="flex:1"></span>
+    <input type="text" id="q-name" placeholder="고객명" style="width:120px" />
+    <input type="text" id="q-phone" placeholder="휴대폰번호" style="width:150px" />
+    <button class="ghost" onclick="loadSales(1)">검색</button>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>구매일</th><th>주문키</th><th>채널</th><th>품목코드</th><th>품목명</th>
+        <th>규격</th><th>수량</th><th>금액</th><th>고객명</th><th>연락처</th><th>유형</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="11" style="color:var(--sub);padding:20px;text-align:center;">검색을 눌러 데이터를 조회하세요.</td></tr></tbody>
+    </table>
+  </div>
+
+<script>
+const API = ''; // 동일 서버
+function showMsg(text, ok) {
+  const el = document.getElementById('msg');
+  el.textContent = text; el.className = 'msg show ' + (ok ? 'ok' : 'err');
+}
+function fmtDate(d) { return d ? new Date(d).toLocaleString('ko-KR') : '-'; }
+function num(n) { return (n ?? 0).toLocaleString('ko-KR'); }
+
+async function loadStats() {
+  try {
+    const r = await fetch(API + '/api/erp/stats').then(r => r.json());
+    if (!r.success) return;
+    document.getElementById('s-total').textContent = num(r.total);
+    document.getElementById('s-match').textContent = num(r.matchable);
+    document.getElementById('s-uniq').textContent = num(r.uniqueMatchablePhones);
+    document.getElementById('s-last').textContent = r.lastSync ? fmtDate(r.lastSync.at) : '없음';
+  } catch (e) {}
+}
+
+async function doSync() {
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>동기화 중...';
+  try {
+    const r = await fetch(API + '/api/erp/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json());
+    if (r.success) {
+      showMsg(`✅ 동기화 완료\n· 전체 ${num(r.stats.kept)}줄 (스킵 ${r.stats.skipped})\n· 신규 ${num(r.ingest.upserted)} / 갱신 ${num(r.ingest.modified)}\n· 매칭가능(010) ${num(r.stats.phoneMobile)} · 안심번호 ${r.stats.phoneSafe} · 연락처없음 ${r.stats.phoneEmpty}`, true);
+      loadStats();
+    } else showMsg('❌ ' + r.message, false);
+  } catch (e) { showMsg('❌ ' + e.message, false); }
+  btn.disabled = false; btn.textContent = '🔄 data.xlsx 동기화';
+}
+
+async function doUpload(input) {
+  if (!input.files[0]) return;
+  const fd = new FormData(); fd.append('file', input.files[0]);
+  showMsg('업로드 적재 중...', true);
+  try {
+    const r = await fetch(API + '/api/erp/upload', { method: 'POST', body: fd }).then(r => r.json());
+    if (r.success) { showMsg(`✅ 업로드 적재 완료 · 신규 ${num(r.ingest.upserted)} / 갱신 ${num(r.ingest.modified)}`, true); loadStats(); }
+    else showMsg('❌ ' + r.message, false);
+  } catch (e) { showMsg('❌ ' + e.message, false); }
+  input.value = '';
+}
+
+async function loadSales(page) {
+  const name = document.getElementById('q-name').value.trim();
+  const phone = document.getElementById('q-phone').value.trim();
+  const qs = new URLSearchParams({ page: page || 1, limit: 100 });
+  if (name) qs.set('name', name);
+  if (phone) qs.set('phone', phone);
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--sub)">불러오는 중...</td></tr>';
+  try {
+    const r = await fetch(API + '/api/erp/sales?' + qs).then(r => r.json());
+    if (!r.success || !r.items.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--sub)">결과 없음</td></tr>'; return; }
+    tbody.innerHTML = r.items.map(x => `<tr>
+      <td>${x.saleDateStr || '-'}</td><td>${x.orderKey || '-'}</td><td>${x.channel || '-'}</td>
+      <td>${x.productCode || '-'}</td><td>${x.productName || '-'}</td><td>${x.spec || '-'}</td>
+      <td>${num(x.qty)}</td><td>${num(x.amount)}</td><td>${x.customerName || '-'}</td>
+      <td>${x.phoneRaw || '-'}</td><td><span class="tag ${x.phoneType}">${x.phoneType}</span></td>
+    </tr>`).join('');
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="11" style="color:var(--bad);padding:20px;text-align:center">' + e.message + '</td></tr>'; }
+}
+
+loadStats();
+</script>
+</body>
+</html>

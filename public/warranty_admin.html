@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>정품인증 관리자 · A/S 상담</title>
+  <style>
+    :root { --bg:#0f1115; --card:#181b22; --line:#262a33; --txt:#e7eaf0; --sub:#9aa3b2; --accent:#4f8cff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,'Malgun Gothic','Segoe UI',sans-serif; background:var(--bg); color:var(--txt); padding:22px; }
+    h1 { font-size:19px; margin:0 0 16px; }
+    .tabs { display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+    .tab { padding:10px 16px; cursor:pointer; color:var(--sub); font-weight:600; font-size:14px; border-bottom:2px solid transparent; }
+    .tab.on { color:var(--txt); border-bottom-color:var(--accent); }
+    .panel { display:none; } .panel.on { display:block; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:14px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    input, select { background:#0f1115; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:10px 12px; font-size:14px; }
+    input.big { font-size:18px; letter-spacing:1px; font-weight:700; text-transform:uppercase; }
+    button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+    button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+    button.danger { background:transparent; border:1px solid var(--bad); color:var(--bad); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .msg { padding:11px 13px; border-radius:8px; margin:12px 0; font-size:13px; display:none; }
+    .msg.show { display:block; } .msg.ok { background:rgba(34,197,94,.12); border:1px solid var(--ok); } .msg.err { background:rgba(239,68,68,.12); border:1px solid var(--bad); }
+    .kv { display:grid; grid-template-columns:110px 1fr; gap:8px 14px; font-size:14px; margin-top:6px; }
+    .kv .k { color:var(--sub); }
+    .badge { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; }
+    .b-접수 { background:rgba(79,140,255,.18); color:var(--accent); }
+    .b-처리중 { background:rgba(245,158,11,.18); color:var(--warn); }
+    .b-완료 { background:rgba(34,197,94,.18); color:var(--ok); }
+    .b-반려 { background:rgba(239,68,68,.18); color:var(--bad); }
+    .b-expired { background:rgba(239,68,68,.18); color:var(--bad); }
+    .b-valid { background:rgba(34,197,94,.18); color:var(--ok); }
+    .b-now { background:rgba(245,158,11,.2); color:var(--warn); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { color:var(--sub); font-weight:600; }
+    .tablewrap { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:60vh; }
+    .hist { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+    .hist .item { font-size:13px; padding:7px 0; border-bottom:1px dashed var(--line); }
+    .hist .item .t { color:var(--sub); font-size:11px; }
+    .muted { color:var(--sub); font-size:13px; }
+    .cert { font-family:monospace; font-weight:700; letter-spacing:1px; }
+  </style>
+</head>
+<body>
+  <h1>정품인증 관리자</h1>
+  <div class="tabs">
+    <div class="tab on" data-t="as" onclick="tab('as')">A/S 상담 (난수번호)</div>
+    <div class="tab" data-t="list" onclick="tab('list')">인증현황</div>
+    <div class="tab" data-t="promo" onclick="tab('promo')">프로모션 기간</div>
+  </div>
+
+  <!-- ===== A/S 상담 ===== -->
+  <div class="panel on" id="p-as">
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">고객이 콜로 불러준 인증번호를 입력하세요.</div>
+      <div class="row">
+        <input class="big" id="certInput" placeholder="YGB-XXXXX-XXXXX" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')findCert()" />
+        <button onclick="findCert()">조회</button>
+      </div>
+    </div>
+    <div id="as-msg" class="msg"></div>
+    <div id="as-result"></div>
+  </div>
+
+  <!-- ===== 인증현황 ===== -->
+  <div class="panel" id="p-list">
+    <div class="card">
+      <div class="row">
+        <input id="listQ" placeholder="이름 / 휴대폰 / 인증번호 / 아이디" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')loadList(1)" />
+        <select id="listStatus">
+          <option value="">A/S 전체</option>
+          <option>접수</option><option>처리중</option><option>완료</option><option>반려</option>
+        </select>
+        <button onclick="loadList(1)">검색</button>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>인증번호</th><th>고객</th><th>제품</th><th>구매일</th><th>인증일</th><th>보증만료</th><th>보증</th><th>A/S</th></tr></thead>
+        <tbody id="list-rows"><tr><td colspan="8" class="muted" style="padding:18px;text-align:center">검색하세요.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== 프로모션 기간 ===== -->
+  <div class="panel" id="p-promo">
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">설정한 기간 안에 정품인증하면 보증이 자동으로 해당 개월(기본 18개월=1년6개월)로 계산됩니다.</div>
+      <div class="row">
+        <input id="pmName" placeholder="프로모션 이름 (예: 여름 정품인증 프로모션)" style="flex:1;min-width:180px" />
+        <input id="pmStart" type="date" />
+        <span class="muted">~</span>
+        <input id="pmEnd" type="date" />
+        <input id="pmMonths" type="number" value="18" style="width:80px" title="보증 개월" />
+        <button onclick="savePromo()">추가</button>
+        <input type="hidden" id="pmId" />
+      </div>
+    </div>
+    <div id="promo-msg" class="msg"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>이름</th><th>기간</th><th>개월</th><th>상태</th><th></th></tr></thead>
+        <tbody id="promo-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const API = '';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
+function msg(el, text, type) { const b = $(el); if (!text) { b.className='msg'; return; } b.textContent=text; b.className='msg show '+(type||'ok'); }
+function tab(t) {
+  document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.dataset.t === t));
+  document.querySelectorAll('.panel').forEach(e => e.classList.remove('on'));
+  $('p-'+t).classList.add('on');
+  if (t === 'list') loadList(1);
+  if (t === 'promo') loadPromos();
+}
+
+/* ---------- A/S 상담 ---------- */
+let currentCert = null;
+async function findCert() {
+  const certNo = $('certInput').value.trim().toUpperCase();
+  if (!certNo) return;
+  msg('as-msg',''); $('as-result').innerHTML = '<div class="muted">조회중...</div>';
+  try {
+    const r = await fetch(API + '/api/warranty/cert?certNo=' + encodeURIComponent(certNo)).then(r => r.json());
+    if (!r.success) { $('as-result').innerHTML=''; msg('as-msg', r.message, 'err'); return; }
+    renderCert(r.warranty);
+  } catch (e) { $('as-result').innerHTML=''; msg('as-msg', e.message, 'err'); }
+}
+function statusBadge(s) { return s ? `<span class="badge b-${s}">${s}</span>` : '<span class="muted">미접수</span>'; }
+function renderCert(w) {
+  currentCert = w.certNo;
+  const validBadge = w.expired ? '<span class="badge b-expired">보증만료</span>' : '<span class="badge b-valid">보증유효</span>';
+  const hist = (w.asHistory || []).slice().reverse().map(h =>
+    `<div class="item"><div><b>${esc(h.status)}</b> ${esc(h.memo||'')} <span class="muted">— ${esc(h.by||'')}</span></div><div class="t">${new Date(h.at).toLocaleString('ko-KR')}</div></div>`
+  ).join('') || '<div class="muted">A/S 이력 없음</div>';
+  $('as-result').innerHTML = `<div class="card">
+    <div class="row" style="justify-content:space-between"><div class="cert" style="font-size:18px">${esc(w.certNo)}</div><div>${validBadge} ${statusBadge(w.asStatus)}</div></div>
+    <div class="kv">
+      <div class="k">고객</div><div>${esc(w.customerName)} · ${esc(w.phone)} <span class="muted">(${esc(w.memberId)})</span></div>
+      <div class="k">제품</div><div>${esc(w.productName)} <span class="muted">${esc(w.spec)}</span> · ${esc(w.productCode)}</div>
+      <div class="k">구매</div><div>${esc(w.saleDateStr)} · ${esc(w.channel)}</div>
+      <div class="k">보증</div><div>${w.months}개월 · 만료 <b>${esc(w.endDate)}</b>${w.promotionName?` <span class="badge b-now">${esc(w.promotionName)}</span>`:''}</div>
+    </div>
+    <div class="hist"><div class="muted" style="margin-bottom:6px">A/S 이력</div>${hist}</div>
+    <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+      <div class="row">
+        <select id="asStatus"><option>접수</option><option>처리중</option><option>완료</option><option>반려</option></select>
+        <input id="asMemo" placeholder="처리 메모 (증상/조치 내용)" style="flex:1;min-width:200px" />
+        <input id="asBy" placeholder="상담원" style="width:100px" />
+        <button onclick="submitAs()">A/S 기록</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function submitAs() {
+  if (!currentCert) return;
+  const body = { certNo: currentCert, status: $('asStatus').value, memo: $('asMemo').value, by: $('asBy').value };
+  try {
+    const r = await fetch(API + '/api/warranty/as', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r=>r.json());
+    if (!r.success) { msg('as-msg', r.message, 'err'); return; }
+    msg('as-msg', '✅ A/S 기록 완료', 'ok'); renderCert(r.warranty);
+  } catch (e) { msg('as-msg', e.message, 'err'); }
+}
+
+/* ---------- 인증현황 ---------- */
+async function loadList(page) {
+  const qs = new URLSearchParams({ page: page||1, limit: 100 });
+  const q = $('listQ').value.trim(); if (q) qs.set('q', q);
+  const st = $('listStatus').value; if (st) qs.set('asStatus', st);
+  const tbody = $('list-rows'); tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:18px;text-align:center">불러오는 중...</td></tr>';
+  try {
+    const r = await fetch(API + '/api/warranty/list?' + qs).then(r=>r.json());
+    if (!r.success || !r.items.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:18px;text-align:center">결과 없음</td></tr>'; return; }
+    tbody.innerHTML = r.items.map(w => `<tr>
+      <td class="cert">${esc(w.certNo)}</td>
+      <td>${esc(w.customerName)}<br><span class="muted">${esc(w.phone)}</span></td>
+      <td>${esc(w.productName)}<br><span class="muted">${esc(w.spec)}</span></td>
+      <td>${esc(w.saleDateStr)}</td>
+      <td>${w.authAt ? new Date(w.authAt).toLocaleDateString('ko-KR') : '-'}</td>
+      <td>${esc(w.endDate)} ${w.expired?'<span class="badge b-expired">만료</span>':''}</td>
+      <td>${w.months}개월${w.promotionName?' 🎁':''}</td>
+      <td>${statusBadge(w.asStatus)}</td>
+    </tr>`).join('');
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--bad);padding:18px;text-align:center">'+e.message+'</td></tr>'; }
+}
+
+/* ---------- 프로모션 기간 ---------- */
+async function loadPromos() {
+  try {
+    const r = await fetch(API + '/api/warranty/promotions').then(r=>r.json());
+    const tbody = $('promo-rows');
+    if (!r.items.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:18px;text-align:center">등록된 프로모션 없음</td></tr>'; return; }
+    tbody.innerHTML = r.items.map(p => `<tr>
+      <td>${esc(p.name)}</td>
+      <td>${esc(p.startDate)} ~ ${esc(p.endDate)}</td>
+      <td>${p.months}개월</td>
+      <td>${p.isNow?'<span class="badge b-now">진행중</span>':(p.active?'<span class="muted">대기/종료</span>':'<span class="muted">비활성</span>')}</td>
+      <td>
+        <button class="ghost" onclick='editPromo(${JSON.stringify(p)})'>수정</button>
+        <button class="danger" onclick="delPromo('${p._id}')">삭제</button>
+      </td>
+    </tr>`).join('');
+  } catch (e) { msg('promo-msg', e.message, 'err'); }
+}
+function editPromo(p) {
+  $('pmId').value = p._id; $('pmName').value = p.name; $('pmStart').value = p.startDate; $('pmEnd').value = p.endDate; $('pmMonths').value = p.months;
+  msg('promo-msg', '수정 모드: 값 변경 후 추가 버튼', 'ok');
+}
+async function savePromo() {
+  const body = { _id: $('pmId').value || undefined, name: $('pmName').value.trim(), startDate: $('pmStart').value, endDate: $('pmEnd').value, months: Number($('pmMonths').value) };
+  if (!body.name || !body.startDate || !body.endDate) { msg('promo-msg', '이름·기간을 입력하세요.', 'err'); return; }
+  try {
+    const r = await fetch(API + '/api/warranty/promotions', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r=>r.json());
+    if (!r.success) { msg('promo-msg', r.message, 'err'); return; }
+    msg('promo-msg', '✅ 저장 완료', 'ok');
+    $('pmId').value=''; $('pmName').value=''; $('pmStart').value=''; $('pmEnd').value=''; $('pmMonths').value=18;
+    loadPromos();
+  } catch (e) { msg('promo-msg', e.message, 'err'); }
+}
+async function delPromo(id) {
+  if (!confirm('이 프로모션 기간을 삭제할까요?')) return;
+  try {
+    const r = await fetch(API + '/api/warranty/promotions/' + id, { method:'DELETE' }).then(r=>r.json());
+    if (r.success) loadPromos();
+  } catch (e) { msg('promo-msg', e.message, 'err'); }
+}
+</script>
+</body>
+</html>
