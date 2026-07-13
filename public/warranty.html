@@ -116,33 +116,135 @@ async function jsonFetch(url, opts) {
 // ===== Cafe24 로그인 회원 자동 조회 (룰렛 이벤트와 동일 방식) =====
 const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
 const LOGIN_BASE = '/member/login.html';
-let cafeRetry = 0;
+let sdkRetry = 0, idRetry = 0;
 let currentMember = null;
 let itemsCache = {};
 
 window.addEventListener('DOMContentLoaded', () => {
-  // 테스트/직접접근용: ?memberId= 있으면 그걸로
+  // 우선순위 1) 테스트/직접접근용 ?memberId=
   const q = new URLSearchParams(location.search).get('memberId');
-  if (q) { lookup(q); return; }
+  if (q) { console.log('[정품인증] ?memberId= 파라미터 사용:', q); lookup(q); return; }
+
   setAuthState('<div class="member"><div class="hi">회원 정보를 확인하고 있어요...</div></div>');
-  initCafe24();
+  console.log('[정품인증] 회원 확인 시작 | URL=', location.href);
+
+  // 우선순위 2) 자사몰 layout이 localStorage에 캐시해둔 회원ID
+  const fromStorage = getMemberIdFromStorage();
+  if (fromStorage) { setAuthState(''); lookup(fromStorage); return; }
+
+  // 우선순위 3) layout 전역변수
+  const fromLayout = getMemberIdFromLayout();
+  if (fromLayout) { setAuthState(''); lookup(fromLayout); return; }
+
+  // 우선순위 4) Cafe24 스토어프론트 SDK
+  waitForSDK();
 });
 
 function setAuthState(html) { $('authState').innerHTML = html || ''; }
 
-function initCafe24() {
+// layout이 localStorage에 저장해둔 회원ID 읽기 (키 이름을 몰라서 전체 스캔 + 자동탐지)
+function getMemberIdFromStorage() {
+  try {
+    const all = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      try { all[k] = localStorage.getItem(k); } catch (e) {}
+    }
+    console.log('[정품인증] 🗄️ localStorage 전체:', all);
+    const keys = Object.keys(all);
+    // 회원ID처럼 보이는 키 우선 (member/login/user/cust 포함, expiry/token 류 제외)
+    const idKey = keys.find(k =>
+      /member|login|user|cust|mid/i.test(k) && !/expir|token|time|ts$/i.test(k) && isValidId(all[k])
+    );
+    if (idKey) {
+      console.log('[정품인증] ✅ localStorage에서 회원ID 발견:', idKey, '=', all[idKey]);
+      return String(all[idKey]).trim();
+    }
+    console.log('[정품인증] localStorage에서 회원ID 후보 못 찾음');
+  } catch (e) { console.warn('[정품인증] localStorage 접근 오류:', e); }
+  return null;
+}
+
+// 유효한 회원ID인지 (미치환 템플릿토큰 / GUEST / 빈값 제외)
+function isValidId(v) {
+  if (!v && v !== 0) return false;
+  const s = String(v).trim();
+  // 미치환 Cafe24 템플릿토큰(여는중괄호+달러로 시작)은 무효 처리
+  const unresolved = s.charAt(0) === '{' && s.charAt(1) === '$';
+  return s && !unresolved && s.toUpperCase() !== 'GUEST';
+}
+
+// layout/스킨이 제공하는 회원ID 읽기
+function getMemberIdFromLayout() {
+  // ★ 권장: 스킨 layout에서 회원ID 템플릿변수를 window.__YGB_MEMBER_ID__ 에 담아두면 최우선으로 사용
+  if (isValidId(window.__YGB_MEMBER_ID__)) {
+    console.log('[정품인증] ✅ __YGB_MEMBER_ID__ =', window.__YGB_MEMBER_ID__);
+    return String(window.__YGB_MEMBER_ID__).trim();
+  }
+  const cands = {
+    'window.__YGB_MEMBER_ID__': window.__YGB_MEMBER_ID__,
+    'window.member_id': window.member_id,
+    'window.MEMBER_ID': window.MEMBER_ID,
+    'window.memberId': window.memberId,
+    'window.gMemberId': window.gMemberId,
+    'window.g_member_id': window.g_member_id,
+    'window.MEMBERID': window.MEMBERID,
+    'window.loginId': window.loginId,
+    'window.user_id': window.user_id,
+  };
+  console.log('[정품인증] layout 회원ID 후보 점검:', cands);
+  for (const k in cands) {
+    if (isValidId(cands[k])) {
+      console.log('[정품인증] ✅ layout 전역변수에서 회원ID 발견:', k, '=', cands[k]);
+      return String(cands[k]).trim();
+    }
+  }
+  // 후보에 없으면: window 전역 중 이름에 member/user/login 들어간 문자열 변수 전부 스캔해 출력
+  try {
+    const found = {};
+    for (const key in window) {
+      if (!/member|user|login|cust/i.test(key)) continue;
+      let val; try { val = window[key]; } catch (e) { continue; }
+      if (typeof val === 'string' || typeof val === 'number') found[key] = val;
+    }
+    console.log('[정품인증] 🔎 member/user/login 관련 전역변수 스캔:', found);
+  } catch (e) {}
+  console.log('[정품인증] layout 전역변수에서는 회원ID 못 찾음 → SDK로 시도');
+  return null;
+}
+
+// 1) Cafe24 스토어프론트 SDK(CAFE24API) 로드 대기
+function waitForSDK() {
   if (typeof CAFE24API === 'undefined') {
-    if (cafeRetry++ < 10) { setTimeout(initCafe24, 500); return; }
+    if (sdkRetry++ < 20) { console.log('[정품인증] CAFE24API 대기중... 재시도', sdkRetry); setTimeout(waitForSDK, 500); return; }
+    console.warn('[정품인증] ❌ CAFE24API 로드 실패 — 이 페이지에 스토어프론트 SDK가 주입되지 않음');
     showLogin(); return;
   }
+  console.log('[정품인증] ✅ CAFE24API 감지 | 사용가능 메서드:', Object.keys(CAFE24API));
   try {
     CAFE24API.init(CAFE24_APP_KEY);
+    console.log('[정품인증] CAFE24API.init(appKey) 완료 → getMemberID 호출');
+    fetchMemberId();
+  } catch (e) { console.error('[정품인증] init 오류:', e); showLogin(); }
+}
+
+// 2) 로그인 회원 아이디 취득 (지연 대비 재시도)
+function fetchMemberId() {
+  try {
     CAFE24API.getMemberID(function (res) {
-      if (res && res !== 'GUEST') { setAuthState(''); lookup(res); }
-      else if (cafeRetry++ < 5) { setTimeout(initCafe24, 500); }
-      else { showLogin(); }
+      console.log('[정품인증] getMemberID 응답:', JSON.stringify(res), '| type:', typeof res);
+      if (res && res !== 'GUEST') {
+        console.log('[정품인증] ✅ 로그인 회원 확인:', res);
+        setAuthState(''); lookup(res);
+      } else if (idRetry++ < 5) {
+        console.log('[정품인증] 회원ID 비어있음(비로그인/지연) 재시도', idRetry);
+        setTimeout(fetchMemberId, 600);
+      } else {
+        console.warn('[정품인증] ❌ 최종 비로그인 판단 (getMemberID가 계속 빈 값)');
+        showLogin();
+      }
     });
-  } catch (e) { showLogin(); }
+  } catch (e) { console.error('[정품인증] getMemberID 오류:', e); showLogin(); }
 }
 
 function showLogin() {
