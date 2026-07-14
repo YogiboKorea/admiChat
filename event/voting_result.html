@@ -1,11 +1,5 @@
 <!--@layout(/layout/basic/layout.html)-->
 <style type="text/css">
-    body {
-        margin: 0;
-        padding: 0;
-        background-color: #111;
-    }
-
     .voting_result {
         width: 100%;
         min-width: 320px;
@@ -22,7 +16,7 @@
     }
 
     /* 스포트라이트 효과 */
-    .spotlight {
+    .voting_result .spotlight {
         position: absolute;
         bottom: -50px;
         width: 200px;
@@ -31,18 +25,18 @@
         z-index: 1;
         pointer-events: none;
     }
-    .spotlight.left {
+    .voting_result .spotlight.left {
         left: -100px;
         transform: rotate(35deg);
         transform-origin: bottom center;
     }
-    .spotlight.right {
+    .voting_result .spotlight.right {
         right: -100px;
         transform: rotate(-35deg);
         transform-origin: bottom center;
     }
 
-    .ranking-title {
+    .voting_result .ranking-title {
         color: #fff;
         font-size: clamp(24px, 6vw, 32px);
         font-weight: 800;
@@ -52,27 +46,27 @@
         text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }
 
-    .ranking-title .fire {
+    .voting_result .ranking-title .fire {
         display: inline-block;
-        animation: fireBob 1s infinite alternate ease-in-out;
+        animation: vr-fireBob 1s infinite alternate ease-in-out;
     }
 
-    @keyframes fireBob {
+    @keyframes vr-fireBob {
         from { transform: translateY(0); }
         to { transform: translateY(-4px); }
     }
 
-    .podium-wrap {
+    .voting_result .podium-wrap {
         display: flex;
         justify-content: center;
         align-items: flex-end;
         gap: clamp(10px, 3vw, 20px);
         position: relative;
         z-index: 10;
-        padding-bottom: 40px; 
+        padding-bottom: 40px;
     }
 
-    .rank-item {
+    .voting_result .rank-item {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -85,14 +79,12 @@
         box-shadow: 0 10px 20px rgba(0,0,0,0.5);
     }
 
-    /* 2등 */
-    .rank-2 {
+    .voting_result .rank-2 {
         background: #4A4D54;
         border: 1px solid #7D828A;
-        margin-bottom: 30px; 
+        margin-bottom: 30px;
     }
-    /* 1등 */
-    .rank-1 {
+    .voting_result .rank-1 {
         background: #755030;
         border: 2px solid #D49D37;
         width: 35%;
@@ -100,15 +92,13 @@
         padding: 20px 10px;
         z-index: 2;
     }
-    /* 3등 */
-    .rank-3 {
+    .voting_result .rank-3 {
         background: #382A24;
         border: 1px solid #634533;
-        margin-bottom: 15px; 
+        margin-bottom: 15px;
     }
 
-    /* 왕관 */
-    .crown {
+    .voting_result .crown {
         position: absolute;
         top: -35px;
         width: 45px;
@@ -123,13 +113,13 @@
         padding-top: 6px;
         box-sizing: border-box;
     }
-    .crown svg {
+    .voting_result .crown svg {
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
         z-index: -1;
     }
-    
-    .rank-1 .crown {
+
+    .voting_result .rank-1 .crown {
         top: -45px;
         width: 60px;
         height: 60px;
@@ -137,8 +127,7 @@
         padding-top: 8px;
     }
 
-    /* 이미지 동그라미 */
-    .img-box {
+    .voting_result .img-box {
         width: 100%;
         aspect-ratio: 1;
         border-radius: 50%;
@@ -147,26 +136,24 @@
         margin-bottom: 12px;
         box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
     }
-    .img-box img {
+    .voting_result .img-box img {
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
 
-    /* 상품명 */
-    .prod-name {
+    .voting_result .prod-name {
         color: #fff;
         font-size: clamp(12px, 3.5vw, 15px);
         font-weight: 700;
         text-align: center;
         word-break: keep-all;
     }
-    .rank-1 .prod-name {
+    .voting_result .rank-1 .prod-name {
         font-size: clamp(14px, 4vw, 18px);
     }
 
-    /* 단상 실린더 형태 */
-    .podium-cylinder {
+    .voting_result .podium-cylinder {
         position: absolute;
         bottom: -50px;
         left: 50%;
@@ -178,7 +165,7 @@
         z-index: 5;
         box-shadow: inset 0 20px 50px rgba(0,0,0,0.8);
     }
-    .podium-top {
+    .voting_result .podium-top {
         position: absolute;
         top: 0;
         left: 0;
@@ -189,8 +176,7 @@
         box-shadow: inset 0 -5px 15px rgba(0,0,0,0.4);
     }
 
-    /* 데이터 로딩 전 처리 */
-    .loading-wrap {
+    .voting_result .loading-wrap {
         position: absolute;
         top: 50%;
         left: 50%;
@@ -201,6 +187,7 @@
     }
 
 </style>
+
 
 <div class="voting_result">
     <div class="spotlight left"></div>

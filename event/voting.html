@@ -11,29 +11,27 @@
         text-align: center;
     }
 
-    .top-visual {
+    .voting_event .top-visual {
         width: 100%;
         display: block;
     }
 
     /* ===== 상품 그리드 ===== */
-    .voting-container {
+    .voting_event .voting-container {
         padding: 0 10px 0;
     }
 
-    /* 3 4 3 레이아웃: 줄(row) 단위로 렌더링하고 각 줄은 가운데 정렬.
-       아이템 폭이 고정이라 3개짜리 줄도 퍼지지 않고 안쪽으로 모임 */
-    .product-row {
+    .voting_event .product-row {
         display: flex;
         justify-content: center;
         column-gap: 10px;
     }
 
-    .product-row + .product-row {
+    .voting_event .product-row + .product-row {
         margin-top: clamp(18px, 5vw, 34px);
     }
 
-    .product-item {
+    .voting_event .product-item {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -42,19 +40,18 @@
         width: min(21vw, 145px);
     }
 
-    .img-wrapper {
+    .voting_event .img-wrapper {
         width: 100%;
         position: relative;
     }
 
-    .img-wrapper::before {
+    .voting_event .img-wrapper::before {
         content: "";
         display: block;
         padding-top: 100%;
     }
 
-    /* 이미지 감싸는 프레임: 원형 마스크 + 그림자 */
-    .img-frame {
+    .voting_event .img-frame {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
         border-radius: 50%;
@@ -65,11 +62,11 @@
         cursor: pointer;
     }
 
-    .product-item:active .img-frame {
+    .voting_event .product-item:active .img-frame {
         transform: scale(0.96);
     }
 
-    .product-image {
+    .voting_event .product-image {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -78,8 +75,7 @@
         cursor: pointer;
     }
 
-    /* 선택 시 이미지 공간을 그대로 차지하는 원형 링 (간격/레이아웃 변화 없음) */
-    .select-ring {
+    .voting_event .select-ring {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
         border-radius: 50%;
@@ -89,11 +85,11 @@
         transition: border-color 0.2s;
     }
 
-    .product-item.selected .select-ring {
+    .voting_event .product-item.selected .select-ring {
         border-color: #2F80ED;
     }
 
-    .product-name {
+    .voting_event .product-name {
         margin-top: clamp(8px, 2.5vw, 15px);
         background-color: #fff;
         border: 1px solid #E3EAF5;
@@ -112,20 +108,20 @@
         text-overflow: ellipsis;
     }
 
-    .product-item.selected .product-name {
+    .voting_event .product-item.selected .product-name {
         background-color: #2F80ED;
         border-color: #2F80ED;
         color: #fff;
     }
 
     /* ===== 최종 선택 버튼 ===== */
-    .final-submit-wrap {
+    .voting_event .final-submit-wrap {
         margin-top: clamp(36px, 9vw, 60px);
         padding: 0 20px;
         text-align: center;
     }
 
-    .btn-final-submit {
+    .voting_event .btn-final-submit {
         background-color: #C7D3E5;
         color: #fff;
         border: none;
@@ -145,25 +141,24 @@
         transition: background-color 0.3s, box-shadow 0.3s, transform 0.15s;
     }
 
-    .btn-final-submit.active {
+    .voting_event .btn-final-submit.active {
         background-color: #4D8DFF;
         cursor: pointer;
         box-shadow: 0 10px 22px rgba(77, 141, 255, 0.38);
-        animation: btnPop 0.4s ease;
+        animation: ve-btnPop 0.4s ease;
     }
 
-    .btn-final-submit.active:active {
+    .voting_event .btn-final-submit.active:active {
         transform: scale(0.98);
     }
 
-    /* 제품 선택 시 버튼 활성화 팝 효과 */
-    @keyframes btnPop {
+    @keyframes ve-btnPop {
         0% { transform: scale(1); }
         45% { transform: scale(1.06); }
         100% { transform: scale(1); }
     }
 
-    .heart-icon {
+    .voting_event .heart-icon {
         width: clamp(18px, 5vw, 24px);
         height: clamp(18px, 5vw, 24px);
         vertical-align: middle;
@@ -171,7 +166,7 @@
     }
 
     /* ===== 모달 팝업 ===== */
-    .modal-overlay {
+    .voting_event .modal-overlay {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.6);
@@ -181,7 +176,7 @@
         z-index: 1000;
     }
 
-    .modal-content {
+    .voting_event .modal-content {
         background: #fff;
         width: 90%;
         max-width: 340px;
@@ -193,7 +188,7 @@
         box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
 
-    .modal-close {
+    .voting_event .modal-close {
         position: absolute;
         top: 15px;
         right: 15px;
@@ -203,13 +198,13 @@
         padding: 5px;
     }
 
-    .modal-close svg {
+    .voting_event .modal-close svg {
         width: 24px;
         height: 24px;
         stroke: #333;
     }
 
-    .modal-mypick {
+    .voting_event .modal-mypick {
         color: #EA6A6A;
         font-family: 'Pretendard', sans-serif;
         font-size: 13px;
@@ -221,7 +216,7 @@
         margin-bottom: 6px;
     }
 
-    .modal-product-name {
+    .voting_event .modal-product-name {
         font-family: 'Pretendard', sans-serif;
         font-size: 28px;
         font-weight: 700;
@@ -232,7 +227,7 @@
         margin-bottom: 14px;
     }
 
-    .modal-desc {
+    .voting_event .modal-desc {
         color: #666;
         font-family: 'Pretendard', sans-serif;
         font-size: 14px;
@@ -243,19 +238,19 @@
         word-break: keep-all;
     }
 
-    .modal-desc p {
+    .voting_event .modal-desc p {
         margin: 0;
     }
 
-    #modal-desc-1 {
+    .voting_event #modal-desc-1 {
         font-weight: 600;
     }
 
-    #modal-desc-2 {
+    .voting_event #modal-desc-2 {
         font-weight: 400;
     }
 
-    .btn-modal-vote {
+    .voting_event .btn-modal-vote {
         background-color: #4EA0FE;
         color: #fff;
         border: none;
@@ -272,11 +267,11 @@
         transition: background-color 0.2s, transform 0.1s;
     }
 
-    .btn-modal-vote:active {
+    .voting_event .btn-modal-vote:active {
         transform: scale(0.98);
     }
 
-    .btn-modal-vote .btn-heart {
+    .voting_event .btn-modal-vote .btn-heart {
         width: 22px;
         height: 22px;
         vertical-align: middle;
@@ -285,7 +280,7 @@
         top: -1px;
     }
 
-    .modal-login-wrap {
+    .voting_event .modal-login-wrap {
         width: 100%;
         margin-top: 10px;
         display: flex;
@@ -294,7 +289,7 @@
         gap: 12px;
     }
 
-    .tooltip {
+    .voting_event .tooltip {
         position: relative;
         background: #f4f5f7;
         color: #555;
@@ -308,7 +303,7 @@
         display: inline-block;
     }
 
-    .tooltip::after {
+    .voting_event .tooltip::after {
         content: '';
         position: absolute;
         bottom: -7px;
@@ -319,7 +314,7 @@
         border-color: #f4f5f7 transparent transparent transparent;
     }
 
-    .tooltip::before {
+    .voting_event .tooltip::before {
         content: '';
         position: absolute;
         bottom: -9px;
@@ -330,94 +325,50 @@
         border-color: #E0E0E0 transparent transparent transparent;
     }
 
-    .loading-wrap {
+    .voting_event .loading-wrap {
         padding: 50px 20px;
         text-align: center;
         color: #888;
     }
 
-    .spinner {
+    .voting_event .spinner {
         width: 40px;
         height: 40px;
         border: 4px solid rgba(0, 0, 0, 0.1);
         border-radius: 50%;
         border-top-color: #2F80ED;
-        animation: spin 1s ease-in-out infinite;
+        animation: ve-spin 1s ease-in-out infinite;
         margin: 0 auto 15px;
     }
 
-    @keyframes spin {
+    @keyframes ve-spin {
         to { transform: rotate(360deg); }
     }
 
-    /* ===== 모바일 대응 (최소 320px까지 보장) ===== */
+    /* ===== 모바일 대응 ===== */
     @media (max-width: 480px) {
-        .voting-container {
-            padding: 16px 8px 0;
-        }
-
-        .product-row {
-            column-gap: 8px;
-        }
-
-        .product-name {
-            font-size: 11px;
-            padding: 6px 0;
-        }
-
-        .final-submit-wrap {
-            padding: 0 16px;
-        }
-
-        .modal-content {
-            padding: 35px 16px 24px;
-        }
+        .voting_event .voting-container { padding: 16px 8px 0; }
+        .voting_event .product-row { column-gap: 8px; }
+        .voting_event .product-name { font-size: 11px; padding: 6px 0; }
+        .voting_event .final-submit-wrap { padding: 0 16px; }
+        .voting_event .modal-content { padding: 35px 16px 24px; }
     }
 
-    /* ===== 400px 이하: 모달 desc 텍스트 자연스럽게 처리 ===== */
     @media (max-width: 400px) {
-        .modal-content {
-            padding: 30px 14px 22px;
+        .voting_event .modal-content { padding: 30px 14px 22px; }
+        .voting_event .modal-product-name { font-size: 24px; margin-bottom: 10px; }
+        .voting_event .modal-desc {
+            font-size: 12px; line-height: 20px; margin-bottom: 18px;
+            overflow-wrap: break-word; word-break: break-word; hyphens: auto;
         }
-
-        .modal-product-name {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        .modal-desc {
-            font-size: 12px;
-            line-height: 20px;
-            margin-bottom: 18px;
-            overflow-wrap: break-word;
-            word-break: break-word;
-            hyphens: auto;
-        }
-
-        .btn-modal-vote {
-            font-size: 15px;
-            padding: 13px 0;
-        }
+        .voting_event .btn-modal-vote { font-size: 15px; padding: 13px 0; }
     }
 
     @media (max-width: 360px) {
-        .product-name {
-            font-size: 10px;
-            letter-spacing: -0.3px;
-        }
-
-        .select-ring {
-            border-width: 2px;
-        }
-
-        .btn-final-submit {
-            font-size: 15px;
-            padding: 13px 16px;
-            gap: 6px;
-        }
-
-        .heart-icon {
-            width: 16px;
+        .voting_event .product-name { font-size: 10px; letter-spacing: -0.3px; }
+        .voting_event .select-ring { border-width: 2px; }
+        .voting_event .btn-final-submit { font-size: 15px; padding: 13px 16px; gap: 6px; }
+        .voting_event .heart-icon { width: 16px;
             height: 16px;
         }
     }
