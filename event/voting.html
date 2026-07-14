@@ -437,6 +437,10 @@
     var IMG_BASE_URL = 'https://yogibo.openhost.cafe24.com//web/img/event/0713/';
     var HEART_SVG = '<img src="https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png" class="heart-icon" alt="heart">';
 
+    /* ===== 쿠폰 번호 설정 (변경 시 아래 값만 수정) ===== */
+    var EventCouponDown = '6085098189300001157,6085054453000001152,6085054458900001153,6085054479400001154,6085054277300001146';
+    /* ================================================= */
+
     var memberId = null;
     var memberIdRetryCount = 0;
     var maxRetryLimit = 5;
@@ -610,21 +614,27 @@
         .then(r => r.json())
         .then(res => {
             if (res.success) {
-                alert('투표가 완료되었습니다!');
                 closeVoteModal();
-                btn.innerText = '이 Yogibo로 Pick하기 ❤️';
-                btn.disabled = false;
+                downloadCouponAll();
             } else {
                 alert(res.message || '이미 투표에 참여하셨거나 오류가 발생했습니다.');
-                btn.innerText = '이 Yogibo로 Pick하기 ❤️';
+                btn.innerText = '이 Yogibo로 Pick하기 ';
+                btn.appendChild(document.createElement('img')).src = 'https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png';
                 btn.disabled = false;
             }
         })
         .catch(err => {
             alert('서버 통신 오류가 발생했습니다.');
-            btn.innerText = '이 Yogibo로 Pick하기 ❤️';
+            btn.innerText = '이 Yogibo로 Pick하기 ';
             btn.disabled = false;
         });
     }
+
+    function downloadCouponAll() {
+        var couponUrl = '/exec/front/newcoupon/IssueDownload?coupon_no=' + EventCouponDown;
+        var currentUrl = window.location.href;
+        window.location.href = couponUrl + '&opener_url=' + encodeURIComponent(currentUrl);
+    }
 })();
 </script>
+
