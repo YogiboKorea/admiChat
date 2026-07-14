@@ -37,7 +37,7 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 30px auto;
             padding: 0 20px;
         }
@@ -257,7 +257,7 @@
                     <th>#</th>
                     <th>회원 ID</th>
                     <th>선택 상품</th>
-                    <th>참여 일시</th>
+                    <th>참여 일자</th>
                 </tr>
             </thead>
             <tbody id="entries-tbody">
@@ -367,7 +367,7 @@
                         <td class="rank-num">${globalIdx++}</td>
                         <td><strong>${e.memberId || '-'}</strong></td>
                         <td><span class="product-badge">${e.productId || '-'}</span></td>
-                        <td style="color:#888;font-size:13px;">${fmtDateTime(e.createdAt)}</td>
+                        <td style="color:#888;font-size:13px;">${fmtDate(e.createdAt)}</td>
                     </tr>
                 `;
             });
@@ -416,12 +416,12 @@
         if (end) filtered = filtered.filter(e => fmtDate(e.createdAt) <= end);
         if (product) filtered = filtered.filter(e => e.productId === product);
 
-        const header = ['번호', '회원ID', '선택상품', '참여일시'];
+        const header = ['번호', '회원ID', '선택상품', '참여일자'];
         const rows = filtered.map((e, i) => [
             i + 1,
             e.memberId || '',
             e.productId || '',
-            fmtDateTime(e.createdAt)
+            fmtDate(e.createdAt)
         ]);
 
         const csv = '\uFEFF' + [header, ...rows].map(r => r.join(',')).join('\n');
