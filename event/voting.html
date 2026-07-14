@@ -276,6 +276,15 @@
         transform: scale(0.98);
     }
 
+    .btn-modal-vote .btn-heart {
+        width: 22px;
+        height: 22px;
+        vertical-align: middle;
+        margin-left: 4px;
+        position: relative;
+        top: -1px;
+    }
+
     .modal-login-wrap {
         position: relative;
         width: 100%;
@@ -429,7 +438,7 @@
             
             <!-- 로그인 한 경우 버튼 -->
             <button id="modal-btn-vote" class="btn-modal-vote" style="display: none;" onclick="executeVote()">
-                이 Yogibo로 Pick하기 ❤️
+                이 Yogibo로 Pick하기 <img src="https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png" class="btn-heart" alt="heart">
             </button>
             
             <!-- 로그인 안 한 경우 툴팁 및 버튼 -->
