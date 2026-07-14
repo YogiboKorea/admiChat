@@ -671,6 +671,13 @@
             })
             .catch(function() {});
     }
+
+    /* ===== 인라인 onclick에서 접근할 수 있도록 전역 노출 ===== */
+    window.submitFinalVote = submitFinalVote;
+    window.executeVote     = executeVote;
+    window.closeVoteModal  = closeVoteModal;
+    window.goToLogin       = goToLogin;
+
 })();
 </script>
 
