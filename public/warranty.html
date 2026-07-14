@@ -1,364 +1,210 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>요기보 정품인증</title>
-  <style>
-    :root {
-      --bg:#f2f4f6; --card:#fff; --primary:#3182f6; --primary-d:#1b64da;
-      --txt:#191f28; --txt2:#4e5968; --txt3:#8b95a1; --line:#e5e8eb;
-      --ok:#00c471; --warn:#ff9500; --bad:#f04452;
-    }
-    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    body { margin:0; background:var(--bg); color:var(--txt);
-      font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Segoe UI',sans-serif;
-      -webkit-font-smoothing:antialiased; }
-    .wrap { max-width:480px; margin:0 auto; padding:24px 20px 80px; }
-    .head { padding:8px 0 20px; }
-    .head h1 { font-size:24px; font-weight:800; letter-spacing:-0.5px; margin:0 0 6px; }
-    .head p { color:var(--txt2); font-size:14px; margin:0; line-height:1.5; }
+<!--@layout(/layout/basic/layout.html)-->
+<style type="text/css">
+  .yw-wrap { max-width:480px; margin:0 auto; padding:24px 20px 80px; color:#191f28;
+    font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Malgun Gothic','Segoe UI',sans-serif; -webkit-font-smoothing:antialiased; box-sizing:border-box; }
+  .yw-wrap *, .yw-overlay * { box-sizing:border-box; }
+  .yw-head { padding:8px 0 20px; }
+  .yw-head h1 { font-size:24px; font-weight:800; letter-spacing:-0.5px; margin:0 0 6px; color:#191f28; }
+  .yw-head p { color:#4e5968; font-size:14px; margin:0; line-height:1.5; }
+  .yw-btn { border:none; border-radius:14px; font-weight:700; cursor:pointer; font-size:16px; font-family:inherit; transition:.15s; }
+  .yw-btn-primary { background:#3182f6; color:#fff; padding:16px 20px; }
+  .yw-btn-primary:active { background:#1b64da; transform:scale(.98); }
+  .yw-btn-full { width:100%; margin-top:16px; padding:15px; }
+  .yw-btn-ghost { width:100%; margin-top:12px; padding:14px; background:#f2f4f6; color:#191f28; }
+  .yw-member { background:#fff; border-radius:18px; padding:20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); border:1px solid #eef0f2; }
+  .yw-member .yw-hi { font-size:19px; font-weight:800; color:#191f28; }
+  .yw-member .yw-sub { color:#8b95a1; font-size:13px; margin-top:5px; }
+  .yw-banner { border-radius:14px; padding:15px 16px; font-size:14px; margin-bottom:14px; display:none; line-height:1.5; }
+  .yw-banner.yw-show { display:block; }
+  .yw-banner.yw-warn { background:#fff4e6; color:#b45309; }
+  .yw-banner.yw-err { background:#fde8ea; color:#c0303c; }
+  .yw-card { background:#fff; border-radius:18px; padding:20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); border:1px solid #eef0f2; }
+  .yw-card .yw-pname { font-size:17px; font-weight:800; letter-spacing:-0.3px; color:#191f28; }
+  .yw-card .yw-pspec { color:#4e5968; font-size:14px; margin-top:4px; }
+  .yw-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .yw-chip { background:#f2f4f6; color:#4e5968; font-size:12.5px; font-weight:600; padding:6px 11px; border-radius:9px; }
+  .yw-warrbox { margin-top:16px; background:#eef5ff; border-radius:12px; padding:14px 16px; font-size:14px; color:#4e5968; }
+  .yw-warrbox b { color:#1b64da; font-weight:800; }
+  .yw-warrbox.yw-done { background:#e7f9f1; }
+  .yw-warrbox.yw-done b { color:#00a35f; }
+  .yw-pill { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:20px; }
+  .yw-pill.yw-ok { background:#e7f9f1; color:#00a35f; }
+  .yw-pill.yw-promo { background:#fff4e6; color:#d97706; }
+  .yw-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .yw-empty { text-align:center; color:#8b95a1; padding:48px 0; font-size:15px; }
+  .yw-spin { display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:yw-s .7s linear infinite; vertical-align:-3px; margin-right:7px; }
+  @keyframes yw-s { to { transform:rotate(360deg); } }
+  /* 정품인증서 모달 */
+  .yw-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; padding:20px; z-index:99999; }
+  .yw-overlay.yw-show { display:flex; }
+  .yw-cert { background:#fff; border-radius:24px; max-width:400px; width:100%; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.3);
+    font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif; }
+  .yw-cert-top { background:linear-gradient(135deg,#3182f6,#1b64da); color:#fff; padding:30px 26px 26px; text-align:center; }
+  .yw-cert-seal { width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:32px; }
+  .yw-cert-top .yw-t1 { font-size:20px; font-weight:800; letter-spacing:-0.3px; }
+  .yw-cert-top .yw-t2 { font-size:12px; opacity:.85; margin-top:3px; letter-spacing:1px; }
+  .yw-cert-no { background:rgba(255,255,255,.15); border-radius:12px; padding:12px; margin-top:18px; }
+  .yw-cert-no .yw-lbl { font-size:11px; opacity:.85; }
+  .yw-cert-no .yw-val { font-size:22px; font-weight:800; font-family:'SF Mono',monospace; letter-spacing:1.5px; margin-top:3px; }
+  .yw-cert-body { padding:22px 26px 26px; }
+  .yw-cert-row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid #e5e8eb; font-size:14px; }
+  .yw-cert-row:last-of-type { border-bottom:none; }
+  .yw-cert-row .yw-k { color:#8b95a1; }
+  .yw-cert-row .yw-v { color:#191f28; font-weight:700; text-align:right; max-width:60%; }
+  .yw-cert-foot { text-align:center; color:#8b95a1; font-size:12px; margin-top:14px; line-height:1.5; }
+  .yw-cert-badge { display:inline-block; background:#e7f9f1; color:#00a35f; font-size:12.5px; font-weight:700; padding:7px 14px; border-radius:20px; margin-top:14px; }
+</style>
 
-    .search { display:flex; gap:8px; margin-bottom:16px; }
-    .search input { flex:1; border:none; background:var(--card); border-radius:14px; padding:16px; font-size:16px; color:var(--txt); box-shadow:0 1px 3px rgba(0,0,0,.04); }
-    .search input:focus { outline:2px solid var(--primary); }
-    .btn { border:none; border-radius:14px; font-weight:700; cursor:pointer; font-size:16px; transition:.15s; font-family:inherit; }
-    .btn-primary { background:var(--primary); color:#fff; padding:16px 20px; }
-    .btn-primary:active { background:var(--primary-d); transform:scale(.98); }
-    .btn-primary:disabled { background:#c9d1da; cursor:not-allowed; }
-    .btn-full { width:100%; margin-top:16px; padding:15px; }
-
-    .member { background:var(--card); border-radius:18px; padding:20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
-    .member .hi { font-size:19px; font-weight:800; }
-    .member .sub { color:var(--txt3); font-size:13px; margin-top:5px; }
-
-    .banner { border-radius:14px; padding:15px 16px; font-size:14px; margin-bottom:14px; display:none; line-height:1.5; }
-    .banner.show { display:block; }
-    .banner.warn { background:#fff4e6; color:#b45309; }
-    .banner.err { background:#fde8ea; color:#c0303c; }
-
-    .card { background:var(--card); border-radius:18px; padding:20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
-    .card .pname { font-size:17px; font-weight:800; letter-spacing:-0.3px; }
-    .card .pspec { color:var(--txt2); font-size:14px; margin-top:4px; }
-    .meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
-    .chip { background:#f2f4f6; color:var(--txt2); font-size:12.5px; font-weight:600; padding:6px 11px; border-radius:9px; }
-    .warrbox { margin-top:16px; background:#eef5ff; border-radius:12px; padding:14px 16px; font-size:14px; color:var(--txt2); }
-    .warrbox b { color:var(--primary-d); font-weight:800; }
-    .warrbox.done { background:#e7f9f1; }
-    .warrbox.done b { color:#00a35f; }
-
-    .pill { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:20px; }
-    .pill.ok { background:#e7f9f1; color:#00a35f; }
-    .pill.promo { background:#fff4e6; color:#d97706; }
-    .btn-ghost { width:100%; margin-top:12px; padding:14px; background:#f2f4f6; color:var(--txt); }
-    .btn-ghost:active { background:#e5e8eb; }
-    .top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-
-    .empty { text-align:center; color:var(--txt3); padding:48px 0; font-size:15px; }
-    .spin { display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:7px; }
-    @keyframes s { to { transform:rotate(360deg); } }
-
-    /* ===== 정품인증서 모달 ===== */
-    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; padding:20px; z-index:100; }
-    .overlay.show { display:flex; animation:fade .2s; }
-    @keyframes fade { from { opacity:0; } }
-    .cert { background:#fff; border-radius:24px; max-width:400px; width:100%; overflow:hidden; animation:pop .25s cubic-bezier(.2,.9,.3,1.2); box-shadow:0 20px 60px rgba(0,0,0,.3); }
-    @keyframes pop { from { transform:scale(.9); opacity:0; } }
-    .cert-top { background:linear-gradient(135deg,#3182f6,#1b64da); color:#fff; padding:30px 26px 26px; text-align:center; }
-    .cert-seal { width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:32px; }
-    .cert-top .t1 { font-size:20px; font-weight:800; letter-spacing:-0.3px; }
-    .cert-top .t2 { font-size:12px; opacity:.85; margin-top:3px; letter-spacing:1px; }
-    .cert-no { background:rgba(255,255,255,.15); border-radius:12px; padding:12px; margin-top:18px; }
-    .cert-no .lbl { font-size:11px; opacity:.85; }
-    .cert-no .val { font-size:22px; font-weight:800; font-family:'SF Mono',monospace; letter-spacing:1.5px; margin-top:3px; }
-    .cert-body { padding:22px 26px 26px; }
-    .cert-row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); font-size:14px; }
-    .cert-row:last-of-type { border-bottom:none; }
-    .cert-row .k { color:var(--txt3); }
-    .cert-row .v { color:var(--txt); font-weight:700; text-align:right; max-width:60%; }
-    .cert-foot { text-align:center; color:var(--txt3); font-size:12px; margin-top:14px; line-height:1.5; }
-    .cert-badge { display:inline-block; background:#e7f9f1; color:#00a35f; font-size:12.5px; font-weight:700; padding:7px 14px; border-radius:20px; margin-top:14px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="head">
-      <h1>요기보 정품인증</h1>
-      <p>구매하신 제품을 정품인증하면 보증기간이 연장됩니다.<br/>기본 1년 · 프로모션 기간 인증 시 1년 6개월</p>
-    </div>
-
-    <div id="banner" class="banner"></div>
-    <div id="authState"></div>
-    <div id="member"></div>
-    <div id="list"></div>
+<div class="yw-wrap">
+  <div class="yw-head">
+    <h1>요기보 정품인증</h1>
+    <p>구매하신 제품을 정품인증하면 보증기간이 연장됩니다.<br/>기본 1년 · 프로모션 기간 인증 시 1년 6개월</p>
   </div>
+  <div id="yw-banner" class="yw-banner"></div>
+  <div id="yw-authState"></div>
+  <div id="yw-member"></div>
+  <div id="yw-list"></div>
 
   <!-- 정품인증서 모달 -->
-  <div class="overlay" id="overlay" onclick="if(event.target===this)closeCert()">
-    <div class="cert" id="cert"></div>
+  <div class="yw-overlay" id="yw-overlay">
+    <div class="yw-cert" id="yw-cert"></div>
   </div>
+</div>
 
 <script>
-const ADMIN_SERVER = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-const API = (location.origin === ADMIN_SERVER || location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? '' : ADMIN_SERVER;
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
-function banner(text, type) { const b = $('banner'); if (!text) { b.className='banner'; return; } b.textContent = text; b.className = 'banner show ' + (type||'warn'); }
+(function () {
+  // ===== 설정 =====
+  var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+  var ADMIN_SERVER = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+  var API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.origin === ADMIN_SERVER) ? '' : ADMIN_SERVER;
+  var LOGIN_BASE = '/member/login.html';
 
-async function jsonFetch(url, opts) {
-  const r = await fetch(url, opts);
-  const t = await r.text();
-  if (!t) throw new Error('서버 응답이 비어 있습니다. (' + r.status + ')');
-  let j; try { j = JSON.parse(t); } catch (e) { throw new Error('서버 응답 형식 오류 (' + r.status + ')'); }
-  return j;
-}
+  var sdkRetry = 0, idRetry = 0, currentMember = null, itemsCache = {};
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return { '<':'&lt;','>':'&gt;','&':'&amp;' }[c]; }); };
 
-// ===== Cafe24 로그인 회원 자동 조회 (룰렛 이벤트와 동일 방식) =====
-const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
-const LOGIN_BASE = '/member/login.html';
-let sdkRetry = 0, idRetry = 0;
-let currentMember = null;
-let itemsCache = {};
+  function banner(text, type) { var b = $('yw-banner'); if (!text) { b.className = 'yw-banner'; return; } b.textContent = text; b.className = 'yw-banner yw-show yw-' + (type || 'warn'); }
+  function setAuthState(html) { $('yw-authState').innerHTML = html || ''; }
 
-window.addEventListener('DOMContentLoaded', () => {
-  // 우선순위 1) 테스트/직접접근용 ?memberId=
-  const q = new URLSearchParams(location.search).get('memberId');
-  if (q) { console.log('[정품인증] ?memberId= 파라미터 사용:', q); lookup(q); return; }
-
-  setAuthState('<div class="member"><div class="hi">회원 정보를 확인하고 있어요...</div></div>');
-  console.log('[정품인증] 회원 확인 시작 | URL=', location.href);
-
-  // 우선순위 2) 자사몰 layout이 localStorage에 캐시해둔 회원ID
-  const fromStorage = getMemberIdFromStorage();
-  if (fromStorage) { setAuthState(''); lookup(fromStorage); return; }
-
-  // 우선순위 3) layout 전역변수
-  const fromLayout = getMemberIdFromLayout();
-  if (fromLayout) { setAuthState(''); lookup(fromLayout); return; }
-
-  // 우선순위 4) Cafe24 스토어프론트 SDK
-  waitForSDK();
-});
-
-function setAuthState(html) { $('authState').innerHTML = html || ''; }
-
-// layout이 localStorage에 저장해둔 회원ID 읽기 (키 이름을 몰라서 전체 스캔 + 자동탐지)
-function getMemberIdFromStorage() {
-  try {
-    const all = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      try { all[k] = localStorage.getItem(k); } catch (e) {}
-    }
-    console.log('[정품인증] 🗄️ localStorage 전체:', all);
-    const keys = Object.keys(all);
-    // 회원ID처럼 보이는 키 우선 (member/login/user/cust 포함, expiry/token 류 제외)
-    const idKey = keys.find(k =>
-      /member|login|user|cust|mid/i.test(k) && !/expir|token|time|ts$/i.test(k) && isValidId(all[k])
-    );
-    if (idKey) {
-      console.log('[정품인증] ✅ localStorage에서 회원ID 발견:', idKey, '=', all[idKey]);
-      return String(all[idKey]).trim();
-    }
-    console.log('[정품인증] localStorage에서 회원ID 후보 못 찾음');
-  } catch (e) { console.warn('[정품인증] localStorage 접근 오류:', e); }
-  return null;
-}
-
-// 유효한 회원ID인지 (미치환 템플릿토큰 / GUEST / 빈값 제외)
-function isValidId(v) {
-  if (!v && v !== 0) return false;
-  const s = String(v).trim();
-  // 미치환 Cafe24 템플릿토큰(여는중괄호+달러로 시작)은 무효 처리
-  const unresolved = s.charAt(0) === '{' && s.charAt(1) === '$';
-  return s && !unresolved && s.toUpperCase() !== 'GUEST';
-}
-
-// layout/스킨이 제공하는 회원ID 읽기
-function getMemberIdFromLayout() {
-  // ★ 권장: 스킨 layout에서 회원ID 템플릿변수를 window.__YGB_MEMBER_ID__ 에 담아두면 최우선으로 사용
-  if (isValidId(window.__YGB_MEMBER_ID__)) {
-    console.log('[정품인증] ✅ __YGB_MEMBER_ID__ =', window.__YGB_MEMBER_ID__);
-    return String(window.__YGB_MEMBER_ID__).trim();
-  }
-  const cands = {
-    'window.__YGB_MEMBER_ID__': window.__YGB_MEMBER_ID__,
-    'window.member_id': window.member_id,
-    'window.MEMBER_ID': window.MEMBER_ID,
-    'window.memberId': window.memberId,
-    'window.gMemberId': window.gMemberId,
-    'window.g_member_id': window.g_member_id,
-    'window.MEMBERID': window.MEMBERID,
-    'window.loginId': window.loginId,
-    'window.user_id': window.user_id,
-  };
-  console.log('[정품인증] layout 회원ID 후보 점검:', cands);
-  for (const k in cands) {
-    if (isValidId(cands[k])) {
-      console.log('[정품인증] ✅ layout 전역변수에서 회원ID 발견:', k, '=', cands[k]);
-      return String(cands[k]).trim();
-    }
-  }
-  // 후보에 없으면: window 전역 중 이름에 member/user/login 들어간 문자열 변수 전부 스캔해 출력
-  try {
-    const found = {};
-    for (const key in window) {
-      if (!/member|user|login|cust/i.test(key)) continue;
-      let val; try { val = window[key]; } catch (e) { continue; }
-      if (typeof val === 'string' || typeof val === 'number') found[key] = val;
-    }
-    console.log('[정품인증] 🔎 member/user/login 관련 전역변수 스캔:', found);
-  } catch (e) {}
-  console.log('[정품인증] layout 전역변수에서는 회원ID 못 찾음 → SDK로 시도');
-  return null;
-}
-
-// 1) Cafe24 스토어프론트 SDK(CAFE24API) 로드 대기
-function waitForSDK() {
-  if (typeof CAFE24API === 'undefined') {
-    if (sdkRetry++ < 20) { console.log('[정품인증] CAFE24API 대기중... 재시도', sdkRetry); setTimeout(waitForSDK, 500); return; }
-    console.warn('[정품인증] ❌ CAFE24API 로드 실패 — 이 페이지에 스토어프론트 SDK가 주입되지 않음');
-    showLogin(); return;
-  }
-  console.log('[정품인증] ✅ CAFE24API 감지 | 사용가능 메서드:', Object.keys(CAFE24API));
-  try {
-    CAFE24API.init(CAFE24_APP_KEY);
-    console.log('[정품인증] CAFE24API.init(appKey) 완료 → getMemberID 호출');
-    fetchMemberId();
-  } catch (e) { console.error('[정품인증] init 오류:', e); showLogin(); }
-}
-
-// 2) 로그인 회원 아이디 취득 (지연 대비 재시도)
-function fetchMemberId() {
-  try {
-    CAFE24API.getMemberID(function (res) {
-      console.log('[정품인증] getMemberID 응답:', JSON.stringify(res), '| type:', typeof res);
-      if (res && res !== 'GUEST') {
-        console.log('[정품인증] ✅ 로그인 회원 확인:', res);
-        setAuthState(''); lookup(res);
-      } else if (idRetry++ < 5) {
-        console.log('[정품인증] 회원ID 비어있음(비로그인/지연) 재시도', idRetry);
-        setTimeout(fetchMemberId, 600);
-      } else {
-        console.warn('[정품인증] ❌ 최종 비로그인 판단 (getMemberID가 계속 빈 값)');
-        showLogin();
-      }
+  function jsonFetch(url, opts) {
+    return fetch(url, opts).then(function (r) {
+      return r.text().then(function (t) {
+        if (!t) throw new Error('서버 응답이 비어 있습니다. (' + r.status + ')');
+        try { return JSON.parse(t); } catch (e) { throw new Error('서버 응답 형식 오류 (' + r.status + ')'); }
+      });
     });
-  } catch (e) { console.error('[정품인증] getMemberID 오류:', e); showLogin(); }
-}
+  }
 
-function showLogin() {
-  setAuthState(`<div class="member" style="text-align:center">
-    <div class="hi">로그인이 필요해요</div>
-    <div class="sub" style="margin:8px 0 18px;line-height:1.5">로그인하면 구매하신 제품을 자동으로 불러와<br/>정품인증할 수 있어요.</div>
-    <button class="btn btn-primary btn-full" style="margin-top:0" onclick="goLogin()">로그인하기</button>
-  </div>`);
-}
-function goLogin() {
-  const ret = location.pathname + location.search + location.hash;
-  location.href = LOGIN_BASE + '?returnUrl=' + encodeURIComponent(ret);
-}
-
-async function lookup(memberId) {
-  memberId = String(memberId || '').trim();
-  if (!memberId) { showLogin(); return; }
-  banner(''); setAuthState(''); $('member').innerHTML = ''; currentMember = memberId; itemsCache = {};
-  $('list').innerHTML = '<div class="empty">불러오는 중...</div>';
-  try {
-    const r = await jsonFetch(API + '/api/warranty/lookup?memberId=' + encodeURIComponent(memberId));
-    if (!r.success) { banner(r.message || '조회에 실패했어요.', 'err'); $('list').innerHTML = ''; return; }
-    $('member').innerHTML = `<div class="member"><div class="hi">${esc(r.member.name)} 님</div><div class="sub">${esc(r.member.memberId)} · ${esc(r.member.phone)}</div></div>`;
-    if (!r.member.matchable) banner('가입하신 휴대폰번호(010)가 확인되지 않아 자동 정품인증이 어렵습니다. 고객센터로 문의해 주세요.', 'warn');
-    r.items.forEach(it => itemsCache[it.rowHash] = it);
-    renderList(r.items);
-  } catch (e) { banner(e.message, 'err'); $('list').innerHTML = ''; }
-}
-
-function renderList(items) {
-  if (!items || !items.length) { $('list').innerHTML = '<div class="empty">매칭되는 구매 제품이 없어요.</div>'; return; }
-  $('list').innerHTML = items.map(it => {
-    const done = it.authorized;
-    const promo = it.preview.promotion;
-    const warr = done
-      ? `<div class="warrbox done">정품인증 완료 · 보증 <b>${done.months}개월</b> · 만료 <b>${done.endDate}</b></div>`
-      : `<div class="warrbox">예상 보증 <b>${it.preview.months}개월</b> · 만료 <b>${it.preview.endDate}</b>${promo?` <span class="pill promo">${esc(promo.name||'프로모션')}</span>`:''}</div>`;
-    const action = done
-      ? `<button class="btn btn-ghost" onclick="showCert('${it.rowHash}')">정품인증서 보기</button>`
-      : `<button class="btn btn-primary btn-full" onclick="authOne('${it.rowHash}', this)">이 제품 정품인증하기</button>`;
-    return `<div class="card">
-      <div class="top">
-        <div><div class="pname">${esc(it.productName)}</div><div class="pspec">${esc(it.spec)}</div></div>
-        ${done?'<span class="pill ok">인증완료</span>':''}
-      </div>
-      <div class="meta"><span class="chip">구매일 ${esc(it.saleDateStr)}</span><span class="chip">${esc(it.channel)}</span><span class="chip">수량 ${it.qty}</span></div>
-      ${warr}${action}
-    </div>`;
-  }).join('');
-}
-
-async function authOne(rowHash, btnEl) {
-  if (!currentMember) return;
-  btnEl.disabled = true; btnEl.innerHTML = '<span class="spin"></span>인증 처리중';
-  try {
-    const r = await jsonFetch(API + '/api/warranty/register', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ memberId: currentMember, rowHashes: [rowHash] })
-    });
-    if (!r.success || !r.results || !r.results[0] || !r.results[0].ok) {
-      banner((r.results && r.results[0] && r.results[0].reason) || r.message || '인증에 실패했어요.', 'err');
-      btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; return;
-    }
-    const res = r.results[0];
-    const it = itemsCache[rowHash] || {};
-    // 인증서 팝업 발급
-    openCert({
-      certNo: res.certNo,
-      productName: it.productName, spec: it.spec, saleDateStr: it.saleDateStr,
-      months: res.months, endDate: res.endDate, promotionName: res.promotionName,
-      authAt: new Date().toISOString(),
-      fresh: !res.alreadyAuthed,
-    });
-    lookup(currentMember); // 목록 갱신(백그라운드)
-  } catch (e) { banner(e.message, 'err'); btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; }
-}
-
-// 이미 인증된 제품의 인증서 다시 보기
-function showCert(rowHash) {
-  const it = itemsCache[rowHash]; if (!it || !it.authorized) return;
-  openCert({
-    certNo: it.authorized.certNo,
-    productName: it.productName, spec: it.spec, saleDateStr: it.saleDateStr,
-    months: it.authorized.months, endDate: it.authorized.endDate,
-    promotionName: null, authAt: it.authorized.at, fresh: false,
+  // ===== 회원 아이디 취득 (Cafe24 스토어프론트 SDK — 이벤트 페이지와 동일) =====
+  document.addEventListener('DOMContentLoaded', function () {
+    var q = new URLSearchParams(location.search).get('memberId');
+    if (q) { console.log('[정품인증] ?memberId=', q); lookup(q); return; }
+    setAuthState('<div class="yw-member"><div class="yw-hi">회원 정보를 확인하고 있어요...</div></div>');
+    initMember();
   });
-}
 
-function openCert(c) {
-  const authDate = c.authAt ? new Date(c.authAt).toLocaleDateString('ko-KR') : '-';
-  $('cert').innerHTML = `
-    <div class="cert-top">
-      <div class="cert-seal">✓</div>
-      <div class="t1">요기보 정품인증서</div>
-      <div class="t2">CERTIFICATE OF AUTHENTICITY</div>
-      <div class="cert-no"><div class="lbl">인증번호</div><div class="val">${esc(c.certNo)}</div></div>
-    </div>
-    <div class="cert-body">
-      <div class="cert-row"><span class="k">제품</span><span class="v">${esc(c.productName)}</span></div>
-      <div class="cert-row"><span class="k">규격</span><span class="v">${esc(c.spec)}</span></div>
-      <div class="cert-row"><span class="k">구매일</span><span class="v">${esc(c.saleDateStr)}</span></div>
-      <div class="cert-row"><span class="k">인증일</span><span class="v">${authDate}</span></div>
-      <div class="cert-row"><span class="k">보증기간</span><span class="v">${c.months}개월</span></div>
-      <div class="cert-row"><span class="k">보증만료</span><span class="v">${esc(c.endDate)}</span></div>
-      <div style="text-align:center">
-        <span class="cert-badge">✓ 정품으로 인증되었습니다</span>
-        ${c.promotionName?`<div style="margin-top:8px"><span class="pill promo">${esc(c.promotionName)} 적용</span></div>`:''}
-      </div>
-      <div class="cert-foot">본 인증서의 인증번호는 A/S 접수 시 필요합니다.<br/>화면을 캡처해 보관해 주세요.</div>
-      <button class="btn btn-primary btn-full" onclick="closeCert()">확인</button>
-    </div>`;
-  $('overlay').classList.add('show');
-}
-function closeCert() { $('overlay').classList.remove('show'); }
+  function initMember() {
+    if (typeof CAFE24API === 'undefined') {
+      if (sdkRetry++ < 20) { setTimeout(initMember, 500); return; }
+      console.warn('[정품인증] CAFE24API 로드 실패');
+      showLogin(); return;
+    }
+    try {
+      CAFE24API.init(CAFE24_APP_KEY);
+      CAFE24API.getMemberID(function (res) {
+        console.log('[정품인증] getMemberID:', JSON.stringify(res));
+        if (res && res !== 'GUEST') { setAuthState(''); lookup(res); }
+        else if (idRetry++ < 5) { setTimeout(initMember, 500); }
+        else { showLogin(); }
+      });
+    } catch (err) { console.error('[정품인증] CAFE24API 오류:', err); showLogin(); }
+  }
+
+  function showLogin() {
+    setAuthState('<div class="yw-member" style="text-align:center">'
+      + '<div class="yw-hi">로그인이 필요해요</div>'
+      + '<div class="yw-sub" style="margin:8px 0 18px;line-height:1.5">로그인하면 구매하신 제품을 자동으로 불러와<br/>정품인증할 수 있어요.</div>'
+      + '<button class="yw-btn yw-btn-primary yw-btn-full" style="margin-top:0" onclick="__ywGoLogin()">로그인하기</button></div>');
+  }
+  window.__ywGoLogin = function () {
+    var ret = location.pathname + location.search + location.hash;
+    location.href = LOGIN_BASE + '?returnUrl=' + encodeURIComponent(ret);
+  };
+
+  function lookup(memberId) {
+    memberId = String(memberId || '').trim();
+    if (!memberId) { showLogin(); return; }
+    banner(''); setAuthState(''); $('yw-member').innerHTML = ''; currentMember = memberId; itemsCache = {};
+    console.log('[정품인증] 📤 lookup memberId =', JSON.stringify(memberId));
+    $('yw-list').innerHTML = '<div class="yw-empty">불러오는 중...</div>';
+    jsonFetch(API + '/api/warranty/lookup?memberId=' + encodeURIComponent(memberId)).then(function (r) {
+      if (!r.success) { console.warn('[정품인증] lookup 실패:', r); banner(r.message || '조회에 실패했어요.', 'err'); $('yw-list').innerHTML = ''; return; }
+      $('yw-member').innerHTML = '<div class="yw-member"><div class="yw-hi">' + esc(r.member.name) + ' 님</div><div class="yw-sub">' + esc(r.member.memberId) + ' · ' + esc(r.member.phone) + '</div></div>';
+      if (!r.member.matchable) banner('가입하신 휴대폰번호(010)가 확인되지 않아 자동 정품인증이 어렵습니다. 고객센터로 문의해 주세요.', 'warn');
+      r.items.forEach(function (it) { itemsCache[it.rowHash] = it; });
+      renderList(r.items);
+    }).catch(function (e) { banner(e.message, 'err'); $('yw-list').innerHTML = ''; });
+  }
+
+  function renderList(items) {
+    if (!items || !items.length) { $('yw-list').innerHTML = '<div class="yw-empty">매칭되는 구매 제품이 없어요.</div>'; return; }
+    $('yw-list').innerHTML = items.map(function (it) {
+      var done = it.authorized;
+      var promo = it.preview.promotion;
+      var warr = done
+        ? '<div class="yw-warrbox yw-done">정품인증 완료 · 보증 <b>' + done.months + '개월</b> · 만료 <b>' + done.endDate + '</b></div>'
+        : '<div class="yw-warrbox">예상 보증 <b>' + it.preview.months + '개월</b> · 만료 <b>' + it.preview.endDate + '</b>' + (promo ? ' <span class="yw-pill yw-promo">' + esc(promo.name || '프로모션') + '</span>' : '') + '</div>';
+      var action = done
+        ? '<button class="yw-btn yw-btn-ghost" onclick="__ywShowCert(\'' + it.rowHash + '\')">정품인증서 보기</button>'
+        : '<button class="yw-btn yw-btn-primary yw-btn-full" onclick="__ywAuth(\'' + it.rowHash + '\', this)">이 제품 정품인증하기</button>';
+      return '<div class="yw-card"><div class="yw-top"><div><div class="yw-pname">' + esc(it.productName) + '</div><div class="yw-pspec">' + esc(it.spec) + '</div></div>'
+        + (done ? '<span class="yw-pill yw-ok">인증완료</span>' : '') + '</div>'
+        + '<div class="yw-meta"><span class="yw-chip">구매일 ' + esc(it.saleDateStr) + '</span><span class="yw-chip">' + esc(it.channel) + '</span><span class="yw-chip">수량 ' + it.qty + '</span></div>'
+        + warr + action + '</div>';
+    }).join('');
+  }
+
+  window.__ywAuth = function (rowHash, btnEl) {
+    if (!currentMember) return;
+    btnEl.disabled = true; btnEl.innerHTML = '<span class="yw-spin"></span>인증 처리중';
+    jsonFetch(API + '/api/warranty/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memberId: currentMember, rowHashes: [rowHash] })
+    }).then(function (r) {
+      if (!r.success || !r.results || !r.results[0] || !r.results[0].ok) {
+        banner((r.results && r.results[0] && r.results[0].reason) || r.message || '인증에 실패했어요.', 'err');
+        btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; return;
+      }
+      var res = r.results[0]; var it = itemsCache[rowHash] || {};
+      openCert({ certNo: res.certNo, productName: it.productName, spec: it.spec, saleDateStr: it.saleDateStr, months: res.months, endDate: res.endDate, promotionName: res.promotionName, authAt: new Date().toISOString() });
+      lookup(currentMember);
+    }).catch(function (e) { banner(e.message, 'err'); btnEl.disabled = false; btnEl.textContent = '이 제품 정품인증하기'; });
+  };
+
+  window.__ywShowCert = function (rowHash) {
+    var it = itemsCache[rowHash]; if (!it || !it.authorized) return;
+    openCert({ certNo: it.authorized.certNo, productName: it.productName, spec: it.spec, saleDateStr: it.saleDateStr, months: it.authorized.months, endDate: it.authorized.endDate, promotionName: null, authAt: it.authorized.at });
+  };
+
+  function openCert(c) {
+    var authDate = c.authAt ? new Date(c.authAt).toLocaleDateString('ko-KR') : '-';
+    $('yw-cert').innerHTML = ''
+      + '<div class="yw-cert-top"><div class="yw-cert-seal">✓</div><div class="yw-t1">요기보 정품인증서</div><div class="yw-t2">CERTIFICATE OF AUTHENTICITY</div>'
+      + '<div class="yw-cert-no"><div class="yw-lbl">인증번호</div><div class="yw-val">' + esc(c.certNo) + '</div></div></div>'
+      + '<div class="yw-cert-body">'
+      + '<div class="yw-cert-row"><span class="yw-k">제품</span><span class="yw-v">' + esc(c.productName) + '</span></div>'
+      + '<div class="yw-cert-row"><span class="yw-k">규격</span><span class="yw-v">' + esc(c.spec) + '</span></div>'
+      + '<div class="yw-cert-row"><span class="yw-k">구매일</span><span class="yw-v">' + esc(c.saleDateStr) + '</span></div>'
+      + '<div class="yw-cert-row"><span class="yw-k">인증일</span><span class="yw-v">' + authDate + '</span></div>'
+      + '<div class="yw-cert-row"><span class="yw-k">보증기간</span><span class="yw-v">' + c.months + '개월</span></div>'
+      + '<div class="yw-cert-row"><span class="yw-k">보증만료</span><span class="yw-v">' + esc(c.endDate) + '</span></div>'
+      + '<div style="text-align:center"><span class="yw-cert-badge">✓ 정품으로 인증되었습니다</span>'
+      + (c.promotionName ? '<div style="margin-top:8px"><span class="yw-pill yw-promo">' + esc(c.promotionName) + ' 적용</span></div>' : '') + '</div>'
+      + '<div class="yw-cert-foot">본 인증서의 인증번호는 A/S 접수 시 필요합니다.<br/>화면을 캡처해 보관해 주세요.</div>'
+      + '<button class="yw-btn yw-btn-primary yw-btn-full" onclick="__ywCloseCert()">확인</button></div>';
+    $('yw-overlay').classList.add('yw-show');
+  }
+  window.__ywCloseCert = function () { $('yw-overlay').classList.remove('yw-show'); };
+  $('yw-overlay') && ($('yw-overlay').onclick = function (e) { if (e.target === this) window.__ywCloseCert(); });
+})();
 </script>
-</body>
-</html>

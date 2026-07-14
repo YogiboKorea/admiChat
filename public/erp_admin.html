@@ -50,9 +50,29 @@
     .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:7px; }
     @keyframes s { to { transform:rotate(360deg); } }
     .muted { color:var(--txt3); }
+    /* PIN 게이트 */
+    .pin-gate { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+    .pin-gate.hidden { display:none; }
+    .pin-box { background:#fff; border-radius:20px; padding:32px 28px; width:100%; max-width:340px; box-shadow:0 8px 30px rgba(0,0,0,.08); text-align:center; }
+    .pin-title { font-size:20px; font-weight:800; }
+    .pin-sub { color:var(--txt3); font-size:14px; margin:6px 0 20px; }
+    .pin-box input { width:100%; text-align:center; font-size:22px; letter-spacing:8px; padding:14px; margin-bottom:12px; border:1px solid var(--line); border-radius:12px; }
+    .pin-box input:focus { outline:2px solid var(--primary); border-color:transparent; }
+    .pin-msg { color:var(--bad); font-size:13px; min-height:18px; margin-bottom:10px; }
   </style>
 </head>
 <body>
+  <!-- 관리자 PIN 게이트 -->
+  <div id="pinGate" class="pin-gate">
+    <div class="pin-box">
+      <div class="pin-title">🔒 관리자 인증</div>
+      <div class="pin-sub">PIN을 입력하세요.</div>
+      <input id="pinInput" type="password" inputmode="numeric" maxlength="12" placeholder="PIN" onkeydown="if(event.key==='Enter')submitPin()" autocomplete="off" />
+      <div id="pinMsg" class="pin-msg"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitPin()">확인</button>
+    </div>
+  </div>
+
   <div class="wrap">
     <h1>이카운트 판매현황 적재</h1>
     <div class="sub">data.xlsx (매크로 다운로드본) → MongoDB · 휴대폰번호 기준 정품인증 매칭 데이터</div>
@@ -93,8 +113,27 @@ const $ = (id) => document.getElementById(id);
 function showMsg(text, ok) { const el = $('msg'); el.textContent = text; el.className = 'msg show ' + (ok ? 'ok' : 'err'); }
 function fmtDate(d) { return d ? new Date(d).toLocaleString('ko-KR') : '-'; }
 function num(n) { return (n ?? 0).toLocaleString('ko-KR'); }
+// ===== 관리자 PIN =====
+const PIN_KEY = 'ygb_admin_pin';
+const getPin = () => sessionStorage.getItem(PIN_KEY) || '';
+function showGate() { $('pinGate').classList.remove('hidden'); }
+function hideGate() { $('pinGate').classList.add('hidden'); }
+async function submitPin() {
+  const p = $('pinInput').value.trim();
+  if (!p) return;
+  try {
+    const r = await fetch(API + '/api/erp/stats', { headers: { 'x-admin-pin': p } });
+    if (r.status === 401) { $('pinMsg').textContent = 'PIN이 올바르지 않습니다.'; $('pinInput').value=''; return; }
+    sessionStorage.setItem(PIN_KEY, p); $('pinMsg').textContent = ''; hideGate(); loadStats();
+  } catch (e) { $('pinMsg').textContent = '서버 연결 오류'; }
+}
+
 async function jsonFetch(url, opts) {
-  const r = await fetch(url, opts); const t = await r.text();
+  opts = opts || {};
+  const headers = Object.assign({}, opts.headers || {}, { 'x-admin-pin': getPin() });
+  const r = await fetch(url, Object.assign({}, opts, { headers }));
+  const t = await r.text();
+  if (r.status === 401) { sessionStorage.removeItem(PIN_KEY); showGate(); throw new Error('관리자 인증이 필요합니다. PIN을 다시 입력하세요.'); }
   if (!t) throw new Error('서버 응답이 비어 있습니다. (' + r.status + ')');
   try { return JSON.parse(t); } catch (e) { throw new Error('서버 응답 형식 오류 (' + r.status + ')'); }
 }
@@ -151,7 +190,13 @@ async function loadSales(page) {
   } catch (e) { tbody.innerHTML = '<tr><td colspan="11" style="color:var(--bad);padding:22px;text-align:center">'+e.message+'</td></tr>'; }
 }
 
-loadStats();
+// 초기: PIN 확인 후 통계 로드
+window.addEventListener('DOMContentLoaded', () => {
+  if (!getPin()) { showGate(); $('pinInput').focus(); return; }
+  fetch(API + '/api/erp/stats', { headers: { 'x-admin-pin': getPin() } })
+    .then(r => { if (r.status === 401) { sessionStorage.removeItem(PIN_KEY); showGate(); } else { hideGate(); loadStats(); } })
+    .catch(() => { hideGate(); loadStats(); });
+});
 </script>
 </body>
 </html>

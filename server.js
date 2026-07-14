@@ -6270,6 +6270,16 @@ app.put('/api/b2b/board/:id', b2bUpload.array('images', 10), async (req, res) =>
 
 // ========== [ERP] 이카운트 판매현황 적재 (정품인증/보증 기반 데이터) ==========
 
+// [보안] 관리자 API PIN 검증 미들웨어 (헤더 x-admin-pin / query pin / body pin)
+const ADMIN_PIN = process.env.ADMIN_PIN || '2026';
+function requireAdminPin(req, res, next) {
+  const pin = req.get('x-admin-pin') || (req.query && req.query.pin) || (req.body && req.body.pin);
+  if (String(pin || '') !== String(ADMIN_PIN)) {
+    return res.status(401).json({ success: false, needPin: true, message: '관리자 PIN이 필요합니다.' });
+  }
+  next();
+}
+
 // 업로드용 multer (xlsx 전용, 메모리 아닌 임시 디스크 저장)
 const erpUpload = multer({
   storage: multer.diskStorage({
@@ -6291,7 +6301,7 @@ async function runErpIngest(filePath) {
 }
 
 // [ERP-1] 고정 경로(data.xlsx) 동기화 — 매크로가 내려받은 파일을 그대로 적재
-app.post('/api/erp/sync', async (req, res) => {
+app.post('/api/erp/sync', requireAdminPin, async (req, res) => {
   try {
     const filePath = (req.body && req.body.path) || erp.DEFAULT_ERP_FILE;
     if (!fs.existsSync(filePath)) {
@@ -6306,7 +6316,7 @@ app.post('/api/erp/sync', async (req, res) => {
 });
 
 // [ERP-2] 파일 업로드 방식 적재
-app.post('/api/erp/upload', erpUpload.single('file'), async (req, res) => {
+app.post('/api/erp/upload', requireAdminPin, erpUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: '파일이 없습니다.' });
     const result = await runErpIngest(req.file.path);
@@ -6319,7 +6329,7 @@ app.post('/api/erp/upload', erpUpload.single('file'), async (req, res) => {
 });
 
 // [ERP-3] 적재 현황 통계
-app.get('/api/erp/stats', async (req, res) => {
+app.get('/api/erp/stats', requireAdminPin, async (req, res) => {
   try {
     const col = db.collection(erp.ERP_COLLECTION);
     const [total, matchable, uniquePhones, lastLog] = await Promise.all([
@@ -6346,7 +6356,7 @@ app.get('/api/erp/stats', async (req, res) => {
 });
 
 // [ERP-4] 판매 라인 조회 (연락처/고객명 검색 + 페이지네이션)
-app.get('/api/erp/sales', async (req, res) => {
+app.get('/api/erp/sales', requireAdminPin, async (req, res) => {
   try {
     const { phone, name, page = 1, limit = 50 } = req.query;
     const q = {};
@@ -6378,10 +6388,24 @@ app.get('/api/warranty/lookup', async (req, res) => {
     const memberId = String(req.query.memberId || '').trim();
     if (!memberId) return res.status(400).json({ success: false, message: 'memberId 파라미터가 필요합니다.' });
 
-    const data = await getCustomerDataByMemberId(memberId);
+    let data;
+    try {
+      data = await getCustomerDataByMemberId(memberId);
+    } catch (apiErr) {
+      const st = apiErr.response && apiErr.response.status;
+      const body = apiErr.response && apiErr.response.data;
+      console.error(`🔥 Cafe24 회원조회 실패 | member_id="${memberId}" | status=${st} | body=${JSON.stringify(body)}`);
+      return res.status(502).json({
+        success: false,
+        message: `Cafe24 회원조회 오류 (status ${st}) · 시도한 아이디="${memberId}"`,
+        attemptedMemberId: memberId,
+        cafe24Status: st,
+        cafe24Error: body,
+      });
+    }
     let cp = data && data.customersprivacy;
     if (Array.isArray(cp)) cp = cp[0];
-    if (!cp) return res.status(404).json({ success: false, message: '해당 회원을 찾을 수 없습니다.' });
+    if (!cp) return res.status(404).json({ success: false, message: `해당 회원을 찾을 수 없습니다. (아이디="${memberId}")` });
 
     const { digits: phone, type: phoneType } = erp.normalizePhone(cp.cellphone);
     const matchable = phoneType === 'mobile';
@@ -6509,7 +6533,7 @@ function warrantyView(w) {
 }
 
 // [W-3] 난수번호로 인증/보증 + A/S 이력 조회
-app.get('/api/warranty/cert', async (req, res) => {
+app.get('/api/warranty/cert', requireAdminPin, async (req, res) => {
   try {
     const certNo = String(req.query.certNo || '').trim().toUpperCase();
     if (!certNo) return res.status(400).json({ success: false, message: '인증번호가 필요합니다.' });
@@ -6523,7 +6547,7 @@ app.get('/api/warranty/cert', async (req, res) => {
 
 // [W-4] A/S 접수·처리 (상담원이 콜 받으며 상태/메모 기록)
 const AS_STATUSES = ['접수', '처리중', '완료', '반려'];
-app.post('/api/warranty/as', async (req, res) => {
+app.post('/api/warranty/as', requireAdminPin, async (req, res) => {
   try {
     const { certNo, status, memo, by } = req.body || {};
     const cert = String(certNo || '').trim().toUpperCase();
@@ -6547,7 +6571,7 @@ app.post('/api/warranty/as', async (req, res) => {
 });
 
 // [W-5] 인증현황 목록 (검색: 이름/휴대폰/인증번호/A/S상태)
-app.get('/api/warranty/list', async (req, res) => {
+app.get('/api/warranty/list', requireAdminPin, async (req, res) => {
   try {
     const { q, asStatus, page = 1, limit = 50 } = req.query;
     const filter = {};
@@ -6577,7 +6601,7 @@ app.get('/api/warranty/list', async (req, res) => {
 
 // ---------- [관리자] 보증연장 프로모션 기간 관리 ----------
 // [W-6] 목록
-app.get('/api/warranty/promotions', async (req, res) => {
+app.get('/api/warranty/promotions', requireAdminPin, async (req, res) => {
   try {
     const list = await db.collection(warranty.PROMO_COLLECTION).find().sort({ startDate: -1 }).toArray();
     const now = new Date();
@@ -6597,7 +6621,7 @@ app.get('/api/warranty/promotions', async (req, res) => {
 });
 
 // [W-7] 등록/수정 (_id 있으면 수정)
-app.post('/api/warranty/promotions', async (req, res) => {
+app.post('/api/warranty/promotions', requireAdminPin, async (req, res) => {
   try {
     const { _id, name, startDate, endDate, months, active } = req.body || {};
     if (!name || !startDate || !endDate) {
@@ -6629,7 +6653,7 @@ app.post('/api/warranty/promotions', async (req, res) => {
 });
 
 // [W-8] 삭제
-app.delete('/api/warranty/promotions/:id', async (req, res) => {
+app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => {
   try {
     await db.collection(warranty.PROMO_COLLECTION).deleteOne({ _id: new ObjectId(req.params.id) });
     res.json({ success: true });

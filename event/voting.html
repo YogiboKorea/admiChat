@@ -2,168 +2,299 @@
 <style type="text/css">
     .voting_event {
         width: 100%;
-        max-width: 800px;
+        min-width: 320px;
+        max-width: 660px;
         margin: 0 auto;
         font-family: 'Noto Sans KR', sans-serif;
-        background-color: #f9f9f9;
-        padding-bottom: 50px;
-    }
-
-    .event-header {
-        background-color: #1a1a1a;
-        color: #fff;
-        padding: 40px 20px;
+        background-color: #fff;
+        padding-bottom: 60px;
         text-align: center;
     }
 
-    .event-header h1 {
-        font-size: clamp(24px, 6vw, 32px);
-        margin: 0 0 10px 0;
-        font-weight: 700;
+    .top-visual {
+        width: 100%;
+        display: block;
     }
 
-    .event-header p {
-        font-size: clamp(14px, 4vw, 16px);
-        margin: 0;
-        color: #ccc;
-    }
-
+    /* ===== 상품 그리드 ===== */
     .voting-container {
-        padding: 30px 20px;
+        padding: clamp(20px, 5vw, 34px) 10px 0;
     }
 
-    .product-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        margin-top: 20px;
+    /* 3 4 3 레이아웃: 줄(row) 단위로 렌더링하고 각 줄은 가운데 정렬.
+       아이템 폭이 고정이라 3개짜리 줄도 퍼지지 않고 안쪽으로 모임 */
+    .product-row {
+        display: flex;
+        justify-content: center;
+        column-gap: 10px;
     }
 
-    .product-card {
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        overflow: hidden;
-        text-align: center;
-        padding: 20px;
-        transition: transform 0.2s, box-shadow 0.2s;
-        border: 2px solid transparent;
+    .product-row + .product-row {
+        margin-top: clamp(18px, 5vw, 34px);
+    }
+
+    .product-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        box-sizing: border-box;
+        width: min(21vw, 145px);
+    }
+
+    .img-wrapper {
+        width: 100%;
         position: relative;
     }
 
-    .product-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    .img-wrapper::before {
+        content: "";
+        display: block;
+        padding-top: 100%;
     }
 
-    .rank-badge {
+    /* 이미지 감싸는 프레임: 원형 마스크 + 그림자 */
+    .img-frame {
         position: absolute;
-        top: 10px;
-        left: 10px;
-        background-color: #e74c3c;
-        color: white;
-        width: 30px;
-        height: 30px;
+        top: 0; left: 0; right: 0; bottom: 0;
         border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 14px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        overflow: hidden;
+        background-color: #f0f4fa;
+        box-shadow: 0 6px 16px rgba(23, 43, 84, 0.10);
+        transition: transform 0.2s;
+        cursor: pointer;
     }
 
-    .rank-1 { background-color: #f1c40f; color: #000; width: 40px; height: 40px; font-size: 18px; top: 5px; left: 5px; }
-    .rank-2 { background-color: #bdc3c7; color: #000; }
-    .rank-3 { background-color: #cd7f32; }
+    .product-item:active .img-frame {
+        transform: scale(0.96);
+    }
 
     .product-image {
         width: 100%;
-        height: 200px;
-        background-color: #eee;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #999;
-        font-size: 14px;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        color: transparent;
+        cursor: pointer;
+    }
+
+    /* 선택 시 이미지 공간을 그대로 차지하는 원형 링 (간격/레이아웃 변화 없음) */
+    .select-ring {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        box-sizing: border-box;
+        pointer-events: none;
+        transition: border-color 0.2s;
+    }
+
+    .product-item.selected .select-ring {
+        border-color: #2F80ED;
     }
 
     .product-name {
-        font-size: 18px;
-        font-weight: 600;
-        margin: 10px 0;
-        color: #333;
-    }
-
-    .vote-count {
-        font-size: 14px;
-        color: #666;
-        margin-bottom: 15px;
-    }
-
-    .vote-count span {
-        font-weight: 700;
-        color: #e74c3c;
-        font-size: 16px;
-    }
-
-    .btn-vote {
-        background-color: #2ecc71;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        font-size: 16px;
-        font-weight: 600;
-        border-radius: 8px;
-        cursor: pointer;
-        width: 100%;
-        transition: background-color 0.2s;
-    }
-
-    .btn-vote:hover {
-        background-color: #27ae60;
-    }
-
-    .btn-vote:disabled {
-        background-color: #bdc3c7;
-        cursor: not-allowed;
-    }
-
-    /* 쿠폰 다운로드 섹션 */
-    .coupon-section {
-        display: none;
-        margin: 40px 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        padding: 30px;
-        text-align: center;
-        color: white;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-    }
-
-    .coupon-section h2 {
-        margin: 0 0 15px 0;
-        font-size: 24px;
-    }
-
-    .btn-coupon {
-        display: inline-block;
+        margin-top: clamp(8px, 2.5vw, 15px);
         background-color: #fff;
-        color: #764ba2;
-        padding: 15px 30px;
-        border-radius: 30px;
-        font-size: 18px;
+        border: 1px solid #E3EAF5;
+        box-shadow: 0 3px 8px rgba(23, 43, 84, 0.06);
+        color: #33415C;
+        font-size: clamp(11px, 3vw, 15px);
         font-weight: 700;
-        text-decoration: none;
-        margin-top: 15px;
-        transition: transform 0.2s, box-shadow 0.2s;
+        padding: clamp(5px, 1.8vw, 9px) 0;
+        border-radius: 30px;
+        width: min(20vw, 128px);
+        box-sizing: border-box;
+        text-align: center;
+        transition: all 0.2s;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .btn-coupon:hover {
-        transform: scale(1.05);
-        box-shadow: 0 5px 15px rgba(255,255,255,0.3);
+    .product-item.selected .product-name {
+        background-color: #2F80ED;
+        border-color: #2F80ED;
+        color: #fff;
+    }
+
+    /* ===== 최종 선택 버튼 ===== */
+    .final-submit-wrap {
+        margin-top: clamp(36px, 9vw, 60px);
+        padding: 0 20px;
+        text-align: center;
+    }
+
+    .btn-final-submit {
+        background-color: #C7D3E5;
+        color: #fff;
+        border: none;
+        padding: clamp(14px, 4vw, 19px) 20px;
+        font-family: inherit;
+        font-size: clamp(16px, 4.5vw, 21px);
+        font-weight: 700;
+        border-radius: 50px;
+        cursor: not-allowed;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        max-width: 460px;
+        box-sizing: border-box;
+        transition: background-color 0.3s, box-shadow 0.3s, transform 0.15s;
+    }
+
+    .btn-final-submit.active {
+        background-color: #4D8DFF;
+        cursor: pointer;
+        box-shadow: 0 10px 22px rgba(77, 141, 255, 0.38);
+        animation: btnPop 0.4s ease;
+    }
+
+    .btn-final-submit.active:active {
+        transform: scale(0.98);
+    }
+
+    /* 제품 선택 시 버튼 활성화 팝 효과 */
+    @keyframes btnPop {
+        0% { transform: scale(1); }
+        45% { transform: scale(1.06); }
+        100% { transform: scale(1); }
+    }
+
+    .heart-icon {
+        width: clamp(18px, 5vw, 24px);
+        height: clamp(18px, 5vw, 24px);
+        vertical-align: middle;
+        flex-shrink: 0;
+    }
+
+    /* ===== 모달 팝업 ===== */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: #fff;
+        width: 90%;
+        max-width: 340px;
+        border-radius: 24px;
+        padding: 40px 20px 30px;
+        position: relative;
+        text-align: center;
+        box-sizing: border-box;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .modal-close {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 5px;
+    }
+
+    .modal-close svg {
+        width: 24px;
+        height: 24px;
+        stroke: #333;
+    }
+
+    .modal-mypick {
+        color: #FF5A5F;
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+    }
+
+    .modal-product-name {
+        font-size: 32px;
+        font-weight: 800;
+        color: #111;
+        margin-bottom: 24px;
+    }
+
+    .modal-desc {
+        color: #666;
+        font-size: 14px;
+        line-height: 1.6;
+        margin-bottom: 30px;
+        word-break: keep-all;
+    }
+
+    .modal-desc p {
+        margin: 0;
+    }
+
+    .btn-modal-vote {
+        background-color: #4D8DFF;
+        color: #fff;
+        border: none;
+        width: 100%;
+        padding: 16px 0;
+        border-radius: 50px;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn-modal-vote:active {
+        transform: scale(0.98);
+    }
+
+    .modal-login-wrap {
+        position: relative;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .tooltip {
+        position: absolute;
+        top: -48px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #fff;
+        color: #666;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 10px 14px;
+        border-radius: 20px;
+        white-space: nowrap;
+        border: 1px solid #EAEAEA;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+    }
+
+    .tooltip::after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 5px 5px 0;
+        border-style: solid;
+        border-color: #fff transparent transparent transparent;
+    }
+
+    .tooltip::before {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 6px 6px 0;
+        border-style: solid;
+        border-color: #EAEAEA transparent transparent transparent;
     }
 
     .loading-wrap {
@@ -177,7 +308,7 @@
         height: 40px;
         border: 4px solid rgba(0, 0, 0, 0.1);
         border-radius: 50%;
-        border-top-color: #333;
+        border-top-color: #2F80ED;
         animation: spin 1s ease-in-out infinite;
         margin: 0 auto 15px;
     }
@@ -185,14 +316,70 @@
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
+
+    /* ===== 모바일 대응 (최소 320px까지 보장) ===== */
+    @media (max-width: 480px) {
+        .voting-container {
+            padding: 16px 8px 0;
+        }
+
+        .product-row {
+            column-gap: 8px;
+        }
+
+        .product-name {
+            font-size: 11px;
+            padding: 6px 0;
+        }
+
+        .final-submit-wrap {
+            padding: 0 16px;
+        }
+
+        .modal-content {
+            padding: 35px 16px 24px;
+        }
+
+        .modal-product-name {
+            font-size: 28px;
+        }
+
+        .modal-desc {
+            font-size: 13px;
+        }
+
+        .btn-modal-vote {
+            font-size: 15px;
+            padding: 14px 0;
+        }
+    }
+
+    @media (max-width: 360px) {
+        .product-name {
+            font-size: 10px;
+            letter-spacing: -0.3px;
+        }
+
+        .select-ring {
+            border-width: 2px;
+        }
+
+        .btn-final-submit {
+            font-size: 15px;
+            padding: 13px 16px;
+            gap: 6px;
+        }
+
+        .heart-icon {
+            width: 16px;
+            height: 16px;
+        }
+    }
 </style>
 
 <div class="voting_event">
-    <div class="event-header">
-        <h1>실시간 인기상품 투표 이벤트!</h1>
-        <p>가장 마음에 드는 상품에 투표하고 다운로드 쿠폰을 받아가세요.</p>
-        <p style="font-size: 12px; margin-top: 5px; color: #aaa;">(본 이벤트는 회원 전용이며, ID당 1회만 참여 가능합니다)</p>
-    </div>
+    <!-- 상단 비주얼 -->
+    <img src="https://yogibo.openhost.cafe24.com//web/img/event/0713/top_visual.jpg" alt="오늘 나에게 가장 잘 맞는 Yogibo는?" class="top-visual">
 
     <!-- 로딩 상태 -->
     <div id="loading-state" class="loading-wrap">
@@ -205,48 +392,94 @@
         <div class="product-grid" id="product-list">
             <!-- 자바스크립트로 렌더링 됩니다 -->
         </div>
+
+        <div class="final-submit-wrap">
+            <button type="button" id="btn-final-submit" class="btn-final-submit" disabled onclick="submitFinalVote()">
+                최종 선택 완료
+                <svg class="heart-icon" viewBox="0 0 24 24" fill="#FF3B5C" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+            </button>
+        </div>
     </div>
 
-    <!-- 쿠폰 다운로드 섹션 (투표 완료 시 표시) -->
-    <div id="coupon-section" class="coupon-section">
-        <h2>🎉 투표 완료! 감사합니다. 🎉</h2>
-        <p>아래 버튼을 눌러 다운로드 쿠폰을 받아가세요!</p>
-        <!-- 기존 쿠폰 다운로드 페이지 링크로 수정 필요 -->
-        <a href="/myshop/coupon/coupon.html" class="btn-coupon">할인 쿠폰 받으러 가기</a>
+    <!-- 투표 완료 팝업 -->
+    <div id="vote-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeVoteModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div class="modal-mypick">MY PICK</div>
+            <div class="modal-product-name" id="modal-product-name">서포트</div>
+            <div class="modal-desc">
+                <p id="modal-desc-1">등·허리가 편한 1인 빈백 소파</p>
+                <p id="modal-desc-2">장시간 사용에도 편안함을 유지</p>
+            </div>
+            
+            <!-- 로그인 한 경우 버튼 -->
+            <button id="modal-btn-vote" class="btn-modal-vote" style="display: none;" onclick="executeVote()">
+                이 Yogibo로 Pick하기 ❤️
+            </button>
+            
+            <!-- 로그인 안 한 경우 툴팁 및 버튼 -->
+            <div id="modal-login-wrap" class="modal-login-wrap" style="display: none;">
+                <div class="tooltip">이벤트에 참여하시려면 로그인이 필요합니다.</div>
+                <button class="btn-modal-vote" onclick="goToLogin()">로그인 하러 가기</button>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
-    // ==========================================
-    // [설정]
-    // ==========================================
-    const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE'; 
-    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app'; 
+    const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
     const LOGIN_BASE = '/member/login.html';
+    const IMG_BASE_URL = 'https://yogibo.openhost.cafe24.com//web/img/event/0713/';
 
+    const HEART_SVG = '<svg class="heart-icon" viewBox="0 0 24 24" fill="#FF3B5C" xmlns="http://www.w3.org/2000/svg"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
 
-
-    // ==========================================
-    // [전역 상태]
-    // ==========================================
     var memberId = null;
     var memberIdRetryCount = 0;
     var maxRetryLimit = 5;
+    var selectedProductId = null;
 
-    // ==========================================
-    // [유틸] 로그인 URL
-    // ==========================================
+    const PRODUCT_LIST = [
+        { productId: '맥스', name: '맥스', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_맥스.png' },
+        { productId: '더블', name: '더블', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_더블.png' },
+        { productId: '서포트', name: '서포트', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_서포트.png' },
+        { productId: '슬림', name: '슬림', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_슬림.png' },
+        { productId: '미니', name: '미니', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_미니.png' },
+        { productId: '드롭', name: '드롭', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_드롭.png' },
+        { productId: '라운저', name: '라운저', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운저.png' },
+        { productId: '피라미드', name: '피라미드', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_피라미드.png' },
+        { productId: '라운드필로우', name: '라운드 필로우', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운드필로우.png' },
+        { productId: '메이트', name: '메이트', imgUrl: 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_메이트.png' }
+    ];
+
+    const PRODUCT_DETAILS = {
+        '맥스': ['글로벌 No.1 빈백 베스트 셀러', '의자 · 소파 · 리클라이너 · 침대까지'],
+        '더블': ['침대처럼 넉넉한 휴식', '소파와 침대의 편안함을 모두 담았습니다.'],
+        '서포트': ['바디필로우 No.1 베스트 셀러', '허리를 안정적으로 받쳐주어 편안함을 더합니다'],
+        '슬림': ['실용적인 올인원 빈백 소파', '좁은 공간에도 완벽한 휴식'],
+        '미니': ['실속형 빈백 소파', '작지만 효율적인 원룸·거실 맞춤형 빈백'],
+        '드롭': ['물방울형 1인 빈백 소파', '어디서든,어떤 각도에서도 몸에 맞춰 부드럽게 감싸는 착석감'],
+        '라운저': ['등·허리가 편한 1인 빈백 소파', '장시간 사용에도 편안함을 유지'],
+        '피라미드': ['컴팩트 빈백 소파', '우리 아이 첫 번째 독서 소파'],
+        '라운드필로우': ['지친 몸에 바른 휴식을!', '올바른 자세까지 잡아주는 휴식 필수템'],
+        '메이트': ['언제나 함께하는 단짝 친구', '아이들의 상상력을 키워주는 애착 인형']
+    };
+
     function getLoginUrlWithReturn() {
         const fullPath = window.location.pathname + window.location.search + window.location.hash;
         return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(fullPath);
     }
 
-    // ==========================================
-    // [초기화]
-    // ==========================================
     document.addEventListener('DOMContentLoaded', function () {
-        loadVoteStatus(); // 먼저 투표 현황 렌더링
-        initializeAndGetMemberId(); // 회원 정보 확인
+        loadVoteStatus();
+        initializeAndGetMemberId();
     });
 
     function initializeAndGetMemberId() {
@@ -259,14 +492,12 @@
             CAFE24API.getMemberID(function (res) {
                 if (res) {
                     memberId = res;
-                    console.log('✅ 회원ID:', memberId);
                 } else {
                     if (memberIdRetryCount < maxRetryLimit) {
                         memberIdRetryCount++;
                         setTimeout(initializeAndGetMemberId, 500);
                     } else {
                         memberId = null;
-                        console.log('비로그인 상태');
                     }
                 }
             });
@@ -275,102 +506,123 @@
         }
     }
 
-    // ==========================================
-    // [데이터 로드]
-    // ==========================================
     function loadVoteStatus() {
-        fetch(API_BASE_URL + '/api/vote/status')
-            .then(res => res.json())
-            .then(res => {
-                if(res.success && res.data) {
-                    renderProducts(res.data);
-                }
-            })
-            .catch(err => {
-                console.error('투표 현황 로드 에러:', err);
-                alert('투표 정보를 불러오지 못했습니다.');
-            })
-            .finally(() => {
-                document.getElementById('loading-state').style.display = 'none';
-                document.getElementById('event-content').style.display = 'block';
-            });
+        // 기존 API 응답 대신 하드코딩된 상품 목록을 사용하여 UI를 렌더링합니다.
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('event-content').style.display = 'block';
+        renderProducts(PRODUCT_LIST);
     }
 
-    // ==========================================
-    // [UI 렌더링]
-    // ==========================================
+    const ROW_SIZES = [3, 4, 3]; // 3-4-3 레이아웃
+
     function renderProducts(products) {
         const listContainer = document.getElementById('product-list');
         listContainer.innerHTML = '';
 
-        products.forEach((prod, index) => {
-            const rank = index + 1;
-            const rankClass = rank <= 3 ? `rank-${rank}` : '';
+        let idx = 0;
+        ROW_SIZES.forEach((size) => {
+            if (idx >= products.length) return;
 
-            const card = document.createElement('div');
-            card.className = 'product-card';
-            card.innerHTML = `
-                <div class="rank-badge ${rankClass}">${rank}</div>
-                <div class="product-image" id="img-${prod.productId}">
-                    <span style="color:#aaa;">상품 이미지<br>(${prod.productId})</span>
-                </div>
-                <div class="product-name">${prod.name}</div>
-                <div class="vote-count">현재 <span>${prod.count}</span> 표</div>
-                <button class="btn-vote" onclick="submitVote('${prod.productId}')">이 상품에 투표하기</button>
-            `;
-            listContainer.appendChild(card);
+            const row = document.createElement('div');
+            row.className = 'product-row';
+
+            products.slice(idx, idx + size).forEach((prod) => {
+                const item = document.createElement('div');
+                item.className = 'product-item';
+                item.id = 'prod-' + prod.productId;
+                item.onclick = function() { selectProduct(prod.productId); };
+
+                item.innerHTML = `
+                    <div class="img-wrapper">
+                        <div class="img-frame">
+                            <img src="${prod.imgUrl}" class="product-image" alt="${prod.name}">
+                            <span class="select-ring"></span>
+                        </div>
+                    </div>
+                    <div class="product-name">${prod.name}</div>
+                `;
+                row.appendChild(item);
+            });
+
+            idx += size;
+            listContainer.appendChild(row);
         });
     }
 
-    // ==========================================
-    // [투표 액션]
-    // ==========================================
-    function submitVote(productId) {
-        if (!memberId) {
-            if (confirm('로그인 후 투표가 가능합니다.\n로그인 페이지로 이동하시겠습니까?')) {
-                location.href = getLoginUrlWithReturn();
-            }
-            return;
-        }
+    function selectProduct(productId) {
+        selectedProductId = productId;
 
-        if (!confirm('한 번 투표하면 취소할 수 없습니다. 계속하시겠습니까?')) {
-            return;
-        }
-
-        // 로딩 처리
-        const btns = document.querySelectorAll('.btn-vote');
-        btns.forEach(b => {
-            b.disabled = true;
-            b.innerText = '처리중...';
+        // UI 갱신
+        document.querySelectorAll('.product-item').forEach(el => {
+            el.classList.remove('selected');
         });
+        document.getElementById('prod-' + productId).classList.add('selected');
+
+        // 최종 버튼 활성화
+        const finalBtn = document.getElementById('btn-final-submit');
+        finalBtn.disabled = false;
+        finalBtn.classList.add('active');
+    }
+
+    function submitFinalVote() {
+        if (!selectedProductId) {
+            alert('상품을 먼저 선택해주세요.');
+            return;
+        }
+
+        const prod = PRODUCT_LIST.find(p => p.productId === selectedProductId);
+        const details = PRODUCT_DETAILS[selectedProductId] || ['', ''];
+        
+        document.getElementById('modal-product-name').innerText = prod.name;
+        document.getElementById('modal-desc-1').innerText = details[0];
+        document.getElementById('modal-desc-2').innerText = details[1];
+        
+        if (memberId) {
+            document.getElementById('modal-btn-vote').style.display = 'block';
+            document.getElementById('modal-login-wrap').style.display = 'none';
+        } else {
+            document.getElementById('modal-btn-vote').style.display = 'none';
+            document.getElementById('modal-login-wrap').style.display = 'block';
+        }
+        
+        document.getElementById('vote-modal').style.display = 'flex';
+    }
+
+    function closeVoteModal() {
+        document.getElementById('vote-modal').style.display = 'none';
+    }
+
+    function goToLogin() {
+        location.href = getLoginUrlWithReturn();
+    }
+
+    function executeVote() {
+        const btn = document.getElementById('modal-btn-vote');
+        btn.innerText = '처리중...';
+        btn.disabled = true;
 
         fetch(API_BASE_URL + '/api/vote/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ memberId: memberId, productId: productId })
+            body: JSON.stringify({ memberId: memberId, productId: selectedProductId })
         })
         .then(r => r.json())
         .then(res => {
             if (res.success) {
-                alert(res.message);
-                // 쿠폰 섹션 노출
-                document.getElementById('coupon-section').style.display = 'block';
-                // 투표 현황 갱신
-                loadVoteStatus();
+                alert('투표가 완료되었습니다!');
+                closeVoteModal();
+                btn.innerText = '이 Yogibo로 Pick하기 ❤️';
+                btn.disabled = false;
             } else {
-                alert(res.message || '오류가 발생했습니다.');
-                btns.forEach(b => {
-                    b.disabled = false;
-                    b.innerText = '이 상품에 투표하기';
-                });
+                alert(res.message || '이미 투표에 참여하셨거나 오류가 발생했습니다.');
+                btn.innerText = '이 Yogibo로 Pick하기 ❤️';
+                btn.disabled = false;
             }
         })
         .catch(err => {
             alert('서버 통신 오류가 발생했습니다.');
-            btns.forEach(b => {
-                b.disabled = false;
-                b.innerText = '이 상품에 투표하기';
-            });
+            btn.innerText = '이 Yogibo로 Pick하기 ❤️';
+            btn.disabled = false;
         });
     }
 </script>
