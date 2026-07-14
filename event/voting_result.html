@@ -6,7 +6,7 @@
         max-width: 660px;
         margin: 0 auto;
         font-family: 'Noto Sans KR', sans-serif;
-        background: radial-gradient(circle at 50% 100%, #2a2e3d, #080a0f);
+        background: url('http://yogibo.openhost.cafe24.com/web/img/event/0713/result_bg.jpg') center top / cover no-repeat;
         min-height: 100vh;
         padding: 60px 20px;
         box-sizing: border-box;
@@ -80,51 +80,43 @@
     }
 
     .voting_result .rank-2 {
-        background: #4A4D54;
+        background: #2F2F32;
         border: 1px solid #7D828A;
         margin-bottom: 30px;
     }
     .voting_result .rank-1 {
-        background: #755030;
-        border: 2px solid #D49D37;
+        background: rgba(255, 138, 1, 0.20);
+        border: 1px solid #FF8A01;
         width: 35%;
         max-width: 160px;
         padding: 20px 10px;
         z-index: 2;
     }
     .voting_result .rank-3 {
-        background: #382A24;
+        background: #2F2F32;
         border: 1px solid #634533;
         margin-bottom: 15px;
     }
 
     .voting_result .crown {
         position: absolute;
-        top: -35px;
-        width: 45px;
-        height: 45px;
+        top: -40px;
+        width: 50px;
+        height: 50px;
         display: flex;
         justify-content: center;
         align-items: center;
-        color: #fff;
-        font-weight: 900;
-        font-size: 14px;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-        padding-top: 6px;
-        box-sizing: border-box;
     }
-    .voting_result .crown svg {
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        z-index: -1;
+    .voting_result .crown img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
     }
 
     .voting_result .rank-1 .crown {
-        top: -45px;
-        width: 60px;
-        height: 60px;
-        font-size: 18px;
-        padding-top: 8px;
+        top: -52px;
+        width: 64px;
+        height: 64px;
     }
 
     .voting_result .img-box {
@@ -204,10 +196,7 @@
             <!-- 2등 -->
             <div class="rank-item rank-2" id="rank-2-item" style="visibility: hidden;">
                 <div class="crown">
-                    2
-                    <svg viewBox="0 0 24 24" fill="#C0C0C0" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2 19h20v2H2v-2zm1.6-3L5 6l4.5 4 2.5-6 2.5 6 4.5-4 1.4 10H3.6z"/>
-                    </svg>
+                    <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/2.png" alt="2등">
                 </div>
                 <div class="img-box">
                     <img id="rank-2-img" src="" alt="2등">
@@ -218,10 +207,7 @@
             <!-- 1등 -->
             <div class="rank-item rank-1" id="rank-1-item" style="visibility: hidden;">
                 <div class="crown">
-                    1
-                    <svg viewBox="0 0 24 24" fill="#FFB700" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2 19h20v2H2v-2zm1.6-3L5 6l4.5 4 2.5-6 2.5 6 4.5-4 1.4 10H3.6z"/>
-                    </svg>
+                    <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/1.png" alt="1등">
                 </div>
                 <div class="img-box">
                     <img id="rank-1-img" src="" alt="1등">
@@ -232,10 +218,7 @@
             <!-- 3등 -->
             <div class="rank-item rank-3" id="rank-3-item" style="visibility: hidden;">
                 <div class="crown">
-                    3
-                    <svg viewBox="0 0 24 24" fill="#CD7F32" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2 19h20v2H2v-2zm1.6-3L5 6l4.5 4 2.5-6 2.5 6 4.5-4 1.4 10H3.6z"/>
-                    </svg>
+                    <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/3.png" alt="3등">
                 </div>
                 <div class="img-box">
                     <img id="rank-3-img" src="" alt="3등">
