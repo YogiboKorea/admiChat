@@ -623,34 +623,32 @@ app.get('/api/event/download', async (req, res) => {
 app.get('/api/vote/status', async (req, res) => {
   try {
     const products = await db.collection('vote_counts').find({}).toArray();
-    
-    // 기본 상품 4개 초기 데이터가 없다면 임시로 매핑
-    const defaultProducts = [
-      { productId: 'product1', name: '상품 A', count: 0 },
-      { productId: 'product2', name: '상품 B', count: 0 },
-      { productId: 'product3', name: '상품 C', count: 0 },
-      { productId: 'product4', name: '상품 D', count: 0 }
-    ];
-
-    let result = products.length > 0 ? products : defaultProducts;
-    
-    // DB에서 불러온 데이터가 일부 상품만 있을 경우 기본값과 머지
-    if (products.length > 0) {
-      result = defaultProducts.map(dp => {
-        const found = products.find(p => p.productId === dp.productId);
-        return found ? { ...dp, count: found.count } : dp;
-      });
-    }
 
     // count 기준으로 내림차순 정렬 (순위 표시용)
-    result.sort((a, b) => b.count - a.count);
+    products.sort((a, b) => b.count - a.count);
 
-    res.json({ success: true, data: result });
+    res.json({ success: true, data: products });
   } catch (error) {
     console.error('투표 현황 조회 오류:', error);
     res.status(500).json({ success: false, error: '서버 내부 오류' });
   }
 });
+
+// 투표 참여자 전체 목록 (어드민용)
+app.get('/api/vote/entries', async (req, res) => {
+  try {
+    const entries = await db.collection('vote_entries')
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.json({ success: true, data: entries });
+  } catch (error) {
+    console.error('투표 참여자 목록 조회 오류:', error);
+    res.status(500).json({ success: false, error: '서버 내부 오류' });
+  }
+});
+
+
 
 // 투표 참여
 app.post('/api/vote/submit', async (req, res) => {

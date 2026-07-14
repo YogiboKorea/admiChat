@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>투표 이벤트 어드민</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, sans-serif;
+            background: #f0f2f5;
+            color: #222;
+        }
+
+        .header {
+            background: #1a1f2e;
+            color: #fff;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .header .total-badge {
+            background: #4EA0FE;
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* 상품별 현황 카드 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-top: 3px solid #4EA0FE;
+        }
+
+        .stat-card .prod-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #444;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .count {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1a1f2e;
+        }
+
+        .stat-card .count span {
+            font-size: 13px;
+            font-weight: 400;
+            color: #888;
+        }
+
+        /* 필터 & 툴바 */
+        .toolbar {
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .toolbar label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            white-space: nowrap;
+        }
+
+        .toolbar input[type="date"],
+        .toolbar select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+            background: #fafafa;
+        }
+
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .btn:hover { opacity: 0.85; }
+
+        .btn-primary { background: #4EA0FE; color: #fff; }
+        .btn-secondary { background: #e8edf5; color: #444; }
+        .btn-excel { background: #1d7a45; color: #fff; }
+
+        .ml-auto { margin-left: auto; }
+
+        /* 테이블 */
+        .table-wrap {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead tr {
+            background: #1a1f2e;
+            color: #fff;
+        }
+
+        thead th {
+            padding: 13px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.1s;
+        }
+
+        tbody tr:hover { background: #f7f9ff; }
+
+        tbody td {
+            padding: 12px 16px;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .date-group {
+            background: #f0f4ff;
+            font-weight: 700;
+            font-size: 13px;
+            color: #3a6fd8;
+            padding: 8px 16px;
+            border-bottom: 1px solid #dde5ff;
+        }
+
+        .product-badge {
+            display: inline-block;
+            background: #eef3ff;
+            color: #3a6fd8;
+            border-radius: 12px;
+            padding: 3px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .rank-num {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #aaa;
+            font-size: 15px;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px;
+            color: #888;
+            font-size: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+            .toolbar { flex-direction: column; align-items: flex-start; }
+            .ml-auto { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🗳️ 투표 이벤트 어드민</h1>
+    <div class="total-badge" id="total-badge">총 0명 참여</div>
+</div>
+
+<div class="container">
+
+    <!-- 상품별 득표 현황 -->
+    <div class="stats-grid" id="stats-grid">
+        <div class="loading-state" style="grid-column: 1/-1;">데이터 로딩 중...</div>
+    </div>
+
+    <!-- 필터 툴바 -->
+    <div class="toolbar">
+        <label>날짜 범위</label>
+        <input type="date" id="filter-start">
+        <span style="color:#aaa;">~</span>
+        <input type="date" id="filter-end">
+        <label>상품</label>
+        <select id="filter-product">
+            <option value="">전체</option>
+            <option value="맥스">맥스</option>
+            <option value="더블">더블</option>
+            <option value="서포트">서포트</option>
+            <option value="슬림">슬림</option>
+            <option value="미니">미니</option>
+            <option value="드롭">드롭</option>
+            <option value="라운저">라운저</option>
+            <option value="피라미드">피라미드</option>
+            <option value="라운드필로우">라운드필로우</option>
+            <option value="메이트">메이트</option>
+        </select>
+        <button class="btn btn-secondary" onclick="resetFilter()">초기화</button>
+        <button class="btn btn-primary" onclick="applyFilter()">조회</button>
+        <button class="btn btn-excel ml-auto" onclick="downloadCSV()">📥 CSV 다운로드</button>
+    </div>
+
+    <!-- 참여자 테이블 -->
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>회원 ID</th>
+                    <th>선택 상품</th>
+                    <th>참여 일시</th>
+                </tr>
+            </thead>
+            <tbody id="entries-tbody">
+                <tr><td colspan="4" class="loading-state">데이터 로딩 중...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    let allEntries = [];
+    let allCounts = [];
+
+    // 날짜 포맷 (YYYY-MM-DD)
+    function fmtDate(d) {
+        if (!d) return '-';
+        const dt = new Date(d);
+        const Y = dt.getFullYear();
+        const M = String(dt.getMonth() + 1).padStart(2, '0');
+        const D = String(dt.getDate()).padStart(2, '0');
+        return `${Y}-${M}-${D}`;
+    }
+
+    // 날짜+시간 포맷
+    function fmtDateTime(d) {
+        if (!d) return '-';
+        const dt = new Date(d);
+        const date = fmtDate(d);
+        const h = String(dt.getHours()).padStart(2, '0');
+        const m = String(dt.getMinutes()).padStart(2, '0');
+        return `${date} ${h}:${m}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // 기본 날짜: 오늘 기준 최근 30일
+        const today = new Date();
+        const past = new Date(today);
+        past.setDate(past.getDate() - 30);
+        document.getElementById('filter-end').value = fmtDate(today);
+        document.getElementById('filter-start').value = fmtDate(past);
+
+        loadAll();
+    });
+
+    async function loadAll() {
+        try {
+            const [entriesRes, statusRes] = await Promise.all([
+                fetch(API_BASE_URL + '/api/vote/entries').then(r => r.json()),
+                fetch(API_BASE_URL + '/api/vote/status').then(r => r.json())
+            ]);
+
+            allEntries = entriesRes.success ? entriesRes.data : [];
+            allCounts = statusRes.success ? statusRes.data : [];
+
+            renderStats(allCounts);
+            renderTable(allEntries);
+            document.getElementById('total-badge').innerText = `총 ${allEntries.length}명 참여`;
+        } catch (err) {
+            console.error(err);
+            document.getElementById('entries-tbody').innerHTML =
+                '<tr><td colspan="4" class="empty-state">데이터 로드 실패</td></tr>';
+        }
+    }
+
+    function renderStats(counts) {
+        const grid = document.getElementById('stats-grid');
+        if (!counts || counts.length === 0) {
+            grid.innerHTML = '<div style="color:#aaa;padding:20px;grid-column:1/-1;">득표 데이터 없음</div>';
+            return;
+        }
+        const sorted = [...counts].sort((a, b) => b.count - a.count);
+        grid.innerHTML = sorted.map((c, i) => `
+            <div class="stat-card">
+                <div class="prod-name">${c.productId}</div>
+                <div class="count">${c.count || 0}<span> 표</span></div>
+            </div>
+        `).join('');
+    }
+
+    function renderTable(entries) {
+        const tbody = document.getElementById('entries-tbody');
+        if (!entries || entries.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-state">참여자 데이터가 없습니다.</td></tr>';
+            return;
+        }
+
+        // 날짜별 그룹핑
+        const grouped = {};
+        entries.forEach(e => {
+            const day = fmtDate(e.createdAt);
+            if (!grouped[day]) grouped[day] = [];
+            grouped[day].push(e);
+        });
+
+        const days = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+        let html = '';
+        let globalIdx = 1;
+
+        days.forEach(day => {
+            const dayEntries = grouped[day];
+            html += `<tr><td colspan="4" class="date-group">📅 ${day} (${dayEntries.length}명)</td></tr>`;
+            dayEntries.forEach(e => {
+                html += `
+                    <tr>
+                        <td class="rank-num">${globalIdx++}</td>
+                        <td><strong>${e.memberId || '-'}</strong></td>
+                        <td><span class="product-badge">${e.productId || '-'}</span></td>
+                        <td style="color:#888;font-size:13px;">${fmtDateTime(e.createdAt)}</td>
+                    </tr>
+                `;
+            });
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function applyFilter() {
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        const product = document.getElementById('filter-product').value;
+
+        let filtered = [...allEntries];
+
+        if (start) {
+            filtered = filtered.filter(e => fmtDate(e.createdAt) >= start);
+        }
+        if (end) {
+            filtered = filtered.filter(e => fmtDate(e.createdAt) <= end);
+        }
+        if (product) {
+            filtered = filtered.filter(e => e.productId === product);
+        }
+
+        renderTable(filtered);
+    }
+
+    function resetFilter() {
+        const today = new Date();
+        const past = new Date(today);
+        past.setDate(past.getDate() - 30);
+        document.getElementById('filter-end').value = fmtDate(today);
+        document.getElementById('filter-start').value = fmtDate(past);
+        document.getElementById('filter-product').value = '';
+        renderTable(allEntries);
+    }
+
+    function downloadCSV() {
+        const start = document.getElementById('filter-start').value;
+        const end = document.getElementById('filter-end').value;
+        const product = document.getElementById('filter-product').value;
+
+        let filtered = [...allEntries];
+        if (start) filtered = filtered.filter(e => fmtDate(e.createdAt) >= start);
+        if (end) filtered = filtered.filter(e => fmtDate(e.createdAt) <= end);
+        if (product) filtered = filtered.filter(e => e.productId === product);
+
+        const header = ['번호', '회원ID', '선택상품', '참여일시'];
+        const rows = filtered.map((e, i) => [
+            i + 1,
+            e.memberId || '',
+            e.productId || '',
+            fmtDateTime(e.createdAt)
+        ]);
+
+        const csv = '\uFEFF' + [header, ...rows].map(r => r.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `voting_entries_${fmtDate(new Date())}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>

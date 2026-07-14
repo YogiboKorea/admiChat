@@ -305,22 +305,23 @@
                 document.getElementById('loading-wrap').style.display = 'none';
                 document.getElementById('ranking-content').style.display = 'block';
 
+                // 데이터 없는 순위 카드는 처음부터 숨김
+                [1, 2, 3].forEach(r => {
+                    document.getElementById('rank-' + r + '-item').style.display = 'none';
+                });
+
                 if (res.success && res.data && res.data.length > 0) {
                     const sortedData = res.data.sort((a, b) => b.count - a.count);
-                    
-                    // 1등 렌더링
-                    if (sortedData[0]) renderRank(1, sortedData[0].productId);
-                    // 2등 렌더링
-                    if (sortedData[1]) renderRank(2, sortedData[1].productId);
-                    // 3등 렌더링
-                    if (sortedData[2]) renderRank(3, sortedData[2].productId);
-                } else {
-                    alert('랭킹 데이터가 없습니다.');
+
+                    // 있는 순위만 렌더링 (최대 3위)
+                    sortedData.slice(0, 3).forEach((item, idx) => {
+                        renderRank(idx + 1, item.productId);
+                    });
                 }
             })
             .catch(err => {
                 console.error('랭킹 데이터 로드 실패:', err);
-                alert('랭킹 데이터를 불러오는 중 오류가 발생했습니다.');
+                document.getElementById('loading-wrap').innerText = '데이터를 불러오는 중 오류가 발생했습니다.';
             });
     }
 
@@ -332,18 +333,19 @@
         if (itemEl && imgEl && nameEl) {
             imgEl.src = PRODUCT_IMAGES[productId] || '';
             nameEl.innerText = PRODUCT_NAMES[productId] || productId;
+            itemEl.style.display = 'flex';
             itemEl.style.visibility = 'visible';
             
-            // 살짝 애니메이션 효과
             itemEl.animate([
                 { opacity: 0, transform: 'translateY(20px)' },
                 { opacity: 1, transform: 'translateY(0)' }
             ], {
                 duration: 600,
-                delay: rank * 150, // 순차적으로 나타나기
+                delay: rank * 150,
                 fill: 'forwards',
                 easing: 'ease-out'
             });
         }
     }
 </script>
+
