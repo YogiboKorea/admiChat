@@ -374,6 +374,32 @@
         }
     }
 
+    /* ===== 400px 이하: 모달 desc 텍스트 자연스럽게 처리 ===== */
+    @media (max-width: 400px) {
+        .modal-content {
+            padding: 30px 14px 22px;
+        }
+
+        .modal-product-name {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .modal-desc {
+            font-size: 12px;
+            line-height: 20px;
+            margin-bottom: 18px;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+        }
+
+        .btn-modal-vote {
+            font-size: 15px;
+            padding: 13px 0;
+        }
+    }
+
     @media (max-width: 360px) {
         .product-name {
             font-size: 10px;
