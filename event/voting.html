@@ -149,6 +149,13 @@
         animation: ve-btnPop 0.4s ease;
     }
 
+    .voting_event .btn-final-submit.completed {
+        background-color: #34C759;
+        cursor: default;
+        box-shadow: 0 6px 14px rgba(52, 199, 89, 0.35);
+        font-size: clamp(14px, 3.8vw, 18px);
+    }
+
     .voting_event .btn-final-submit.active:active {
         transform: scale(0.98);
     }
@@ -497,6 +504,7 @@
             CAFE24API.getMemberID(function (res) {
                 if (res) {
                     memberId = res;
+                    checkAlreadyVoted(memberId);
                 } else {
                     if (memberIdRetryCount < maxRetryLimit) {
                         memberIdRetryCount++;
@@ -615,11 +623,16 @@
         .then(res => {
             if (res.success) {
                 closeVoteModal();
+                markAsCompleted();
                 downloadCouponAll();
             } else {
-                alert(res.message || '이미 투표에 참여하셨거나 오류가 발생했습니다.');
-                btn.innerText = '이 Yogibo로 Pick하기 ';
-                btn.appendChild(document.createElement('img')).src = 'https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png';
+                // 이미 참여한 경우
+                if (res.message && res.message.indexOf('이미 투표') !== -1) {
+                    markAsCompleted();
+                    closeVoteModal();
+                } else {
+                    alert(res.message || '오류가 발생했습니다.');
+                }
                 btn.disabled = false;
             }
         })
@@ -634,6 +647,29 @@
         var couponUrl = '/exec/front/newcoupon/IssueDownload?coupon_no=' + EventCouponDown;
         var currentUrl = window.location.href;
         window.location.href = couponUrl + '&opener_url=' + encodeURIComponent(currentUrl);
+    }
+
+    function markAsCompleted() {
+        var finalBtn = document.getElementById('btn-final-submit');
+        finalBtn.disabled = true;
+        finalBtn.classList.remove('active');
+        finalBtn.classList.add('completed');
+        finalBtn.innerHTML = '이벤트 참여완료 ✓';
+        // 선택 하이라이트 제거
+        document.querySelectorAll('.product-item').forEach(function(el) {
+            el.style.pointerEvents = 'none';
+        });
+    }
+
+    function checkAlreadyVoted(id) {
+        fetch(API_BASE_URL + '/api/vote/check?memberId=' + encodeURIComponent(id))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.voted) {
+                    markAsCompleted();
+                }
+            })
+            .catch(function() {});
     }
 })();
 </script>

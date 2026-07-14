@@ -650,6 +650,18 @@ app.get('/api/vote/entries', async (req, res) => {
 
 
 
+// 투표 여부 확인
+app.get('/api/vote/check', async (req, res) => {
+  const { memberId } = req.query;
+  if (!memberId) return res.json({ voted: false });
+  try {
+    const entry = await db.collection('vote_entries').findOne({ memberId });
+    res.json({ voted: !!entry, productId: entry ? entry.productId : null });
+  } catch (error) {
+    res.status(500).json({ voted: false, error: '서버 오류' });
+  }
+});
+
 // 투표 참여
 app.post('/api/vote/submit', async (req, res) => {
   const { memberId, productId } = req.body;
