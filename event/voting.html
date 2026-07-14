@@ -1,4 +1,5 @@
 <!--@layout(/layout/basic/layout.html)-->
+<!--@import(/event/yogibo/2026/db/07_voting_result.html)-->
 <style type="text/css">
     .voting_event {
         width: 100%;
@@ -429,12 +430,12 @@
 </div>
 
 <script>
-    const CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
-    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-    const LOGIN_BASE = '/member/login.html';
-    const IMG_BASE_URL = 'https://yogibo.openhost.cafe24.com//web/img/event/0713/';
-
-    const HEART_SVG = '<img src="https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png" class="heart-icon" alt="heart">';
+(function() {
+    var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+    var API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+    var LOGIN_BASE = '/member/login.html';
+    var IMG_BASE_URL = 'https://yogibo.openhost.cafe24.com//web/img/event/0713/';
+    var HEART_SVG = '<img src="https://yogibo.openhost.cafe24.com/web/img/event/0713/heart_icon.png" class="heart-icon" alt="heart">';
 
     var memberId = null;
     var memberIdRetryCount = 0;
@@ -472,10 +473,15 @@
         return LOGIN_BASE + '?returnUrl=' + encodeURIComponent(fullPath);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            loadVoteStatus();
+            initializeAndGetMemberId();
+        });
+    } else {
         loadVoteStatus();
         initializeAndGetMemberId();
-    });
+    }
 
     function initializeAndGetMemberId() {
         if (typeof CAFE24API === 'undefined') {
@@ -620,4 +626,5 @@
             btn.disabled = false;
         });
     }
+})();
 </script>

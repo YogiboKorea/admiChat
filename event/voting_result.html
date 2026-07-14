@@ -251,10 +251,10 @@
 </div>
 
 <script>
-    const API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+(function() {
+    var VR_API_BASE = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
     
-    // 상품별 이미지 매핑 정보
-    const PRODUCT_IMAGES = {
+    var VR_PRODUCT_IMAGES = {
         '맥스': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_맥스.png',
         '더블': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_더블.png',
         '서포트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_서포트.png',
@@ -267,72 +267,62 @@
         '메이트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_메이트.png'
     };
 
-    // 상품별 기본 이름 매핑 정보
-    const PRODUCT_NAMES = {
-        '맥스': '맥스',
-        '더블': '더블',
-        '서포트': '서포트',
-        '슬림': '슬림',
-        '미니': '미니',
-        '드롭': '드롭',
-        '라운저': '라운저',
-        '피라미드': '피라미드',
-        '라운드필로우': '라운드 필로우',
-        '메이트': '메이트'
+    var VR_PRODUCT_NAMES = {
+        '맥스': '맥스', '더블': '더블', '서포트': '서포트', '슬림': '슬림', '미니': '미니',
+        '드롭': '드롭', '라운저': '라운저', '피라미드': '피라미드',
+        '라운드필로우': '라운드 필로우', '메이트': '메이트'
     };
 
-    document.addEventListener('DOMContentLoaded', function() {
-        loadRankingData();
-    });
-
     function loadRankingData() {
-        fetch(API_BASE_URL + '/api/vote/status')
-            .then(res => res.json())
-            .then(res => {
-                document.getElementById('loading-wrap').style.display = 'none';
-                document.getElementById('ranking-content').style.display = 'block';
+        fetch(VR_API_BASE + '/api/vote/status')
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                var loadingEl = document.getElementById('loading-wrap');
+                var contentEl = document.getElementById('ranking-content');
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (contentEl) contentEl.style.display = 'block';
 
-                // 데이터 없는 순위 카드는 처음부터 숨김
-                [1, 2, 3].forEach(r => {
-                    document.getElementById('rank-' + r + '-item').style.display = 'none';
+                [1, 2, 3].forEach(function(r) {
+                    var el = document.getElementById('rank-' + r + '-item');
+                    if (el) el.style.display = 'none';
                 });
 
                 if (res.success && res.data && res.data.length > 0) {
-                    const sortedData = res.data.sort((a, b) => b.count - a.count);
-
-                    // 있는 순위만 렌더링 (최대 3위)
-                    sortedData.slice(0, 3).forEach((item, idx) => {
+                    var sortedData = res.data.sort(function(a, b) { return b.count - a.count; });
+                    sortedData.slice(0, 3).forEach(function(item, idx) {
                         renderRank(idx + 1, item.productId);
                     });
                 }
             })
-            .catch(err => {
+            .catch(function(err) {
                 console.error('랭킹 데이터 로드 실패:', err);
-                document.getElementById('loading-wrap').innerText = '데이터를 불러오는 중 오류가 발생했습니다.';
+                var el = document.getElementById('loading-wrap');
+                if (el) el.innerText = '데이터를 불러오는 중 오류가 발생했습니다.';
             });
     }
 
     function renderRank(rank, productId) {
-        const itemEl = document.getElementById('rank-' + rank + '-item');
-        const imgEl = document.getElementById('rank-' + rank + '-img');
-        const nameEl = document.getElementById('rank-' + rank + '-name');
-        
+        var itemEl = document.getElementById('rank-' + rank + '-item');
+        var imgEl  = document.getElementById('rank-' + rank + '-img');
+        var nameEl = document.getElementById('rank-' + rank + '-name');
+
         if (itemEl && imgEl && nameEl) {
-            imgEl.src = PRODUCT_IMAGES[productId] || '';
-            nameEl.innerText = PRODUCT_NAMES[productId] || productId;
+            imgEl.src = VR_PRODUCT_IMAGES[productId] || '';
+            nameEl.innerText = VR_PRODUCT_NAMES[productId] || productId;
             itemEl.style.display = 'flex';
             itemEl.style.visibility = 'visible';
-            
-            itemEl.animate([
-                { opacity: 0, transform: 'translateY(20px)' },
-                { opacity: 1, transform: 'translateY(0)' }
-            ], {
-                duration: 600,
-                delay: rank * 150,
-                fill: 'forwards',
-                easing: 'ease-out'
-            });
+            itemEl.animate(
+                [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'translateY(0)' }],
+                { duration: 600, delay: rank * 150, fill: 'forwards', easing: 'ease-out' }
+            );
         }
     }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadRankingData);
+    } else {
+        loadRankingData();
+    }
+})();
 </script>
 
