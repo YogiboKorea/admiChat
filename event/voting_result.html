@@ -6,64 +6,41 @@
         max-width: 660px;
         margin: 0 auto;
         font-family: 'Noto Sans KR', sans-serif;
-        background: url('http://yogibo.openhost.cafe24.com/web/img/event/0713/result_bg.jpg') center top / cover no-repeat;
-        min-height: 100vh;
-        padding: 60px 20px;
-        box-sizing: border-box;
+        background: #0a0a0f;
         text-align: center;
+    }
+
+    /* 타이틀 이미지 */
+    .voting_result .result-title-img {
+        width: 100%;
+        display: block;
+    }
+
+    /* 스테이지 영역: result_bg_02.jpg 배경 위에 카드 오버레이 */
+    .voting_result .stage-wrap {
         position: relative;
-        overflow: hidden;
+        width: 100%;
     }
 
-    /* 스포트라이트 효과 */
-    .voting_result .spotlight {
-        position: absolute;
-        bottom: -50px;
-        width: 200px;
-        height: 500px;
-        background: radial-gradient(ellipse at bottom, rgba(255,255,255,0.15) 0%, transparent 60%);
-        z-index: 1;
-        pointer-events: none;
-    }
-    .voting_result .spotlight.left {
-        left: -100px;
-        transform: rotate(35deg);
-        transform-origin: bottom center;
-    }
-    .voting_result .spotlight.right {
-        right: -100px;
-        transform: rotate(-35deg);
-        transform-origin: bottom center;
+    .voting_result .stage-bg {
+        width: 100%;
+        display: block;
     }
 
-    .voting_result .ranking-title {
-        color: #fff;
-        font-size: clamp(24px, 6vw, 32px);
-        font-weight: 800;
-        margin-bottom: 60px;
-        position: relative;
-        z-index: 10;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-    }
-
-    .voting_result .ranking-title .fire {
-        display: inline-block;
-        animation: vr-fireBob 1s infinite alternate ease-in-out;
-    }
-
-    @keyframes vr-fireBob {
-        from { transform: translateY(0); }
-        to { transform: translateY(-4px); }
-    }
-
+    /* 랭킹 카드를 이미지 위에 절대 위치로 올림 */
     .voting_result .podium-wrap {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         display: flex;
         justify-content: center;
         align-items: flex-end;
         gap: clamp(10px, 3vw, 20px);
-        position: relative;
+        padding-bottom: 8%;
+        box-sizing: border-box;
         z-index: 10;
-        padding-bottom: 40px;
     }
 
     .voting_result .rank-item {
@@ -76,14 +53,15 @@
         border-radius: 12px;
         padding: 15px 10px;
         box-sizing: border-box;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
     }
 
     .voting_result .rank-2 {
         background: #2F2F32;
         border: 1px solid #7D828A;
-        margin-bottom: 30px;
+        margin-bottom: 15%;
     }
+
     .voting_result .rank-1 {
         background: rgba(255, 138, 1, 0.20);
         border: 1px solid #FF8A01;
@@ -92,10 +70,11 @@
         padding: 20px 10px;
         z-index: 2;
     }
+
     .voting_result .rank-3 {
         background: #2F2F32;
         border: 1px solid #634533;
-        margin-bottom: 15px;
+        margin-bottom: 8%;
     }
 
     .voting_result .crown {
@@ -107,6 +86,7 @@
         justify-content: center;
         align-items: center;
     }
+
     .voting_result .crown img {
         width: 100%;
         height: 100%;
@@ -126,8 +106,9 @@
         overflow: hidden;
         background: #fff;
         margin-bottom: 12px;
-        box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
     }
+
     .voting_result .img-box img {
         width: 100%;
         height: 100%;
@@ -136,64 +117,43 @@
 
     .voting_result .prod-name {
         color: #fff;
-        font-size: clamp(12px, 3.5vw, 15px);
+        font-size: clamp(11px, 3vw, 14px);
         font-weight: 700;
         text-align: center;
         word-break: keep-all;
     }
-    .voting_result .rank-1 .prod-name {
-        font-size: clamp(14px, 4vw, 18px);
-    }
 
-    .voting_result .podium-cylinder {
-        position: absolute;
-        bottom: -50px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 150%;
-        height: 300px;
-        background: #141c2e;
-        border-radius: 50% / 40px;
-        z-index: 5;
-        box-shadow: inset 0 20px 50px rgba(0,0,0,0.8);
-    }
-    .voting_result .podium-top {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 80px;
-        background: radial-gradient(ellipse at center, #2e3e5c, #1a243b);
-        border-radius: 50%;
-        box-shadow: inset 0 -5px 15px rgba(0,0,0,0.4);
+    .voting_result .rank-1 .prod-name {
+        font-size: clamp(12px, 3.5vw, 16px);
     }
 
     .voting_result .loading-wrap {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        padding: 40px 20px;
         color: #fff;
         font-weight: bold;
-        z-index: 20;
+        text-align: center;
     }
-
 </style>
 
 
 <div class="voting_result">
-    <div class="spotlight left"></div>
-    <div class="spotlight right"></div>
 
+    <!-- 상단 타이틀 이미지 -->
+    <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/result_bg_01.png" alt="실시간 랭킹 현황"
+        class="result-title-img">
+
+    <!-- 로딩 -->
     <div id="loading-wrap" class="loading-wrap">
         실시간 랭킹 데이터를 불러오는 중입니다...
     </div>
 
-    <div id="ranking-content" style="display: none;">
+    <!-- 스테이지 영역: result_bg_02.jpg 위에 카드 오버레이 -->
+    <div id="ranking-content" class="stage-wrap" style="display: none;">
+        <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/result_bg_02.png" alt="" class="stage-bg">
 
         <div class="podium-wrap">
             <!-- 2등 -->
-            <div class="rank-item rank-2" id="rank-2-item" style="visibility: hidden;">
+            <div class="rank-item rank-2" id="rank-2-item" style="display:none;">
                 <div class="crown">
                     <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/2.png" alt="2등">
                 </div>
@@ -202,9 +162,9 @@
                 </div>
                 <div class="prod-name" id="rank-2-name"></div>
             </div>
-            
+
             <!-- 1등 -->
-            <div class="rank-item rank-1" id="rank-1-item" style="visibility: hidden;">
+            <div class="rank-item rank-1" id="rank-1-item" style="display:none;">
                 <div class="crown">
                     <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/1.png" alt="1등">
                 </div>
@@ -213,9 +173,9 @@
                 </div>
                 <div class="prod-name" id="rank-1-name"></div>
             </div>
-            
+
             <!-- 3등 -->
-            <div class="rank-item rank-3" id="rank-3-item" style="visibility: hidden;">
+            <div class="rank-item rank-3" id="rank-3-item" style="display:none;">
                 <div class="crown">
                     <img src="http://yogibo.openhost.cafe24.com/web/img/event/0713/3.png" alt="3등">
                 </div>
@@ -225,86 +185,82 @@
                 <div class="prod-name" id="rank-3-name"></div>
             </div>
         </div>
-
-        <div class="podium-cylinder">
-            <div class="podium-top"></div>
-        </div>
     </div>
+
 </div>
 
 <script>
-(function() {
-    var VR_API_BASE = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-    
-    var VR_PRODUCT_IMAGES = {
-        '맥스': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_맥스.png',
-        '더블': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_더블.png',
-        '서포트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_서포트.png',
-        '슬림': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_슬림.png',
-        '미니': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_미니.png',
-        '드롭': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_드롭.png',
-        '라운저': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운저.png',
-        '피라미드': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_피라미드.png',
-        '라운드필로우': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운드필로우.png',
-        '메이트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_메이트.png'
-    };
+    (function () {
+        var VR_API_BASE = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
 
-    var VR_PRODUCT_NAMES = {
-        '맥스': '맥스', '더블': '더블', '서포트': '서포트', '슬림': '슬림', '미니': '미니',
-        '드롭': '드롭', '라운저': '라운저', '피라미드': '피라미드',
-        '라운드필로우': '라운드 필로우', '메이트': '메이트'
-    };
+        var VR_PRODUCT_IMAGES = {
+            '맥스': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_맥스.png',
+            '더블': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_더블.png',
+            '서포트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_서포트.png',
+            '슬림': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_슬림.png',
+            '미니': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_미니.png',
+            '드롭': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_드롭.png',
+            '라운저': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운저.png',
+            '피라미드': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_피라미드.png',
+            '라운드필로우': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_라운드필로우.png',
+            '메이트': 'https://yogibo.openhost.cafe24.com//web/img/event/0713/Icon_메이트.png'
+        };
 
-    function loadRankingData() {
-        fetch(VR_API_BASE + '/api/vote/status')
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                var loadingEl = document.getElementById('loading-wrap');
-                var contentEl = document.getElementById('ranking-content');
-                if (loadingEl) loadingEl.style.display = 'none';
-                if (contentEl) contentEl.style.display = 'block';
+        var VR_PRODUCT_NAMES = {
+            '맥스': '맥스', '더블': '더블', '서포트': '서포트', '슬림': '슬림', '미니': '미니',
+            '드롭': '드롭', '라운저': '라운저', '피라미드': '피라미드',
+            '라운드필로우': '라운드 필로우', '메이트': '메이트'
+        };
 
-                [1, 2, 3].forEach(function(r) {
-                    var el = document.getElementById('rank-' + r + '-item');
-                    if (el) el.style.display = 'none';
-                });
+        function loadRankingData() {
+            fetch(VR_API_BASE + '/api/vote/status')
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    var loadingEl = document.getElementById('loading-wrap');
+                    var contentEl = document.getElementById('ranking-content');
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (contentEl) contentEl.style.display = 'block';
 
-                if (res.success && res.data && res.data.length > 0) {
-                    var sortedData = res.data.sort(function(a, b) { return b.count - a.count; });
-                    sortedData.slice(0, 3).forEach(function(item, idx) {
-                        renderRank(idx + 1, item.productId);
+                    [1, 2, 3].forEach(function (r) {
+                        var el = document.getElementById('rank-' + r + '-item');
+                        if (el) el.style.display = 'none';
                     });
-                }
-            })
-            .catch(function(err) {
-                console.error('랭킹 데이터 로드 실패:', err);
-                var el = document.getElementById('loading-wrap');
-                if (el) el.innerText = '데이터를 불러오는 중 오류가 발생했습니다.';
-            });
-    }
 
-    function renderRank(rank, productId) {
-        var itemEl = document.getElementById('rank-' + rank + '-item');
-        var imgEl  = document.getElementById('rank-' + rank + '-img');
-        var nameEl = document.getElementById('rank-' + rank + '-name');
-
-        if (itemEl && imgEl && nameEl) {
-            imgEl.src = VR_PRODUCT_IMAGES[productId] || '';
-            nameEl.innerText = VR_PRODUCT_NAMES[productId] || productId;
-            itemEl.style.display = 'flex';
-            itemEl.style.visibility = 'visible';
-            itemEl.animate(
-                [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'translateY(0)' }],
-                { duration: 600, delay: rank * 150, fill: 'forwards', easing: 'ease-out' }
-            );
+                    if (res.success && res.data && res.data.length > 0) {
+                        var sortedData = res.data.sort(function (a, b) { return b.count - a.count; });
+                        sortedData.slice(0, 3).forEach(function (item, idx) {
+                            renderRank(idx + 1, item.productId);
+                        });
+                    }
+                })
+                .catch(function (err) {
+                    console.error('랭킹 데이터 로드 실패:', err);
+                    var el = document.getElementById('loading-wrap');
+                    if (el) el.innerText = '데이터를 불러오는 중 오류가 발생했습니다.';
+                });
         }
-    }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', loadRankingData);
-    } else {
-        loadRankingData();
-    }
-})();
+        function renderRank(rank, productId) {
+            var itemEl = document.getElementById('rank-' + rank + '-item');
+            var imgEl = document.getElementById('rank-' + rank + '-img');
+            var nameEl = document.getElementById('rank-' + rank + '-name');
+
+            if (itemEl && imgEl && nameEl) {
+                imgEl.src = VR_PRODUCT_IMAGES[productId] || '';
+                nameEl.innerText = VR_PRODUCT_NAMES[productId] || productId;
+                itemEl.style.display = 'flex';
+                itemEl.style.visibility = 'visible';
+                itemEl.animate(
+                    [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'translateY(0)' }],
+                    { duration: 600, delay: rank * 150, fill: 'forwards', easing: 'ease-out' }
+                );
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadRankingData);
+        } else {
+            loadRankingData();
+        }
+    })();
 </script>
-
