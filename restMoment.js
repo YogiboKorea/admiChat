@@ -40,8 +40,30 @@ const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 const FTP_DIR = process.env.FTP_REST_DIR || '/web/img/md/09';
 const FTP_PUBLIC = (process.env.FTP_REST_PUBLIC_BASE || '').replace(/\/$/, '');
 
-const ALLOWED_ORIGINS = (process.env.REST_ALLOWED_ORIGINS ||
-  'https://yogibo.kr,https://www.yogibo.kr').split(',').map(s => s.trim()).filter(Boolean);
+// 쓰기(응모·적립금)를 허용할 오리진. 몰 본 도메인 + Cafe24 스킨 미리보기까지 포함해야
+// 실제로 붙여넣고 테스트할 수 있다. `*` 는 서브도메인 한 칸을 뜻한다.
+const ALLOWED_ORIGINS = (process.env.REST_ALLOWED_ORIGINS || [
+  'https://yogibo.kr',
+  'https://www.yogibo.kr',
+  'https://yogibo.co.kr',
+  'https://www.yogibo.co.kr',
+  'https://yogibo.cafe24.com',
+  'https://*.yogibo.cafe24.com',
+  // 테스트 스킨은 http 로 뜬다 (skin-skin123.yogibo.cafe24.com). Cafe24 내부 도메인이라 허용한다.
+  'http://yogibo.cafe24.com',
+  'http://*.yogibo.cafe24.com',
+].join(',')).split(',').map(s => s.trim()).filter(Boolean);
+
+function originAllowed(origin) {
+  if (!origin) return true;                    // 서버 간 호출·직접 접속
+  return ALLOWED_ORIGINS.some(rule => {
+    if (rule === origin) return true;
+    if (!rule.includes('*')) return false;
+    const re = new RegExp('^' + rule.split('*').map(s =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^.]+') + '$');
+    return re.test(origin);
+  });
+}
 
 // 칩 → 유형·제품 매핑. 2026.08.31 실재고 기준 확정본.
 // 폼 6종이 나오기 전까지는 baseKey 가 임시 시안 이미지를 가리킨다.
@@ -421,10 +443,23 @@ function mount(app, deps) {
 
   bootstrapFont();
 
-  // 사진을 받는 엔드포인트라 전면 개방(cors *)을 그대로 두지 않는다.
-  const guardOrigin = (req, res, next) => {
+  // 읽기와 쓰기를 다르게 막는다.
+  //  · 읽기(갤러리·상태조회)는 공개 데이터라 어디서 불러도 상관없다.
+  //    여기까지 조이면 스킨 미리보기·로컬 확인이 통째로 막혀 개발이 안 된다.
+  //  · 쓰기(응모 접수·적립금)는 사진이 올라오고 돈이 나가므로 몰 도메인만 받는다.
+  const allowRead = (req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
+    next();
+  };
+
+  const allowWrite = (req, res, next) => {
+    const origin = req.headers.origin;
+    if (!originAllowed(origin)) {
+      console.warn('[쉼순간] 차단된 오리진:', origin);
       return res.status(403).json({ ok: false, message: '허용되지 않은 요청입니다.' });
     }
     if (origin) {
@@ -445,7 +480,7 @@ function mount(app, deps) {
   }).single('photo');
 
   // ── 응모 접수 ──
-  app.post('/api/rest-moment/entry', guardOrigin, (req, res) => {
+  app.post('/api/rest-moment/entry', allowWrite, (req, res) => {
     upload(req, res, async (uploadErr) => {
       if (uploadErr) {
         return res.status(400).json({ ok: false, message: uploadErr.message || '사진을 읽지 못했습니다.' });
@@ -505,7 +540,7 @@ function mount(app, deps) {
   });
 
   // ── 생성 상태 폴링 ──
-  app.get('/api/rest-moment/job/:jobId', guardOrigin, async (req, res) => {
+  app.get('/api/rest-moment/job/:jobId', allowRead, async (req, res) => {
     try {
       const db = getDb();
       const { ObjectId } = require('mongodb');
@@ -531,7 +566,7 @@ function mount(app, deps) {
   });
 
   // ── 갤러리 · 미리보기 (검수 통과분만) ──
-  app.get('/api/rest-moment/recent', guardOrigin, async (req, res) => {
+  app.get('/api/rest-moment/recent', allowRead, async (req, res) => {
     try {
       const db = getDb();
       const limit = Math.min(Number(req.query.limit) || 8, 40);
@@ -566,7 +601,7 @@ function mount(app, deps) {
   // 카트 이벤트에서 운영 검증된 흐름 그대로. 다만 memberId 만으로 주지 않고
   // "그 회원의 완성된 응모"가 실제로 있는지 확인한다 — 없으면 응모 없이도
   // API 만 때려서 받아갈 수 있다.
-  app.post('/api/rest-moment/reward', guardOrigin, async (req, res) => {
+  app.post('/api/rest-moment/reward', allowWrite, async (req, res) => {
     const { memberId, entryId } = req.body || {};
     if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
       return res.status(400).json({ ok: false, message: '로그인 후 받을 수 있습니다.' });

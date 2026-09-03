@@ -96,6 +96,9 @@ const corsOptions = {
     'http://yogibo.kr',
     'http://www.yogibo.kr',
     'https://skin-skin123.yogibo.cafe24.com', // 사용 중인 스킨 도메인
+    'http://skin-skin123.yogibo.cafe24.com',  // 테스트 스킨은 http 로 뜬다
+    'https://yogibo.cafe24.com',
+    'http://yogibo.cafe24.com',
     'https://yogico.kr',                      // yogico 사이트
     'https://www.yogico.kr'
   ],
