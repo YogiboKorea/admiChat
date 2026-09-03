@@ -1,3 +1,7 @@
 node_modules
 .env
 .env.*
+
+# 작업 중 만든 백업본 (server.js 통째 복사본)
+*.bak
+*.bak-*

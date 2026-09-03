@@ -1,0 +1,162 @@
+<!--@layout(/layout/basic/layout.html)-->
+<style type="text/css">
+    html {
+        scroll-behavior: smooth;
+    }
+
+    #pps {
+        max-width: 660px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    #tab1, #tab2, #tab3, #tab4 {
+        scroll-margin-top: 20px;
+    }
+
+    .tab-container {
+        position: relative;
+        width: 100%;
+    }
+
+    .tab-container img {
+        display: block;
+        width: 100%;
+    }
+
+    .tab-nav-link {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        cursor: pointer;
+    }
+
+    .tab-nav-link.t1 {
+        left: 0;
+        width: 25%;
+    }
+
+    .tab-nav-link.t2 {
+        left: 25%;
+        width: 25%;
+    }
+
+    .tab-nav-link.t3 {
+        left: 50%;
+        width: 25%;
+    }
+
+    .tab-nav-link.t4 {
+        left: 75%;
+        width: 25%;
+    }
+
+    .tab2_01_02 {
+        display: none;
+    }
+</style>
+
+<div id="pps">
+    <div><img src="/web/img/event/0713/visual.jpg" style="width:100%" alt="" /></div>
+
+    <div id="tab1" class="tab-container">
+        <div><img src="/web/img/event/0713/tab1.jpg" alt="" /></div>
+        <a href="#tab1" class="tab-nav-link t1"></a>
+        <a href="#tab2" class="tab-nav-link t2"></a>
+        <a href="#tab3" class="tab-nav-link t3"></a>
+        <a href="#tab4" class="tab-nav-link t4"></a>
+    </div>
+    <div><img src="/web/img/event/0713/tab11.jpg" style="width:100%" alt="" /></div>
+
+    <div id="tab2" class="tab-container">
+        <div><img src="/web/img/event/0713/tab2.jpg" alt="" /></div>
+        <a href="#tab1" class="tab-nav-link t1"></a>
+        <a href="#tab2" class="tab-nav-link t2"></a>
+        <a href="#tab3" class="tab-nav-link t3"></a>
+        <a href="#tab4" class="tab-nav-link t4"></a>
+    </div>
+    <div>
+        <div class="tab2_01_01"><img src="/web/img/event/0713/tab2_02.jpg" style="width:100%;" alt="" /></div>
+        <div class="tab2_01_02"><img src="/web/img/event/0713/tab2_01.jpg" style="width:100%;" alt="" /></div>
+    </div>
+
+    <div id="tab3" class="tab-container">
+        <div><img src="/web/img/event/0713/tab3.jpg" alt="" /></div>
+        <a href="#tab1" class="tab-nav-link t1"></a>
+        <a href="#tab2" class="tab-nav-link t2"></a>
+        <a href="#tab3" class="tab-nav-link t3"></a>
+        <a href="#tab4" class="tab-nav-link t4"></a>
+    </div>
+    <div><img src="/web/img/event/0713/tab3_3.jpg" style="width:100%" alt="" /></div>
+
+    <div id="tab4" class="tab-container">
+        <div><img src="/web/img/event/0713/tab4.jpg" alt="" /></div>
+        <a href="#tab1" class="tab-nav-link t1"></a>
+        <a href="#tab2" class="tab-nav-link t2"></a>
+        <a href="#tab3" class="tab-nav-link t3"></a>
+        <a href="#tab4" class="tab-nav-link t4"></a>
+    </div>
+    <div><img src="/web/img/event/0713/tab4_4.jpg" style="width:100%" alt="" /></div>
+
+
+    <style type="text/css">
+        .txt_01,
+        .txt_02,
+        .txt_03 {
+            display: none;
+            background: #333333;
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #848484;
+        }
+    </style>
+
+    <div style="max-width:660px;width:100%;margin:0 auto;">
+        <div onclick="toggleNotice('.txt_01')" style="cursor:pointer;"><img src="/web/img/event/0713/notice_01.jpg"
+                style="width:100%" alt="" /></div>
+        <div class="txt_01">
+            (쿠폰·할인 혜택 안내) <br />
+            쿠폰별 사용 기간, 적용 상품, 최소 구매 금액, 중복 적용 가능 여부는 실제 쿠폰 상세 조건을 기준으로 운영합니다.
+            한정수량 상품은 조기 종료될 수 있습니다.<BR /><BR />
+            (PICK ME UP! 투표·경품 안내)<br />
+            투표는 로그인 계정당 1회 참여할 수 있으며, 경품 당첨자 선정 및 부정 참여 처리 기준은 최종
+            이벤트 운영 정책에 따라 고지합니다. 실제 순위는 유효 투표 데이터를 기준으로 집계됩니다 .<BR /><br />
+            (PICK ME UP! 투표·경품 안내)<br />
+            상품별 색상·옵션·재고·배송 일정 및 실제 사양은 각 상품 상세 페이지의 최신 정보를 기준으로 확인해 주세요.
+        </div>
+    </div>
+
+
+</div>
+
+
+
+<script language="javascript" type="text/javascript">
+    function toggleNotice(targetSelector) {
+        var content = document.querySelector(targetSelector);
+        if (content) {
+            if (content.style.display === 'block') {
+                content.style.display = 'none';
+            } else {
+                content.style.display = 'block';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var now = new Date();
+        var cutoff = new Date(2026, 7, 3); // 2026-08-03 00:00:00 (Month 7 = August)
+
+        var tab2_01_01 = document.querySelector('.tab2_01_01');
+        var tab2_01_02 = document.querySelector('.tab2_01_02');
+
+        if (now < cutoff) {
+            if (tab2_01_01) tab2_01_01.style.display = 'block';
+            if (tab2_01_02) tab2_01_02.style.display = 'none';
+        } else {
+            if (tab2_01_01) tab2_01_01.style.display = 'none';
+            if (tab2_01_02) tab2_01_02.style.display = 'block';
+        }
+    });
+</script>
