@@ -54,17 +54,24 @@ if (ADMIN_KEY && !/^[\x21-\x7E]+$/.test(ADMIN_KEY)) {
   ADMIN_KEY = '';
 }
 const sha256 = v => crypto.createHash('sha256').update(String(v)).digest('hex');
-function adminKeyOk(given) {
-  if (!ADMIN_KEY || !given) return false;
-  const a = Buffer.from(String(given)), b = Buffer.from(ADMIN_KEY);
+function keyEq(given, expected) {
+  if (!expected || !given) return false;
+  const a = Buffer.from(String(given)), b = Buffer.from(String(expected));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function adminKeyOk(given) { return keyEq(given, ADMIN_KEY); }
+// 키는 헤더(x-rest-master-key) 우선, 본문 masterKey 폴백. URL 쿼리로는 받지 않는다 — 접근로그·Referer 에 남는다.
+function masterKeyOf(req) {
+  const h = req && typeof req.get === 'function' ? req.get('x-rest-master-key') : (req && req.headers && req.headers['x-rest-master-key']);
+  return String(h || (req && req.body && req.body.masterKey) || '').trim();
 }
 function isMaster(id, req) {
   if (!id || !MASTER_IDS.includes(String(id))) return false;
-  if (!MASTER_KEY) return true;
-  const k = String((req && req.body && req.body.masterKey) || '').trim();
-  return k.length > 0 && k === MASTER_KEY;
+  if (!MASTER_KEY) return true;                       // 베타: 키 미설정이면 아이디만 (생성 무제한 용도)
+  return keyEq(masterKeyOf(req), MASTER_KEY);
 }
+// 파괴적 조치(숨김·삭제)와 아이디 열거(/recent 마스터 모드)는 키가 있어야만 연다 — 아이디만으로는 절대 열리지 않는다.
+function isMasterStrict(id, req) { return !!MASTER_KEY && isMaster(id, req); }
 
 // 갤러리에 보여줄 아이디. 앞 두 글자만 남기고 가린다 — 당첨자 발표 관례와 같다.
 function maskId(id) {
@@ -226,6 +233,15 @@ function withinEventPeriod(d) {
 // ── FTP ───────────────────────────────────────────────────────────
 /** 버퍼 1개를 FTP 에 올리고 공개 URL 을 돌려준다. */
 async function ftpUpload(buffer, filename) {
+  // 잠깐의 FTP 흔들림이 잡 재시도(= 생성 재과금)로 번지지 않게 여기서 3번까지 다시 붙는다.
+  let last;
+  for (let i = 0; i < 3; i++) {
+    try { return await ftpUploadOnce(buffer, filename); }
+    catch (e) { last = e; await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
+  }
+  throw last;
+}
+async function ftpUploadOnce(buffer, filename) {
   const client = new ftp.Client(30000);
   client.ftp.verbose = false;
   try {
@@ -411,6 +427,7 @@ async function generateWithGPT(baseBuf, photo, chip, maskBuf) {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}` },
     body: fd,
+    signal: AbortSignal.timeout(180000),
   });
   if (!res.ok) {
     const t = await res.text();
@@ -482,11 +499,14 @@ async function openaiJson(parts, { maxTokens = 400 } = {}) {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: OPENAI_VISION, messages: [{ role: 'user', content: parts }], response_format: { type: 'json_object' }, max_tokens: maxTokens, temperature: 0 }),
+    signal: AbortSignal.timeout(30000),
   });
   if (!res.ok) throw new Error(`vision ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json = await res.json();
-  const text = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '{}';
-  try { return JSON.parse(text); } catch { throw new Error('vision JSON 파싱 실패'); }
+  const choice = json.choices && json.choices[0];
+  if (choice && choice.finish_reason === 'length') throw new Error(`vision 응답 잘림(max_tokens ${maxTokens})`);
+  const text = (choice && choice.message && choice.message.content) || '{}';
+  try { return JSON.parse(text); } catch { throw new Error('vision JSON 파싱 실패: ' + String(text).slice(0, 80)); }
 }
 
 /** 1단계 — 고객 사진 분석. 축소본만 보내고 결과는 이 요청 안에서만 쓴다. */
@@ -504,7 +524,9 @@ async function locateTag(buf) {
 /** 태그 자리에 진짜 로고를 얹는다 (imgCreate stamp-logo 방식). 못 찾으면 무지 태그 그대로 둔다. */
 async function stampLogo(buf, box) {
   const logo = loadAsset('logo.png');
-  if (!logo || !box || !box.found) return { buf, stamped: false };
+  const found = box && (box.found === true || box.found === 'true');
+  if (!logo || !found) return { buf, stamped: false };
+  for (const k of ['cx', 'cy']) { const v = Number(box[k]); if (!(v > 0 && v < 1)) return { buf, stamped: false }; }
   const meta = await sharp(buf).metadata();
   const W = meta.width, H = meta.height;
   const cx = Math.round(W * Number(box.cx)), cy = Math.round(H * Number(box.cy));
@@ -554,8 +576,11 @@ async function generateScene(doc, chip, base, photo) {
   if (usePhoto) {
     try { analysis = await analyzePhoto(photo); }
     catch (e) { console.warn('[쉼순간] 사진 분석 실패 → 사진 없이 진행:', e.message); analysis = null; usePhoto = false; }
-    if (analysis && analysis.minorPresent) { minorFlag = true; usePhoto = false; analysis = null; }
-    if (analysis && !(analysis.count > 0)) { usePhoto = false; analysis = null; }
+    const minor = analysis && (analysis.minorPresent === true || analysis.minorPresent === 'true');
+    if (minor) { minorFlag = true; usePhoto = false; analysis = null; }
+    if (analysis && !(Number(analysis.count) > 0)) { usePhoto = false; analysis = null; }
+    // 사진을 안 쓰기로 했으면 여기서 파기한다 — 실패해서 옛 경로로 내려가도 이 사진이 다른 모델에 올라가지 않게.
+    if (!usePhoto && photo) { photo.buffer = null; photo.discarded = true; }
   }
 
   const refs = ['product', 'mate'].concat(usePhoto ? ['photo'] : []);
@@ -577,11 +602,21 @@ async function generateScene(doc, chip, base, photo) {
     const ph = await sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
     fd.append('image[]', new Blob([ph], { type: 'image/jpeg' }), 'person.jpg');
   }
-  const res = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd });
-  if (!res.ok) throw new Error(`GPT ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  let res;
+  try {
+    res = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd, signal: AbortSignal.timeout(180000) });
+  } catch (e) {
+    // 네트워크·타임아웃 — 과금되지 않았으니 잡 재시도 대상
+    throw Object.assign(new Error('GPT 연결 실패: ' + (e && e.message)), { retryable: true });
+  }
+  if (!res.ok) {
+    const t = await res.text();
+    // 429·5xx 는 잠시 뒤 다시(과금 없음). 4xx(정책·요청 오류)는 다시 해도 같으니 실루엣으로 내려간다.
+    throw Object.assign(new Error(`GPT ${res.status}: ${t.slice(0, 200)}`), { status: res.status, retryable: res.status === 429 || res.status >= 500 });
+  }
   const json = await res.json();
   const b64 = json && json.data && json.data[0] && json.data[0].b64_json;
-  if (!b64) throw new Error('GPT 응답에 이미지가 없습니다');
+  if (!b64) throw Object.assign(new Error('GPT 응답에 이미지가 없습니다'), { retryable: true });
 
   let buf = await cropPoster(Buffer.from(b64, 'base64'), theme);
   let tagStamped = false;
@@ -596,7 +631,7 @@ async function generateScene(doc, chip, base, photo) {
     buf, via: 'gpt-scene',
     extra: {
       theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto,
-      people: analysis ? { count: analysis.count, presentations: (analysis.people || []).map(p => p.presentation) } : null,
+      people: analysis ? { count: Number(analysis.count) || 0 } : null,        // 성별 표현 같은 파생 속성은 저장하지 않는다
       genTokens: usage.output_tokens || null,
     },
   };
@@ -620,7 +655,13 @@ async function generatePersonLayer(baseBuf, photo, chip) {
 // ── 워커 ──────────────────────────────────────────────────────────
 // 잡 상태를 메모리가 아니라 Mongo 에 둔다. 컨테이너가 재시작해도
 // 폴링 중인 고객이 영영 대기 화면에 갇히지 않는다.
-let working = false;
+// 생성은 됐는데 발행(합성·업로드·저장)이 실패한 건을 다시 과금하지 않기 위한 임시 보관. 사진 vault 와 같은 TTL.
+const sceneVault = new Map();   // String(_id) → { buf, via, extra, at }
+setInterval(() => { const cut = Date.now() - PHOTO_TTL_MS; for (const [k, v] of sceneVault) if (v.at < cut) sceneVault.delete(k); }, 60 * 1000).unref();
+
+// 워커 동시성 — 건당 60~120초라 직렬로는 큐가 밀린다. 클레임(pending→processing)이 원자적이라 중복 처리는 없다.
+const CONCURRENCY = Math.max(1, Number(process.env.REST_MOMENT_CONCURRENCY || 3));
+let inflight = 0;
 
 async function processOne(db, doc) {
   const col = db.collection(ENTRY_COLLECTION);
@@ -634,16 +675,28 @@ async function processOne(db, doc) {
     photo = doc.hadPhoto ? takePhoto(doc._id) : null;
 
     // 응모마다 GPT 로 장면을 새로 그린다 (테마 · 칩 · 메이트 · 사진 분석).
-    // 실패하면 옛 경로(시드 + 인물 레이어)로 내려가 빈손으로 보내지 않는다.
+    // 이미 그려둔 게 있으면(발행만 실패했던 재시도) 다시 과금하지 않는다.
     let scene = null, via = null, extra = {};
-    if (GEN_MODE === 'gpt') {
+    const cached = sceneVault.get(String(doc._id));
+    if (cached) { scene = cached.buf; via = cached.via; extra = cached.extra || {}; }
+    if (!scene && GEN_MODE === 'gpt') {
       try { const r = await generateScene(doc, chip, base, photo); scene = r.buf; via = r.via; extra = r.extra; }
-      catch (e) { console.warn(`[쉼순간] GPT 장면 생성 실패 → 옛 경로: ${e.message}`); }
+      catch (e) {
+        // 일시 오류(429·5xx·네트워크)는 과금이 안 됐으니 잡 재시도로 넘긴다 — 사진은 vault 에 다시 넣어 둔다.
+        if (e && e.retryable && (doc.tries || 0) < 2) {
+          if (photo && photo.buffer) stashPhoto(doc._id, photo.buffer, photo.mimeType);
+          throw Object.assign(e, { backoffMs: 20000 * ((doc.tries || 0) + 1) });
+        }
+        console.warn(`[쉼순간] GPT 장면 생성 실패 → 실루엣 경로: ${e.message}`);
+        if (photo) { photo.buffer = null; }            // 같은 사진으로 다른 모델을 또 부르지 않는다
+        extra = { theme: 'interior', genError: String(e && e.message || e).slice(0, 200) };
+      }
     }
-    if (!scene) { const r = await generatePersonLayer(base, photo, chip); scene = r.buf; via = r.via; }
+    if (!scene) { const r = await generatePersonLayer(base, photo && photo.buffer ? photo : null, chip); scene = r.buf; via = r.via; }
 
     // ★ 원본 사진 파기 — 생성에 넘긴 직후 여기서 끝난다.
     if (photo) { photo.buffer = null; photo = null; }
+    sceneVault.set(String(doc._id), { buf: scene, via, extra, at: Date.now() });
 
     const [artBuf, shareBuf] = await Promise.all([
       renderArtwork(scene),
@@ -659,6 +712,7 @@ async function processOne(db, doc) {
       $set: Object.assign({ status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() }, extra),
       $unset: { lastError: '' },
     });
+    sceneVault.delete(String(doc._id));
     if (!done.matchedCount) {
       // 생성하는 동안 관리자가 지운 건 — 방금 올린 공개 파일 두 장을 되돌린다
       for (const u of [imageUrl, shareUrl]) {
@@ -670,33 +724,45 @@ async function processOne(db, doc) {
     }
     console.log(`[쉼순간] 완성 ${doc._id} (${doc.chip}, ${via})`);
   } catch (err) {
-    if (photo) { photo.buffer = null; photo = null; }   // 실패해도 원본은 남기지 않는다
+    if (photo) { photo.buffer = null; photo = null; }   // 실패해도 원본은 남기지 않는다 (재시도 대상이면 위에서 이미 vault 에 되돌렸다)
     const tries = (doc.tries || 0) + 1;
-    // 2회까지 재시도하고, 그 뒤에는 실루엣 폴백으로 화면을 완성시킨다.
+    const lastError = String(err && err.message || err).slice(0, 300);
+    if (tries >= 3) {
+      // 재시도 소진 — 빈손으로 보내지 않는다: 시드(실루엣)로라도 발행한다. 그것마저 안 되면 failed.
+      try {
+        const base2 = await loadBase(doc.chip);
+        const [artBuf, shareBuf] = await Promise.all([renderArtwork(base2), renderShareCard(base2, doc.sentence, chip.type)]);
+        const [imageUrl, shareUrl] = await Promise.all([ftpUpload(artBuf, publicName('')), ftpUpload(shareBuf, publicName('_s'))]);
+        await col.updateOne({ _id: doc._id }, { $set: { status: 'done', imageUrl, shareUrl, via: 'silhouette', theme: 'interior', usedPhoto: false, doneAt: nowKST(), tries, lastError } });
+        sceneVault.delete(String(doc._id));
+        console.error(`[쉼순간] 생성 실패 ${doc._id} (${tries}회) → 실루엣으로 발행:`, lastError);
+        return;
+      } catch (e2) { console.error('[쉼순간] 실루엣 발행도 실패:', e2.message); }
+    }
+    const backoff = err && err.backoffMs ? err.backoffMs : 3000 * tries;
     await col.updateOne({ _id: doc._id }, {
-      $set: {
-        status: tries >= 3 ? 'failed' : 'pending',
-        tries,
-        lastError: String(err && err.message || err).slice(0, 300),
-      },
+      $set: { status: tries >= 3 ? 'failed' : 'pending', tries, nextAt: new Date(Date.now() + backoff), lastError },
     });
-    console.error(`[쉼순간] 생성 실패 ${doc._id} (${tries}회):`, err.message);
+    console.error(`[쉼순간] 생성 실패 ${doc._id} (${tries}회, ${Math.round(backoff / 1000)}초 뒤 재시도):`, lastError);
   }
 }
 
 async function tick(getDb) {
-  if (working) return;
-  working = true;
+  if (inflight >= CONCURRENCY) return;
   try {
     const db = getDb();
     if (!db) return;
     const col = db.collection(ENTRY_COLLECTION);
-    const docs = await col.find({ status: 'pending' }).sort({ createdAt: 1 }).limit(2).toArray();
-    for (const d of docs) await processOne(db, d);
+    const free = CONCURRENCY - inflight;
+    const now = new Date();
+    const docs = await col.find({ status: 'pending', $or: [{ nextAt: { $exists: false } }, { nextAt: null }, { nextAt: { $lte: now } }] })
+      .sort({ createdAt: 1 }).limit(free).toArray();
+    for (const d of docs) {
+      inflight++;
+      processOne(db, d).catch(e => console.error('[쉼순간] 워커 오류:', e.message)).finally(() => { inflight--; });
+    }
   } catch (e) {
     console.error('[쉼순간] 워커 오류:', e.message);
-  } finally {
-    working = false;
   }
 }
 
@@ -705,6 +771,15 @@ function mount(app, deps) {
   const { getDb, apiRequest, mallId } = deps;
 
   bootstrapFont();
+
+  // 재배포로 processing 에 멈춘 건을 되살린다 — 워커는 이 프로세스 하나뿐이라 부팅 시 processing 은 전부 고아다.
+  setTimeout(async () => {
+    try {
+      const db = getDb(); if (!db) return;
+      const r = await db.collection(ENTRY_COLLECTION).updateMany({ status: 'processing' }, { $set: { status: 'pending' }, $unset: { pickedAt: '' } });
+      if (r && r.modifiedCount) console.log(`[쉼순간] 멈춘 processing ${r.modifiedCount}건 → pending`);
+    } catch (e) { console.warn('[쉼순간] processing 복구 실패:', e.message); }
+  }, 5000).unref();
 
   // 읽기와 쓰기를 다르게 막는다.
   //  · 읽기(갤러리·상태조회)는 공개 데이터라 어디서 불러도 상관없다.
@@ -875,11 +950,12 @@ function mount(app, deps) {
       const col = db.collection(ENTRY_COLLECTION);
 
       // 마스터 아이디(testid·yogibo)가 ?as=<id>&mk=<key>&all=1 로 부르면 숨김 건까지 보여주고 id 를 준다 (페이지 내 숨김·삭제용)
-      const master = isMaster(String(req.query.as || ''), { body: { masterKey: req.query.mk } });
+      const master = isMasterStrict(String(req.query.as || ''), req);   // 키(헤더)가 있어야 열린다
       const filter = { status: 'done', imageUrl: { $ne: null } };
       if (!(master && String(req.query.all) === '1')) filter.approved = true;
-      if (req.query.tab === 'photo') filter.hadPhoto = true;
-      if (req.query.tab === 'ai') filter.hadPhoto = false;
+      // 실제로 사진이 쓰였는지(usedPhoto)가 있으면 그걸로, 없으면(옛 문서) 첨부 여부(hadPhoto)로 가른다
+      if (req.query.tab === 'photo') filter.$or = [{ usedPhoto: true }, { usedPhoto: { $exists: false }, hadPhoto: true }];
+      if (req.query.tab === 'ai')    filter.$or = [{ usedPhoto: false }, { usedPhoto: { $exists: false }, hadPhoto: false }];
 
       // 갤러리 머리의 "오늘 하루에만 N개" — 공개된 완성건 기준, KST 자정 이후
       const k = nowKST();
@@ -903,10 +979,10 @@ function mount(app, deps) {
         hasMore,
         master,
         items: items.map(d => ({
-          ...(master ? { id: String(d._id), approved: !!d.approved, memberId: d.memberId || null } : {}),
+          ...(master ? { id: String(d._id), approved: !!d.approved, rewarded: !!d.rewarded } : {}),
           date: d.doneAt ? ymd(d.doneAt) : null,
           theme: d.theme || 'interior',
-          src: d.hadPhoto ? 'photo' : 'ai',
+          src: (d.usedPhoto === true || d.usedPhoto === false) ? (d.usedPhoto ? 'photo' : 'ai') : (d.hadPhoto ? 'photo' : 'ai'),
           caption: d.sentence,
           type: d.type,
           imageUrl: d.imageUrl,
@@ -927,19 +1003,22 @@ function mount(app, deps) {
   /** 응모 한 건을 파일까지 지운다. 관리 페이지와 마스터 아이디의 페이지 내 삭제가 같이 쓴다. */
   async function deleteEntry(db, _id, by) {
     const col = db.collection(ENTRY_COLLECTION);
-    const doc = await col.findOne({ _id });
+    // 문서를 먼저 원자적으로 빼낸다 — 워커의 done 갱신과 겹쳐도 URL 을 잃지 않는다 (드라이버 6: 문서를 직접 돌려준다).
+    const doc = await col.findOneAndDelete({ _id });
     if (!doc) return null;
-    // 공개 파일(그림 + 문장이 박힌 공유 카드)부터 지운다. 실패해도 기록은 지우되 휴지통에 URL 을 남겨 다시 시도할 수 있게 한다.
+    photoVault.delete(String(_id));
+    sceneVault.delete(String(_id));
+    // 휴지통 기록을 파일 삭제보다 먼저 쓴다 — FTP 도중 죽어도 재시도 근거가 남는다.
+    const trash = db.collection(TRASH_COLLECTION);
+    const { insertedId: trashId } = await trash.insertOne({
+      entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
+      imageUrl: doc.imageUrl || null, shareUrl: doc.shareUrl || null, deletedBy: by || 'admin',
+      deletedAt: new Date(), ftpRemoved: null, errors: [],
+    });
     const results = [];
     for (const u of [doc.imageUrl, doc.shareUrl]) if (u) results.push(Object.assign({ url: u }, await ftpRemoveByUrl(u)));
     const ftpRemoved = results.every(x => x.ok);
-    await db.collection(TRASH_COLLECTION).insertOne({
-      entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
-      imageUrl: doc.imageUrl || null, shareUrl: doc.shareUrl || null, deletedBy: by || 'admin',
-      deletedAt: new Date(), ftpRemoved, errors: results.filter(x => !x.ok).map(x => x.url + ' — ' + x.error),
-    });
-    await col.deleteOne({ _id });
-    photoVault.delete(String(_id));
+    await trash.updateOne({ _id: trashId }, { $set: { ftpRemoved, errors: results.filter(x => !x.ok).map(x => x.url + ' — ' + x.error) } });
     console.log('[쉼순간] 삭제(' + (by || 'admin') + '):', String(_id), ftpRemoved ? '파일 삭제됨' : '파일 삭제 실패');
     return { ftpRemoved };
   }
@@ -950,7 +1029,8 @@ function mount(app, deps) {
     try {
       const db = getDb();
       const { memberId, entryId, action } = req.body || {};
-      if (!isMaster(memberId, req)) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
+      if (!MASTER_KEY) return res.status(403).json({ ok: false, notConfigured: true, message: 'REST_MOMENT_MASTER_KEY 가 서버에 설정되지 않았습니다.' });
+      if (!isMasterStrict(memberId, req)) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
       const _id = oid(entryId);
       if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
       const col = db.collection(ENTRY_COLLECTION);
@@ -1060,7 +1140,7 @@ function mount(app, deps) {
       if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
       const action = String((req.body || {}).action || '');
       if (action === 'approve' || action === 'unapprove') {
-        await col.updateOne({ _id }, { $set: { approved: action === 'approve', reviewedAt: new Date() } });
+        await col.updateOne({ _id }, { $set: { approved: action === 'approve', reviewedAt: new Date(), reviewedBy: 'admin' } });
       } else if (action === 'delete') {
         const r = await deleteEntry(db, _id, 'admin');
         if (!r) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
