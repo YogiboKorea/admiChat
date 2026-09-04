@@ -38,7 +38,7 @@ const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 // 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
 const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
-const MASTER_IDS = (process.env.REST_MOMENT_MASTER_IDS || 'testid')
+const MASTER_IDS = (process.env.REST_MOMENT_MASTER_IDS || 'testid,yogibo')
   .split(',').map(s => s.trim()).filter(Boolean);
 // memberId 는 클라이언트가 보내는 값이라 'testid' 는 누구나 보낼 수 있다.
 // REST_MOMENT_MASTER_KEY 를 두면 폼의 masterKey 까지 맞아야 마스터다 (페이지는 ?ai_master=키 로 받아 보낸다).
@@ -608,6 +608,9 @@ function mount(app, deps) {
       try {
         const db = getDb();
         const { chip, sentence, memberId, agreeMarketing } = req.body || {};
+        // 예제에서 고른 스타일. 모르는 값은 기본(interior)으로 — 프론트가 없던 시절 응모도 그대로 통과한다.
+        const THEMES = ['interior', 'hanbok'];
+        const theme = THEMES.includes(String((req.body || {}).theme || '')) ? String(req.body.theme) : 'interior';
 
         if (!CHIPS[chip]) {
           return res.status(400).json({ ok: false, message: '쉬는 자세를 하나만 골라주세요.' });
@@ -641,6 +644,7 @@ function mount(app, deps) {
         const claimToken = crypto.randomBytes(16).toString('hex');
         const doc = {
           chip,
+          theme,
           type: CHIPS[chip].type,
           sentence: text,
           memberId: mid,                                   // 비회원도 접수한다 (가입 시 지급)
@@ -705,6 +709,7 @@ function mount(app, deps) {
         reason: doc.status === 'failed' ? String(doc.lastError || '').slice(0, 160) : undefined,
         tries: doc.tries || 0,
         chip: doc.chip,
+        theme: doc.theme || 'interior',
         date: doc.doneAt ? ymd(doc.doneAt) : null,        // 완료 화면 "2026. 09. 11 · 기대는 사람"
         imageUrl: doc.imageUrl || null,
         shareUrl: doc.shareUrl || null,
@@ -752,6 +757,7 @@ function mount(app, deps) {
         hasMore,
         items: items.map(d => ({
           date: d.doneAt ? ymd(d.doneAt) : null,
+          theme: d.theme || 'interior',
           src: d.hadPhoto ? 'photo' : 'ai',
           caption: d.sentence,
           type: d.type,
@@ -840,7 +846,7 @@ function mount(app, deps) {
       const hasMore = rows.length > limit;
       const items = (hasMore ? rows.slice(0, limit) : rows).map(d => ({
         id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
-        chip: d.chip, type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
+        chip: d.chip, theme: d.theme || 'interior', type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
         hadPhoto: !!d.hadPhoto, imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
         tries: d.tries || 0, lastError: d.lastError || null, createdAt: d.createdAt || null, doneAt: d.doneAt || null,
       }));
