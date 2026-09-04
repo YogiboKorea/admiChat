@@ -29,6 +29,7 @@ const { Readable } = require('stream');
 // ── 컬렉션 ────────────────────────────────────────────────────────
 const ENTRY_COLLECTION = 'restMomentEntry';
 const REWARD_COLLECTION = 'restMomentReward';
+const TRASH_COLLECTION = 'restMomentTrash';   // 관리자가 지운 응모의 URL 기록 — 파일 삭제 실패 시 재시도 근거
 
 // ── 설정 ──────────────────────────────────────────────────────────
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
@@ -43,6 +44,21 @@ const MASTER_IDS = (process.env.REST_MOMENT_MASTER_IDS || 'testid')
 // REST_MOMENT_MASTER_KEY 를 두면 폼의 masterKey 까지 맞아야 마스터다 (페이지는 ?ai_master=키 로 받아 보낸다).
 // 키를 두지 않으면 아이디만으로 판정한다 — 베타 동안의 기본값.
 const MASTER_KEY = String(process.env.REST_MOMENT_MASTER_KEY || '').trim();
+// 갤러리 노출. 기본은 금칙어에 안 걸린 건 자동 승인(베타). REST_MOMENT_REQUIRE_REVIEW=1 이면 관리자가 승인해야 보인다.
+const REQUIRE_REVIEW = /^(1|true|yes)$/i.test(String(process.env.REST_MOMENT_REQUIRE_REVIEW || ''));
+// 관리 페이지(/rest-admin.html)와 관리 API 를 여는 키. 없으면 관리 API 는 503 으로 닫힌다.
+let ADMIN_KEY = String(process.env.REST_MOMENT_ADMIN_KEY || '').trim();
+if (ADMIN_KEY && !/^[\x21-\x7E]+$/.test(ADMIN_KEY)) {
+  // HTTP 헤더는 ASCII 만 안전하게 실린다. 한글 키는 브라우저가 못 보내므로 아예 닫는다.
+  console.error('★ [쉼순간] REST_MOMENT_ADMIN_KEY 는 영문·숫자·기호(ASCII)만 됩니다 — 관리 API 를 닫습니다');
+  ADMIN_KEY = '';
+}
+const sha256 = v => crypto.createHash('sha256').update(String(v)).digest('hex');
+function adminKeyOk(given) {
+  if (!ADMIN_KEY || !given) return false;
+  const a = Buffer.from(String(given)), b = Buffer.from(ADMIN_KEY);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 function isMaster(id, req) {
   if (!id || !MASTER_IDS.includes(String(id))) return false;
   if (!MASTER_KEY) return true;
@@ -175,9 +191,28 @@ function escXml(s) {
 
 /** 부적절 표현 1차 자동 필터. 통과해도 갤러리 공개는 수동 검수 후다. */
 const BANNED = ['씨발', '시발', '병신', '좆', '개새', '섹스', 'ㅅㅂ', 'ㅄ', '자살', '죽어'];
+// 한글 음절을 호환 자모(초·중·종성)로 풀어 쓴다. '씨.발' '씨1발' 'ㅆㅣㅂㅏㄹ' 같은 우회를 같은 형태로 만들기 위해서다.
+const CHO  = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+const JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function jamo(str) {
+  let out = '';
+  for (const ch of String(str)) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0xAC00 && c <= 0xD7A3) {
+      const i = c - 0xAC00;
+      out += CHO[Math.floor(i / 588)] + JUNG[Math.floor((i % 588) / 28)] + JONG[i % 28];
+    } else out += ch;
+  }
+  return out;
+}
+const BANNED_FORMS = BANNED.reduce((acc, w) => acc.concat([w, jamo(w)]), []);
 function looksInappropriate(text) {
-  const t = String(text || '').replace(/\s/g, '');
-  return BANNED.some(w => t.includes(w));
+  // 공백·기호를 걷어낸 형태, 숫자까지 걷어낸 형태, 그 둘의 자모 분해형 — 넷 중 하나라도 걸리면 부적절로 본다.
+  const base = String(text || '').toLowerCase().replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]/g, '');
+  const noDigit = base.replace(/[0-9]/g, '');
+  const forms = [base, noDigit, jamo(base), jamo(noDigit)];
+  return forms.some(f => BANNED_FORMS.some(w => w && f.includes(w)));
 }
 
 function withinEventPeriod(d) {
@@ -202,6 +237,33 @@ async function ftpUpload(buffer, filename) {
     await client.ensureDir(FTP_DIR);
     await client.uploadFrom(Readable.from(buffer), filename);
     return `${FTP_PUBLIC}/${filename}`;
+  } finally {
+    client.close();
+  }
+}
+
+// 공개 URL 하나를 FTP 에서 지운다. 파일명 형식을 검사해 이 이벤트가 올린 파일 밖의 것은 절대 건드리지 않는다.
+const PUBLIC_NAME_RE = /^\d{8}_[0-9a-f]{8}(_s)?\.jpg$/;
+async function ftpRemoveByUrl(url) {
+  if (!url) return { ok: true };
+  let name;
+  try { name = path.posix.basename(new URL(url).pathname); } catch { return { ok: false, error: '잘못된 URL: ' + url }; }
+  if (!PUBLIC_NAME_RE.test(name)) return { ok: false, error: '지울 수 없는 파일명: ' + name };
+  if (!process.env.FTP_HOST) return { ok: false, error: 'FTP 미설정' };
+  const client = new ftp.Client(30000);
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: process.env.FTP_HOST,
+      port: Number(process.env.FTP_PORT || 21),
+      user: process.env.FTP_USER,
+      password: process.env.FTP_PASS,
+      secure: false,
+    });
+    await client.remove(`${FTP_DIR}/${name}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
   } finally {
     client.close();
   }
@@ -422,6 +484,9 @@ let working = false;
 
 async function processOne(db, doc) {
   const col = db.collection(ENTRY_COLLECTION);
+  // 집을 때 processing 으로 바꾼다. 그 사이 관리자가 지웠으면 여기서 멈춘다 — 생성 비용도, 고아 파일도 없다.
+  const claim = await col.updateOne({ _id: doc._id, status: 'pending' }, { $set: { status: 'processing', pickedAt: new Date() } });
+  if (!claim.matchedCount) return;
   const chip = CHIPS[doc.chip];
   let photo = null;
   try {
@@ -445,10 +510,19 @@ async function processOne(db, doc) {
       ftpUpload(shareBuf, publicName('_s')),
     ]);
 
-    await col.updateOne({ _id: doc._id }, {
+    const done = await col.updateOne({ _id: doc._id }, {
       $set: { status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() },
       $unset: { lastError: '' },
     });
+    if (!done.matchedCount) {
+      // 생성하는 동안 관리자가 지운 건 — 방금 올린 공개 파일 두 장을 되돌린다
+      for (const u of [imageUrl, shareUrl]) {
+        const r = await ftpRemoveByUrl(u);
+        if (!r.ok) console.error('[쉼순간] 고아 파일 정리 실패:', u, r.error);
+      }
+      console.log(`[쉼순간] 생성 중 삭제된 응모 ${doc._id} — 파일 회수`);
+      return;
+    }
     console.log(`[쉼순간] 완성 ${doc._id} (${doc.chip}, ${via})`);
   } catch (err) {
     if (photo) { photo.buffer = null; photo = null; }   // 실패해도 원본은 남기지 않는다
@@ -560,19 +634,23 @@ function mount(app, deps) {
           }
         }
 
+        const flagged = looksInappropriate(text);
+        // 갤러리가 보여주는 정보만으로는 남의 응모를 가져갈 수 없게, 접수한 브라우저에만 토큰을 준다.
+        const claimToken = crypto.randomBytes(16).toString('hex');
         const doc = {
           chip,
           type: CHIPS[chip].type,
           sentence: text,
           memberId: mid,                                   // 비회원도 접수한다 (가입 시 지급)
-          displayId: mid ? (master ? fakeDisplayId() : maskId(mid)) : null,
+          displayId: mid ? (master ? fakeDisplayId() : (looksInappropriate(mid) ? '회원***' : maskId(mid))) : null,
+          claimHash: sha256(claimToken),                   // 비회원 응모를 나중에 가입 후 가져갈 때 본인 증명
           master,
           hadPhoto: !!(req.file && req.file.buffer),
           agreeMarketing: String(agreeMarketing) === '1',
           status: 'pending',
           tries: 0,
-          approved: false,                                 // 갤러리 공개는 검수 통과분만
-          autoFlag: looksInappropriate(text),
+          approved: REQUIRE_REVIEW ? false : !flagged,      // 베타: 금칙어만 아니면 바로 공개. 검수 우선은 env 로.
+          autoFlag: flagged,
           createdAt: now,
         };
 
@@ -599,7 +677,7 @@ function mount(app, deps) {
           req.file = null;
         }
 
-        return res.json({ ok: true, entryId: String(insertedId), jobId: String(insertedId) });
+        return res.json({ ok: true, entryId: String(insertedId), jobId: String(insertedId), claimToken });
       } catch (err) {
         if (req.file) { req.file.buffer = null; req.file = null; }
         console.error('[쉼순간] 접수 오류:', err.message);
@@ -638,27 +716,36 @@ function mount(app, deps) {
   app.get('/api/rest-moment/recent', allowRead, async (req, res) => {
     try {
       const db = getDb();
-      const limit = Math.min(Number(req.query.limit) || 8, 40);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 48);
+      const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 5000);
       const col = db.collection(ENTRY_COLLECTION);
 
       const filter = { status: 'done', approved: true, imageUrl: { $ne: null } };
       if (req.query.tab === 'photo') filter.hadPhoto = true;
       if (req.query.tab === 'ai') filter.hadPhoto = false;
 
-      const [items, total] = await Promise.all([
-        col.find(filter).sort({ doneAt: -1 }).limit(limit).toArray(),
+      // limit+1 로 한 장 더 읽어 다음 페이지가 있는지 알아낸다 — count 한 번을 아낀다.
+      const [rows, total, shown] = await Promise.all([
+        col.find(filter).sort({ doneAt: -1 }).skip(offset).limit(limit + 1).toArray(),
         col.countDocuments({ status: 'done' }),
+        col.countDocuments(filter),
       ]);
+      const hasMore = rows.length > limit;
+      const items = hasMore ? rows.slice(0, limit) : rows;
 
       return res.json({
         ok: true,
         total,
+        shown,
+        offset,
+        hasMore,
         items: items.map(d => ({
+          date: d.doneAt ? ymd(d.doneAt) : null,
           src: d.hadPhoto ? 'photo' : 'ai',
           caption: d.sentence,
           type: d.type,
           imageUrl: d.imageUrl,
-          displayId: d.displayId || maskId(d.memberId),
+          displayId: d.displayId || null,
         })),
       });
     } catch (err) {
@@ -671,8 +758,184 @@ function mount(app, deps) {
   // 카트 이벤트에서 운영 검증된 흐름 그대로. 다만 memberId 만으로 주지 않고
   // "그 회원의 완성된 응모"가 실제로 있는지 확인한다 — 없으면 응모 없이도
   // API 만 때려서 받아갈 수 있다.
+
+  // ── 관리 API (/rest-admin.html) ──
+  // 같은 서버가 서빙하는 페이지에서만 부른다. 키는 헤더 x-rest-admin-key.
+  const allowAdmin = (req, res, next) => {
+    if (!ADMIN_KEY) return res.status(503).json({ ok: false, message: 'REST_MOMENT_ADMIN_KEY 가 서버에 설정되지 않았습니다.' });
+    if (!adminKeyOk(req.get('x-rest-admin-key'))) return res.status(401).json({ ok: false, message: '관리 키가 맞지 않습니다.' });
+    next();
+  };
+  const oid = v => { try { return new (require('mongodb').ObjectId)(String(v)); } catch { return null; } };
+  const STALE_MS = 2 * 60 * 1000;
+  // "정산 필요" 의 정의를 한 곳에 둔다. 통계·목록·release 가 전부 이걸 써야 숫자와 버튼이 어긋나지 않는다.
+  const problemClauses = staleAt => ({
+    unknown:  { settled: 'unknown' },
+    calling:  { settled: false, phase: 'calling',  reservedAt: { $lt: staleAt } },
+    reserved: { settled: false, phase: 'reserved', reservedAt: { $lt: staleAt } },
+  });
+  const problemOr = staleAt => { const p = problemClauses(staleAt); return [p.unknown, p.calling, p.reserved]; };
+
+  app.get('/api/rest-moment/admin/stats', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const e = db.collection(ENTRY_COLLECTION), r = db.collection(REWARD_COLLECTION);
+      const c = (col, f) => col.countDocuments(f);
+      const staleAt = new Date(Date.now() - STALE_MS);
+      const [total, pending, processing, done, failed, approved, review, flagged, withPhoto, master, members,
+             settled, unknown, calling, reserved] = await Promise.all([
+        c(e, {}), c(e, { status: 'pending' }), c(e, { status: 'processing' }), c(e, { status: 'done' }), c(e, { status: 'failed' }),
+        c(e, { status: 'done', approved: true }), c(e, { status: 'done', approved: false }), c(e, { autoFlag: true }),
+        c(e, { hadPhoto: true }), c(e, { master: true }), e.distinct('memberId', { memberId: { $ne: null } }),
+        c(r, { $or: [{ settled: true }, { settled: { $exists: false } }] }), c(r, { settled: 'unknown' }),
+        c(r, problemClauses(staleAt).calling), c(r, problemClauses(staleAt).reserved),
+      ]);
+      return res.json({
+        ok: true,
+        entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master },
+        members: members.length,
+        rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
+        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END },
+      });
+    } catch (err) {
+      console.error('[쉼순간] 관리 통계 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  app.get('/api/rest-moment/admin/entries', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const col = db.collection(ENTRY_COLLECTION);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+      const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 20000);
+      const VIEWS = {
+        all:      {},
+        review:   { status: 'done', approved: false },
+        approved: { status: 'done', approved: true },
+        flagged:  { autoFlag: true },
+        failed:   { status: 'failed' },
+        working:  { status: { $in: ['pending', 'processing'] } },
+      };
+      const view = String(req.query.view || 'all');
+      const filter = Object.assign({}, Object.prototype.hasOwnProperty.call(VIEWS, view) ? VIEWS[view] : VIEWS.all);
+      const qtext = String(req.query.q || '').trim().slice(0, 60);
+      if (qtext) {
+        const re = new RegExp(qtext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        filter.$or = [{ memberId: qtext }, { memberId: re }, { sentence: re }, { displayId: re }];
+      }
+      const rows = await col.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit + 1).toArray();
+      const hasMore = rows.length > limit;
+      const items = (hasMore ? rows.slice(0, limit) : rows).map(d => ({
+        id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
+        chip: d.chip, type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
+        hadPhoto: !!d.hadPhoto, imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
+        tries: d.tries || 0, createdAt: d.createdAt || null, doneAt: d.doneAt || null,
+      }));
+      return res.json({ ok: true, view, offset, hasMore, items });
+    } catch (err) {
+      console.error('[쉼순간] 관리 목록 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  app.post('/api/rest-moment/admin/entries/:id', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const col = db.collection(ENTRY_COLLECTION);
+      const _id = oid(req.params.id);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
+      const action = String((req.body || {}).action || '');
+      if (action === 'approve' || action === 'unapprove') {
+        await col.updateOne({ _id }, { $set: { approved: action === 'approve', reviewedAt: new Date() } });
+      } else if (action === 'delete') {
+        const doc = await col.findOne({ _id });
+        if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+        // 공개 파일(그림 + 문장이 박힌 공유 카드)부터 지운다. 실패해도 기록은 지우되 휴지통에 URL 을 남겨 다시 시도할 수 있게 한다.
+        const results = [];
+        for (const u of [doc.imageUrl, doc.shareUrl]) if (u) results.push(Object.assign({ url: u }, await ftpRemoveByUrl(u)));
+        const ftpRemoved = results.every(x => x.ok);
+        await db.collection(TRASH_COLLECTION).insertOne({
+          entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
+          imageUrl: doc.imageUrl || null, shareUrl: doc.shareUrl || null,
+          deletedAt: new Date(), ftpRemoved, errors: results.filter(x => !x.ok).map(x => x.url + ' — ' + x.error),
+        });
+        await col.deleteOne({ _id });
+        photoVault.delete(String(_id));
+        console.log('[쉼순간] 관리: delete', String(_id), ftpRemoved ? '파일 삭제됨' : '파일 삭제 실패');
+        return res.json({ ok: true, ftpRemoved, warn: ftpRemoved ? null : '이미지 파일 삭제에 실패했습니다. 기록은 지웠고 URL 은 휴지통(restMomentTrash)에 남겼습니다.' });
+      } else {
+        return res.status(400).json({ ok: false, message: '알 수 없는 action' });
+      }
+      console.log('[쉼순간] 관리:', action, String(_id));
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[쉼순간] 관리 변경 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  app.get('/api/rest-moment/admin/rewards', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const r = db.collection(REWARD_COLLECTION);
+      const staleAt = new Date(Date.now() - STALE_MS);
+      const state = String(req.query.state || 'problem');
+      const filter = state === 'all' ? {} : { $or: problemOr(staleAt) };
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+      const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 20000);
+      const rowsAll = await r.find(filter).sort({ reservedAt: -1, participatedAt: -1 }).skip(offset).limit(limit + 1).toArray();
+      const hasMore = rowsAll.length > limit;
+      const rows = hasMore ? rowsAll.slice(0, limit) : rowsAll;
+      const canRelease = d => d.settled === 'unknown' || (d.settled === false && d.reservedAt && new Date(d.reservedAt) < staleAt);
+      return res.json({ ok: true, state, offset, hasMore, items: rows.map(d => ({
+        canRelease: canRelease(d),
+        id: String(d._id), memberId: d.memberId, entryId: d.entryId, amount: d.amount,
+        settled: d.settled === undefined ? true : d.settled, phase: d.phase || (d.settled === undefined ? 'settled' : null),
+        reservedAt: d.reservedAt || null, settledAt: d.settledAt || null, failedAt: d.failedAt || null,
+        lastError: d.lastError || null, participatedAt: d.participatedAt || null, settledBy: d.settledBy || null,
+      })) });
+    } catch (err) {
+      console.error('[쉼순간] 관리 적립 목록 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  // settle: Cafe24 어드민에서 실제 적립을 확인한 뒤 "지급됨"으로 확정한다.
+  // release: 적립이 안 된 것을 확인한 뒤 예약을 지운다 — 회원이 버튼을 다시 눌러 받을 수 있게 된다.
+  app.post('/api/rest-moment/admin/rewards/:id', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const r = db.collection(REWARD_COLLECTION), e = db.collection(ENTRY_COLLECTION);
+      const _id = oid(req.params.id);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
+      const doc = await r.findOne({ _id });
+      if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+      const action = String((req.body || {}).action || '');
+      if (action === 'settle') {
+        await r.updateOne({ _id }, { $set: { settled: true, phase: 'settled', settledAt: new Date(), settledBy: 'admin' } });
+        const eid = oid(doc.entryId);
+        if (eid) await e.updateOne({ _id: eid }, { $set: { rewarded: true } });
+      } else if (action === 'release') {
+        // 조건부 원자 삭제 — 진행 중(2분 안 된 예약/호출)이거나 확정된 기록은 절대 지우지 않는다.
+        const staleAt = new Date(Date.now() - STALE_MS);
+        const { deletedCount } = await r.deleteOne({ _id, $or: [ { settled: 'unknown' }, { settled: false, reservedAt: { $lt: staleAt } } ] });
+        if (!deletedCount) {
+          return res.status(400).json({ ok: false, message: '진행 중이거나 이미 확정된 기록은 되돌릴 수 없습니다. 2분 뒤 다시 확인해주세요.' });
+        }
+      } else {
+        return res.status(400).json({ ok: false, message: '알 수 없는 action' });
+      }
+      console.log('[쉼순간] 관리 적립:', action, doc.memberId, String(_id));
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[쉼순간] 관리 적립 변경 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   app.post('/api/rest-moment/reward', allowWrite, async (req, res) => {
-    const { memberId, entryId } = req.body || {};
+    const { memberId, entryId, claimToken } = req.body || {};
     if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
       return res.status(400).json({ ok: false, message: '로그인 후 받을 수 있습니다.' });
     }
@@ -709,12 +972,17 @@ function mount(app, deps) {
       }
       if (!entry) entry = await entries.findOne({ memberId, status: 'done' });
 
-      // 비회원으로 응모한 뒤 가입해서 받는 경로 — entryId 로 찾은 건에 회원을 붙인다
-      if (entry && !entry.memberId) {
-        await entries.updateOne({ _id: entry._id }, { $set: { memberId } });
-        entry.memberId = memberId;
+      if (!entry || entry.status !== 'done') {
+        return res.status(400).json({ ok: false, message: '먼저 그림을 받아주세요.' });
       }
-      if (!entry || entry.memberId !== memberId || entry.status !== 'done') {
+      // 비회원으로 응모한 뒤 가입해서 받는 경로. 갤러리에 보이는 정보만으로 남의 응모를 가로채지 못하게
+      // 접수 때 받은 claimToken 이 맞아야 하고, 실제 귀속은 지급이 성공한 뒤에 한다.
+      let bindGuest = false;
+      if (!entry.memberId) {
+        const ok = !!claimToken && !!entry.claimHash && sha256(claimToken) === entry.claimHash;
+        if (!ok) return res.status(403).json({ ok: false, message: '이 응모는 처음 만든 브라우저에서만 받을 수 있어요.' });
+        bindGuest = true;
+      } else if (entry.memberId !== memberId) {
         return res.status(400).json({ ok: false, message: '먼저 그림을 받아주세요.' });
       }
 
@@ -758,7 +1026,10 @@ function mount(app, deps) {
       // 5) 확정. 여기서 실패해도 지급은 이미 됐으므로 예약을 절대 지우지 않는다.
       try {
         await rewards.updateOne({ _id: insertedId }, { $set: { settled: true, phase: 'settled', settledAt: new Date() } });
-        await entries.updateOne({ _id: entry._id }, { $set: { rewarded: true } });
+        const bind = bindGuest
+          ? { rewarded: true, memberId, displayId: looksInappropriate(memberId) ? '회원***' : maskId(memberId) }
+          : { rewarded: true };
+        await entries.updateOne({ _id: entry._id }, { $set: bind });
       } catch (dbErr) {
         console.error('[쉼순간] ★ 지급 후 확정 실패 — 정산 필요:', memberId, String(insertedId), dbErr.message);
         return res.status(202).json({ ok: false, pending: true, message: PENDING_MSG });
