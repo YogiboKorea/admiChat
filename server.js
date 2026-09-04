@@ -233,10 +233,11 @@ async function refreshAccessToken() {
 
 
 // 공통 API 요청 함수 (재시도 로직 포함)
-async function apiRequest(method, url, data = {}, params = {}) {
+async function apiRequest(method, url, data = {}, params = {}, opts = {}) {
   try {
     const response = await axios({
       method, url, data, params,
+      timeout: opts.timeout || 0,   // 0 = 제한 없음(기존 동작). 적립금처럼 결과가 돈인 호출만 짧게 준다.
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -250,7 +251,7 @@ async function apiRequest(method, url, data = {}, params = {}) {
       console.log(`⚠️ [401 에러 감지] 토큰이 만료되었습니다. 갱신을 시도합니다...`);
       await refreshAccessToken();
       console.log(`🔄 갱신된 토큰으로 API 재요청...`);
-      return apiRequest(method, url, data, params); // 재귀 호출
+      return apiRequest(method, url, data, params, opts); // 재귀 호출
     } else {
       const errorDetails = error.response ? JSON.stringify(error.response.data.error) : '상세 에러 없음';
       console.error(`❌ API 요청 오류 [${error.response?.status}]:`, error.message);
