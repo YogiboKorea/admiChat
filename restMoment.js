@@ -97,6 +97,8 @@ async function ensureRewardIndex(rewards) {
 }
 
 const FTP_DIR = process.env.FTP_REST_DIR || '/web/img/md/09';
+// Cafe24 FTP 는 계정 홈에 갇혀 있어 절대경로(CWD /)를 550 으로 거부한다 — server.js 처럼 상대경로로 쓴다.
+const FTP_DIR_REL = FTP_DIR.split('/').filter(Boolean).join('/');
 const FTP_PUBLIC = (process.env.FTP_REST_PUBLIC_BASE || '').replace(/\/$/, '');
 
 // 쓰기(응모·적립금)를 허용할 오리진. 몰 본 도메인 + Cafe24 스킨 미리보기까지 포함해야
@@ -234,7 +236,7 @@ async function ftpUpload(buffer, filename) {
       password: process.env.FTP_PASS,
       secure: false,
     });
-    await client.ensureDir(FTP_DIR);
+    await client.ensureDir(FTP_DIR_REL);
     await client.uploadFrom(Readable.from(buffer), filename);
     return `${FTP_PUBLIC}/${filename}`;
   } finally {
@@ -260,7 +262,7 @@ async function ftpRemoveByUrl(url) {
       password: process.env.FTP_PASS,
       secure: false,
     });
-    await client.remove(`${FTP_DIR}/${name}`);
+    await client.remove(`${FTP_DIR_REL}/${name}`);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
