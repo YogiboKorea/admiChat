@@ -92,7 +92,9 @@ const PHOTO_ANALYSIS_PROMPT = [
 
 /** 3단계 — 태그 위치 탐지. 로고 후보정용. */
 const TAG_LOCATE_PROMPT = [
-  'This is a flat illustration of a person on a Yogibo bean bag. Find the small BLANK white fabric tag sewn on the bean bag\'s edge.',
+  'This is a flat illustration of a person on a Yogibo bean bag. Find the small BLANK white fabric tag sewn on the BEAN BAG\'s edge —',
+  'a tiny plain white/cream rectangle on the bean bag fabric itself. It is NOT on clothing, NOT on the plush toy, NOT a pillow or a cup.',
+  'If the only white rectangles you see are on clothing or props, return {"found":false}.',
   'Return STRICT JSON only: {"found":true|false,"cx":<0-1>,"cy":<0-1>,"w":<0-1>,"h":<0-1>,"angle":<degrees>,"confidence":"high|medium|low"}',
   'cx,cy = tag center as fractions of image width/height; w,h = tag size as fractions; angle = tilt of the tag\'s LONG axis in degrees',
   '(0 = horizontal, positive = clockwise, negative = counter-clockwise, range -90..90). If no such tag is visible, return {"found":false}.',

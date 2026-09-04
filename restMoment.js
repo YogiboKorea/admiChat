@@ -509,6 +509,21 @@ async function stampLogo(buf, box) {
   const W = meta.width, H = meta.height;
   const cx = Math.round(W * Number(box.cx)), cy = Math.round(H * Number(box.cy));
   if (!(cx > 0 && cy > 0 && cx < W && cy < H)) return { buf, stamped: false };
+  // 비전 모델이 옷·소품을 태그로 착각하는 일이 있다(실측: 치마 위에 찍힘). 좌표 주변에서 가장 밝은 창을 찾아
+  // 재중심하고, 그 창이 밝은 저채도(무지 태그의 천)이며 둘레 원단보다 뚜렷이 밝을 때만 얹는다.
+  // 로고가 엉뚱한 데 붙는 것보다 무지 태그가 낫다.
+  const rawImg = await sharp(buf).removeAlpha().raw().toBuffer();
+  const px = (x, y) => { x = Math.max(0, Math.min(W - 1, x)); y = Math.max(0, Math.min(H - 1, y)); const i = (y * W + x) * 3; return [rawImg[i], rawImg[i + 1], rawImg[i + 2]]; };
+  const win = (x, y, r) => { let l = 0, sat = 0, c = 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const [R, G, B] = px(x + dx, y + dy); l += (R + G + B) / 3; sat += Math.max(R, G, B) - Math.min(R, G, B); c++; } return { lum: l / c, sat: sat / c }; };
+  let best = { lum: -1 }, bx = cx, by = cy;
+  for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) { const w = win(cx + dx, cy + dy, 2); if (w.lum > best.lum) { best = w; bx = cx + dx; by = cy + dy; } }
+  const ringR = Math.max(10, Math.round(Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0) * 0.9));
+  let ring = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; ring += win(Math.round(bx + Math.cos(a) * ringR), Math.round(by + Math.sin(a) * ringR), 1).lum; } ring /= 8;
+  if (best.lum < 170 || best.sat > 80 || best.lum - ring < 40) {
+    console.warn(`[쉼순간] 태그 좌표가 무지 태그로 보이지 않음(lum ${best.lum.toFixed(0)}, sat ${best.sat.toFixed(0)}, 둘레 ${ring.toFixed(0)}) → 로고 생략`);
+    return { buf, stamped: false };
+  }
+  const cxx = bx, cyy = by;
   const longSide = Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0);
   const logoW = Math.max(14, Math.min(Math.round(longSide * 0.8) || 0, Math.round(W * 0.08)));
   const angle = Math.max(-90, Math.min(90, Number(box.angle) || 0));
@@ -516,7 +531,7 @@ async function stampLogo(buf, box) {
   const faded = await sharp(l).composite([{ input: Buffer.from([0, 0, 0, 235]), raw: { width: 1, height: 1, channels: 4 }, tile: true, blend: 'dest-in' }]).png().toBuffer();
   const rot = await sharp(faded).rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   const rm = await sharp(rot).metadata();
-  const out = await sharp(buf).composite([{ input: rot, left: cx - Math.round(rm.width / 2), top: cy - Math.round(rm.height / 2) }]).png().toBuffer();
+  const out = await sharp(buf).composite([{ input: rot, left: cxx - Math.round(rm.width / 2), top: cyy - Math.round(rm.height / 2) }]).png().toBuffer();
   return { buf: out, stamped: true };
 }
 
@@ -1212,3 +1227,6 @@ module.exports = {
   publicName,
   looksInappropriate,
 };
+
+// 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
+module.exports.__internals = { generateScene, loadBase, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
