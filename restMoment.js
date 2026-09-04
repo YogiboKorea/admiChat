@@ -874,7 +874,10 @@ function mount(app, deps) {
       const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 5000);
       const col = db.collection(ENTRY_COLLECTION);
 
-      const filter = { status: 'done', approved: true, imageUrl: { $ne: null } };
+      // 마스터 아이디(testid·yogibo)가 ?as=<id>&mk=<key>&all=1 로 부르면 숨김 건까지 보여주고 id 를 준다 (페이지 내 숨김·삭제용)
+      const master = isMaster(String(req.query.as || ''), { body: { masterKey: req.query.mk } });
+      const filter = { status: 'done', imageUrl: { $ne: null } };
+      if (!(master && String(req.query.all) === '1')) filter.approved = true;
       if (req.query.tab === 'photo') filter.hadPhoto = true;
       if (req.query.tab === 'ai') filter.hadPhoto = false;
 
@@ -898,7 +901,9 @@ function mount(app, deps) {
         today,
         offset,
         hasMore,
+        master,
         items: items.map(d => ({
+          ...(master ? { id: String(d._id), approved: !!d.approved, memberId: d.memberId || null } : {}),
           date: d.doneAt ? ymd(d.doneAt) : null,
           theme: d.theme || 'interior',
           src: d.hadPhoto ? 'photo' : 'ai',
@@ -918,6 +923,53 @@ function mount(app, deps) {
   // 카트 이벤트에서 운영 검증된 흐름 그대로. 다만 memberId 만으로 주지 않고
   // "그 회원의 완성된 응모"가 실제로 있는지 확인한다 — 없으면 응모 없이도
   // API 만 때려서 받아갈 수 있다.
+
+  /** 응모 한 건을 파일까지 지운다. 관리 페이지와 마스터 아이디의 페이지 내 삭제가 같이 쓴다. */
+  async function deleteEntry(db, _id, by) {
+    const col = db.collection(ENTRY_COLLECTION);
+    const doc = await col.findOne({ _id });
+    if (!doc) return null;
+    // 공개 파일(그림 + 문장이 박힌 공유 카드)부터 지운다. 실패해도 기록은 지우되 휴지통에 URL 을 남겨 다시 시도할 수 있게 한다.
+    const results = [];
+    for (const u of [doc.imageUrl, doc.shareUrl]) if (u) results.push(Object.assign({ url: u }, await ftpRemoveByUrl(u)));
+    const ftpRemoved = results.every(x => x.ok);
+    await db.collection(TRASH_COLLECTION).insertOne({
+      entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
+      imageUrl: doc.imageUrl || null, shareUrl: doc.shareUrl || null, deletedBy: by || 'admin',
+      deletedAt: new Date(), ftpRemoved, errors: results.filter(x => !x.ok).map(x => x.url + ' — ' + x.error),
+    });
+    await col.deleteOne({ _id });
+    photoVault.delete(String(_id));
+    console.log('[쉼순간] 삭제(' + (by || 'admin') + '):', String(_id), ftpRemoved ? '파일 삭제됨' : '파일 삭제 실패');
+    return { ftpRemoved };
+  }
+
+  // ── 마스터 아이디(testid·yogibo) 페이지 내 숨김·삭제 ──
+  // memberId 는 클라이언트 값이라 REST_MOMENT_MASTER_KEY 가 있으면 masterKey 도 맞아야 한다 (isMaster 와 같은 규칙).
+  app.post('/api/rest-moment/moderate', allowWrite, async (req, res) => {
+    try {
+      const db = getDb();
+      const { memberId, entryId, action } = req.body || {};
+      if (!isMaster(memberId, req)) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
+      const _id = oid(entryId);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
+      const col = db.collection(ENTRY_COLLECTION);
+      if (action === 'hide' || action === 'unhide') {
+        const r = await col.updateOne({ _id }, { $set: { approved: action === 'unhide', reviewedAt: new Date(), reviewedBy: String(memberId) } });
+        if (!r.matchedCount) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+      } else if (action === 'delete') {
+        const r = await deleteEntry(db, _id, 'master:' + String(memberId));
+        if (!r) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+      } else {
+        return res.status(400).json({ ok: false, message: '알 수 없는 action' });
+      }
+      console.log('[쉼순간] 마스터 조치:', String(memberId), action, String(_id));
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[쉼순간] 마스터 조치 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
 
   // ── 관리 API (/rest-admin.html) ──
   // 같은 서버가 서빙하는 페이지에서만 부른다. 키는 헤더 x-rest-admin-key.
@@ -1010,21 +1062,9 @@ function mount(app, deps) {
       if (action === 'approve' || action === 'unapprove') {
         await col.updateOne({ _id }, { $set: { approved: action === 'approve', reviewedAt: new Date() } });
       } else if (action === 'delete') {
-        const doc = await col.findOne({ _id });
-        if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
-        // 공개 파일(그림 + 문장이 박힌 공유 카드)부터 지운다. 실패해도 기록은 지우되 휴지통에 URL 을 남겨 다시 시도할 수 있게 한다.
-        const results = [];
-        for (const u of [doc.imageUrl, doc.shareUrl]) if (u) results.push(Object.assign({ url: u }, await ftpRemoveByUrl(u)));
-        const ftpRemoved = results.every(x => x.ok);
-        await db.collection(TRASH_COLLECTION).insertOne({
-          entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
-          imageUrl: doc.imageUrl || null, shareUrl: doc.shareUrl || null,
-          deletedAt: new Date(), ftpRemoved, errors: results.filter(x => !x.ok).map(x => x.url + ' — ' + x.error),
-        });
-        await col.deleteOne({ _id });
-        photoVault.delete(String(_id));
-        console.log('[쉼순간] 관리: delete', String(_id), ftpRemoved ? '파일 삭제됨' : '파일 삭제 실패');
-        return res.json({ ok: true, ftpRemoved, warn: ftpRemoved ? null : '이미지 파일 삭제에 실패했습니다. 기록은 지웠고 URL 은 휴지통(restMomentTrash)에 남겼습니다.' });
+        const r = await deleteEntry(db, _id, 'admin');
+        if (!r) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+        return res.json({ ok: true, ftpRemoved: r.ftpRemoved, warn: r.ftpRemoved ? null : '이미지 파일 삭제에 실패했습니다. 기록은 지웠고 URL 은 휴지통(restMomentTrash)에 남겼습니다.' });
       } else {
         return res.status(400).json({ ok: false, message: '알 수 없는 action' });
       }
