@@ -464,6 +464,129 @@ async function generateWithGemini(baseBuf, photo, chip) {
  *   GPT → 제미나이 → 실루엣(베이스 그대로)
  * 어느 단계에서 끝났는지는 호출부가 기록해 나중에 성공률을 본다.
  */
+// ── GPT 장면 생성 (테마 · 칩 · 메이트 · 사진 분석 → 한 장) ────────────────────
+// 시드 이미지를 그대로 내보내던 방식 대신 응모마다 새로 그린다. 프롬프트는 restPrompts.js.
+const RP = require('./restPrompts');
+const GEN_MODE = process.env.REST_MOMENT_GEN || 'gpt';                 // 'gpt' | 'base'  (base = 시드 + 인물 레이어 옛 경로)
+const OPENAI_QUALITY = process.env.OPENAI_IMAGE_QUALITY || 'high';      // 건당 ≈ $0.18 (medium ≈ $0.05)
+const OPENAI_VISION = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'; // 사진 분석 · 태그 위치 탐지
+const ASSET_DIR = path.join(__dirname, 'public', 'rest-moment');
+function loadAsset(name) { const p = path.join(ASSET_DIR, name); return fs.existsSync(p) ? fs.readFileSync(p) : null; }
+const dataUrl = (buf, mime = 'image/jpeg') => `data:${mime};base64,${buf.toString('base64')}`;
+
+/** 비전 모델에 이미지+지시를 보내 JSON 만 받는다. */
+async function openaiJson(parts, { maxTokens = 400 } = {}) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY 없음');
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: OPENAI_VISION, messages: [{ role: 'user', content: parts }], response_format: { type: 'json_object' }, max_tokens: maxTokens, temperature: 0 }),
+  });
+  if (!res.ok) throw new Error(`vision ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const json = await res.json();
+  const text = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '{}';
+  try { return JSON.parse(text); } catch { throw new Error('vision JSON 파싱 실패'); }
+}
+
+/** 1단계 — 고객 사진 분석. 축소본만 보내고 결과는 이 요청 안에서만 쓴다. */
+async function analyzePhoto(photo) {
+  const small = await sharp(photo.buffer).rotate().resize({ width: 768, height: 768, fit: 'inside' }).jpeg({ quality: 82 }).toBuffer();
+  return openaiJson([{ type: 'text', text: RP.PHOTO_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'low' } }]);
+}
+
+/** 3단계 — 생성본에서 무지 태그 위치를 찾는다. */
+async function locateTag(buf) {
+  const small = await sharp(buf).resize({ width: 768 }).jpeg({ quality: 82 }).toBuffer();
+  return openaiJson([{ type: 'text', text: RP.TAG_LOCATE_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'high' } }], { maxTokens: 120 });
+}
+
+/** 태그 자리에 진짜 로고를 얹는다 (imgCreate stamp-logo 방식). 못 찾으면 무지 태그 그대로 둔다. */
+async function stampLogo(buf, box) {
+  const logo = loadAsset('logo.png');
+  if (!logo || !box || !box.found) return { buf, stamped: false };
+  const meta = await sharp(buf).metadata();
+  const W = meta.width, H = meta.height;
+  const cx = Math.round(W * Number(box.cx)), cy = Math.round(H * Number(box.cy));
+  if (!(cx > 0 && cy > 0 && cx < W && cy < H)) return { buf, stamped: false };
+  const longSide = Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0);
+  const logoW = Math.max(14, Math.min(Math.round(longSide * 0.8) || 0, Math.round(W * 0.08)));
+  const angle = Math.max(-90, Math.min(90, Number(box.angle) || 0));
+  const l = await sharp(logo).resize({ width: logoW }).ensureAlpha().png().toBuffer();
+  const faded = await sharp(l).composite([{ input: Buffer.from([0, 0, 0, 235]), raw: { width: 1, height: 1, channels: 4 }, tile: true, blend: 'dest-in' }]).png().toBuffer();
+  const rot = await sharp(faded).rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  const rm = await sharp(rot).metadata();
+  const out = await sharp(buf).composite([{ input: rot, left: cx - Math.round(rm.width / 2), top: cy - Math.round(rm.height / 2) }]).png().toBuffer();
+  return { buf: out, stamped: true };
+}
+
+/** 1024x1536 → 4:5. 한복은 인사말이 위에 있으니 위쪽 기준으로 자른다. */
+function cropPoster(buf, theme) {
+  return sharp(buf).resize(1024, 1280, { fit: 'cover', position: theme === 'hanbok' ? 'top' : 'centre' }).png().toBuffer();
+}
+
+/**
+ * 응모 한 건의 장면을 그린다.
+ * 참조: 제품(칩의 시드 일러스트 — 형태·색), 메이트 팍스, (있으면) 고객 사진.
+ * 14세 미만이 보이면 사진을 쓰지 않고 minorFlag 만 남긴다.
+ */
+async function generateScene(doc, chip, base, photo) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY 없음');
+  const theme = doc.theme === 'hanbok' ? 'hanbok' : 'interior';
+
+  let analysis = null, minorFlag = false, usePhoto = !!(photo && photo.buffer);
+  if (usePhoto) {
+    try { analysis = await analyzePhoto(photo); }
+    catch (e) { console.warn('[쉼순간] 사진 분석 실패 → 사진 없이 진행:', e.message); analysis = null; usePhoto = false; }
+    if (analysis && analysis.minorPresent) { minorFlag = true; usePhoto = false; analysis = null; }
+    if (analysis && !(analysis.count > 0)) { usePhoto = false; analysis = null; }
+  }
+
+  const refs = ['product', 'mate'].concat(usePhoto ? ['photo'] : []);
+  const { prompt, greeting, double } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs });
+  const mate = loadAsset('ref-mate-fox.png');
+  if (!mate) throw new Error('ref-mate-fox.png 없음');
+  const productRef = await sharp(base).resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
+
+  const fd = new FormData();
+  fd.append('model', OPENAI_MODEL);
+  fd.append('prompt', prompt);
+  fd.append('size', '1024x1536');
+  fd.append('quality', OPENAI_QUALITY);
+  fd.append('output_format', 'png');
+  fd.append('n', '1');
+  fd.append('image[]', new Blob([productRef], { type: 'image/png' }), 'product.png');
+  fd.append('image[]', new Blob([mate], { type: 'image/png' }), 'mate.png');
+  if (usePhoto) {
+    const ph = await sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
+    fd.append('image[]', new Blob([ph], { type: 'image/jpeg' }), 'person.jpg');
+  }
+  const res = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd });
+  if (!res.ok) throw new Error(`GPT ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const json = await res.json();
+  const b64 = json && json.data && json.data[0] && json.data[0].b64_json;
+  if (!b64) throw new Error('GPT 응답에 이미지가 없습니다');
+
+  let buf = await cropPoster(Buffer.from(b64, 'base64'), theme);
+  let tagStamped = false;
+  try {
+    const box = await locateTag(buf);
+    const r = await stampLogo(buf, box);
+    buf = r.buf; tagStamped = r.stamped;
+  } catch (e) { console.warn('[쉼순간] 태그 탐지/로고 실패 → 무지 태그 유지:', e.message); }
+
+  const usage = json.usage || {};
+  return {
+    buf, via: 'gpt-scene',
+    extra: {
+      theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto,
+      people: analysis ? { count: analysis.count, presentations: (analysis.people || []).map(p => p.presentation) } : null,
+      genTokens: usage.output_tokens || null,
+    },
+  };
+}
+
 async function generatePersonLayer(baseBuf, photo, chip) {
   if (!photo || !photo.buffer) return { buf: baseBuf, via: 'silhouette' };
   try {
@@ -493,11 +616,16 @@ async function processOne(db, doc) {
   let photo = null;
   try {
     const base = await loadBase(doc.chip);
-
-    // 사진이 있으면 인물 레이어를 만든다. 없으면 이 단계 자체를 건너뛰어
-    // 호출 비용이 0 이다 (개발요청서: "사진 미첨부 건은 애초에 호출이 없다").
     photo = doc.hadPhoto ? takePhoto(doc._id) : null;
-    const { buf: scene, via } = await generatePersonLayer(base, photo, chip);
+
+    // 응모마다 GPT 로 장면을 새로 그린다 (테마 · 칩 · 메이트 · 사진 분석).
+    // 실패하면 옛 경로(시드 + 인물 레이어)로 내려가 빈손으로 보내지 않는다.
+    let scene = null, via = null, extra = {};
+    if (GEN_MODE === 'gpt') {
+      try { const r = await generateScene(doc, chip, base, photo); scene = r.buf; via = r.via; extra = r.extra; }
+      catch (e) { console.warn(`[쉼순간] GPT 장면 생성 실패 → 옛 경로: ${e.message}`); }
+    }
+    if (!scene) { const r = await generatePersonLayer(base, photo, chip); scene = r.buf; via = r.via; }
 
     // ★ 원본 사진 파기 — 생성에 넘긴 직후 여기서 끝난다.
     if (photo) { photo.buffer = null; photo = null; }
@@ -513,7 +641,7 @@ async function processOne(db, doc) {
     ]);
 
     const done = await col.updateOne({ _id: doc._id }, {
-      $set: { status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() },
+      $set: Object.assign({ status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() }, extra),
       $unset: { lastError: '' },
     });
     if (!done.matchedCount) {
