@@ -34,7 +34,6 @@ const REWARD_COLLECTION = 'restMomentReward';
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_SENTENCE = 60;
 const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
-const EVENT_START = process.env.REST_MOMENT_START || '2026-09-11';
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 
 const FTP_DIR = process.env.FTP_REST_DIR || '/web/img/md/09';
@@ -139,7 +138,8 @@ function looksInappropriate(text) {
 
 function withinEventPeriod(d) {
   const t = ymd(d);
-  return t >= EVENT_START && t <= EVENT_END;
+  // 시작일은 막지 않는다 — 오픈 전 테스트를 위해 종료일만 본다.
+  return t <= EVENT_END;
 }
 
 // ── FTP ───────────────────────────────────────────────────────────
