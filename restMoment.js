@@ -228,7 +228,7 @@ async function ftpUpload(buffer, filename) {
   client.ftp.verbose = false;
   try {
     await client.access({
-      host: process.env.FTP_HOST,
+      host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',   // server.js 의 다른 FTP 코드와 같은 기본값
       port: Number(process.env.FTP_PORT || 21),
       user: process.env.FTP_USER,
       password: process.env.FTP_PASS,
@@ -249,12 +249,12 @@ async function ftpRemoveByUrl(url) {
   let name;
   try { name = path.posix.basename(new URL(url).pathname); } catch { return { ok: false, error: '잘못된 URL: ' + url }; }
   if (!PUBLIC_NAME_RE.test(name)) return { ok: false, error: '지울 수 없는 파일명: ' + name };
-  if (!process.env.FTP_HOST) return { ok: false, error: 'FTP 미설정' };
+  if (!process.env.FTP_USER) return { ok: false, error: 'FTP 계정 미설정' };
   const client = new ftp.Client(30000);
   client.ftp.verbose = false;
   try {
     await client.access({
-      host: process.env.FTP_HOST,
+      host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
       port: Number(process.env.FTP_PORT || 21),
       user: process.env.FTP_USER,
       password: process.env.FTP_PASS,
@@ -700,6 +700,8 @@ function mount(app, deps) {
 
       return res.json({
         status: doc.status,
+        reason: doc.status === 'failed' ? String(doc.lastError || '').slice(0, 160) : undefined,
+        tries: doc.tries || 0,
         imageUrl: doc.imageUrl || null,
         shareUrl: doc.shareUrl || null,
         type: doc.type,
