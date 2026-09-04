@@ -608,7 +608,7 @@ function mount(app, deps) {
         const { chip, sentence, memberId, agreeMarketing } = req.body || {};
 
         if (!CHIPS[chip]) {
-          return res.status(400).json({ ok: false, message: '쉬는 방식을 하나 골라주세요.' });
+          return res.status(400).json({ ok: false, message: '쉬는 자세를 하나만 골라주세요.' });
         }
         const text = String(sentence || '').trim();
         if (!text) {
@@ -702,6 +702,8 @@ function mount(app, deps) {
         status: doc.status,
         reason: doc.status === 'failed' ? String(doc.lastError || '').slice(0, 160) : undefined,
         tries: doc.tries || 0,
+        chip: doc.chip,
+        date: doc.doneAt ? ymd(doc.doneAt) : null,        // 완료 화면 "2026. 09. 11 · 기대는 사람"
         imageUrl: doc.imageUrl || null,
         shareUrl: doc.shareUrl || null,
         type: doc.type,
@@ -726,11 +728,15 @@ function mount(app, deps) {
       if (req.query.tab === 'photo') filter.hadPhoto = true;
       if (req.query.tab === 'ai') filter.hadPhoto = false;
 
+      // 갤러리 머리의 "오늘 하루에만 N개" — 공개된 완성건 기준, KST 자정 이후
+      const k = nowKST();
+      const dayStart = new Date(k.getFullYear(), k.getMonth(), k.getDate());
       // limit+1 로 한 장 더 읽어 다음 페이지가 있는지 알아낸다 — count 한 번을 아낀다.
-      const [rows, total, shown] = await Promise.all([
+      const [rows, total, shown, today] = await Promise.all([
         col.find(filter).sort({ doneAt: -1 }).skip(offset).limit(limit + 1).toArray(),
         col.countDocuments({ status: 'done' }),
         col.countDocuments(filter),
+        col.countDocuments({ status: 'done', approved: true, imageUrl: { $ne: null }, doneAt: { $gte: dayStart } }),
       ]);
       const hasMore = rows.length > limit;
       const items = hasMore ? rows.slice(0, limit) : rows;
@@ -739,6 +745,7 @@ function mount(app, deps) {
         ok: true,
         total,
         shown,
+        today,
         offset,
         hasMore,
         items: items.map(d => ({
