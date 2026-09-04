@@ -35,6 +35,35 @@ const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_SENTENCE = 60;
 const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
+// 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
+const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
+const MASTER_IDS = (process.env.REST_MOMENT_MASTER_IDS || 'testid')
+  .split(',').map(s => s.trim()).filter(Boolean);
+const isMaster = id => !!id && MASTER_IDS.includes(String(id));
+
+// 갤러리에 보여줄 아이디. 앞 두 글자만 남기고 가린다 — 당첨자 발표 관례와 같다.
+function maskId(id) {
+  const t = String(id || '');
+  if (!t) return null;
+  if (t.length <= 2) return t.charAt(0) + '***';
+  return t.slice(0, 2) + '***' + (t.length >= 6 ? t.slice(-1) : '');
+}
+// 마스터 아이디로 만든 건은 여러 사람이 참여한 것처럼 보여야 한다.
+// 저장 시점에 한 번 뽑아 고정한다 — 불러올 때마다 바뀌면 바로 티가 난다.
+const FAKE_HEADS = ['su','mi','yo','ji','ha','se','ju','da','so','na','eu','hy','ky','bo','ye','ch','ka','ri','wo','ta','je','in','do','ga'];
+function fakeDisplayId() {
+  const head = FAKE_HEADS[Math.floor(Math.random() * FAKE_HEADS.length)];
+  const tail = Math.random() < 0.6 ? String(Math.floor(Math.random() * 10)) : '';
+  return head + '***' + tail;
+}
+
+// 적립 기록의 memberId unique index. 동시 클릭을 막는 유일한 장치라 첫 지급 전에 반드시 있어야 한다.
+let rewardIndexReady = false;
+async function ensureRewardIndex(rewards) {
+  if (rewardIndexReady) return;
+  try { await rewards.createIndex({ memberId: 1 }, { unique: true }); rewardIndexReady = true; }
+  catch (e) { console.warn('[쉼순간] rewards 인덱스 생성 실패:', e.message); }
+}
 
 const FTP_DIR = process.env.FTP_REST_DIR || '/web/img/md/09';
 const FTP_PUBLIC = (process.env.FTP_REST_PUBLIC_BASE || '').replace(/\/$/, '');
@@ -505,11 +534,22 @@ function mount(app, deps) {
           return res.status(400).json({ ok: false, message: '이벤트 기간이 아닙니다.' });
         }
 
+        // 아이디당 최대 횟수. 실패한 건은 사용자 탓이 아니므로 세지 않는다.
+        const mid = memberId ? String(memberId) : null;
+        if (mid && !isMaster(mid)) {
+          const used = await db.collection(ENTRY_COLLECTION).countDocuments({ memberId: mid, status: { $ne: 'failed' } });
+          if (used >= MAX_PER_MEMBER) {
+            return res.status(400).json({ ok: false, limitReached: true,
+              message: '이 아이디로는 ' + MAX_PER_MEMBER + '번까지만 만들 수 있어요.' });
+          }
+        }
+
         const doc = {
           chip,
           type: CHIPS[chip].type,
           sentence: text,
-          memberId: memberId ? String(memberId) : null,   // 비회원도 접수한다 (가입 시 지급)
+          memberId: mid,                                   // 비회원도 접수한다 (가입 시 지급)
+          displayId: mid ? (isMaster(mid) ? fakeDisplayId() : maskId(mid)) : null,
           hadPhoto: !!(req.file && req.file.buffer),
           agreeMarketing: String(agreeMarketing) === '1',
           status: 'pending',
@@ -589,6 +629,7 @@ function mount(app, deps) {
           caption: d.sentence,
           type: d.type,
           imageUrl: d.imageUrl,
+          displayId: d.displayId || maskId(d.memberId),
         })),
       });
     } catch (err) {
@@ -613,10 +654,15 @@ function mount(app, deps) {
       const entries = db.collection(ENTRY_COLLECTION);
       const rewards = db.collection(REWARD_COLLECTION);
 
-      // 1) 이미 받았는지
+      // 1) 이미 받았는지 — 빠른 길. 진짜 방어는 아래 unique index 다.
       const already = await rewards.findOne({ memberId });
       if (already) {
-        return res.status(400).json({ ok: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+        // 예약만 남고 지급이 안 끝난 채 2분이 지났으면(프로세스 중단 등) 되돌리고 다시 진행한다.
+        const stale = already.settled === false && (Date.now() - new Date(already.reservedAt || 0).getTime()) > 2 * 60 * 1000;
+        if (!stale) {
+          return res.status(400).json({ ok: false, alreadyDone: true, message: '이미 적립금을 받으셨습니다.' });
+        }
+        await rewards.deleteOne({ _id: already._id });
       }
 
       // 2) 지급 자격 — 완성된 응모가 있어야 한다
@@ -635,20 +681,31 @@ function mount(app, deps) {
         return res.status(400).json({ ok: false, message: '먼저 그림을 받아주세요.' });
       }
 
-      // 3) Cafe24 적립금 지급
-      await apiRequest('POST', `https://${mallId}.cafe24api.com/api/v2/admin/points`, {
-        shop_no: 1,
-        request: {
-          member_id: memberId,
-          order_id: null,
-          amount: POINT_AMOUNT,
-          type: 'increase',
-          reason: '나의 쉼 순간 이벤트 참여 적립금',
-        },
+      // 3) 지급 기록을 먼저 잡는다. 두 번째 클릭은 여기서 11000 으로 튕긴다.
+      //    API 를 먼저 부르면 동시 클릭 두 개가 모두 Cafe24 까지 가서 두 번 지급될 수 있다.
+      await ensureRewardIndex(rewards);
+      await rewards.insertOne({
+        memberId, entryId: String(entry._id), amount: POINT_AMOUNT,
+        settled: false, reservedAt: new Date(), participatedAt: nowKST(),
       });
 
-      // 4) 지급 기록 (unique index 가 동시성을 막는다)
-      await rewards.insertOne({ memberId, entryId: String(entry._id), amount: POINT_AMOUNT, participatedAt: nowKST() });
+      // 4) Cafe24 적립금 지급 — 실패하면 예약을 되돌려 다시 누를 수 있게 한다
+      try {
+        await apiRequest('POST', `https://${mallId}.cafe24api.com/api/v2/admin/points`, {
+          shop_no: 1,
+          request: {
+            member_id: memberId,
+            order_id: null,
+            amount: POINT_AMOUNT,
+            type: 'increase',
+            reason: '나의 쉼 순간 이벤트 참여 적립금',
+          },
+        });
+      } catch (apiErr) {
+        await rewards.deleteOne({ memberId, settled: false });
+        throw apiErr;
+      }
+      await rewards.updateOne({ memberId }, { $set: { settled: true } });
       await entries.updateOne({ _id: entry._id }, { $set: { rewarded: true } });
 
       console.log(`[쉼순간] ${memberId} 적립금 ${POINT_AMOUNT}원 지급 완료`);
