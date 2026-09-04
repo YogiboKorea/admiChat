@@ -764,7 +764,8 @@ function mount(app, deps) {
   // ── 관리 API (/rest-admin.html) ──
   // 같은 서버가 서빙하는 페이지에서만 부른다. 키는 헤더 x-rest-admin-key.
   const allowAdmin = (req, res, next) => {
-    if (!ADMIN_KEY) return res.status(503).json({ ok: false, message: 'REST_MOMENT_ADMIN_KEY 가 서버에 설정되지 않았습니다.' });
+    // 503 은 클라우드타입 게이트웨이가 자기 에러 페이지로 바꿔치기한다 — 앱 상태는 4xx JSON 으로 알린다.
+    if (!ADMIN_KEY) return res.status(403).json({ ok: false, notConfigured: true, message: 'REST_MOMENT_ADMIN_KEY 가 서버에 설정되지 않았습니다.' });
     if (!adminKeyOk(req.get('x-rest-admin-key'))) return res.status(401).json({ ok: false, message: '관리 키가 맞지 않습니다.' });
     next();
   };
@@ -832,7 +833,7 @@ function mount(app, deps) {
         id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
         chip: d.chip, type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
         hadPhoto: !!d.hadPhoto, imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
-        tries: d.tries || 0, createdAt: d.createdAt || null, doneAt: d.doneAt || null,
+        tries: d.tries || 0, lastError: d.lastError || null, createdAt: d.createdAt || null, doneAt: d.doneAt || null,
       }));
       return res.json({ ok: true, view, offset, hasMore, items });
     } catch (err) {
@@ -990,7 +991,8 @@ function mount(app, deps) {
 
       // 3) 예약을 먼저 잡는다. unique index 가 이중 지급을 막는 유일한 장치라 없으면 진행하지 않는다.
       if (!(await ensureRewardIndex(rewards))) {
-        return res.status(503).json({ ok: false, message: '잠시 후 다시 시도해주세요.' });
+        // 503 은 게이트웨이가 가로채 JSON 이 프론트에 닿지 않는다 — 409 로 보낸다.
+        return res.status(409).json({ ok: false, message: '잠시 후 다시 시도해주세요.' });
       }
       const { insertedId } = await rewards.insertOne({
         memberId, entryId: String(entry._id), amount: POINT_AMOUNT,

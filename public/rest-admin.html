@@ -190,7 +190,7 @@ section{margin-top:28px}
     return fetch(API + path, { method: opts.method || 'GET', headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (d) {
-          if (r.status === 401 || r.status === 503) {
+          if (r.status === 401 || r.status === 503 || (r.status === 403 && d.notConfigured)) {
             key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {}
             lock(d.message || (r.status === 503 ? '서버에 관리 키가 설정되지 않았습니다.' : '관리 키가 맞지 않습니다.'));
             var ae = new Error(d.message || '인증 실패'); ae.auth = true; throw ae;
@@ -285,6 +285,7 @@ section{margin-top:28px}
         statusPill(it) +
         (it.status === 'done' ? (it.approved ? '<span class="pill ok">공개 중</span>' : '<span class="pill warn">숨김</span>') : '') +
         (it.autoFlag ? '<span class="pill bad">금칙어</span>' : '') +
+        (it.lastError ? '<span class="pill bad" title="' + esc(it.lastError) + '">⚠ ' + esc(String(it.lastError).slice(0, 70)) + '</span>' : '') +
         (it.rewarded ? '<span class="pill aqua">적립 완료</span>' : '') +
         (it.via ? '<span>' + esc(it.via) + '</span>' : '') +
         '<span>' + fmtKst(it.createdAt) + '</span>' +
