@@ -162,6 +162,15 @@ const AROUND_SPOTS = [
 /** 사람 키 기준. 제품 치수(SIZE_EN)와 같은 자로 그리게 한다 — 남 175 · 여 162 (지정값), 청소년·아이는 비례. */
 const BODY_SCALE = 'BODY SCALE: masculine-presenting adults are about 175 cm tall, feminine-presenting adults about 162 cm, teenagers about 160 cm, children about 115 cm. Size every person with these heights and size the product with its dimensions above, on the same scale — a 170 cm Max is about as long as the man is tall, a 60 cm Lounger reaches his knee.';
 
+/** 태그 검증 — 후보 주변 좁은 크롭에 대해 묻는다. 양말·옷깃·노리개·컵을 걸러내는 마지막 관문. */
+const TAG_VERIFY_PROMPT = [
+  'This is a small zoomed-in crop from a flat illustration of a person resting on a Yogibo bean bag.',
+  'Question: at the CENTER of this crop, is there a small plain BLANK fabric tag (a tiny light rectangle, no lettering) sewn onto the BEAN BAG\'s own fabric?',
+  'It counts ONLY if the tag sits on the bean bag / cushion fabric. It does NOT count if the light shape is part of clothing (collar, cuff, sock, stripe, ribbon,',
+  'norigae ornament), a plush toy, a cup, a plate, a pillow, a window, or a wall.',
+  'Return STRICT JSON only: {"tag":true|false,"what":"<one or two words for what the light shape at the center actually is>"}',
+].join(' ');
+
 /** 분석 결과 → 인물 지시. 한복이면 성별 표현·연령에 맞는 옷을 구체적으로. */
 function personDirective(analysis, theme, refs, chip) {
   const all = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
@@ -239,4 +248,4 @@ function buildPrompt(p) {
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };

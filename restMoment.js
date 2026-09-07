@@ -599,6 +599,26 @@ async function locateTag(buf) {
   return openaiJson([{ type: 'text', text: RP.TAG_LOCATE_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'high' } }], { maxTokens: 120 });
 }
 
+/** 첫 좌표가 빗나갔을 때 — 그 주변(폭의 30%)을 잘라 키워 다시 묻는다. 확대본에서는 훨씬 정확하다 (≈ $0.001). */
+async function locateTagZoom(buf, cx, cy) {
+  const meta = await sharp(buf).metadata();
+  const W = meta.width, H = meta.height;
+  const size = Math.round(W * 0.3);
+  const left = Math.max(0, Math.min(W - size, Math.round(cx * W - size / 2)));
+  const top = Math.max(0, Math.min(H - size, Math.round(cy * H - size / 2)));
+  const crop = await sharp(buf).extract({ left, top, width: size, height: size }).resize({ width: 768 }).jpeg({ quality: 88 }).toBuffer();
+  const b = await openaiJson([
+    { type: 'text', text: RP.TAG_LOCATE_PROMPT + ' NOTE: this is a zoomed-in crop of the picture; the tag is small and may sit near an edge of the crop.' },
+    { type: 'image_url', image_url: { url: dataUrl(crop), detail: 'high' } },
+  ], { maxTokens: 120 });
+  if (!b || !(b.found === true || b.found === 'true')) return b;
+  return {
+    found: true, zoomed: true, angle: b.angle, confidence: b.confidence,
+    cx: (left + Number(b.cx) * size) / W, cy: (top + Number(b.cy) * size) / H,
+    w: Number(b.w) * size / W, h: Number(b.h) * size / H,
+  };
+}
+
 /** 태그 자리에 진짜 로고를 얹는다 (imgCreate stamp-logo 방식). 못 찾으면 무지 태그 그대로 둔다. */
 /** #RRGGBB 의 상대 밝기(0~255). 밝은 제품이면 태그 대비 가드를 낮춘다. */
 function hexLum(hex) {
@@ -608,57 +628,46 @@ function hexLum(hex) {
   return 0.2126 * (v >> 16 & 255) + 0.7152 * (v >> 8 & 255) + 0.0722 * (v & 255);
 }
 
-async function stampLogo(buf, box, opts = {}) {
-  const logo = loadAsset('logo.png');
+/**
+ * 태그 후보 탐색 — 비전 좌표 주변을 픽셀로 훑어 "작고 밝은 저채도 점 + 둘레는 그보다 어두움" 을 찾는다. 찍지는 않는다.
+ * 실측: 비전 좌표는 150px, 확대 재탐지도 70px 빗나간다 → 폭의 7% 반경. 양말·옷깃도 픽셀로는 태그처럼 보이므로
+ * 운영에서는 verifyTag 로 한 번 더 거른다.
+ */
+async function findTag(buf, box, opts = {}) {
   const found = box && (box.found === true || box.found === 'true');
-  if (!logo || !found) return { buf, stamped: false };
-  for (const k of ['cx', 'cy']) { const v = Number(box[k]); if (!(v > 0 && v < 1)) return { buf, stamped: false }; }
+  if (!found) return { ok: false, reason: 'notfound' };
+  for (const k of ['cx', 'cy']) { const v = Number(box[k]); if (!(v > 0 && v < 1)) return { ok: false, reason: 'range' }; }
   const meta = await sharp(buf).metadata();
   const W = meta.width, H = meta.height;
   const cx = Math.round(W * Number(box.cx)), cy = Math.round(H * Number(box.cy));
-  if (!(cx > 0 && cy > 0 && cx < W && cy < H)) return { buf, stamped: false };
-  // 비전 모델이 옷·소품을 태그로 착각하는 일이 있다(실측: 치마 위에 찍힘). 좌표 주변에서 가장 밝은 창을 찾아
-  // 재중심하고, 그 창이 밝은 저채도(무지 태그의 천)이며 둘레 원단보다 뚜렷이 밝을 때만 얹는다.
-  // 로고가 엉뚱한 데 붙는 것보다 무지 태그가 낫다.
   const rawImg = await sharp(buf).removeAlpha().raw().toBuffer();
   const px = (x, y) => { x = Math.max(0, Math.min(W - 1, x)); y = Math.max(0, Math.min(H - 1, y)); const i = (y * W + x) * 3; return [rawImg[i], rawImg[i + 1], rawImg[i + 2]]; };
   const win = (x, y, r) => { let l = 0, sat = 0, c = 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const [R, G, B] = px(x + dx, y + dy); l += (R + G + B) / 3; sat += Math.max(R, G, B) - Math.min(R, G, B); c++; } return { lum: l / c, sat: sat / c }; };
-  let best = { lum: -1 }, bx = cx, by = cy;
-  for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) { const w = win(cx + dx, cy + dy, 2); if (w.lum > best.lum) { best = w; bx = cx + dx; by = cy + dy; } }
-  const ringR = Math.max(10, Math.round(Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0) * 0.9));
-  let ring = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; ring += win(Math.round(bx + Math.cos(a) * ringR), Math.round(by + Math.sin(a) * ringR), 1).lum; } ring /= 8;
-  // 채도 상한은 110 — 무지 태그가 순백이 아니라 따뜻한 크림색으로 그려진다(실측 sat 86). 진짜 판별은 둘레 대비가 한다.
-  // 단, 라이트그레이처럼 밝은 제품은 태그와 원단 밝기가 거의 같다(실측: 대비 10 안팎) — 그때는 대비 요구를 8 로 낮춘다.
-  const minContrast = opts.lightProduct ? 8 : 40;
+  const clampPx = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+  // 태그 크기 가정 — 비전 박스는 못 믿는다(실측 0.0072~0.08). 폭의 1.5~6% 로 묶고 둘레 반경도 거기서 낸다.
+  const seedW = clampPx((Number(box.w) || 0.03) * W, W * 0.015, W * 0.06);
+  const seedH = clampPx((Number(box.h) || 0.03) * H, W * 0.015, W * 0.06);
+  const ringR = clampPx(Math.max(seedW, seedH) * 0.9, 10, W * 0.04);
   const ringAt = (x, y) => { let r = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; r += win(Math.round(x + Math.cos(a) * ringR), Math.round(y + Math.sin(a) * ringR), 1).lum; } return r / 8; };
-  if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
-    // 첫 창이 태그가 아니면 주변을 넓게 훑는다 — 비전 좌표가 빗나간 경우. 작고 밝은 저채도 점 중 둘레 대비가 가장 큰 곳.
-    const R = Math.round(W * 0.12), step = 4;
-    let cand = null;
-    for (let y = Math.max(4, cy - R); y <= Math.min(H - 5, cy + R); y += step) {
-      for (let x = Math.max(4, cx - R); x <= Math.min(W - 5, cx + R); x += step) {
-        const w = win(x, y, 2);
-        if (w.lum < 190 || w.sat > 90) continue;
-        const rg = ringAt(x, y);
-        const contrast = w.lum - rg;
-        if (contrast < Math.max(minContrast, 14)) continue;
-        if (!cand || contrast > cand.contrast) cand = { x, y, lum: w.lum, sat: w.sat, ring: rg, contrast };
-      }
-    }
-    if (cand) {
-      console.log(`[쉼순간] 태그 재탐색: 비전 좌표 (${cx},${cy}) → (${cand.x},${cand.y}) 대비 ${cand.contrast.toFixed(0)}`);
-      bx = cand.x; by = cand.y; best = { lum: cand.lum, sat: cand.sat }; ring = cand.ring;
+  // 재중심 — "밝은 저채도 점 중 둘레 대비가 가장 큰 곳"
+  const seek = Math.round(W * 0.07), step = 3;
+  let best = null, bx = cx, by = cy, ring = 0;
+  for (let y = Math.max(3, cy - seek); y <= Math.min(H - 4, cy + seek); y += step) {
+    for (let x = Math.max(3, cx - seek); x <= Math.min(W - 4, cx + seek); x += step) {
+      const w = win(x, y, 2);
+      if (w.lum < 185 || w.sat > 110) continue;
+      const rg = ringAt(x, y), contrast = w.lum - rg;
+      if (!best || contrast > best.contrast) { best = { lum: w.lum, sat: w.sat, contrast }; bx = x; by = y; ring = rg; }
     }
   }
+  if (!best) { const w = win(cx, cy, 2); best = { lum: w.lum, sat: w.sat, contrast: 0 }; ring = ringAt(cx, cy); }
+  // 라이트그레이처럼 밝은 제품은 태그와 원단 밝기 차가 10 안팎 — 대비 요구를 낮춘다
+  const minContrast = opts.lightProduct ? 8 : 40;
   if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
-    console.warn(`[쉼순간] 태그 좌표가 무지 태그로 보이지 않음(lum ${best.lum.toFixed(0)}, sat ${best.sat.toFixed(0)}, 둘레 ${ring.toFixed(0)}) → 로고 생략`);
-    return { buf, stamped: false };
+    return { ok: false, reason: 'guard', at: { x: bx, y: by }, lum: best.lum, sat: best.sat, ring };
   }
-  // 태그의 밝은 면 전체를 모아 무게중심과 긴 축을 낸다. 가장 밝은 한 점만 쓰면 로고가 태그 구석에 박힌다(실측).
-  const seedW = Math.max(8, Math.round((Number(box.w) || 0.03) * W));
-  const seedH = Math.max(8, Math.round((Number(box.h) || 0.03) * H));
+  // 무게중심·크기·기울기 — 임계는 둘레와 태그의 중간. 덩어리가 태그 크기가 아니면 원단·옷을 삼킨 것 → 거절.
   const scanR = Math.max(10, Math.round(Math.max(seedW, seedH) * 0.8));
-  // 임계는 둘레 밝기와 태그 밝기의 중간 — 어두운 원단(둘레 72·태그 212 → 142)이든 밝은 원단(225·245 → 235)이든 원단은 빠지고 태그만 남는다.
   const thr = Math.max(150, ring + (best.lum - ring) * 0.5);
   const pts = [];
   for (let y = Math.max(0, by - scanR); y <= Math.min(H - 1, by + scanR); y++)
@@ -666,10 +675,9 @@ async function stampLogo(buf, box, opts = {}) {
       const [R, G, B] = px(x, y);
       if ((R + G + B) / 3 >= thr && Math.max(R, G, B) - Math.min(R, G, B) <= 90) pts.push(x, y);
     }
-  let cxx = bx, cyy = by, tagW = seedW, tagH = seedH, major = Number(box.angle) || 0;
-  if (pts.length >= 60) {                                   // 픽셀 30개 (x,y 쌍으로 담는다)
-    const cnt = pts.length / 2;
-    let mx = 0, my = 0;
+  let tcx = bx, tcy = by, tagW = seedW, tagH = seedH, major = Number(box.angle) || 0;
+  if (pts.length >= 60) {
+    const cnt = pts.length / 2; let mx = 0, my = 0;
     for (let i = 0; i < pts.length; i += 2) { mx += pts[i]; my += pts[i + 1]; }
     mx /= cnt; my /= cnt;
     let sxx = 0, syy = 0, sxy = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -680,39 +688,55 @@ async function stampLogo(buf, box, opts = {}) {
       if (pts[i + 1] < y0) y0 = pts[i + 1]; if (pts[i + 1] > y1) y1 = pts[i + 1];
     }
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    if (bw > seedW * 2.5 || bh > seedH * 2.5) {
-      // 덩어리가 비전 박스보다 터무니없이 크면 원단을 삼킨 것 — 박스 값을 믿고 무게중심만 버린다
-      console.warn(`[쉼순간] 태그 덩어리가 박스보다 큼(${bw}x${bh} vs ${seedW}x${seedH}) → 박스 값 사용`);
-    } else {
-      cxx = Math.round(mx); cyy = Math.round(my);
-      tagW = bw; tagH = bh;
-      major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
-    }
+    const capW = Math.max(seedW * 2.5, W * 0.06), capH = Math.max(seedH * 2.5, W * 0.06);
+    if (bw > capW || bh > capH || bw < 6 || bh < 6) return { ok: false, reason: 'blob', at: { x: bx, y: by }, size: [bw, bh] };
+    tcx = Math.round(mx); tcy = Math.round(my); tagW = bw; tagH = bh;
+    major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
   }
-  // 실물 태그처럼 워드마크가 태그의 긴 축을 따라 세로로 들어간다 (아래→위로 읽힘).
-  // 긴 축 각도를 (-90, 90] 로 정리한 뒤, 세로 태그(|각|>45)는 항상 아래→위로 읽히도록 방향을 맞춘다.
-  // 가로로 그려진 드문 태그(|각|≤45)는 그대로 가로.
-  let angle = major;
+  return { ok: true, W, H, cx: tcx, cy: tcy, w: tagW, h: tagH, major };
+}
+
+/** 후보 자리에 실제 로고를 얹는다 — 실물 태그처럼 세로(긴 축을 따라 아래→위). */
+async function stampAt(buf, cand) {
+  const logo = loadAsset('logo.png');
+  if (!logo) return { buf, stamped: false, reason: 'nologo' };
+  const { W, H } = cand;
+  let angle = cand.major;
   while (angle > 90) angle -= 180;
   while (angle < -90) angle += 180;
   if (Math.abs(angle) > 45 && angle > 0) angle -= 180;   // 위→아래로 읽히는 쪽이면 뒤집어 아래→위로
-  // 회전한 로고의 외접 사각형이 태그 안에 들어가는 최대 가로폭 (예각으로 계산)
   const lmeta = await sharp(logo).metadata();
   const logoAr = (lmeta.height || 160) / (lmeta.width || 400);
   const acute = Math.min(Math.abs(angle) % 180, 180 - (Math.abs(angle) % 180));
   const rr = acute * Math.PI / 180;
-  const capW = (tagW * 0.75) / (Math.cos(rr) + logoAr * Math.sin(rr));
-  const capH = (tagH * 0.75) / (Math.sin(rr) + logoAr * Math.cos(rr));
+  const capW = (cand.w * 0.75) / (Math.cos(rr) + logoAr * Math.sin(rr));
+  const capH = (cand.h * 0.75) / (Math.sin(rr) + logoAr * Math.cos(rr));
   const logoW = Math.max(10, Math.round(Math.min(capW, capH, W * 0.08)));
   const l = await sharp(logo).resize({ width: logoW }).ensureAlpha().png().toBuffer();
   const faded = await sharp(l).composite([{ input: Buffer.from([0, 0, 0, 235]), raw: { width: 1, height: 1, channels: 4 }, tile: true, blend: 'dest-in' }]).png().toBuffer();
   const rot = await sharp(faded).rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   const rm = await sharp(rot).metadata();
-  // 태그가 가장자리에 있으면 좌표가 화면 밖으로 나간다 — sharp 는 음수 left/top 에서 던진다
-  const left = Math.max(0, Math.min(W - rm.width, cxx - Math.round(rm.width / 2)));
-  const top = Math.max(0, Math.min(H - rm.height, cyy - Math.round(rm.height / 2)));
+  const left = Math.max(0, Math.min(W - rm.width, cand.cx - Math.round(rm.width / 2)));
+  const top = Math.max(0, Math.min(H - rm.height, cand.cy - Math.round(rm.height / 2)));
   const out = await sharp(buf).composite([{ input: rot, left, top }]).png().toBuffer();
   return { buf: out, stamped: true };
+}
+
+/** 픽셀 탐색 + 스탬프 (비전 검증 없음 — 테스트·예제용). 운영 경로는 verifyTag 를 거친다. */
+async function stampLogo(buf, box, opts = {}) {
+  const c = await findTag(buf, box, opts);
+  if (!c.ok) return { buf, stamped: false, reason: c.reason };
+  return stampAt(buf, c);
+}
+
+/** 비전 검증 — 후보 주변을 좁게 잘라 "빈백에 박힌 무지 태그가 맞나" 를 묻는다 (≈ $0.0005). 양말·옷깃·소품을 걸러낸다. */
+async function verifyTag(buf, cand) {
+  const size = Math.round(cand.W * 0.14);
+  const left = Math.max(0, Math.min(cand.W - size, cand.cx - Math.round(size / 2)));
+  const top = Math.max(0, Math.min(cand.H - size, cand.cy - Math.round(size / 2)));
+  const crop = await sharp(buf).extract({ left, top, width: size, height: size }).resize({ width: 512 }).jpeg({ quality: 88 }).toBuffer();
+  const j = await openaiJson([{ type: 'text', text: RP.TAG_VERIFY_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(crop), detail: 'low' } }], { maxTokens: 60 });
+  return { ok: !!(j && (j.tag === true || j.tag === 'true')), what: j && j.what };
 }
 
 /** 1024x1536 → 4:5(OUT_W x OUT_H). 한복은 인사말이 위에 있으니 위쪽 기준으로 자른다. */
@@ -795,9 +819,22 @@ async function generateScene(doc, chip, base, photo) {
   let buf = await cropPoster(Buffer.from(b64, 'base64'), theme);
   let tagStamped = false;
   try {
+    // 태그 → 로고: 비전 좌표 → 픽셀 제안(findTag) → (빗나가면 확대 재탐지) → 비전 검증(verifyTag) → 스탬프. 비전 3회 ≈ $0.003
+    const light = hexLum(chip && chip.hex) >= 180;
     const box = await locateTag(buf);
-    const r = await stampLogo(buf, box, { lightProduct: hexLum(chip && chip.hex) >= 180 });
-    buf = r.buf; tagStamped = r.stamped;
+    const boxOk = box && (box.found === true || box.found === 'true');
+    // 1차: 비전 좌표 → 픽셀 제안 → 검증. 2차: 제안이 없거나 검증에서 떨어지면 주변을 확대해 다시 묻고 같은 순서로.
+    let stampedBy = null;
+    for (let pass = 1; pass <= 2 && boxOk && !stampedBy; pass++) {
+      let b = box;
+      if (pass === 2) { b = await locateTagZoom(buf, Number(box.cx), Number(box.cy)); if (!b || !b.found) break; }
+      const cand = await findTag(buf, b, { lightProduct: light });
+      if (!cand.ok) { console.warn(`[쉼순간] 태그 후보 없음(${pass}차 · ${cand.reason})`); continue; }
+      const v = await verifyTag(buf, cand);
+      if (!v.ok) { console.warn(`[쉼순간] 태그 후보가 검증에서 탈락(${pass}차 · ${v.what || '?'})`); continue; }
+      const r = await stampAt(buf, cand); buf = r.buf; tagStamped = r.stamped; stampedBy = pass;
+    }
+    if (!tagStamped) console.warn('[쉼순간] 로고 생략 — 무지 태그 유지');
   } catch (e) { console.warn('[쉼순간] 태그 탐지/로고 실패 → 무지 태그 유지:', e.message); }
 
   const usage = json.usage || {};
@@ -1536,4 +1573,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
