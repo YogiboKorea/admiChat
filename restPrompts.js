@@ -24,7 +24,7 @@ const MAX_BODY = [
 
 // 실제 치수와 사람 대비 크기 — 카탈로그 spec/scalePrompt 그대로. 모델은 이게 없으면 빈백을 소파·침대로 부풀린다(실측).
 const SIZE_EN = {
-  max:     '70 cm wide x 45 cm deep x 170 cm long — as long as an adult is tall, but only ONE adult wide (about shoulder width). Stood upright it tops a 160 cm woman by about 10 cm. Two people fit only ALONG its length, pressed close — never side by side across it',
+  max:     '70 cm wide x 45 cm deep x 170 cm long — as long as an adult is tall, but only ONE adult wide (about shoulder width). Stood upright it tops a 160 cm woman by about 10 cm. It seats ONE person; it is NOT a sofa and never wide enough for two side by side',
   lean:    '65 cm wide x 80 cm deep x 60 cm high — a one-person low chair about knee-height of a standing adult; its backrest reaches a seated adult\'s mid-back. Seat for exactly one person',
   floor:   '85 cm wide x 85 cm deep x 75 cm high — a round droplet about the height of a seated adult\'s shoulders; ONE adult sinks into it with knees bent',
   myspot:  '70 cm wide x 45 cm deep x 85 cm high — compact, about hip-height of a standing adult; a single seat where an adult sits with knees bent, child-friendly size',
@@ -147,7 +147,9 @@ const TAG_LOCATE_PROMPT = [
  * 제품 위에 앉힐 수 있는 정원. 실측 가로폭 기준 — 맥스(70cm)는 연인이 붙어 앉는 실사용 컷이 있어 2명까지.
  * 넘치는 인원은 제품에 태우지 않고 주변에 둔다. 빈백은 정원이 있는 물건이라 억지로 태우면 팔다리가 뭉갠다.
  */
-const SEATS = { sink: 2, liedown: 2, lean: 1, floor: 1, myspot: 1, hug: 1 };
+// 전부 1명. 맥스에 둘을 올리면 모델이 빈백을 소파만 하게 부풀려 가로로 나란히 앉힌다(테스트 2회 실측) — 치수를 글로 줘도 안 잡힌다.
+// 둘째부터는 빈백 옆 러그에 기대 앉는다. 둘이 붙어 앉는 컷이 꼭 필요하면 sink/liedown 을 2 로 올린다(-d 포즈 컷은 남겨둠).
+const SEATS = { sink: 1, liedown: 1, lean: 1, floor: 1, myspot: 1, hug: 1 };
 const MAX_PEOPLE = 4;                 // 5명 이상은 앞 4명까지. 조용히 지우지 않고 호출부가 omitted 로 기록한다.
 
 /** 주변 자리. 세로 프레임이라 좌우로 늘어세우지 않고 앞뒤(깊이)로 나눈다 — 얼굴이 서로 가리지 않게. */
