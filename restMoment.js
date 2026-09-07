@@ -564,6 +564,8 @@ async function generateWithGemini(baseBuf, photo, chip) {
 const RP = require('./restPrompts');
 const GEN_MODE = process.env.REST_MOMENT_GEN || 'gpt';                 // 'gpt' | 'base'  (base = 시드 + 인물 레이어 옛 경로)
 const OPENAI_QUALITY = process.env.OPENAI_IMAGE_QUALITY || 'high';      // 건당 ≈ $0.18 (medium ≈ $0.05)
+// 로고 스탬프 스위치. 0 이면 태그 탐지·비전 검증·스탬프를 통째로 건너뛴다 — 그림엔 무지 태그만 남는다(로고가 엉뚱한 데 찍히는 일은 없다).
+const LOGO_STAMP = !/^(0|false|no|off)$/i.test(String(process.env.REST_MOMENT_LOGO || '1'));
 const OPENAI_VISION = process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini'; // 사진 분석 · 태그 위치 탐지
 const ASSET_DIR = path.join(__dirname, 'public', 'rest-moment');
 function loadAsset(name) { const p = path.join(ASSET_DIR, name); return fs.existsSync(p) ? fs.readFileSync(p) : null; }
@@ -927,7 +929,8 @@ async function generateScene(doc, chip, base, photo) {
 
   let buf = await cropPoster(Buffer.from(b64, 'base64'), theme);
   let tagStamped = false;
-  try {
+  if (!LOGO_STAMP) console.log('[쉼순간] 로고 스탬프 꺼짐(REST_MOMENT_LOGO=0) → 무지 태그 유지');
+  else try {
     // 태그 → 로고: 비전 좌표 → 픽셀 제안(findTag) → (빗나가면 확대 재탐지) → 비전 검증(verifyTag) → 스탬프. 비전 3회 ≈ $0.003
     const light = hexLum(chip && chip.hex) >= 180;
     const box = await locateTag(buf);
@@ -1423,7 +1426,7 @@ function mount(app, deps) {
         entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master },
         members: members.length,
         rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
-        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY },
+        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY, logoStamp: LOGO_STAMP },
         gen: await genBudget(e),            // { total, today, inflight, allowed, reason, maxTotal, maxDaily }
       });
     } catch (err) {
