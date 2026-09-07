@@ -591,7 +591,15 @@ async function locateTag(buf) {
 }
 
 /** 태그 자리에 진짜 로고를 얹는다 (imgCreate stamp-logo 방식). 못 찾으면 무지 태그 그대로 둔다. */
-async function stampLogo(buf, box) {
+/** #RRGGBB 의 상대 밝기(0~255). 밝은 제품이면 태그 대비 가드를 낮춘다. */
+function hexLum(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return 0;
+  const v = parseInt(m[1], 16);
+  return 0.2126 * (v >> 16 & 255) + 0.7152 * (v >> 8 & 255) + 0.0722 * (v & 255);
+}
+
+async function stampLogo(buf, box, opts = {}) {
   const logo = loadAsset('logo.png');
   const found = box && (box.found === true || box.found === 'true');
   if (!logo || !found) return { buf, stamped: false };
@@ -611,7 +619,9 @@ async function stampLogo(buf, box) {
   const ringR = Math.max(10, Math.round(Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0) * 0.9));
   let ring = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; ring += win(Math.round(bx + Math.cos(a) * ringR), Math.round(by + Math.sin(a) * ringR), 1).lum; } ring /= 8;
   // 채도 상한은 110 — 무지 태그가 순백이 아니라 따뜻한 크림색으로 그려진다(실측 sat 86). 진짜 판별은 둘레 대비가 한다.
-  if (best.lum < 170 || best.sat > 110 || best.lum - ring < 40) {
+  // 단, 라이트그레이처럼 밝은 제품은 태그와 원단 밝기가 거의 같다(실측: 대비 10 안팎) — 그때는 대비 요구를 8 로 낮춘다.
+  const minContrast = opts.lightProduct ? 8 : 40;
+  if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
     console.warn(`[쉼순간] 태그 좌표가 무지 태그로 보이지 않음(lum ${best.lum.toFixed(0)}, sat ${best.sat.toFixed(0)}, 둘레 ${ring.toFixed(0)}) → 로고 생략`);
     return { buf, stamped: false };
   }
@@ -619,7 +629,8 @@ async function stampLogo(buf, box) {
   const seedW = Math.max(8, Math.round((Number(box.w) || 0.03) * W));
   const seedH = Math.max(8, Math.round((Number(box.h) || 0.03) * H));
   const scanR = Math.max(10, Math.round(Math.max(seedW, seedH) * 0.8));
-  const thr = Math.max(150, best.lum - 30);
+  // 임계는 둘레 밝기와 태그 밝기의 중간 — 어두운 원단(둘레 72·태그 212 → 142)이든 밝은 원단(225·245 → 235)이든 원단은 빠지고 태그만 남는다.
+  const thr = Math.max(150, ring + (best.lum - ring) * 0.5);
   const pts = [];
   for (let y = Math.max(0, by - scanR); y <= Math.min(H - 1, by + scanR); y++)
     for (let x = Math.max(0, bx - scanR); x <= Math.min(W - 1, bx + scanR); x++) {
@@ -639,9 +650,15 @@ async function stampLogo(buf, box) {
       if (pts[i] < x0) x0 = pts[i]; if (pts[i] > x1) x1 = pts[i];
       if (pts[i + 1] < y0) y0 = pts[i + 1]; if (pts[i + 1] > y1) y1 = pts[i + 1];
     }
-    cxx = Math.round(mx); cyy = Math.round(my);
-    tagW = x1 - x0 + 1; tagH = y1 - y0 + 1;
-    major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    if (bw > seedW * 2.5 || bh > seedH * 2.5) {
+      // 덩어리가 비전 박스보다 터무니없이 크면 원단을 삼킨 것 — 박스 값을 믿고 무게중심만 버린다
+      console.warn(`[쉼순간] 태그 덩어리가 박스보다 큼(${bw}x${bh} vs ${seedW}x${seedH}) → 박스 값 사용`);
+    } else {
+      cxx = Math.round(mx); cyy = Math.round(my);
+      tagW = bw; tagH = bh;
+      major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
+    }
   }
   // 실물 태그처럼 워드마크가 태그의 긴 축을 따라 세로로 들어간다 (아래→위로 읽힘).
   // 긴 축 각도를 (-90, 90] 로 정리한 뒤, 세로 태그(|각|>45)는 항상 아래→위로 읽히도록 방향을 맞춘다.
@@ -750,7 +767,7 @@ async function generateScene(doc, chip, base, photo) {
   let tagStamped = false;
   try {
     const box = await locateTag(buf);
-    const r = await stampLogo(buf, box);
+    const r = await stampLogo(buf, box, { lightProduct: hexLum(chip && chip.hex) >= 180 });
     buf = r.buf; tagStamped = r.stamped;
   } catch (e) { console.warn('[쉼순간] 태그 탐지/로고 실패 → 무지 태그 유지:', e.message); }
 
@@ -1490,4 +1507,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, genBudget, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
