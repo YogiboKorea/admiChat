@@ -136,6 +136,7 @@ section{margin-top:28px}
           <button class="tab" role="tab" data-view="approved" aria-selected="false">공개 중<b id="n-approved"></b></button>
           <button class="tab" role="tab" data-view="working" aria-selected="false">생성 중</button>
           <button class="tab" role="tab" data-view="failed" aria-selected="false">실패<b id="n-failed"></b></button>
+          <button class="tab" role="tab" data-view="marketing" aria-selected="false" title="(선택) 광고·홍보 활용에 동의한 완성 건 — 우수 사연·SNS 소개 후보">📣 홍보 동의<b id="n-marketing"></b></button>
           <button class="tab" role="tab" data-view="all" aria-selected="false">전체<b id="n-total"></b></button>
         </div>
         <span class="sp"></span>
@@ -255,6 +256,7 @@ section{margin-top:28px}
         '<span>마스터: <b>' + esc(c.masterIds.join(', ')) + '</b>' + (c.masterKeySet ? ' · 키 사용' : ' · <span style="color:var(--warn)">키 미설정</span>') + '</span>' +
         '<span>적립 <b>' + c.pointAmount.toLocaleString() + '원</b> · 종료 <b>' + esc(c.eventEnd) + '</b></span>';
       $('#n-review').textContent = e.review || '';
+      $('#n-marketing').textContent = e.marketing || '';
       $('#n-flagged').textContent = e.flagged || '';
       $('#n-approved').textContent = e.approved || '';
       $('#n-failed').textContent = e.failed || '';
@@ -294,6 +296,7 @@ section{margin-top:28px}
         (it.displayId ? '<span>표시 ' + esc(it.displayId) + '</span>' : '') +
         '<span>' + esc(it.type || it.chip) + '</span>' +
         photoPill(it) +
+        (it.agreeMarketing ? '<span class="pill ok" title="(선택) 광고·홍보 활용에 동의함">📣 홍보 동의</span>' : '<span class="pill" title="광고·홍보 활용 동의 안 함 — SNS 소개 시 별도 동의 필요">홍보 미동의</span>') +
         statusPill(it) +
         (it.status === 'done' ? (it.approved ? '<span class="pill ok">공개 중</span>' : '<span class="pill warn">숨김</span>') : '') +
         (it.autoFlag ? '<span class="pill bad">금칙어</span>' : '') +

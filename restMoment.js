@@ -1627,16 +1627,17 @@ function mount(app, deps) {
       const c = (col, f) => col.countDocuments(f);
       const staleAt = new Date(Date.now() - STALE_MS);
       const [total, pending, processing, done, failed, approved, review, flagged, withPhoto, master, members,
-             settled, unknown, calling, reserved] = await Promise.all([
+             settled, unknown, calling, reserved, marketing] = await Promise.all([
         c(e, {}), c(e, { status: 'pending' }), c(e, { status: 'processing' }), c(e, { status: 'done' }), c(e, { status: 'failed' }),
         c(e, { status: 'done', approved: true }), c(e, { status: 'done', approved: false }), c(e, { autoFlag: true }),
         c(e, { hadPhoto: true }), c(e, { master: true }), e.distinct('memberId', { memberId: { $ne: null } }),
         c(r, { $or: [{ settled: true }, { settled: { $exists: false } }] }), c(r, { settled: 'unknown' }),
         c(r, problemClauses(staleAt).calling), c(r, problemClauses(staleAt).reserved),
+        c(e, { status: 'done', agreeMarketing: true }),
       ]);
       return res.json({
         ok: true,
-        entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master },
+        entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master, marketing },
         members: members.length,
         rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
         config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, membersOnly: MEMBERS_ONLY, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY, logoStamp: LOGO_STAMP, avgGenSec: Math.round((await avgGenMs(e)) / 1000) },
@@ -1661,6 +1662,7 @@ function mount(app, deps) {
         flagged:  { autoFlag: true },
         failed:   { status: 'failed' },
         working:  { status: { $in: ['pending', 'processing'] } },
+        marketing: { status: 'done', agreeMarketing: true },   // (선택) 광고·홍보 활용 동의한 완성 건 — 우수 사연·SNS 소개 후보
       };
       const view = String(req.query.view || 'all');
       const filter = Object.assign({}, Object.prototype.hasOwnProperty.call(VIEWS, view) ? VIEWS[view] : VIEWS.all);
@@ -1674,6 +1676,7 @@ function mount(app, deps) {
       const items = (hasMore ? rows.slice(0, limit) : rows).map(d => ({
         id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
         chip: d.chip, theme: d.theme || 'interior', type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
+        agreeMarketing: !!d.agreeMarketing,            // (선택) 광고·홍보 활용 동의 — 우수 사연 선정·SNS 소개 때 본다
         hadPhoto: !!d.hadPhoto, usedPhoto: typeof d.usedPhoto === 'boolean' ? d.usedPhoto : null, photoLost: !!d.photoLost,
         minorFlag: !!d.minorFlag, photoNote: d.photoNote || null, people: d.people || null,
         imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
