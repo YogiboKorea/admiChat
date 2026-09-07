@@ -50,12 +50,14 @@ function productDirective(chip, refs, opts = {}) {
   const color = en.colorEn || chip.color;
   const ref = refLabel(refs, 'product');
   return [
-    `PRODUCT${ref ? ` (shape and color per ${ref})` : ''}: ${product}, in the exact color ${chip.hex} (${color}).`,
+    `PRODUCT${ref ? ` (shape and proportions per ${ref})` : ''}: ${product}, in the exact color ${chip.hex} (${color}).`,
+    ref ? `Take ONLY the form, proportions and the way it deforms under a body from ${ref}. IGNORE that reference's own colour, its background, its room and any people in it — the product colour is ${chip.hex} and nothing else.` : '',
     'Keep its true shape, softness and folds; it is the single largest object in the frame.',
     'EXACTLY ONE small sewn-in fabric tag on the product, on a visible edge seam in the upper third of its silhouette, lying flat against the',
     'fabric and facing the viewer, rendered as a plain BLANK cream-white rounded rectangle with NO lettering — slightly taller than it is wide',
     '(about 1/15 of the product width), its face clean and evenly lit so it reads as one flat shape.',
     'Do not draw any brand wordmark or logo anywhere. No other furniture brands.',
+    ref ? `If ${ref} shows a person using the product, copy HOW the product is used — the angle it is propped at, how it folds under the body, where the weight sits — but never that person's face, clothing or identity.` : '',
   ].join(' ');
 }
 

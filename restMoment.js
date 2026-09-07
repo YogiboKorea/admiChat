@@ -106,7 +106,7 @@ async function ensureRewardIndex(rewards) {
 const FTP_DIR = process.env.FTP_REST_DIR || '/web/img/md/09';
 // Cafe24 FTP 는 계정 홈에 갇혀 있어 절대경로(CWD /)를 550 으로 거부한다 — server.js 처럼 상대경로로 쓴다.
 const FTP_DIR_REL = FTP_DIR.split('/').filter(Boolean).join('/');
-const FTP_PUBLIC = (process.env.FTP_REST_PUBLIC_BASE || '').replace(/\/$/, '');
+const FTP_PUBLIC = (process.env.FTP_REST_PUBLIC_BASE || 'https://yogibo.openhost.cafe24.com/web/img/md/09').replace(/\/$/, '');
 
 // 쓰기(응모·적립금)를 허용할 오리진. 몰 본 도메인 + Cafe24 스킨 미리보기까지 포함해야
 // 실제로 붙여넣고 테스트할 수 있다. `*` 는 서브도메인 한 칸을 뜻한다.
@@ -295,14 +295,38 @@ async function ftpRemoveByUrl(url) {
  * 쓴다. 개발요청서의 "임시 이미지로 흐름을 먼저 완성하고 폼이 나오면 교체"
  * 그대로다. 폼이 나오면 loadBase() 만 바꾸면 된다.
  */
-async function loadBase(chipKey) {
+function poseVariants(baseKey) {
+  const dir = path.join(__dirname, 'public', 'rest-moment');
+  if (!fs.existsSync(dir)) return [];
+  const re = new RegExp('^' + baseKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-p\\d+\\.jpe?g$', 'i');
+  return fs.readdirSync(dir).filter(f => re.test(f)).sort();
+}
+
+/** 같은 응모는 늘 같은 포즈 컷을 쓴다 — 재시도가 다른 그림이 되면 안 된다. */
+function pickPose(list, seed) {
+  if (list.length < 2) return list[0];
+  let h = 0;
+  const s = String(seed || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return list[h % list.length];
+}
+
+async function loadBase(chipKey, seed) {
   const chip = CHIPS[chipKey];
-  const local = path.join(__dirname, 'public', 'rest-moment', `${chip.baseKey}.jpg`);
+  const dir = path.join(__dirname, 'public', 'rest-moment');
+  const poses = poseVariants(chip.baseKey);
+  if (poses.length) {
+    const pick = pickPose(poses, seed);
+    console.log(`[쉼순간] ${chipKey} 포즈 컷 ${poses.length}장 중 ${pick}`);
+    return fs.readFileSync(path.join(dir, pick));
+  }
+  const local = path.join(dir, `${chip.baseKey}.jpg`);
   if (fs.existsSync(local)) return fs.readFileSync(local);
   // 로컬에 없으면 FTP 공개본에서 받아 쓴다
+  if (!/^https?:\/\//.test(FTP_PUBLIC)) throw new Error(`FTP_REST_PUBLIC_BASE 가 http(s) 주소가 아닙니다: "${FTP_PUBLIC}"`);
   const url = `${FTP_PUBLIC}/${chip.baseKey}.jpg`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`베이스 이미지를 찾을 수 없습니다: ${chip.baseKey}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`베이스 이미지를 찾을 수 없습니다: ${url} (${res.status})`);
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -714,7 +738,7 @@ async function processOne(db, doc) {
   const chip = CHIPS[doc.chip];
   let photo = null;
   try {
-    const base = await loadBase(doc.chip);
+    const base = await loadBase(doc.chip, String(doc._id));
     photo = doc.hadPhoto ? takePhoto(doc._id) : null;
 
     // 응모마다 GPT 로 장면을 새로 그린다 (테마 · 칩 · 메이트 · 사진 분석).
