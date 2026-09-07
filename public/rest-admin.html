@@ -269,6 +269,16 @@ section{margin-top:28px}
     if (it.status === 'failed') return '<span class="pill bad">실패' + (it.tries ? ' ×' + it.tries : '') + '</span>';
     return '<span class="pill">' + esc(it.status) + '</span>';
   }
+  /* 사진을 첨부한 건이 실제로 어떻게 쓰였는지 — 유실(재배포·대기 만료)·미성년·사람 없음은 따로 보이게 */
+  function photoPill(it) {
+    if (!it.hadPhoto) return '';
+    var n = it.people && it.people.count ? ' ' + it.people.count + '명' : '';
+    if (it.minorFlag) return '<span class="pill warn" title="14세 미만이 보여 사진을 쓰지 않았습니다">📷 미성년 → 미사용</span>';
+    if (it.photoNote === 'no_people') return '<span class="pill warn" title="사진에서 사람을 찾지 못했습니다">📷 사람 없음</span>';
+    if (it.photoLost) return '<span class="pill warn" title="그리기 전에 메모리 사진이 사라져(재배포·대기 만료) 접수 시 분석으로만 구성했습니다">📷 사진 유실' + n + '</span>';
+    if (it.status === 'done' && it.usedPhoto === false) return '<span class="pill warn" title="사진이 그림에 반영되지 않았습니다">📷 미반영</span>';
+    return '<span class="pill">📷 사진' + n + '</span>';
+  }
   function row(it) {
     var thumb = it.imageUrl
       ? '<a class="thumb" href="' + esc(it.imageUrl) + '" target="_blank" rel="noopener" style="background-image:url(' + esc(it.imageUrl) + ')" aria-label="이미지 열기"></a>'
@@ -281,7 +291,7 @@ section{margin-top:28px}
         (it.master ? '<span class="pill aqua">마스터</span>' : '') +
         (it.displayId ? '<span>표시 ' + esc(it.displayId) + '</span>' : '') +
         '<span>' + esc(it.type || it.chip) + '</span>' +
-        (it.hadPhoto ? '<span class="pill">📷 사진</span>' : '') +
+        photoPill(it) +
         statusPill(it) +
         (it.status === 'done' ? (it.approved ? '<span class="pill ok">공개 중</span>' : '<span class="pill warn">숨김</span>') : '') +
         (it.autoFlag ? '<span class="pill bad">금칙어</span>' : '') +

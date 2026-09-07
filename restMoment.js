@@ -448,7 +448,8 @@ async function renderShareCard(baseBuf, sentence, typeLabel) {
 //  · 10분이 지나면 자동으로 지운다
 //  · 컨테이너가 재시작하면 같이 사라진다 → 그 건은 실루엣으로 완성된다
 const photoVault = new Map();
-const PHOTO_TTL_MS = 10 * 60 * 1000;
+// 큐가 밀리면(동시 3건 · 건당 60~120초) 10분을 넘길 수 있어 30분으로. 그 전에 워커가 꺼내 가는 즉시 사라진다.
+const PHOTO_TTL_MS = 30 * 60 * 1000;
 
 function stashPhoto(id, buffer, mimeType) {
   photoVault.set(String(id), { buffer, mimeType, at: Date.now() });
@@ -461,8 +462,49 @@ function takePhoto(id) {
 }
 setInterval(() => {
   const cutoff = Date.now() - PHOTO_TTL_MS;
-  for (const [k, v] of photoVault) if (v.at < cutoff) photoVault.delete(k);
-}, 60 * 1000);
+  for (const [k, v] of photoVault) if (v.at < cutoff) { photoVault.delete(k); console.warn(`[쉼순간] ${k} 사진 대기 만료(${PHOTO_TTL_MS / 60000}분) → 파기. 접수 시 분석 결과로만 그립니다`); }
+}, 60 * 1000).unref();   // 모듈만 불러 쓰는 스크립트(테스트)가 이 타이머 때문에 안 끝나지 않게
+
+/**
+ * 사진 분석 결과에서 그리는 데 필요한 것만 남긴다 — 문서에 잠깐 저장되므로(완성 시 삭제) 짧은 텍스트로 제한.
+ * 얼굴 식별 정보가 아니라 "머리 짧은 검정, 안경, 보통 체격" 수준의 일러스트 브리프다.
+ */
+function sanitizeAnalysis(a) {
+  if (!a || typeof a !== 'object' || !Array.isArray(a.people)) return null;
+  const s = (v, n = 60) => (v == null ? '' : String(v)).slice(0, n);
+  const people = a.people.slice(0, 8).map(p => ({
+    presentation: s(p && p.presentation, 12), ageGroup: s(p && p.ageGroup, 8), hair: s(p && p.hair),
+    glasses: !!(p && (p.glasses === true || p.glasses === 'true')), facialHair: s(p && p.facialHair, 8),
+    build: s(p && p.build, 8), skinTone: s(p && p.skinTone, 8), notableItems: s(p && p.notableItems),
+  }));
+  const count = Number(a.count);
+  return {
+    people, count: Number.isFinite(count) ? count : people.length,
+    primaryIndex: Number(a.primaryIndex) || 0,
+    minorPresent: a.minorPresent === true || a.minorPresent === 'true',
+    confidence: s(a.confidence, 8),
+  };
+}
+
+/**
+ * 접수 시점 분석 — 사진은 메모리에만 두지만 "몇 명 · 어떤 모습"은 문서에 남긴다.
+ * 재배포·재시작(processing→pending 복구)이나 대기 만료로 메모리 사진이 사라져도 인원 구성은 지켜진다
+ * (닮은꼴 참조만 빠진다). 예전엔 이 경우 조용히 1인 기본 인물로 그려졌다.
+ * 돌려주는 값: { analysis, keep, minor, note } — keep=false 면 사진을 보관소에 넣지 않는다.
+ */
+async function preAnalyzePhoto(file) {
+  let raw = null, note = null;
+  for (let i = 0; i < 2 && !raw; i++) {
+    try { raw = await analyzePhoto({ buffer: file.buffer }); }
+    catch (e) { note = 'analyze_deferred'; console.warn(`[쉼순간] 접수 시 사진 분석 실패(${i + 1}/2) → 워커에서 다시:`, e.message); }
+  }
+  if (!raw) return { analysis: null, keep: true, minor: false, note };
+  const analysis = sanitizeAnalysis(raw);
+  if (!analysis) return { analysis: null, keep: true, minor: false, note: 'analyze_deferred' };
+  if (analysis.minorPresent) return { analysis: null, keep: false, minor: true, note: 'minor' };
+  if (!(analysis.count > 0)) return { analysis: null, keep: false, minor: false, note: 'no_people' };
+  return { analysis, keep: true, minor: false, note: null };
+}
 
 // ── 인물 레이어 생성 ──────────────────────────────────────────────
 // 개발요청서: "AI 가 만드는 것은 인물 레이어 하나뿐". 제품·배경은 사전 제작
@@ -865,16 +907,23 @@ async function generateScene(doc, chip, base, photo) {
   if (!key) throw new Error('OPENAI_API_KEY 없음');
   const theme = doc.theme === 'hanbok' ? 'hanbok' : 'interior';
 
-  let analysis = null, minorFlag = false, usePhoto = !!(photo && photo.buffer);
-  if (usePhoto) {
-    try { analysis = await analyzePhoto(photo); }
-    catch (e) { console.warn('[쉼순간] 사진 분석 실패 → 사진 없이 진행:', e.message); analysis = null; usePhoto = false; }
-    const minor = analysis && (analysis.minorPresent === true || analysis.minorPresent === 'true');
-    if (minor) { minorFlag = true; usePhoto = false; analysis = null; }
-    if (analysis && !(Number(analysis.count) > 0)) { usePhoto = false; analysis = null; }
-    // 사진을 안 쓰기로 했으면 여기서 파기한다 — 실패해서 옛 경로로 내려가도 이 사진이 다른 모델에 올라가지 않게.
-    if (!usePhoto && photo) { photo.buffer = null; photo.discarded = true; }
+  // 접수 시 분석 결과가 문서에 있으면 그걸 쓴다 — 사진(메모리)이 재시작·대기 만료로 사라졌어도 인원 구성은 남는다.
+  let analysis = sanitizeAnalysis(doc.analysis), minorFlag = !!doc.minorFlag, photoLost = false;
+  let usePhoto = !!(photo && photo.buffer) && !minorFlag;
+  if (usePhoto && !analysis) {
+    // 접수 때 분석이 안 된 건(비전 일시 오류) — 사진이 있으니 여기서 한다.
+    try { analysis = sanitizeAnalysis(await analyzePhoto(photo)); }
+    catch (e) { console.warn(`[쉼순간] ${doc._id} 사진 분석 실패 → 사진 없이 진행:`, e.message); analysis = null; usePhoto = false; }
+    if (analysis && analysis.minorPresent) { minorFlag = true; usePhoto = false; analysis = null; }
+    if (analysis && !(analysis.count > 0)) { usePhoto = false; analysis = null; }
+  } else if (!usePhoto && doc.hadPhoto && !minorFlag && doc.photoNote !== 'no_people') {
+    // 사진을 첨부했는데 지금 손에 없다 — 재배포(processing→pending 복구)나 30분 대기 만료. 예전엔 여기서 조용히 1인 기본으로 갔다.
+    photoLost = true;
+    if (analysis) console.warn(`[쉼순간] ${doc._id} 사진이 메모리에 없음(재시작·대기 만료) → 접수 시 분석(${analysis.count}명)으로 구성, 닮은꼴 참조 없이`);
+    else console.warn(`[쉼순간] ${doc._id} 사진도 접수 시 분석도 없음 → 기본 인물 1명`);
   }
+  // 사진을 안 쓰기로 했으면 여기서 파기한다 — 실패해서 옛 경로로 내려가도 이 사진이 다른 모델에 올라가지 않게.
+  if (!usePhoto && photo) { photo.buffer = null; photo.discarded = true; }
 
   // 티렉스 메가메이트 레퍼런스가 있으면 3번 참조로 붙인다 (팍스 다음, 사진 앞) — 없으면 팍스만.
   const mate2 = loadAsset('ref-mate-trex.png') || loadAsset('ref-mate-trex.jpg');
@@ -956,8 +1005,9 @@ async function generateScene(doc, chip, base, photo) {
   return {
     buf, via: 'gpt-scene',
     extra: {
-      theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto,
-      // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 저장하지 않는다.
+      // usedPhoto = 고객 사진이 그림에 반영됐는가(참조로 넣었든, 접수 시 분석으로 인원을 잡았든). photoLost = 참조는 못 넣었다.
+      theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto || !!analysis, photoLost,
+      // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 완성 후 남기지 않는다(analysis 는 done 때 지운다).
       people: analysis ? { count: Number(analysis.count) || 0, drawn, omitted } : null,
       genTokens: usage.output_tokens || null,
     },
@@ -1048,7 +1098,7 @@ async function processOne(db, doc) {
 
     const done = await col.updateOne({ _id: doc._id }, {
       $set: Object.assign({ status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() }, extra),
-      $unset: { lastError: '' },
+      $unset: { lastError: '', analysis: '' },          // 접수 시 분석 텍스트는 그리는 동안만 둔다
     });
     sceneVault.delete(String(doc._id));
     if (!done.matchedCount) {
@@ -1071,7 +1121,7 @@ async function processOne(db, doc) {
         const base2 = await loadBase(doc.chip);
         const [artBuf, shareBuf] = await Promise.all([renderArtwork(base2), renderShareCard(base2, doc.sentence, chip.type)]);
         const [imageUrl, shareUrl] = await Promise.all([ftpUpload(artBuf, publicName('')), ftpUpload(shareBuf, publicName('_s'))]);
-        await col.updateOne({ _id: doc._id }, { $set: { status: 'done', imageUrl, shareUrl, via: 'silhouette', theme: 'interior', usedPhoto: false, doneAt: nowKST(), tries, lastError } });
+        await col.updateOne({ _id: doc._id }, { $set: { status: 'done', imageUrl, shareUrl, via: 'silhouette', theme: 'interior', usedPhoto: false, doneAt: nowKST(), tries, lastError }, $unset: { analysis: '' } });
         sceneVault.delete(String(doc._id));
         console.error(`[쉼순간] 생성 실패 ${doc._id} (${tries}회) → 실루엣으로 발행:`, lastError);
         return;
@@ -1198,6 +1248,10 @@ function mount(app, deps) {
         const flagged = looksInappropriate(text);
         // 갤러리가 보여주는 정보만으로는 남의 응모를 가져갈 수 없게, 접수한 브라우저에만 토큰을 준다.
         const claimToken = crypto.randomBytes(16).toString('hex');
+        // ★ 사진은 문서를 넣기 전에 분석한다 (2~4초). 넣은 뒤에 하면 워커(3초 주기)가 먼저 집어 갈 수 있다.
+        //   문서에는 분석 텍스트만 들어가고 사진은 아래에서 메모리에만 둔다.
+        const pre = (req.file && req.file.buffer) ? await preAnalyzePhoto(req.file) : null;
+        if (pre && !pre.keep) { req.file.buffer = null; req.file = null; }   // 14세 미만·사람 없음 → 사진은 여기서 끝
         const doc = {
           chip,
           theme,
@@ -1207,7 +1261,10 @@ function mount(app, deps) {
           displayId: mid ? (master ? fakeDisplayId() : (looksInappropriate(mid) ? '회원***' : maskId(mid))) : null,
           claimHash: sha256(claimToken),                   // 비회원 응모를 나중에 가입 후 가져갈 때 본인 증명
           master,
-          hadPhoto: !!(req.file && req.file.buffer),
+          hadPhoto: !!pre,
+          ...(pre && pre.analysis ? { analysis: pre.analysis } : {}),
+          ...(pre && pre.minor ? { minorFlag: true } : {}),
+          ...(pre && pre.note ? { photoNote: pre.note } : {}),
           agreeMarketing: String(agreeMarketing) === '1',
           status: 'pending',
           tries: 0,
@@ -1461,7 +1518,9 @@ function mount(app, deps) {
       const items = (hasMore ? rows.slice(0, limit) : rows).map(d => ({
         id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
         chip: d.chip, theme: d.theme || 'interior', type: d.type, sentence: d.sentence, status: d.status, approved: !!d.approved, autoFlag: !!d.autoFlag,
-        hadPhoto: !!d.hadPhoto, imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
+        hadPhoto: !!d.hadPhoto, usedPhoto: typeof d.usedPhoto === 'boolean' ? d.usedPhoto : null, photoLost: !!d.photoLost,
+        minorFlag: !!d.minorFlag, photoNote: d.photoNote || null, people: d.people || null,
+        imageUrl: d.imageUrl || null, rewarded: !!d.rewarded, via: d.via || null,
         tries: d.tries || 0, lastError: d.lastError || null, createdAt: d.createdAt || null, doneAt: d.doneAt || null,
       }));
       return res.json({ ok: true, view, offset, hasMore, items });
@@ -1688,4 +1747,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard, sanitizeAnalysis, preAnalyzePhoto };
