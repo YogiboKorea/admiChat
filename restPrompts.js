@@ -95,9 +95,11 @@ const PHOTO_ANALYSIS_PROMPT = [
   'Return STRICT JSON with this shape and nothing else:',
   '{"people":[{"presentation":"masculine|feminine|ambiguous","ageGroup":"child|teen|adult|senior","hair":"<length, style, color in a few words>",',
   '"glasses":true|false,"facialHair":"none|light|full","build":"slim|average|sturdy","skinTone":"light|medium|deep","notableItems":"<hat, headband, etc. or empty>"}],',
-  '"count":<number of people>,"minorPresent":true|false,"confidence":"high|medium|low"}',
+  '"count":<number of people>,"primaryIndex":<index into people>,"minorPresent":true|false,"confidence":"high|medium|low"}',
+  'ORDER the "people" array strictly LEFT to RIGHT as they appear in the photo — index 0 is the leftmost person. This order decides where each person is placed, so keep it exact.',
+  '"primaryIndex" is the most prominent person — largest in frame, nearest the camera, or most centered. If they are all equal, use 0.',
   'Rules: count every visible person. "presentation" is how the person visually presents (clothing, hair, features) — do not guess identity.',
-  '"minorPresent" is true if anyone looks clearly under 14. If the photo has no people, return {"people":[],"count":0,"minorPresent":false,"confidence":"high"}.',
+  '"minorPresent" is true if anyone looks clearly under 14. If the photo has no people, return {"people":[],"count":0,"primaryIndex":0,"minorPresent":false,"confidence":"high"}.',
 ].join(' ');
 
 /** 3단계 — 태그 위치 탐지. 로고 후보정용. */
@@ -110,18 +112,47 @@ const TAG_LOCATE_PROMPT = [
   '(0 = horizontal, positive = clockwise, negative = counter-clockwise, range -90..90). If no such tag is visible, return {"found":false}.',
 ].join(' ');
 
+/**
+ * 제품 위에 앉힐 수 있는 정원. 실측 가로폭 기준 — 맥스(70cm)는 연인이 붙어 앉는 실사용 컷이 있어 2명까지.
+ * 넘치는 인원은 제품에 태우지 않고 주변에 둔다. 빈백은 정원이 있는 물건이라 억지로 태우면 팔다리가 뭉갠다.
+ */
+const SEATS = { sink: 2, liedown: 2, lean: 1, floor: 1, myspot: 1, hug: 1 };
+const MAX_PEOPLE = 4;                 // 5명 이상은 앞 4명까지. 조용히 지우지 않고 호출부가 omitted 로 기록한다.
+
+/** 주변 자리. 세로 프레임이라 좌우로 늘어세우지 않고 앞뒤(깊이)로 나눈다 — 얼굴이 서로 가리지 않게. */
+const AROUND_SPOTS = [
+  'sitting on the rug immediately to the LEFT of the bean bag, leaning back against its side',
+  'sitting cross-legged on the rug in the FOREGROUND, nearer the viewer and lower in the frame',
+  'sitting on the rug to the RIGHT of the bean bag, knees drawn up, one elbow resting on it',
+];
+
 /** 분석 결과 → 인물 지시. 한복이면 성별 표현·연령에 맞는 옷을 구체적으로. */
-function personDirective(analysis, theme, refs) {
-  const people = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
+function personDirective(analysis, theme, refs, chip) {
+  const all = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
+  const people = all.slice(0, MAX_PEOPLE);
   const photoRef = refLabel(refs, 'photo');
   if (!people.length) {
     return theme === 'hanbok'
       ? 'CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), calm content expression, eyes closed or half-closed, simplified anime-style face.'
       : 'CHARACTER: one young Korean adult in comfortable home clothes, calm content expression, eyes closed or half-closed, simplified anime-style face.';
   }
-  const lines = people.slice(0, 3).map((p, i) => {
-    const age = { child: 'a child', teen: 'a teenager', adult: 'an adult', senior: 'an older adult' }[p.ageGroup] || 'an adult';
+  // 주인공은 제품 위에. 정원 2인 제품(맥스)이고 인원이 2명 이상이면 옆사람까지 붙여 앉힌다.
+  const seats = Math.min(SEATS[chip && chip.key] || 1, people.length);
+  let primary = Number(analysis && analysis.primaryIndex);
+  if (!(primary >= 0 && primary < people.length)) primary = 0;
+  const onProduct = [primary];
+  for (let d = 1; onProduct.length < seats && d <= people.length; d++) {
+    if (primary - d >= 0 && onProduct.length < seats) onProduct.push(primary - d);
+    if (primary + d < people.length && onProduct.length < seats) onProduct.push(primary + d);
+  }
+  onProduct.sort((a, b) => a - b);
+  const around = people.map((_, i) => i).filter(i => onProduct.indexOf(i) < 0);
+  const ordinal = i => ['1st', '2nd', '3rd', '4th'][i] || (i + 1) + 'th';
+
+  const lines = people.map((p, i) => {
+    const age = { child: 'child', teen: 'teenager', adult: 'adult', senior: 'older adult' }[p.ageGroup] || 'adult';
     const pres = p.presentation === 'masculine' ? 'masculine-presenting' : p.presentation === 'feminine' ? 'feminine-presenting' : 'androgynous';
+    const art = /^[aeiou]/i.test(pres) ? 'an' : 'a';
     const feats = [p.hair ? `${p.hair} hair` : '', p.glasses ? 'glasses' : '', p.facialHair && p.facialHair !== 'none' ? `${p.facialHair} facial hair` : '',
       p.build ? `${p.build} build` : '', p.skinTone ? `${p.skinTone} skin tone` : '', p.notableItems].filter(Boolean).join(', ');
     let outfit = 'comfortable home clothes';
@@ -131,11 +162,19 @@ function personDirective(analysis, theme, refs) {
       else if (p.presentation === 'feminine') outfit = 'a women\'s hanbok: a long chima (skirt) and a short jeogori in soft cream and pastel tones';
       else outfit = 'a gender-neutral modern hanbok (durumagi-style overcoat with trousers) in cream and muted tones';
     }
-    return `Person ${i + 1}: ${pres} ${age} with ${feats || 'natural features'}, wearing ${outfit}.`;
+    const spot = onProduct.indexOf(i) >= 0
+      ? (onProduct.length > 1
+          ? 'reclining ON the bean bag, side by side with the other person, shoulders touching, both sunk comfortably into it'
+          : 'reclining ON the bean bag, sunk into it, fully supported and at rest')
+      : AROUND_SPOTS[around.indexOf(i) % AROUND_SPOTS.length];
+    return `Person ${i + 1} (${ordinal(i)} from the left in the photo): ${art} ${pres} ${age} with ${feats || 'natural features'}, wearing ${outfit} — ${spot}.`;
   });
   return [
-    `CHARACTERS (draw exactly ${Math.min(people.length, 3)} people${photoRef ? `, the people shown in ${photoRef}` : ''}):`,
+    `CHARACTERS (draw exactly ${people.length} ${people.length === 1 ? 'person' : 'people'}${photoRef ? `, the people shown in ${photoRef}` : ''}):`,
     ...lines,
+    `STAGING: exactly ${people.length} ${people.length === 1 ? 'person' : 'people'} in the frame — ${onProduct.length} on the bean bag, ${around.length} around it on the rug. Add NOBODY else.`,
+    'There is EXACTLY ONE Yogibo product in the whole image. Do not add a second bean bag, cushion or any other Yogibo item.',
+    around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
     'Keep each person\'s perceived gender presentation, age group, hair, glasses and build EXACTLY as described — never swap, add or "correct" them.',
     photoRef ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look.` : '',
     'Faces are stylized anime-style characters, not photorealistic likenesses; friendly, calm, eyes closed or half-closed.',
@@ -148,15 +187,18 @@ function personDirective(analysis, theme, refs) {
 function buildPrompt(p) {
   const refs = Array.isArray(p.refs) ? p.refs : ['product', 'mate'];
   const count = p.analysis && p.analysis.count ? p.analysis.count : 1;
-  const double = count >= 2;
+  const drawn = Math.max(1, Math.min(count, MAX_PEOPLE));
+  const seated = Math.min(SEATS[p.chip && p.chip.key] || 1, drawn);
   const theme = p.theme === 'hanbok' ? 'hanbok' : 'interior';
   const greeting = p.greeting || pickGreeting();
   const scene = theme === 'hanbok' ? SCENES.hanbok(greeting) : SCENES.interior;
   return {
-    prompt: [STYLE, productDirective(p.chip, refs, { double }), mateDirective(refs), personDirective(p.analysis, theme, refs), scene].join(' '),
+    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
     greeting: theme === 'hanbok' ? greeting : null,
-    double,
+    double: seated >= 2,              // 제품 위 2인 (연인 컷)
+    drawn,
+    omitted: Math.max(0, count - MAX_PEOPLE),
   };
 }
 
-module.exports = { CHIP_EN, STYLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };

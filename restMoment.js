@@ -625,7 +625,8 @@ async function generateScene(doc, chip, base, photo) {
   }
 
   const refs = ['product', 'mate'].concat(usePhoto ? ['photo'] : []);
-  const { prompt, greeting, double } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs });
+  const { prompt, greeting, double, drawn, omitted } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs });
+  if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
   const mate = loadAsset('ref-mate-fox.png');
   if (!mate) throw new Error('ref-mate-fox.png 없음');
   const productRef = await sharp(base).resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
@@ -672,7 +673,8 @@ async function generateScene(doc, chip, base, photo) {
     buf, via: 'gpt-scene',
     extra: {
       theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto,
-      people: analysis ? { count: Number(analysis.count) || 0 } : null,        // 성별 표현 같은 파생 속성은 저장하지 않는다
+      // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 저장하지 않는다.
+      people: analysis ? { count: Number(analysis.count) || 0, drawn, omitted } : null,
       genTokens: usage.output_tokens || null,
     },
   };
