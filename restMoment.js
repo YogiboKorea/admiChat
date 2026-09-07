@@ -77,6 +77,9 @@ function isMaster(id, req) {
 }
 // 파괴적 조치(숨김·삭제)와 아이디 열거(/recent 마스터 모드)는 키가 있어야만 연다 — 아이디만으로는 절대 열리지 않는다.
 function isMasterStrict(id, req) { return !!MASTER_KEY && isMaster(id, req); }
+// 생성 무제한은 아이디만으로 연다 — testid·yogibo 는 키 없이도 무한. (memberId 는 클라이언트가 보내는 값이라
+// 누가 흉내 낼 수는 있지만, 이벤트 전체 상한(REST_MOMENT_MAX_GEN)이 예산을 막는다.)
+function isMasterId(id) { return !!id && MASTER_IDS.includes(String(id)); }
 
 // 갤러리에 보여줄 아이디. 앞 두 글자만 남기고 가린다 — 당첨자 발표 관례와 같다.
 function maskId(id) {
@@ -1005,7 +1008,7 @@ function mount(app, deps) {
 
         // 아이디당 최대 횟수. 실패한 건은 사용자 탓이 아니므로 세지 않는다.
         const mid = memberId ? String(memberId) : null;
-        const master = isMaster(mid, req);
+        const master = isMasterId(mid);              // 무제한 생성 — 키 없이 아이디만으로
         if (mid && !master) {
           const used = await db.collection(ENTRY_COLLECTION).countDocuments({ memberId: mid, status: { $ne: 'failed' } });
           if (used >= MAX_PER_MEMBER) {
