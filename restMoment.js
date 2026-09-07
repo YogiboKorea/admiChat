@@ -630,6 +630,26 @@ async function stampLogo(buf, box, opts = {}) {
   // 채도 상한은 110 — 무지 태그가 순백이 아니라 따뜻한 크림색으로 그려진다(실측 sat 86). 진짜 판별은 둘레 대비가 한다.
   // 단, 라이트그레이처럼 밝은 제품은 태그와 원단 밝기가 거의 같다(실측: 대비 10 안팎) — 그때는 대비 요구를 8 로 낮춘다.
   const minContrast = opts.lightProduct ? 8 : 40;
+  const ringAt = (x, y) => { let r = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; r += win(Math.round(x + Math.cos(a) * ringR), Math.round(y + Math.sin(a) * ringR), 1).lum; } return r / 8; };
+  if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
+    // 첫 창이 태그가 아니면 주변을 넓게 훑는다 — 비전 좌표가 빗나간 경우. 작고 밝은 저채도 점 중 둘레 대비가 가장 큰 곳.
+    const R = Math.round(W * 0.12), step = 4;
+    let cand = null;
+    for (let y = Math.max(4, cy - R); y <= Math.min(H - 5, cy + R); y += step) {
+      for (let x = Math.max(4, cx - R); x <= Math.min(W - 5, cx + R); x += step) {
+        const w = win(x, y, 2);
+        if (w.lum < 190 || w.sat > 90) continue;
+        const rg = ringAt(x, y);
+        const contrast = w.lum - rg;
+        if (contrast < Math.max(minContrast, 14)) continue;
+        if (!cand || contrast > cand.contrast) cand = { x, y, lum: w.lum, sat: w.sat, ring: rg, contrast };
+      }
+    }
+    if (cand) {
+      console.log(`[쉼순간] 태그 재탐색: 비전 좌표 (${cx},${cy}) → (${cand.x},${cand.y}) 대비 ${cand.contrast.toFixed(0)}`);
+      bx = cand.x; by = cand.y; best = { lum: cand.lum, sat: cand.sat }; ring = cand.ring;
+    }
+  }
   if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
     console.warn(`[쉼순간] 태그 좌표가 무지 태그로 보이지 않음(lum ${best.lum.toFixed(0)}, sat ${best.sat.toFixed(0)}, 둘레 ${ring.toFixed(0)}) → 로고 생략`);
     return { buf, stamped: false };
