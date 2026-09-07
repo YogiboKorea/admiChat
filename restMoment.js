@@ -619,16 +619,18 @@ async function stampLogo(buf, box) {
     tagW = x1 - x0 + 1; tagH = y1 - y0 + 1;
     major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
   }
-  // 워드마크는 언제나 가로로 읽혀야 한다. 세로로 긴 태그는 긴 축이 ±90° 로 나오는데 그대로 돌리면
-  // 로고가 옆으로 누워 글자를 못 읽는다(실측). -45..45 로 접어 태그를 가로지르게 눕힌다.
+  // 실물 태그처럼 워드마크가 태그의 긴 축을 따라 세로로 들어간다 (아래→위로 읽힘).
+  // 긴 축 각도를 (-90, 90] 로 정리한 뒤, 세로 태그(|각|>45)는 항상 아래→위로 읽히도록 방향을 맞춘다.
+  // 가로로 그려진 드문 태그(|각|≤45)는 그대로 가로.
   let angle = major;
   while (angle > 90) angle -= 180;
   while (angle < -90) angle += 180;
-  if (angle > 45) angle -= 90; else if (angle < -45) angle += 90;
-  // 회전한 로고의 외접 사각형이 태그 안에 들어가는 최대 가로폭
+  if (Math.abs(angle) > 45 && angle > 0) angle -= 180;   // 위→아래로 읽히는 쪽이면 뒤집어 아래→위로
+  // 회전한 로고의 외접 사각형이 태그 안에 들어가는 최대 가로폭 (예각으로 계산)
   const lmeta = await sharp(logo).metadata();
   const logoAr = (lmeta.height || 160) / (lmeta.width || 400);
-  const rr = Math.abs(angle) * Math.PI / 180;
+  const acute = Math.min(Math.abs(angle) % 180, 180 - (Math.abs(angle) % 180));
+  const rr = acute * Math.PI / 180;
   const capW = (tagW * 0.75) / (Math.cos(rr) + logoAr * Math.sin(rr));
   const capH = (tagH * 0.75) / (Math.sin(rr) + logoAr * Math.cos(rr));
   const logoW = Math.max(10, Math.round(Math.min(capW, capH, W * 0.08)));
