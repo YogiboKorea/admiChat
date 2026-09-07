@@ -117,7 +117,8 @@ const SCENES = {
   ].join(' '),
 };
 
-const GREETINGS = ['풍요로운 한가위 되세요', '넉넉한 한가위 보내세요', '보름달처럼 꽉 찬 한가위', '마음까지 둥근 한가위', '따뜻한 한가위 되세요'];
+// 인사말은 하나로 고정 (결정 사항). 다시 랜덤으로 돌리려면 목록을 늘리면 된다.
+const GREETINGS = ['풍요로운 한가위 되세요'];
 const pickGreeting = () => GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
 
 /** 1단계 — 사진 분석. 그리는 데 필요한 것만 묻고, 이 요청 안에서만 쓴다. */
