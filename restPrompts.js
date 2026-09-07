@@ -142,19 +142,108 @@ function mateDirective(refs, kinds = ['fox']) {
   ].join(' ');
 }
 
-const SCENES = {
+/**
+ * 배경 — 늘 같은 "밤 거실" 이 지루하다(결정 사항). 두 단계:
+ *   ① 고객 문장 → 배경 브리프 (gpt-4.1-mini 텍스트, SCENE_BRIEF_PROMPT). 문장이 말하는 장소·시간·소품을 배경으로.
+ *   ② 브리프가 없거나 실패하면 시드 풀에서 하나 (pickSetting) — 실내/야외/숲/바다/옥상/캠핑/한옥 … 골고루.
+ * 어느 쪽이든 빈백은 평평한 바닥(러그·마루·데크·잔디·매트) 위에, 인물은 그 위에 — 그건 SCENE_RULES 가 잡는다.
+ */
+const SCENE_POOL = {
   interior: [
-    'SCENE: a cozy, beautifully styled Korean living room at night. Behind the product: a wooden-framed window or balcony door showing a',
-    'dark blue evening outside, sheer cream curtains, a slim wooden tripod floor lamp casting a warm amber pool of light, and a low wooden',
-    'shelf with a potted plant and a woven basket. On the floor: a thick cream shag rug, a small round wooden table with a mug of tea and a',
-    'couple of books. The character(s) recline freely on the product with arms relaxed and legs stretched out, fully at rest.',
-    'Mood: quiet, warm, exhaling after a long day. NO TEXT of any kind — no letters, numbers, captions, logos or watermarks.',
+    'a cozy Korean living room at night: a wooden-framed balcony door showing a deep blue evening, sheer cream curtains, a slim tripod floor lamp pouring warm amber light, a low wooden shelf with a potted plant and a woven basket, a thick cream shag rug, a small round table with a mug of tea and two books',
+    'a bright living room on a Sunday morning: tall windows with soft white daylight, linen curtains lifting in a breeze, hanging plants, a light oak floor with a woven jute rug, a tray with toast and coffee, a cat asleep in a sunbeam',
+    'an apartment balcony at sunset: the bean bag on an outdoor rug between potted olive trees and string lights, a low table with iced tea, the city skyline glowing orange and pink beyond the railing',
+    'a quiet forest clearing in early autumn afternoon: the bean bag on a checked picnic blanket, tall pines and a few maples turning orange, dappled sunlight, a small thermos and a book, soft moss and fallen leaves around',
+    'a park lawn under a big zelkova tree on a clear afternoon: the bean bag on a picnic mat, a wicker basket with fruit, a bicycle leaning nearby, gentle hills and a pond in the distance, high blue sky',
+    'a calm beach at golden hour: the bean bag on a straw mat on pale sand, gentle waves and a long shadow, a straw hat and a pair of sandals, sea-grass on a low dune behind',
+    'a rooftop at night: the bean bag on a wooden deck with warm string lights overhead, a little herb garden in crates, a lantern, and the city lights and a navy sky with a few stars beyond the parapet',
+    'a lakeside campsite at dusk: the bean bag on a camping rug beside a small tent, a hanging lantern and a tiny campfire, pine trees and a violet-orange sky mirrored in the still water',
+    'a bedroom on a rainy afternoon: the bean bag by a big window with raindrops, soft grey-blue light, a linen bed with rumpled cream bedding, a bedside lamp glowing warm, a mug of cocoa on the sill',
+    'the wooden porch (maru) of a hanok on a clear autumn day: the bean bag on the warm wooden floor, a courtyard with a persimmon tree heavy with fruit, clay pots, sunlight sliding under the tiled eaves',
+    'a corner of a small neighbourhood bookshop cafe in the evening: the bean bag on a worn rug between tall bookshelves, a green banker lamp, a cup of latte, rain-streaked window with warm street light outside',
+    'a countryside field of pampas grass and cosmos at sunset in early autumn: the bean bag on a picnic mat on a grassy rise, a winding path, low hills, the sky peach and lavender',
+    'a riverside walkway at dusk: the bean bag on a wooden deck by the water, paper lanterns on a railing, reflections of a bridge, a warm breeze bending the reeds, a bag of roasted chestnuts',
+  ],
+  hanbok: [
+    'the wooden porch (maru) of a hanok at night: the bean bag on the warm wooden floor, a courtyard with a persimmon tree, clay jars, a paper lantern glowing, and the huge full moon rising over the tiled roof',
+    'a cozy living room on Chuseok night: through a big window the huge full yellow moon in a deep navy sky, a pine branch at the window edge, warm lamp light inside, a low table with a tray of songpyeon and pears',
+    'a grassy hillside on Chuseok night: the bean bag on a picnic mat, silver pampas grass swaying, a small village with warm windows below, and the enormous full moon filling the sky',
+    'an apartment rooftop on Chuseok night: the bean bag on a wooden deck, string lights and a lantern, a tray of songpyeon on a low table, the city skyline and the huge full moon low and golden',
+    'a hanok courtyard on Chuseok night: the bean bag on a woven mat on the stone yard, jangdok clay jars, a mulberry tree, lanterns on the gate, the full moon bright above the roofline',
+    'a lakeside deck on Chuseok night: the bean bag on a wooden pier, a paper lantern, still water mirroring the huge full moon, distant mountains, a tray of songpyeon and chestnuts',
+  ],
+};
+
+/** 시드로 풀에서 하나 — 같은 응모는 재시도해도 같은 배경. 시드가 없으면(테스트) 첫 번째(밤 거실). */
+function pickSetting(seed, theme) {
+  const pool = SCENE_POOL[theme === 'hanbok' ? 'hanbok' : 'interior'];
+  if (seed == null || seed === '') return pool[0];
+  return pool[hashSeed(String(seed) + ':scene') % pool.length];
+}
+
+/** 브리프에서 온 배경 문장 정리 — 한 줄, 제어문자 제거, 너무 짧으면 버린다. */
+function sanitizeSetting(v) {
+  if (v == null) return null;
+  let s = String(v).replace(/[\x00-\x1F\x7F]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (s.length < 25) return null;
+  if (s.length > 700) s = s.slice(0, 700);
+  return s;
+}
+
+// 칩(쉬는 방식) → 브리프에 넣는 영어 힌트. 장소·소품이 그 쉬는 방식에 맞게 (눕는 사람이면 누울 만한 곳, 바닥형이면 바닥 생활 공간).
+const REST_HINT_EN = {
+  sink:    'sinking deep into the bean bag until the day lets go',
+  lean:    'leaning back with the whole back supported',
+  liedown: 'lying down full length, half asleep',
+  floor:   'sitting low on the floor, close to the ground',
+  myspot:  'having one small spot that is only theirs',
+  hug:     'hugging something soft until sleep comes',
+};
+
+/** ① 고객 문장 + 쉬는 방식(칩) → 배경 브리프. 텍스트만 보내는 작은 호출 (≈ $0.0003). JSON 만 받는다. */
+function sceneBriefPrompt(sentence, theme, chip) {
+  const s = String(sentence || '').replace(/[\x00-\x1F\x7F"]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const hanbok = theme === 'hanbok';
+  const key = chip && chip.key;
+  const restLine = key && REST_HINT_EN[key]
+    ? `They chose how they rest: "${String(chip.type || key).replace(/"/g, '')}" — ${REST_HINT_EN[key]}. Let the place, the light and the props suit that way of resting.`
+    : '';
+  return [
+    'You design the backdrop for one flat-illustration poster. A customer wrote, in Korean, the moment they most wanted to rest today:',
+    `"${s}"`,
+    restLine,
+    'Turn that moment into ONE calm, restful scene where a large Yogibo bean bag can sit on a flat surface.',
+    'Return STRICT JSON and nothing else: {"setting":"<45-80 English words>","indoor":true|false,"time":"morning|day|sunset|night"}',
+    '"setting" must name the place, the time of day, the light source and colour of the light, weather if any, and 3-5 concrete props that',
+    'echo the sentence (a work bag dropped by the door, exam papers on the floor, a wet umbrella, a half-finished mug…).',
+    'The bean bag must rest on a rug, wooden floor, deck, porch, grass, picnic mat or sand mat — never on stairs, water, a bed or a vehicle seat.',
+    'If the sentence names a place where a big bean bag would be absurd (subway, bus, car, office desk, classroom, bathroom, kitchen counter),',
+    'draw the rest that comes AFTER it — back home, a rooftop, a park lawn, a quiet cafe corner — and keep only a small prop as a hint of the original place.',
+    'Vary freely: living room, bedroom, balcony, rooftop, hanok porch, forest clearing, park lawn, riverside, beach, campsite, cafe, countryside field.',
+    'Choose what fits the sentence best. If the sentence gives no place at all, pick one that fits its mood and is NOT a night-time living room.',
+    'Season: early autumn (September) in Korea. Safe and gentle for all ages. No other people in the description, no text, no brand names.',
+    hanbok ? 'It is Chuseok (Korean harvest festival) NIGHT: the setting must include a huge full moon clearly visible (in the sky or through a window); indoors or outdoors both fine (hanok courtyard, wooden porch, hillside, rooftop, living-room window).' : '',
+  ].filter(Boolean).join(' ');
+}
+
+const SCENE_RULES = [
+  'The product sits on that flat surface and stays the single largest object; the character(s) rest ON it as described.',
+  'Compose a vertical poster with clear depth: the setting behind, the product in the middle ground, small props low and near.',
+].join(' ');
+
+const SCENES = {
+  interior: (setting) => [
+    `SCENE: ${setting || SCENE_POOL.interior[0]}.`,
+    'The character(s) recline freely on the product with arms relaxed and legs stretched out, fully at rest.',
+    'Mood: quiet, warm, exhaling after a long day.', SCENE_RULES,
+    'NO TEXT of any kind — no letters, numbers, captions, logos or watermarks.',
   ].join(' '),
-  hanbok: (greeting) => [
-    'SCENE: Chuseok (Korean harvest festival) night. Through a window: a huge full yellow moon in a deep navy sky with a few stars, a',
-    'persimmon or pine branch at the window edge. On the floor a small wooden tray with songpyeon rice cakes and pears, and a cup of tea.',
-    'Warm lamp light inside, cool moonlight outside. Mood: abundant, peaceful holiday rest.',
-    `TEXT: in the upper part of the image, over the navy night sky, typeset the Korean greeting "${greeting}" in a warm, friendly rounded`,
+  hanbok: (greeting, setting) => [
+    `SCENE (Chuseok, the Korean harvest festival, at night): ${setting || SCENE_POOL.hanbok[1]}.`,
+    'A huge full yellow moon must be clearly visible — in a deep navy sky with a few stars, or through a window. A small wooden tray with',
+    'songpyeon rice cakes and pears sits near the product. Warm lamp or lantern light near, cool moonlight far. Mood: abundant, peaceful holiday rest.',
+    SCENE_RULES,
+    `TEXT: in the upper part of the image, over the night sky, typeset the Korean greeting "${greeting}" in a warm, friendly rounded`,
     'Korean display typeface, cream/pale-yellow color, large and perfectly legible — exactly these characters and nothing else.',
     'Keep the greeting inside the top 28% of the image so it survives cropping. No other text, no logos, no watermark.',
   ].join(' '),
@@ -282,7 +371,9 @@ function buildPrompt(p) {
   const seated = Math.min(SEATS[p.chip && p.chip.key] || 1, drawn);
   const theme = p.theme === 'hanbok' ? 'hanbok' : 'interior';
   const greeting = p.greeting || pickGreeting();
-  const scene = theme === 'hanbok' ? SCENES.hanbok(greeting) : SCENES.interior;
+  // 배경 — 브리프(p.setting)가 있으면 그것, 없으면 시드 풀. 어느 쪽이든 정리(sanitizeSetting)를 거친다.
+  const setting = sanitizeSetting(p.setting) || pickSetting(p.seed, theme);
+  const scene = theme === 'hanbok' ? SCENES.hanbok(greeting, setting) : SCENES.interior(setting);
   // 메이트 — 배열(['fox','trex'] 등)이 정식. 숫자는 옛 방식(팍스 n개). 없으면 시드로 추첨. 참조가 안 붙은 종류는 뺀다.
   let kinds = Array.isArray(p.mates) ? p.mates.slice()
     : typeof p.mates === 'number' ? (p.mates >= 2 ? ['fox', 'fox'] : p.mates >= 1 ? ['fox'] : [])
@@ -295,9 +386,11 @@ function buildPrompt(p) {
     double: seated >= 2,              // 제품 위 2인 (연인 컷)
     mates: kinds.length,              // 실제로 지시한 메이트 수 (0~2)
     mateKinds: kinds,                 // ['fox'] | ['trex'] | ['fox','trex'] | ['fox','fox'] | []
+    setting,                          // 실제로 쓴 배경 문장
+    settingSource: sanitizeSetting(p.setting) ? 'brief' : 'pool',
     drawn,
     omitted: Math.max(0, count - MAX_PEOPLE),
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, pickMates, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, pickGreeting, pickMates, pickSetting, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };

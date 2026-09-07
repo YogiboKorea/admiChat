@@ -646,6 +646,11 @@ async function analyzePhoto(photo) {
   return openaiJson([{ type: 'text', text: RP.PHOTO_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'low' } }]);
 }
 
+/** 배경 브리프 — 고객 문장을 읽어 장소·시간·빛·소품을 정한다. 텍스트만 보내는 작은 호출 (≈ $0.0003). */
+async function sceneBrief(sentence, theme, chip) {
+  return openaiJson([{ type: 'text', text: RP.sceneBriefPrompt(sentence, theme, chip) }], { maxTokens: 260 });
+}
+
 /** 3단계 — 생성본에서 무지 태그 위치를 찾는다. */
 async function locateTag(buf) {
   const small = await sharp(buf).resize({ width: 768 }).jpeg({ quality: 82 }).toBuffer();
@@ -944,8 +949,12 @@ async function generateScene(doc, chip, base, photo) {
   if (kinds.indexOf('fox') >= 0 && !mate) throw new Error('ref-mate-fox.png 없음');
   const mate2 = kinds.indexOf('trex') >= 0 ? trexAsset : null;
   const refs = ['product'].concat(mate ? ['mate'] : []).concat(mate2 ? ['mate2'] : []).concat(usePhoto ? ['photo'] : []);
-  const { prompt, greeting, double, drawn, omitted, mates, mateKinds } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed });
-  console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명`);
+  // 배경 — 고객 문장에서 장소·시간·소품을 읽는다(브리프). 실패하면 buildPrompt 가 시드 풀에서 고른다. 어느 쪽이든 과금 전 단계.
+  let briefSetting = null;
+  try { const b = await sceneBrief(doc.sentence, theme, Object.assign({ key: doc.chip }, chip)); briefSetting = RP.sanitizeSetting(b && b.setting); }
+  catch (e) { console.warn(`[쉼순간] ${doc._id} 배경 브리프 실패 → 기본 풀:`, e.message); }
+  const { prompt, greeting, double, drawn, omitted, mates, mateKinds, setting, settingSource } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed, setting: briefSetting });
+  console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명 · 배경(${settingSource}) ${setting.slice(0, 80)}…`);
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
   // 제품 위 인원이 2명으로 정해졌으면 둘이 붙어 앉은 컷으로 바꿔 든다 (없으면 그대로).
   let productSrc = base;
@@ -1022,6 +1031,7 @@ async function generateScene(doc, chip, base, photo) {
     extra: {
       // usedPhoto = 고객 사진이 그림에 반영됐는가(참조로 넣었든, 접수 시 분석으로 인원을 잡았든). photoLost = 참조는 못 넣었다.
       theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto || !!analysis, photoLost, mates, mateKinds,
+      setting: setting.slice(0, 240), settingSource,
       // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 완성 후 남기지 않는다(analysis 는 done 때 지운다).
       people: analysis ? { count: Number(analysis.count) || 0, drawn, omitted } : null,
       genTokens: usage.output_tokens || null,
@@ -1943,4 +1953,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard, sanitizeAnalysis, preAnalyzePhoto, estimateEta, quotaFor, normId, avgGenMs, noteGenMs };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard, sanitizeAnalysis, preAnalyzePhoto, estimateEta, quotaFor, normId, avgGenMs, noteGenMs, sceneBrief };
