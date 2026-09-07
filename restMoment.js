@@ -295,11 +295,28 @@ async function ftpRemoveByUrl(url) {
  * 쓴다. 개발요청서의 "임시 이미지로 흐름을 먼저 완성하고 폼이 나오면 교체"
  * 그대로다. 폼이 나오면 loadBase() 만 바꾸면 된다.
  */
-function poseVariants(baseKey) {
+function poseVariants(baseKey, kind) {
   const dir = path.join(__dirname, 'public', 'rest-moment');
   if (!fs.existsSync(dir)) return [];
-  const re = new RegExp('^' + baseKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-p\\d+\\.jpe?g$', 'i');
+  const re = new RegExp('^' + baseKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-' + kind + '\\d+\\.jpe?g$', 'i');
   return fs.readdirSync(dir).filter(f => re.test(f)).sort();
+}
+
+/**
+ * 이 응모가 쓸 포즈 컷의 경로. 없으면 null.
+ *   -d1.jpg, -d2.jpg …  둘이 붙어 앉은 컷 (제품 위 2인일 때만)
+ *   -p1.jpg, -p2.jpg …  1인 컷
+ * 2인인데 duo 컷이 없으면 1인 컷으로 떨어진다.
+ */
+function posePath(chipKey, seed, seated) {
+  const chip = CHIPS[chipKey];
+  if (!chip) return null;
+  const dir = path.join(__dirname, 'public', 'rest-moment');
+  const pick = kind => {
+    const list = poseVariants(chip.baseKey, kind);
+    return list.length ? path.join(dir, pickPose(list, seed)) : null;
+  };
+  return (seated >= 2 && pick('d')) || pick('p');
 }
 
 /** 같은 응모는 늘 같은 포즈 컷을 쓴다 — 재시도가 다른 그림이 되면 안 된다. */
@@ -314,12 +331,8 @@ function pickPose(list, seed) {
 async function loadBase(chipKey, seed) {
   const chip = CHIPS[chipKey];
   const dir = path.join(__dirname, 'public', 'rest-moment');
-  const poses = poseVariants(chip.baseKey);
-  if (poses.length) {
-    const pick = pickPose(poses, seed);
-    console.log(`[쉼순간] ${chipKey} 포즈 컷 ${poses.length}장 중 ${pick}`);
-    return fs.readFileSync(path.join(dir, pick));
-  }
+  const pose = posePath(chipKey, seed, 1);
+  if (pose) { console.log(`[쉼순간] ${chipKey} 포즈 컷 ${path.basename(pose)}`); return fs.readFileSync(pose); }
   const local = path.join(dir, `${chip.baseKey}.jpg`);
   if (fs.existsSync(local)) return fs.readFileSync(local);
   // 로컬에 없으면 FTP 공개본에서 받아 쓴다
@@ -653,7 +666,16 @@ async function generateScene(doc, chip, base, photo) {
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
   const mate = loadAsset('ref-mate-fox.png');
   if (!mate) throw new Error('ref-mate-fox.png 없음');
-  const productRef = await sharp(base).resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
+  // 제품 위 인원이 2명으로 정해졌으면 둘이 붙어 앉은 컷으로 바꿔 든다 (없으면 그대로).
+  let productSrc = base;
+  if (double) {
+    const duo = posePath(doc.chip, String(doc._id), 2);
+    if (duo && /-d\d+\.jpe?g$/i.test(duo)) {
+      try { productSrc = fs.readFileSync(duo); console.log(`[쉼순간] ${doc.chip} 2인 포즈 컷 ${path.basename(duo)}`); }
+      catch (e) { console.warn('[쉼순간] 2인 포즈 컷 읽기 실패 → 기본 컷:', e.message); }
+    }
+  }
+  const productRef = await sharp(productSrc).resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
 
   const fd = new FormData();
   fd.append('model', OPENAI_MODEL);
@@ -1416,4 +1438,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
+module.exports.__internals = { generateScene, loadBase, posePath, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
