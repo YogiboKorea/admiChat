@@ -629,9 +629,10 @@ function hexLum(hex) {
 }
 
 /**
- * 태그 후보 탐색 — 비전 좌표 주변을 픽셀로 훑어 "작고 밝은 저채도 점 + 둘레는 그보다 어두움" 을 찾는다. 찍지는 않는다.
- * 실측: 비전 좌표는 150px, 확대 재탐지도 70px 빗나간다 → 폭의 7% 반경. 양말·옷깃도 픽셀로는 태그처럼 보이므로
- * 운영에서는 verifyTag 로 한 번 더 거른다.
+ * 태그 후보 탐색 — 비전 좌표 주변(폭 7%)의 밝은 저채소 점들 중 "어두운 윤곽선으로 둘러싸인 작은 사각형" 을 고른다.
+ * 실측: 비전 좌표는 150px, 확대 재탐지도 70px 빗나간다. 둘레 대비만으로 고르면 원단 하이라이트를 잡는다 —
+ * 선화 스타일에서 태그는 반드시 윤곽선을 갖고 하이라이트는 없으므로 윤곽선 비율을 1순위로 본다.
+ * 양말·옷깃도 윤곽선이 있어 여기서는 못 거른다 → 운영은 verifyTag 로 한 번 더.
  */
 async function findTag(buf, box, opts = {}) {
   const found = box && (box.found === true || box.found === 'true');
@@ -642,42 +643,57 @@ async function findTag(buf, box, opts = {}) {
   const cx = Math.round(W * Number(box.cx)), cy = Math.round(H * Number(box.cy));
   const rawImg = await sharp(buf).removeAlpha().raw().toBuffer();
   const px = (x, y) => { x = Math.max(0, Math.min(W - 1, x)); y = Math.max(0, Math.min(H - 1, y)); const i = (y * W + x) * 3; return [rawImg[i], rawImg[i + 1], rawImg[i + 2]]; };
+  const lumAt = (x, y) => { const [R, G, B] = px(x, y); return (R + G + B) / 3; };
   const win = (x, y, r) => { let l = 0, sat = 0, c = 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const [R, G, B] = px(x + dx, y + dy); l += (R + G + B) / 3; sat += Math.max(R, G, B) - Math.min(R, G, B); c++; } return { lum: l / c, sat: sat / c }; };
   const clampPx = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
-  // 태그 크기 가정 — 비전 박스는 못 믿는다(실측 0.0072~0.08). 폭의 1.5~6% 로 묶고 둘레 반경도 거기서 낸다.
+  // 태그 크기 가정 — 비전 박스는 못 믿는다(실측 0.0072~0.08). 폭의 1.5~6% 로 묶고 둘레 반경도 거기서.
   const seedW = clampPx((Number(box.w) || 0.03) * W, W * 0.015, W * 0.06);
   const seedH = clampPx((Number(box.h) || 0.03) * H, W * 0.015, W * 0.06);
   const ringR = clampPx(Math.max(seedW, seedH) * 0.9, 10, W * 0.04);
   const ringAt = (x, y) => { let r = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; r += win(Math.round(x + Math.cos(a) * ringR), Math.round(y + Math.sin(a) * ringR), 1).lum; } return r / 8; };
-  // 재중심 — "밝은 저채도 점 중 둘레 대비가 가장 큰 곳"
+  const minContrast = opts.lightProduct ? 8 : 40;   // 밝은 제품은 태그와 원단 밝기 차가 10 안팎
+
+  // 1) 후보 창 — 밝은 저채도 점 중 둘레 대비 상위 10곳 (12px 안에서는 하나만)
   const seek = Math.round(W * 0.07), step = 3;
-  let best = null, bx = cx, by = cy, ring = 0;
+  const wins = [];
   for (let y = Math.max(3, cy - seek); y <= Math.min(H - 4, cy + seek); y += step) {
     for (let x = Math.max(3, cx - seek); x <= Math.min(W - 4, cx + seek); x += step) {
       const w = win(x, y, 2);
       if (w.lum < 185 || w.sat > 110) continue;
       const rg = ringAt(x, y), contrast = w.lum - rg;
-      if (!best || contrast > best.contrast) { best = { lum: w.lum, sat: w.sat, contrast }; bx = x; by = y; ring = rg; }
+      if (contrast < minContrast) continue;
+      wins.push({ x, y, lum: w.lum, sat: w.sat, ring: rg, contrast });
     }
   }
-  if (!best) { const w = win(cx, cy, 2); best = { lum: w.lum, sat: w.sat, contrast: 0 }; ring = ringAt(cx, cy); }
-  // 라이트그레이처럼 밝은 제품은 태그와 원단 밝기 차가 10 안팎 — 대비 요구를 낮춘다
-  const minContrast = opts.lightProduct ? 8 : 40;
-  if (best.lum < 170 || best.sat > 110 || best.lum - ring < minContrast) {
-    return { ok: false, reason: 'guard', at: { x: bx, y: by }, lum: best.lum, sat: best.sat, ring };
-  }
-  // 무게중심·크기·기울기 — 임계는 둘레와 태그의 중간. 덩어리가 태그 크기가 아니면 원단·옷을 삼킨 것 → 거절.
+  wins.sort((a, b) => b.contrast - a.contrast);
+  const picked = [];
+  for (const w of wins) { if (picked.every(p => Math.hypot(p.x - w.x, p.y - w.y) >= 8)) picked.push(w); if (picked.length >= 24) break; }
+  if (!picked.length) { const w = win(cx, cy, 2); return { ok: false, reason: 'guard', at: { x: cx, y: cy }, lum: w.lum, sat: w.sat, ring: ringAt(cx, cy) }; }
+
+  // 2) 후보마다: 연결 성분(밝은 저채도) → 크기 검사 → 윤곽선 비율(경계 2~3px 밖의 어두운 픽셀 비율)
   const scanR = Math.max(10, Math.round(Math.max(seedW, seedH) * 0.8));
-  const thr = Math.max(150, ring + (best.lum - ring) * 0.5);
-  const pts = [];
-  for (let y = Math.max(0, by - scanR); y <= Math.min(H - 1, by + scanR); y++)
-    for (let x = Math.max(0, bx - scanR); x <= Math.min(W - 1, bx + scanR); x++) {
-      const [R, G, B] = px(x, y);
-      if ((R + G + B) / 3 >= thr && Math.max(R, G, B) - Math.min(R, G, B) <= 90) pts.push(x, y);
+  const capW = Math.max(seedW * 2.5, W * 0.06), capH = Math.max(seedH * 2.5, W * 0.06);
+  const evalCand = (c) => {
+    // 윤곽선에 갇힌 영역 — 어둡지 않은 픽셀로 채워 나간다. 탐색 상자 밖으로 새면 갇힌 게 아니다(원단 하이라이트).
+    const lim = scanR * 2;
+    // 벽 = 후보 밝기보다 35 이상 어두운 픽셀. 실측: 밝은 제품의 윤곽선은 101~160 의 중간 톤이라 고정값(140)으로는 새어나간다.
+    const wall = c.lum - 35;
+    const notDark = (x, y) => lumAt(x, y) >= wall;
+    if (!notDark(c.x, c.y)) return null;
+    const seen = new Set(), stack = [[c.x, c.y]], pts = []; let leaked = false, satSum = 0;
+    while (stack.length && pts.length < 60000) {
+      const [x, y] = stack.pop(); const k = y * W + x;
+      if (seen.has(k)) continue; seen.add(k);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;                      // 그림 밖은 벽으로 본다 (가장자리 태그)
+      if (Math.abs(x - c.x) > lim || Math.abs(y - c.y) > lim) { leaked = true; break; }
+      if (!notDark(x, y)) continue;
+      const [R, G, B] = px(x, y); satSum += Math.max(R, G, B) - Math.min(R, G, B);
+      pts.push(x, y); stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
     }
-  let tcx = bx, tcy = by, tagW = seedW, tagH = seedH, major = Number(box.angle) || 0;
-  if (pts.length >= 60) {
-    const cnt = pts.length / 2; let mx = 0, my = 0;
+    if (leaked || pts.length < 30) return null;
+    const cnt = pts.length / 2;
+    if (satSum / cnt > 90) return null;                                       // 태그 안은 저채도(크림·흰색)
+    let mx = 0, my = 0;
     for (let i = 0; i < pts.length; i += 2) { mx += pts[i]; my += pts[i + 1]; }
     mx /= cnt; my /= cnt;
     let sxx = 0, syy = 0, sxy = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -688,12 +704,27 @@ async function findTag(buf, box, opts = {}) {
       if (pts[i + 1] < y0) y0 = pts[i + 1]; if (pts[i + 1] > y1) y1 = pts[i + 1];
     }
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    const capW = Math.max(seedW * 2.5, W * 0.06), capH = Math.max(seedH * 2.5, W * 0.06);
-    if (bw > capW || bh > capH || bw < 6 || bh < 6) return { ok: false, reason: 'blob', at: { x: bx, y: by }, size: [bw, bh] };
-    tcx = Math.round(mx); tcy = Math.round(my); tagW = bw; tagH = bh;
-    major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
+    if (bw > capW || bh > capH || bw < 6 || bh < 6) return null;
+    if (cnt < bw * bh * 0.45) return null;                                    // 사각형이 아니라 가느다란 띠·조각이면 제외
+    const major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
+    // 윤곽선 비율 — bbox 를 1~3px 키운 둘레에서 어두운(lum<130) 픽셀 비율
+    const outlineAt = (pad) => {
+      let dark = 0, tot = 0;
+      for (let x = x0 - pad; x <= x1 + pad; x++) for (const y of [y0 - pad, y1 + pad]) { tot++; if (lumAt(x, y) < c.lum - 50) dark++; }
+      for (let y = y0 - pad + 1; y < y1 + pad; y++) for (const x of [x0 - pad, x1 + pad]) { tot++; if (lumAt(x, y) < c.lum - 50) dark++; }
+      return tot ? dark / tot : 0;
+    };
+    const outline = Math.max(outlineAt(1), outlineAt(2), outlineAt(3));
+    return { cx: Math.round(mx), cy: Math.round(my), w: bw, h: bh, major, outline, contrast: c.contrast, lum: c.lum };
+  };
+  let bestC = null;
+  for (const c of picked) {
+    const e = evalCand(c); if (!e) continue;
+    const score = e.outline * 100 + Math.min(e.contrast, 60) * 0.5;   // 윤곽선이 1순위, 대비는 보조
+    if (!bestC || score > bestC.score) bestC = Object.assign(e, { score });
   }
-  return { ok: true, W, H, cx: tcx, cy: tcy, w: tagW, h: tagH, major };
+  if (!bestC) return { ok: false, reason: 'blob', at: { x: picked[0].x, y: picked[0].y } };
+  return { ok: true, W, H, cx: bestC.cx, cy: bestC.cy, w: bestC.w, h: bestC.h, major: bestC.major, outline: bestC.outline, contrast: bestC.contrast };
 }
 
 /** 후보 자리에 실제 로고를 얹는다 — 실물 태그처럼 세로(긴 축을 따라 아래→위). */
