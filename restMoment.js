@@ -541,19 +541,60 @@ async function stampLogo(buf, box) {
   for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) { const w = win(cx + dx, cy + dy, 2); if (w.lum > best.lum) { best = w; bx = cx + dx; by = cy + dy; } }
   const ringR = Math.max(10, Math.round(Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0) * 0.9));
   let ring = 0; for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; ring += win(Math.round(bx + Math.cos(a) * ringR), Math.round(by + Math.sin(a) * ringR), 1).lum; } ring /= 8;
-  if (best.lum < 170 || best.sat > 80 || best.lum - ring < 40) {
+  // 채도 상한은 110 — 무지 태그가 순백이 아니라 따뜻한 크림색으로 그려진다(실측 sat 86). 진짜 판별은 둘레 대비가 한다.
+  if (best.lum < 170 || best.sat > 110 || best.lum - ring < 40) {
     console.warn(`[쉼순간] 태그 좌표가 무지 태그로 보이지 않음(lum ${best.lum.toFixed(0)}, sat ${best.sat.toFixed(0)}, 둘레 ${ring.toFixed(0)}) → 로고 생략`);
     return { buf, stamped: false };
   }
-  const cxx = bx, cyy = by;
-  const longSide = Math.max(Number(box.w) * W || 0, Number(box.h) * H || 0);
-  const logoW = Math.max(14, Math.min(Math.round(longSide * 0.8) || 0, Math.round(W * 0.08)));
-  const angle = Math.max(-90, Math.min(90, Number(box.angle) || 0));
+  // 태그의 밝은 면 전체를 모아 무게중심과 긴 축을 낸다. 가장 밝은 한 점만 쓰면 로고가 태그 구석에 박힌다(실측).
+  const seedW = Math.max(8, Math.round((Number(box.w) || 0.03) * W));
+  const seedH = Math.max(8, Math.round((Number(box.h) || 0.03) * H));
+  const scanR = Math.max(10, Math.round(Math.max(seedW, seedH) * 0.8));
+  const thr = Math.max(150, best.lum - 30);
+  const pts = [];
+  for (let y = Math.max(0, by - scanR); y <= Math.min(H - 1, by + scanR); y++)
+    for (let x = Math.max(0, bx - scanR); x <= Math.min(W - 1, bx + scanR); x++) {
+      const [R, G, B] = px(x, y);
+      if ((R + G + B) / 3 >= thr && Math.max(R, G, B) - Math.min(R, G, B) <= 90) pts.push(x, y);
+    }
+  let cxx = bx, cyy = by, tagW = seedW, tagH = seedH, major = Number(box.angle) || 0;
+  if (pts.length >= 60) {                                   // 픽셀 30개 (x,y 쌍으로 담는다)
+    const cnt = pts.length / 2;
+    let mx = 0, my = 0;
+    for (let i = 0; i < pts.length; i += 2) { mx += pts[i]; my += pts[i + 1]; }
+    mx /= cnt; my /= cnt;
+    let sxx = 0, syy = 0, sxy = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      const dx = pts[i] - mx, dy = pts[i + 1] - my;
+      sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+      if (pts[i] < x0) x0 = pts[i]; if (pts[i] > x1) x1 = pts[i];
+      if (pts[i + 1] < y0) y0 = pts[i + 1]; if (pts[i + 1] > y1) y1 = pts[i + 1];
+    }
+    cxx = Math.round(mx); cyy = Math.round(my);
+    tagW = x1 - x0 + 1; tagH = y1 - y0 + 1;
+    major = 0.5 * Math.atan2(2 * sxy / cnt, (sxx - syy) / cnt) * 180 / Math.PI;
+  }
+  // 워드마크는 언제나 가로로 읽혀야 한다. 세로로 긴 태그는 긴 축이 ±90° 로 나오는데 그대로 돌리면
+  // 로고가 옆으로 누워 글자를 못 읽는다(실측). -45..45 로 접어 태그를 가로지르게 눕힌다.
+  let angle = major;
+  while (angle > 90) angle -= 180;
+  while (angle < -90) angle += 180;
+  if (angle > 45) angle -= 90; else if (angle < -45) angle += 90;
+  // 회전한 로고의 외접 사각형이 태그 안에 들어가는 최대 가로폭
+  const lmeta = await sharp(logo).metadata();
+  const logoAr = (lmeta.height || 160) / (lmeta.width || 400);
+  const rr = Math.abs(angle) * Math.PI / 180;
+  const capW = (tagW * 0.75) / (Math.cos(rr) + logoAr * Math.sin(rr));
+  const capH = (tagH * 0.75) / (Math.sin(rr) + logoAr * Math.cos(rr));
+  const logoW = Math.max(10, Math.round(Math.min(capW, capH, W * 0.08)));
   const l = await sharp(logo).resize({ width: logoW }).ensureAlpha().png().toBuffer();
   const faded = await sharp(l).composite([{ input: Buffer.from([0, 0, 0, 235]), raw: { width: 1, height: 1, channels: 4 }, tile: true, blend: 'dest-in' }]).png().toBuffer();
   const rot = await sharp(faded).rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
   const rm = await sharp(rot).metadata();
-  const out = await sharp(buf).composite([{ input: rot, left: cxx - Math.round(rm.width / 2), top: cyy - Math.round(rm.height / 2) }]).png().toBuffer();
+  // 태그가 가장자리에 있으면 좌표가 화면 밖으로 나간다 — sharp 는 음수 left/top 에서 던진다
+  const left = Math.max(0, Math.min(W - rm.width, cxx - Math.round(rm.width / 2)));
+  const top = Math.max(0, Math.min(H - rm.height, cyy - Math.round(rm.height / 2)));
+  const out = await sharp(buf).composite([{ input: rot, left, top }]).png().toBuffer();
   return { buf: out, stamped: true };
 }
 

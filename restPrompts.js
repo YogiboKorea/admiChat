@@ -16,13 +16,19 @@
  *   · 한복 테마는 인사말을 그림 안에 직접 조판 (gpt-image-2 는 한글이 된다)
  */
 
+// 맥스 몸체 — 승인된 레퍼런스 컷의 형태를 그대로 굳힌다(사람 키만 한 물방울, 뒤로 기대 눕는 자세).
+const MAX_BODY = [
+  'the Yogibo Max: ONE very large teardrop-shaped bean bag, about as long as a person is tall — a broad rounded top that tapers to a',
+  'narrower base, filled soft so it slumps and moulds to the body, with wide gentle creases where the weight presses in',
+].join(' ');
+
 const CHIP_EN = {
-  sink:    { productEn: 'Yogibo Max bean bag standing upright in a tall, hugging form', colorEn: 'light grey (warm off-white grey)' },
-  lean:    { productEn: 'Yogibo Lounger bean bag, a low reclining seat with a raised back', colorEn: 'aqua blue' },
-  liedown: { productEn: 'Yogibo Max bean bag laid flat as a long lounging cushion',        colorEn: 'light grey (warm off-white grey)' },
-  floor:   { productEn: 'Yogibo Drop bean bag, a low teardrop-shaped floor cushion',       colorEn: 'olive green' },
-  myspot:  { productEn: 'Yogibo Mini bean bag, a compact one-person cushion',              colorEn: 'dark grey' },
-  hug:     { productEn: 'Yogibo Support, a U-shaped bolster cushion that wraps around the body', colorEn: 'olive green' },
+  sink:    { productEn: MAX_BODY + ', propped at a reclining angle with the wide end raised so the person sinks back into it — head, shoulders and back fully supported, legs stretched down onto the rug', colorEn: 'light grey (warm off-white grey)' },
+  lean:    { productEn: 'the Yogibo Lounger bean bag, a low reclining seat with a raised back', colorEn: 'aqua blue' },
+  liedown: { productEn: MAX_BODY + ', laid flat on the floor as a long mattress-like cushion with the person lying full length along it', colorEn: 'light grey (warm off-white grey)' },
+  floor:   { productEn: 'the Yogibo Drop bean bag, a low teardrop-shaped floor cushion',   colorEn: 'olive green' },
+  myspot:  { productEn: 'the Yogibo Mini bean bag, a compact one-person cushion',          colorEn: 'dark grey' },
+  hug:     { productEn: 'the Yogibo Support, a U-shaped bolster cushion that wraps around the body', colorEn: 'olive green' },
 };
 
 const STYLE = [
@@ -40,14 +46,16 @@ function refLabel(refs, kind) {
 
 function productDirective(chip, refs, opts = {}) {
   const en = CHIP_EN[chip.key] || {};
-  const product = opts.double ? 'Yogibo Double, an extra-wide two-person bean bag' : (en.productEn || chip.product);
+  const product = opts.double ? 'the Yogibo Double, an extra-wide two-person bean bag' : (en.productEn || `the Yogibo ${chip.product}`);
   const color = en.colorEn || chip.color;
   const ref = refLabel(refs, 'product');
   return [
-    `PRODUCT${ref ? ` (shape and color per ${ref})` : ''}: a ${product}, in the exact color ${chip.hex} (${color}).`,
+    `PRODUCT${ref ? ` (shape and color per ${ref})` : ''}: ${product}, in the exact color ${chip.hex} (${color}).`,
     'Keep its true shape, softness and folds; it is the single largest object in the frame.',
-    'EXACTLY ONE small sewn-in fabric tag on the product, on a visible edge seam, rendered as a plain BLANK white rectangle with no lettering',
-    '(the tag is tiny — about 1/15 of the product width). Do not draw any brand wordmark or logo anywhere. No other furniture brands.',
+    'EXACTLY ONE small sewn-in fabric tag on the product, on a visible edge seam in the upper third of its silhouette, lying flat against the',
+    'fabric and facing the viewer, rendered as a plain BLANK cream-white rounded rectangle with NO lettering — slightly taller than it is wide',
+    '(about 1/15 of the product width), its face clean and evenly lit so it reads as one flat shape.',
+    'Do not draw any brand wordmark or logo anywhere. No other furniture brands.',
   ].join(' ');
 }
 
@@ -62,8 +70,10 @@ function mateDirective(refs) {
 
 const SCENES = {
   interior: [
-    'SCENE: a cozy, beautifully styled Korean living room in the evening — warm floor lamp, sheer curtains, a wooden side table with a mug',
-    'of tea, a small plant, a soft rug. The character(s) recline freely on the product with arms relaxed, fully at rest.',
+    'SCENE: a cozy, beautifully styled Korean living room at night. Behind the product: a wooden-framed window or balcony door showing a',
+    'dark blue evening outside, sheer cream curtains, a slim wooden tripod floor lamp casting a warm amber pool of light, and a low wooden',
+    'shelf with a potted plant and a woven basket. On the floor: a thick cream shag rug, a small round wooden table with a mug of tea and a',
+    'couple of books. The character(s) recline freely on the product with arms relaxed and legs stretched out, fully at rest.',
     'Mood: quiet, warm, exhaling after a long day. NO TEXT of any kind — no letters, numbers, captions, logos or watermarks.',
   ].join(' '),
   hanbok: (greeting) => [
