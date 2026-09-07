@@ -38,6 +38,11 @@ const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 // 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
 const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
+// 이벤트 생성 상한. 넘으면 과금 없이 실루엣으로 완성한다 — 고객은 그림과 적립금을 받고, 우리는 돈이 안 나간다.
+//   REST_MOMENT_MAX_GEN    이벤트 전체 GPT 생성 장수. 기본 1000 (≈ $180~200, 건당 ≈ $0.18~0.20). 0 이면 무제한.
+//   REST_MOMENT_DAILY_GEN  하루 GPT 생성 장수 (KST 자정 기준). 기본 0 = 무제한.
+const MAX_GEN_TOTAL = process.env.REST_MOMENT_MAX_GEN === undefined ? 1000 : Math.max(0, Number(process.env.REST_MOMENT_MAX_GEN) || 0);
+const MAX_GEN_DAILY = Math.max(0, Number(process.env.REST_MOMENT_DAILY_GEN || 0) || 0);
 const MASTER_IDS = (process.env.REST_MOMENT_MASTER_IDS || 'testid,yogibo')
   .split(',').map(s => s.trim()).filter(Boolean);
 // memberId 는 클라이언트가 보내는 값이라 'testid' 는 누구나 보낼 수 있다.
@@ -176,6 +181,25 @@ function bootstrapFont() {
 const pad = n => String(n).padStart(2, '0');
 
 /** KST 기준 현재 시각 */
+/**
+ * 생성 예산. 완료된 GPT 장면(via:'gpt-scene')과 지금 그리는 중인 건(processing)을 합쳐 상한과 비교한다.
+ * processing 에는 이 건 자신도 들어 있으므로 하나 뺀다 — 안 빼면 정확히 상한 장수째가 막힌다.
+ */
+async function genBudget(col) {
+  const k = nowKST();
+  const dayStart = new Date(k.getFullYear(), k.getMonth(), k.getDate());
+  const [total, today, processing] = await Promise.all([
+    col.countDocuments({ via: 'gpt-scene' }),
+    col.countDocuments({ via: 'gpt-scene', doneAt: { $gte: dayStart } }),
+    col.countDocuments({ status: 'processing' }),
+  ]);
+  const inflight = Math.max(0, processing - 1);
+  let reason = null;
+  if (MAX_GEN_TOTAL > 0 && total + inflight >= MAX_GEN_TOTAL) reason = 'total';
+  else if (MAX_GEN_DAILY > 0 && today + inflight >= MAX_GEN_DAILY) reason = 'daily';
+  return { total, today, inflight, allowed: !reason, reason, maxTotal: MAX_GEN_TOTAL, maxDaily: MAX_GEN_DAILY };
+}
+
 function nowKST() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 }
@@ -784,7 +808,18 @@ async function processOne(db, doc) {
     let scene = null, via = null, extra = {};
     const cached = sceneVault.get(String(doc._id));
     if (cached) { scene = cached.buf; via = cached.via; extra = cached.extra || {}; }
-    if (!scene && GEN_MODE === 'gpt') {
+    // 이벤트 상한 — 넘으면 GPT 를 부르지 않는다. 사진도 여기서 파기해 아래 옛 경로(인물 레이어)로 새지 않게.
+    let capped = null;
+    if (!scene && GEN_MODE === 'gpt' && (MAX_GEN_TOTAL > 0 || MAX_GEN_DAILY > 0)) {
+      const b = await genBudget(col);
+      if (!b.allowed) {
+        capped = b.reason;
+        if (photo) { photo.buffer = null; }
+        extra = { theme: 'interior', genCapped: b.reason, usedPhoto: false };
+        console.warn(`[쉼순간] 생성 상한 도달(${b.reason} · 전체 ${b.total}/${b.maxTotal || '∞'} · 오늘 ${b.today}/${b.maxDaily || '∞'}) → 과금 없이 실루엣으로 완성`);
+      }
+    }
+    if (!scene && GEN_MODE === 'gpt' && !capped) {
       try { const r = await generateScene(doc, chip, base, photo); scene = r.buf; via = r.via; extra = r.extra; }
       catch (e) {
         // 일시 오류(429·5xx·네트워크)는 과금이 안 됐으니 잡 재시도로 넘긴다 — 사진은 vault 에 다시 넣어 둔다.
@@ -1193,7 +1228,8 @@ function mount(app, deps) {
         entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master },
         members: members.length,
         rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
-        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END },
+        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY },
+        gen: await genBudget(col),          // { total, today, inflight, allowed, reason, maxTotal, maxDaily }
       });
     } catch (err) {
       console.error('[쉼순간] 관리 통계 오류:', err.message);
@@ -1454,4 +1490,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard };
