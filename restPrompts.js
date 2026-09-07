@@ -22,13 +22,23 @@ const MAX_BODY = [
   'narrower base, filled soft so it slumps and moulds to the body, with wide gentle creases where the weight presses in',
 ].join(' ');
 
+// 실제 치수와 사람 대비 크기 — 카탈로그 spec/scalePrompt 그대로. 모델은 이게 없으면 빈백을 소파·침대로 부풀린다(실측).
+const SIZE_EN = {
+  max:     '70 cm wide x 45 cm deep x 170 cm long — as long as an adult is tall, but only ONE adult wide (about shoulder width). Stood upright it tops a 160 cm woman by about 10 cm. Two people fit only ALONG its length, pressed close — never side by side across it',
+  lean:    '65 cm wide x 80 cm deep x 60 cm high — a one-person low chair about knee-height of a standing adult; its backrest reaches a seated adult\'s mid-back. Seat for exactly one person',
+  floor:   '85 cm wide x 85 cm deep x 75 cm high — a round droplet about the height of a seated adult\'s shoulders; ONE adult sinks into it with knees bent',
+  myspot:  '70 cm wide x 45 cm deep x 85 cm high — compact, about hip-height of a standing adult; a single seat where an adult sits with knees bent, child-friendly size',
+  hug:     '76 cm wide x 30 cm deep x 94 cm tall — a U-shaped cushion that wraps around ONE seated adult\'s lower back and arms; its armrests reach hip height when seated. It is a cushion, not a seat',
+  double:  '120 cm wide x 45 cm deep x 170 cm long — nearly twice the width of a single Max; two adults can sit or lie side by side',
+};
+
 const CHIP_EN = {
-  sink:    { productEn: MAX_BODY + ', propped at a reclining angle with the wide end raised so the person sinks back into it — head, shoulders and back fully supported, legs stretched down onto the rug', colorEn: 'light grey (warm off-white grey)' },
-  lean:    { productEn: 'the Yogibo Lounger bean bag, a low reclining seat with a raised back', colorEn: 'aqua blue' },
-  liedown: { productEn: MAX_BODY + ', laid flat on the floor as a long mattress-like cushion with the person lying full length along it', colorEn: 'light grey (warm off-white grey)' },
-  floor:   { productEn: 'the Yogibo Drop bean bag, a low teardrop-shaped floor cushion',   colorEn: 'olive green' },
-  myspot:  { productEn: 'the Yogibo Mini bean bag, a compact one-person cushion',          colorEn: 'dark grey' },
-  hug:     { productEn: 'the Yogibo Support, a U-shaped bolster cushion that wraps around the body', colorEn: 'olive green' },
+  sink:    { productEn: MAX_BODY + ', propped at a reclining angle with the wide end raised so the person sinks back into it — head, shoulders and back fully supported, legs stretched down onto the rug', colorEn: 'light grey (warm off-white grey)', sizeEn: SIZE_EN.max },
+  lean:    { productEn: 'the Yogibo Lounger bean bag, a low reclining seat with a raised back', colorEn: 'aqua blue', sizeEn: SIZE_EN.lean },
+  liedown: { productEn: MAX_BODY + ', laid flat on the floor as a long mattress-like cushion with the person lying full length along it', colorEn: 'light grey (warm off-white grey)', sizeEn: SIZE_EN.max },
+  floor:   { productEn: 'the Yogibo Drop bean bag, a low teardrop-shaped floor cushion',   colorEn: 'olive green', sizeEn: SIZE_EN.floor },
+  myspot:  { productEn: 'the Yogibo Mini bean bag, a compact one-person cushion',          colorEn: 'dark grey', sizeEn: SIZE_EN.myspot },
+  hug:     { productEn: 'the Yogibo Support, a U-shaped bolster cushion that wraps around the body', colorEn: 'olive green', sizeEn: SIZE_EN.hug },
 };
 
 const STYLE = [
@@ -56,6 +66,7 @@ function productDirective(chip, refs, opts = {}) {
     `PRODUCT${ref ? ` (shape and proportions per ${ref})` : ''}: ${product}, in the exact color ${chip.hex} (${color}).`,
     ref ? `Take ONLY the form, proportions and the way it deforms under a body from ${ref}. IGNORE that reference's own colour, its background, its room and any people in it — the product colour is ${chip.hex} and nothing else.` : '',
     'Keep its true shape, softness and folds; it is the single largest object in the frame.',
+    `TRUE SCALE (important): the product measures ${en.sizeEn || SIZE_EN.max}. Draw it at REAL size relative to the people — never inflate it into a sofa, a couch or a bed. Where a person is bigger than the product, their body visibly overhangs it and the fabric compresses under them.`,
     'EXACTLY ONE small sewn-in fabric tag on the product, on a visible edge seam in the upper third of its silhouette, lying flat against the',
     'fabric and facing the viewer, rendered as a plain BLANK cream-white rounded rectangle with NO lettering — slightly taller than it is wide',
     '(about 1/15 of the product width), its face clean and evenly lit so it reads as one flat shape.',
@@ -184,7 +195,7 @@ function personDirective(analysis, theme, refs, chip) {
     }
     const spot = onProduct.indexOf(i) >= 0
       ? (onProduct.length > 1
-          ? 'reclining ON the bean bag, side by side with the other person, shoulders touching, both sunk comfortably into it'
+          ? 'reclining ON the bean bag together with the other person, snuggled close ALONG its length (it is only about one person wide — never seated side by side across it), shoulders touching, both sunk into it'
           : 'reclining ON the bean bag, sunk into it, fully supported and at rest')
       : AROUND_SPOTS[around.indexOf(i) % AROUND_SPOTS.length];
     return `Person ${i + 1} (${ordinal(i)} from the left in the photo): ${art} ${pres} ${age} with ${feats || 'natural features'}, wearing ${outfit} — ${spot}.`;
@@ -222,4 +233,4 @@ function buildPrompt(p) {
   };
 }
 
-module.exports = { CHIP_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
