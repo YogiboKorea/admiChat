@@ -11,7 +11,7 @@
  * 규칙
  *   · 스타일: 추석 Week 비주얼 계열의 한국 애니메이션 풍 평면 일러스트 (글로 고정 — 스타일 이미지는 붙이지 않는다)
  *   · 제품: 칩이 정한 제품·색 고정. 태그는 무지(글자 없음) — 로고는 후보정
- *   · 메이트: 반드시 1개 이상
+ *   · 메이트: 응모마다 다르게 — 없음 30% · 하나 30%(팍스/티렉스) · 둘 40%(팍스+티렉스) (pickMates, 응모 id 시드). 늘 팍스만·늘 둘·100% 등장은 아니게(결정 사항)
  *   · 인원 2명 이상 → 더블
  *   · 한복 테마는 인사말을 그림 안에 직접 조판 (gpt-image-2 는 한글이 된다)
  */
@@ -25,7 +25,7 @@ const MAX_BODY = [
 // 실제 치수와 사람 대비 크기 — 카탈로그 spec/scalePrompt 그대로. 모델은 이게 없으면 빈백을 소파·침대로 부풀린다(실측).
 const SIZE_EN = {
   max:     '70 cm wide x 45 cm deep x 170 cm long — as long as an adult is tall, but only ONE adult wide (about shoulder width). Stood upright it tops a 160 cm woman by about 10 cm. It seats ONE person; it is NOT a sofa and never wide enough for two side by side',
-  lean:    '65 cm wide x 80 cm deep x 60 cm high — a one-person low chair about knee-height of a standing adult; its backrest reaches a seated adult\'s mid-back. Seat for exactly one person',
+  lean:    '65 cm wide x 80 cm deep x 60 cm high overall — a one-person low chair whose seat sits on the floor; the raised back reaches a seated adult\'s shoulder blades when they slouch into it. Seat for exactly one person',
   floor:   '85 cm wide x 85 cm deep x 75 cm high — a round droplet about the height of a seated adult\'s shoulders; ONE adult sinks into it with knees bent',
   myspot:  '70 cm wide x 45 cm deep x 85 cm high — compact, about hip-height of a standing adult; a single seat where an adult sits with knees bent, child-friendly size',
   hug:     '76 cm wide x 30 cm deep x 94 cm tall — a U-shaped cushion that wraps around ONE seated adult\'s lower back and arms; its armrests reach hip height when seated. It is a cushion, not a seat',
@@ -34,7 +34,12 @@ const SIZE_EN = {
 
 const CHIP_EN = {
   sink:    { productEn: MAX_BODY + ', propped at a reclining angle with the wide end raised so the person sinks back into it — head, shoulders and back fully supported, legs stretched down onto the rug', colorEn: 'light grey (warm off-white grey)', sizeEn: SIZE_EN.max },
-  lean:    { productEn: 'the Yogibo Lounger bean bag, a low reclining seat with a raised back', colorEn: 'aqua blue', sizeEn: SIZE_EN.lean },
+  lean:    { productEn: [
+    'the Yogibo Lounger: a ONE-person bean bag CHAIR shaped like a soft letter "L" — a flat low seat cushion lying on the floor that',
+    'curves up at the back, through one thick rounded corner, into a tall rounded backrest standing about as high as a seated adult\'s',
+    'shoulder blades. The person sits low with legs stretched forward along the seat and the whole back resting on the raised part.',
+    'It has NO armrests and NO legs; it is NOT a round pouf, NOT a ball, NOT a teardrop, NOT a sofa or armchair — a single soft L-shaped cushion',
+  ].join(' '), colorEn: 'aqua blue', sizeEn: SIZE_EN.lean },
   liedown: { productEn: MAX_BODY + ', laid flat on the floor as a long mattress-like cushion with the person lying full length along it', colorEn: 'light grey (warm off-white grey)', sizeEn: SIZE_EN.max },
   floor:   { productEn: 'the Yogibo Drop bean bag, a low teardrop-shaped floor cushion',   colorEn: 'olive green', sizeEn: SIZE_EN.floor },
   myspot:  { productEn: 'the Yogibo Mini bean bag, a compact one-person cushion',          colorEn: 'dark grey', sizeEn: SIZE_EN.myspot },
@@ -75,27 +80,65 @@ function productDirective(chip, refs, opts = {}) {
   ].join(' ');
 }
 
-/** 메이트(플러시 캐릭터)는 빈백이 아니라 태그도 로고도 없다 — 1~2개 두어도 로고 파이프라인과 무관하다. */
-function mateDirective(refs, count = 1) {
-  const ref = refLabel(refs, 'mate');
-  const ref2 = refLabel(refs, 'mate2');
-  // 티렉스 레퍼런스가 붙어 있으면 팍스+티렉스 둘 다 캐릭터 옆에. 없으면 팍스 1~2개.
-  if (ref2) {
+/** 시드 문자열 → 0 이상의 정수 (FNV-1a). 같은 응모 id 는 재시도해도 같은 값을 낸다. */
+function hashSeed(s) {
+  let h = 2166136261;
+  for (const ch of String(s == null ? '' : s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+
+/**
+ * 메이트 구성 — 응모마다 다르게: 없음 30% · 하나 30%(팍스/티렉스 번갈아) · 둘 40%(팍스+티렉스).
+ * "늘 팍스만, 늘 둘씩, 100% 등장" 은 아니게 — 결정 사항. 티렉스 레퍼런스가 없으면 그 자리는 팍스.
+ * 3명 이상이면 최대 하나(화면이 붐빈다). 시드가 없으면(테스트) 팍스 하나.
+ * 돌려주는 값: [] | ['fox'] | ['trex'] | ['fox','trex'] | ['fox','fox']
+ */
+function pickMates(seed, drawn = 1, hasTrex = true) {
+  const noSeed = seed == null || seed === '';
+  const h = noSeed ? 0 : hashSeed(seed);
+  const r = noSeed ? 50 : h % 100;
+  let kinds = r < 30 ? [] : r < 60 ? [((h >>> 8) & 1) ? 'trex' : 'fox'] : ['fox', 'trex'];
+  if (!hasTrex) kinds = kinds.map(() => 'fox');
+  if (drawn >= 3) kinds = kinds.slice(0, 1);
+  return kinds;
+}
+
+// 실제 제품 그대로 — 팍스: 주황 여우. 티렉스 메이트(테디): 빨간 몸에 남색 배, 흰 지그재그 이빨, 짙은 회색 발.
+const FOX_DESC = ref => `the Fox Mate${ref ? ` — match ${ref}` : ''}: round orange body, cream belly and muzzle, small dark-grey paws and ear tips, simple dot eyes`;
+const TREX_DESC = ref => `the T-Rex Mate${ref ? ` — match ${ref}` : ''}: a chubby plush RED T-Rex dinosaur sitting upright on its tail, with a big NAVY-BLUE oval belly patch, a wide friendly open mouth lined with a row of small white zigzag felt teeth, tiny arms, dark-grey feet and simple dot eyes`;
+
+/**
+ * 메이트(플러시 캐릭터)는 빈백이 아니라 태그도 로고도 없다 — 1~2개 두어도 로고 파이프라인과 무관하다.
+ * kinds: pickMates 결과(배열). 숫자를 주면 옛 방식(팍스 n개). 참조가 안 붙은 종류는 빼고, 남는 게 없으면 금지 문장.
+ */
+function mateDirective(refs, kinds = ['fox']) {
+  const list = Array.isArray(kinds) ? kinds : (kinds >= 2 ? ['fox', 'fox'] : kinds >= 1 ? ['fox'] : []);
+  const foxRef = refLabel(refs, 'mate'), trexRef = refLabel(refs, 'mate2');
+  const usable = list.filter(k => (k === 'fox' && foxRef) || (k === 'trex' && trexRef)).slice(0, 2);
+  if (!usable.length) {
+    return 'NO MASCOTS: do not add any plush toys, mascot characters, dolls or stuffed animals anywhere in the scene — only the people, the bean bag and the room props.';
+  }
+  const desc = k => (k === 'fox' ? FOX_DESC(foxRef) : TREX_DESC(trexRef));
+  if (usable.length === 1) {
     return [
-      `MATES (two plush Yogibo Mate characters, BOTH sitting right beside the character(s) on or against the bean bag, clearly visible and complete, drawn in the same flat style):`,
-      `(1) the fox Mate — match ${ref}: round orange body, cream belly and muzzle, small dark-grey paws and ear tips, simple dot eyes.`,
-      `(2) the T-Rex Mega Mate — match ${ref2}: a friendly plush green T-Rex dinosaur with a lighter belly, tiny arms, small tail and simple dot eyes, a little bigger than the fox.`,
-      'Exactly these TWO Mates, one on each side of the character(s) or side by side; never omit either, never merge them, no other plush toys. Mates are plush toys, not bean bags.',
+      `MATE (exactly ONE plush Yogibo Mate character in the scene): ${desc(usable[0])}.`,
+      'It sits beside or leans on the character(s), clearly visible and complete, drawn in the same flat style. Never omit it.',
+      'Mates are plush toys, not bean bags. No other plush toys or mascots.',
     ].join(' ');
   }
-  const two = count >= 2;
+  if (usable[0] === usable[1]) {
+    return [
+      `MATE (match ${foxRef}): a plush orange fox character (Yogibo Mate Fox) — round orange body, cream belly and muzzle,`,
+      'small dark-grey paws and ear tips, simple dot eyes. It MUST appear in the scene, sitting beside or leaning on the character(s),',
+      'clearly visible and complete, drawn in the same flat style. Never omit it.',
+      'Add a SECOND Yogibo Mate plush of the same fox design, smaller and further away — sitting on the shelf, on the rug in the foreground, or by the window — so there are exactly TWO Mates in the room. Mates are plush toys, not bean bags.',
+    ].join(' ');
+  }
   return [
-    `MATE${ref ? ` (match ${ref})` : ''}: a plush orange fox character (Yogibo Mate Fox) — round orange body, cream belly and muzzle,`,
-    'small dark-grey paws and ear tips, simple dot eyes. It MUST appear in the scene, sitting beside or leaning on the character(s),',
-    'clearly visible and complete, drawn in the same flat style. Never omit it.',
-    two
-      ? 'Add a SECOND Yogibo Mate plush of the same fox design, smaller and further away — sitting on the shelf, on the rug in the foreground, or by the window — so there are exactly TWO Mates in the room. Mates are plush toys, not bean bags.'
-      : 'Exactly ONE Mate in the scene.',
+    'MATES (exactly TWO plush Yogibo Mate characters, BOTH sitting right beside the character(s) on or against the bean bag, clearly visible and complete, drawn in the same flat style):',
+    `(1) ${desc('fox')}.`,
+    `(2) ${desc('trex')}, a little bigger than the fox.`,
+    'Exactly these TWO Mates, one on each side of the character(s) or side by side; never omit either, never merge them, no other plush toys. Mates are plush toys, not bean bags.',
   ].join(' ');
 }
 
@@ -220,7 +263,7 @@ function personDirective(analysis, theme, refs, chip) {
     ...lines,
     BODY_SCALE,
     `STAGING: exactly ${people.length} ${people.length === 1 ? 'person' : 'people'} in the frame — ${onProduct.length} on the bean bag, ${around.length} around it on the rug. Add NOBODY else.`,
-    'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. (Yogibo Mate plush characters are allowed as described in MATE.)',
+    'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. Plush Mate characters appear ONLY if the MATE section above asks for them.',
     around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
     'Keep each person\'s perceived gender presentation, age group, hair, glasses and build EXACTLY as described — never swap, add or "correct" them.',
     photoRef ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look.` : '',
@@ -229,7 +272,8 @@ function personDirective(analysis, theme, refs, chip) {
 }
 
 /**
- * @param {object} p { theme, chip:{key,product,color,hex,...}, analysis?, greeting?, refs:['product','mate','photo'?] }
+ * @param {object} p { theme, chip:{key,product,color,hex,...}, analysis?, greeting?, refs:['product','mate'?,'mate2'?,'photo'?], mates?, seed? }
+ *   mates 를 주면 그대로, 없으면 seed 로 pickMates. refs 에 'mate' 가 없으면 메이트 0 으로 본다(참조 없이 그리게 하지 않는다).
  */
 function buildPrompt(p) {
   const refs = Array.isArray(p.refs) ? p.refs : ['product', 'mate'];
@@ -239,14 +283,21 @@ function buildPrompt(p) {
   const theme = p.theme === 'hanbok' ? 'hanbok' : 'interior';
   const greeting = p.greeting || pickGreeting();
   const scene = theme === 'hanbok' ? SCENES.hanbok(greeting) : SCENES.interior;
+  // 메이트 — 배열(['fox','trex'] 등)이 정식. 숫자는 옛 방식(팍스 n개). 없으면 시드로 추첨. 참조가 안 붙은 종류는 뺀다.
+  let kinds = Array.isArray(p.mates) ? p.mates.slice()
+    : typeof p.mates === 'number' ? (p.mates >= 2 ? ['fox', 'fox'] : p.mates >= 1 ? ['fox'] : [])
+    : pickMates(p.seed, drawn, refs.indexOf('mate2') >= 0);
+  kinds = kinds.filter(k => (k === 'fox' && refs.indexOf('mate') >= 0) || (k === 'trex' && refs.indexOf('mate2') >= 0));
+  if (drawn >= 3) kinds = kinds.slice(0, 1);
   return {
-    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs, drawn >= 3 ? 1 : 2), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
+    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs, kinds), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
     greeting: theme === 'hanbok' ? greeting : null,
     double: seated >= 2,              // 제품 위 2인 (연인 컷)
-    mates: drawn >= 3 ? 1 : 2,        // 메이트 수 — 1~2명이면 둘, 3명 이상이면 하나(화면이 붐빈다)
+    mates: kinds.length,              // 실제로 지시한 메이트 수 (0~2)
+    mateKinds: kinds,                 // ['fox'] | ['trex'] | ['fox','trex'] | ['fox','fox'] | []
     drawn,
     omitted: Math.max(0, count - MAX_PEOPLE),
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, pickGreeting, pickMates, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };

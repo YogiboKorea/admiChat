@@ -9,7 +9,8 @@
 //     디스크·로그·캐시 어디에도 남기지 않는다. multer 는 memoryStorage 만 쓴다.
 //  ② 공개 URL 에 회원 아이디를 노출하지 않는다.
 //     파일명은 `YYYYMMDD_<난수8>` 이고, 누가 만들었는지는 Mongo 에만 있다.
-//  ③ 결과 이미지에 "YOGIBO · AI 생성 이미지" 워터마크를 반드시 넣는다.
+//  ③ 결과 이미지에 워터마크 문구를 넣지 않는다 (2026-09-07 결정 — 애니메이션 풍이라 실사로 오인될 여지가 없다).
+//     AI 생성 고지는 이벤트 페이지 유의사항 문구("그림은 AI로 생성됩니다")로 한다.
 //  ④ 생성이 실패해도 고객이 빈손으로 나가지 않는다 — 기본 실루엣으로 완성한다.
 //
 //  라우트는 server.js 에서 mount(app, deps) 로 붙인다.
@@ -38,6 +39,16 @@ const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 // 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
 const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
+// 회원 전용. 기본 1 — 비회원 접수를 받지 않는다(페이지는 "회원만 이용할 수 있는 혜택" + 로그인으로 안내).
+// REST_MOMENT_MEMBERS_ONLY=0 이면 옛 동작(비회원 접수 후 가입 시 claimToken 으로 지급).
+const MEMBERS_ONLY = !/^(0|false|no|off)$/i.test(String(process.env.REST_MOMENT_MEMBERS_ONLY == null ? '1' : process.env.REST_MOMENT_MEMBERS_ONLY));
+// 회원 아이디 정규화 — Cafe24 아이디는 영문 소문자·숫자라 소문자로 맞춘다.
+// 'TestId' 처럼 대소문자만 바꿔 다른 아이디 행세(적립 이중 지급·횟수 우회)를 못 하게 접수·적립·조회가 전부 이걸 거친다.
+function normId(v) {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  return s && s !== 'null' && s !== 'undefined' ? s : null;
+}
 // 이벤트 생성 상한. 넘으면 과금 없이 실루엣으로 완성한다 — 고객은 그림과 적립금을 받고, 우리는 돈이 안 나간다.
 //   REST_MOMENT_MAX_GEN    이벤트 전체 GPT 생성 장수. 기본 1000 (≈ $180~200, 건당 ≈ $0.18~0.20). 0 이면 무제한.
 //   REST_MOMENT_DAILY_GEN  하루 GPT 생성 장수 (KST 자정 기준). 기본 0 = 무제한.
@@ -197,9 +208,10 @@ const pad = n => String(n).padStart(2, '0');
 async function genBudget(col) {
   const k = nowKST();
   const dayStart = new Date(k.getFullYear(), k.getMonth(), k.getDate());
+  // 과금 표시는 genAt (생성 직후 기록 — 발행이 실패해 failed 로 끝나도 예산에 잡힌다). genAt 이 없는 옛 문서는 via 로.
   const [total, today, processing] = await Promise.all([
-    col.countDocuments({ via: 'gpt-scene' }),
-    col.countDocuments({ via: 'gpt-scene', doneAt: { $gte: dayStart } }),
+    col.countDocuments({ $or: [{ genAt: { $exists: true } }, { via: 'gpt-scene', genAt: { $exists: false } }] }),
+    col.countDocuments({ $or: [{ genAt: { $gte: dayStart } }, { genAt: { $exists: false }, via: 'gpt-scene', doneAt: { $gte: dayStart } }] }),
     col.countDocuments({ status: 'processing' }),
   ]);
   const inflight = Math.max(0, processing - 1);
@@ -226,8 +238,12 @@ function publicName(suffix) {
   return `${stamp}_${crypto.randomBytes(4).toString('hex')}${suffix}.jpg`;
 }
 
+// XML 1.0 이 허용하지 않는 제어문자(\t \n \r 제외). 문장에 섞이면 sharp(libxml2)가 공유 카드 SVG 를 거부해
+// 생성비만 나가고 failed 로 끝난다 — 접수·수정에서 걷어내고, escXml 도 한 번 더 걷어낸다.
+const CTRL_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
+function cleanText(v) { return String(v == null ? '' : v).replace(CTRL_RE, '').trim(); }
 function escXml(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  return String(s == null ? '' : s).replace(CTRL_RE, '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 }
 
@@ -384,24 +400,16 @@ async function loadBase(chipKey, seed) {
 const OUT_W = 1120, OUT_H = 1400;
 const CARD_BAND = 328;                 // 공유 카드 하단 문장 띠 (1120 폭에 맞춰 비례)
 
-/** 갤러리용 — 문장 없이 그림만. 워터마크는 필수라 여기에도 넣는다. */
+/** 갤러리용 — 문장 없이 그림만. 워터마크 문구는 넣지 않는다(결정 사항). */
 async function renderArtwork(baseBuf) {
-  const W = OUT_W, H = OUT_H;
-  const img = sharp(baseBuf).resize(W, H, { fit: 'cover' });
-  const mark = Buffer.from(
-    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-       <text x="${W - 28}" y="${H - 26}" text-anchor="end"
-             font-family="Pretendard" font-size="20" font-weight="500"
-             fill="#FFFFFF" fill-opacity="0.72">YOGIBO · AI 생성 이미지</text>
-     </svg>`);
-  return img.composite([{ input: mark, top: 0, left: 0 }]).jpeg({ quality: 86, mozjpeg: true }).toBuffer();
+  return sharp(baseBuf).resize(OUT_W, OUT_H, { fit: 'cover' }).jpeg({ quality: 86, mozjpeg: true }).toBuffer();
 }
 
 /**
  * 저장·공유용 — 그림 아래 여백 띠에 문장을 조판한다.
  * 구성안: "그림 위에 글자가 얹히면 답답해 보인다. 겹치지 않게 그림 아래 여백 띠에."
  */
-async function renderShareCard(baseBuf, sentence, typeLabel) {
+async function renderShareCard(baseBuf, sentence, typeLabel, dateAt) {
   const W = OUT_W, IMG_H = OUT_H, BAND = CARD_BAND, H = IMG_H + BAND;
 
   const art = await sharp(baseBuf).resize(W, IMG_H, { fit: 'cover' }).toBuffer();
@@ -417,7 +425,8 @@ async function renderShareCard(baseBuf, sentence, typeLabel) {
   if (cur) lines.push(cur);
   const body = lines.slice(0, 3);
 
-  const d = nowKST();
+  // 날짜 — 완성일(doneAt, nowKST 기준). 관리자가 나중에 문구를 고쳐 다시 만들 때도 완성일을 그대로 찍는다.
+  const d = (dateAt instanceof Date && !isNaN(dateAt)) ? dateAt : nowKST();
   const dateStr = `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pad(d.getDate())}`;
 
   const bandSvg = Buffer.from(
@@ -432,7 +441,7 @@ async function renderShareCard(baseBuf, sentence, typeLabel) {
              fill="#6D6D6D">${escXml(dateStr)} · ${escXml(typeLabel)}</text>
        <text x="${W / 2}" y="${H - 34}" text-anchor="middle"
              font-family="Pretendard" font-size="21" font-weight="500"
-             fill="#9A9A9A">YOGIBO · AI 생성 이미지 · #나의쉼순간</text>
+             fill="#9A9A9A">YOGIBO · #나의쉼순간</text>
      </svg>`);
 
   return sharp({ create: { width: W, height: H, channels: 3, background: '#FFFFFF' } })
@@ -925,13 +934,19 @@ async function generateScene(doc, chip, base, photo) {
   // 사진을 안 쓰기로 했으면 여기서 파기한다 — 실패해서 옛 경로로 내려가도 이 사진이 다른 모델에 올라가지 않게.
   if (!usePhoto && photo) { photo.buffer = null; photo.discarded = true; }
 
-  // 티렉스 메가메이트 레퍼런스가 있으면 3번 참조로 붙인다 (팍스 다음, 사진 앞) — 없으면 팍스만.
-  const mate2 = loadAsset('ref-mate-trex.png') || loadAsset('ref-mate-trex.jpg');
-  const refs = ['product', 'mate'].concat(mate2 ? ['mate2'] : []).concat(usePhoto ? ['photo'] : []);
-  const { prompt, greeting, double, drawn, omitted } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs });
+  // 메이트는 응모마다 다르게 — 없음/하나(팍스 또는 티렉스)/둘(팍스+티렉스) (pickMates, 응모 id 로 정해져 재시도해도 같다).
+  // 안 넣는 종류는 참조도 안 붙인다. 참조 순서: 제품 → 팍스 → 티렉스 → 사진.
+  const seed = String(doc._id);
+  const peopleCount = analysis && analysis.count ? Number(analysis.count) : 1;
+  const trexAsset = loadAsset('ref-mate-trex.png') || loadAsset('ref-mate-trex.jpg');
+  const kinds = RP.pickMates(seed, Math.max(1, Math.min(peopleCount, RP.MAX_PEOPLE)), !!trexAsset);
+  const mate = kinds.indexOf('fox') >= 0 ? loadAsset('ref-mate-fox.png') : null;
+  if (kinds.indexOf('fox') >= 0 && !mate) throw new Error('ref-mate-fox.png 없음');
+  const mate2 = kinds.indexOf('trex') >= 0 ? trexAsset : null;
+  const refs = ['product'].concat(mate ? ['mate'] : []).concat(mate2 ? ['mate2'] : []).concat(usePhoto ? ['photo'] : []);
+  const { prompt, greeting, double, drawn, omitted, mates, mateKinds } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed });
+  console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명`);
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
-  const mate = loadAsset('ref-mate-fox.png');
-  if (!mate) throw new Error('ref-mate-fox.png 없음');
   // 제품 위 인원이 2명으로 정해졌으면 둘이 붙어 앉은 컷으로 바꿔 든다 (없으면 그대로).
   let productSrc = base;
   if (double) {
@@ -951,7 +966,7 @@ async function generateScene(doc, chip, base, photo) {
   fd.append('output_format', 'png');
   fd.append('n', '1');
   fd.append('image[]', new Blob([productRef], { type: 'image/png' }), 'product.png');
-  fd.append('image[]', new Blob([mate], { type: 'image/png' }), 'mate.png');
+  if (mate) fd.append('image[]', new Blob([mate], { type: 'image/png' }), 'mate.png');
   if (mate2) {
     const m2 = await sharp(mate2).resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
     fd.append('image[]', new Blob([m2], { type: 'image/png' }), 'mate2.png');
@@ -1006,7 +1021,7 @@ async function generateScene(doc, chip, base, photo) {
     buf, via: 'gpt-scene',
     extra: {
       // usedPhoto = 고객 사진이 그림에 반영됐는가(참조로 넣었든, 접수 시 분석으로 인원을 잡았든). photoLost = 참조는 못 넣었다.
-      theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto || !!analysis, photoLost,
+      theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto || !!analysis, photoLost, mates, mateKinds,
       // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 완성 후 남기지 않는다(analysis 는 done 때 지운다).
       people: analysis ? { count: Number(analysis.count) || 0, drawn, omitted } : null,
       genTokens: usage.output_tokens || null,
@@ -1036,9 +1051,80 @@ async function generatePersonLayer(baseBuf, photo, chip) {
 const sceneVault = new Map();   // String(_id) → { buf, via, extra, at }
 setInterval(() => { const cut = Date.now() - PHOTO_TTL_MS; for (const [k, v] of sceneVault) if (v.at < cut) sceneVault.delete(k); }, 60 * 1000).unref();
 
+/** 카드를 만들기 직전의 문장 — 관리자가 그리는 동안 문구를 고쳤으면 그걸 쓴다. 못 읽으면 집을 때의 문장. */
+async function currentSentence(col, doc) {
+  try { const f = await col.findOne({ _id: doc._id }, { projection: { sentence: 1 } }); return (f && f.sentence) || doc.sentence; }
+  catch { return doc.sentence; }
+}
+
 // 워커 동시성 — 건당 60~120초라 직렬로는 큐가 밀린다. 클레임(pending→processing)이 원자적이라 중복 처리는 없다.
 const CONCURRENCY = Math.max(1, Number(process.env.REST_MOMENT_CONCURRENCY || 3));
 let inflight = 0;
+
+// ── 예상 시간 ── 최근 완성 건의 생성 시간(집은 순간 → 완성)을 메모리에 20건 들고 평균 낸다.
+//    재시작 직후에는 Mongo 의 최근 genMs 로 채운다. 페이지는 이 값으로 카운트다운을 보여준다 ("30초" 고정 문구 대신).
+const recentGenMs = [];
+let genMsLoaded = false;
+const DEFAULT_GEN_MS = 100 * 1000;          // 실측 60~125초 (gpt-image-2 high 1024x1536 + 태그 로고 후보정)
+function noteGenMs(ms) { if (ms > 5000 && Number.isFinite(ms)) { recentGenMs.push(ms); if (recentGenMs.length > 20) recentGenMs.shift(); } }
+async function avgGenMs(col) {
+  if (!genMsLoaded && col) {
+    genMsLoaded = true;
+    try {
+      // genAt 이 있는 문서만 — genMs 는 GPT 로 실제 그린 순간에만 기록된다 (실루엣·재발행 건은 없다)
+      const rows = await col.find({ genAt: { $exists: true }, genMs: { $gt: 5000 } }).sort({ genAt: -1 }).limit(20).project({ genMs: 1 }).toArray();
+      rows.reverse().forEach(r => noteGenMs(r.genMs));
+    } catch (e) { console.warn('[쉼순간] genMs 불러오기 실패:', e.message); }
+  }
+  if (!recentGenMs.length) return DEFAULT_GEN_MS;
+  const avg = recentGenMs.reduce((a, b) => a + b, 0) / recentGenMs.length;
+  return Math.min(240000, Math.max(40000, avg));
+}
+/**
+ * 응모 한 건의 남은 예상 시간(초)과 앞에 선 건수.
+ * processing: 평균 − 지난 시간(최소 8초). pending: 앞에 선 건수를 동시 처리 수로 나눈 묶음만큼 평균을 곱하고,
+ * 가장 오래 돌고 있는 건이 곧 끝날 것을 감안해 그만큼 뺀다. 페이지는 폴링마다 이 값으로 카운트다운을 다시 맞춘다.
+ */
+async function estimateEta(col, doc) {
+  const avg = await avgGenMs(col);
+  const avgSec = Math.round(avg / 1000);
+  if (!doc || doc.status === 'done' || doc.status === 'failed') return { etaSec: 0, ahead: 0, avgSec };
+  if (doc.status === 'processing') {
+    const started = doc.pickedAt ? new Date(doc.pickedAt).getTime() : Date.now();
+    return { etaSec: Math.round(Math.max(8000, avg - (Date.now() - started)) / 1000), ahead: 0, avgSec };
+  }
+  // pending — 워커는 createdAt 순으로 집는다 (createdAt 은 nowKST 기준이라 같은 기준끼리만 비교한다)
+  let ahead = 0, oldestElapsed = 0;
+  try {
+    const [pendingAhead, processing, oldest] = await Promise.all([
+      col.countDocuments({ status: 'pending', createdAt: { $lt: doc.createdAt } }),
+      col.countDocuments({ status: 'processing' }),
+      col.find({ status: 'processing', pickedAt: { $exists: true } }).sort({ pickedAt: 1 }).limit(1).project({ pickedAt: 1 }).toArray(),
+    ]);
+    ahead = pendingAhead + processing;
+    if (oldest[0] && oldest[0].pickedAt) oldestElapsed = Math.max(0, Date.now() - new Date(oldest[0].pickedAt).getTime());
+  } catch { /* 무시 — 기본 추정으로 */ }
+  const waves = Math.floor(ahead / CONCURRENCY);              // 내 차례까지 기다려야 하는 처리 묶음 수
+  const wait = waves > 0 ? Math.max(0, avg * waves - oldestElapsed) : 0;
+  return { etaSec: Math.round((wait + avg) / 1000) + 3, ahead, avgSec };
+}
+
+/** 아이디가 쓴 횟수의 정의 — 실패(failed)는 사용자 탓이 아니라 안 세지만, GPT 를 이미 불렀던(과금된, genAt) 건은 실패해도 센다. */
+function usedFilter(mid) { return { memberId: mid, $or: [{ status: { $ne: 'failed' } }, { genAt: { $exists: true } }] }; }
+
+/** 아이디의 생성 횟수·적립 상태 — 폼 아래 "3회 중 N회 남음", 결과 화면 "적립금 지급완료" 표시용. 마스터는 무제한. */
+async function quotaFor(db, mid) {
+  const base = { loggedIn: false, unlimited: false, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, rewarded: false, membersOnly: MEMBERS_ONLY };
+  if (!mid) return base;
+  const [used, reward] = await Promise.all([
+    db.collection(ENTRY_COLLECTION).countDocuments(usedFilter(mid)),
+    db.collection(REWARD_COLLECTION).findOne({ memberId: mid }, { projection: { settled: 1 } }),
+  ]);
+  const master = isMasterId(mid);
+  // settled 가 없는 옛 기록은 지급 완료로 본다 (적립 라우트와 같은 기준)
+  const rewarded = !!reward && (reward.settled === true || reward.settled === undefined);
+  return Object.assign(base, { loggedIn: true, unlimited: master, used, left: master ? null : Math.max(0, MAX_PER_MEMBER - used), rewarded });
+}
 
 async function processOne(db, doc) {
   const col = db.collection(ENTRY_COLLECTION);
@@ -1046,6 +1132,7 @@ async function processOne(db, doc) {
   const claim = await col.updateOne({ _id: doc._id, status: 'pending' }, { $set: { status: 'processing', pickedAt: new Date() } });
   if (!claim.matchedCount) return;
   const chip = CHIPS[doc.chip];
+  const t0 = Date.now();                                  // 예상 시간 통계용 — 집은 순간부터 완성까지
   let photo = null;
   try {
     const base = await loadBase(doc.chip, String(doc._id));
@@ -1068,7 +1155,17 @@ async function processOne(db, doc) {
       }
     }
     if (!scene && GEN_MODE === 'gpt' && !capped) {
-      try { const r = await generateScene(doc, chip, base, photo); scene = r.buf; via = r.via; extra = r.extra; }
+      try {
+        const g0 = Date.now();
+        const r = await generateScene(doc, chip, base, photo); scene = r.buf; via = r.via; extra = r.extra;
+        if (via === 'gpt-scene') {
+          // ★ 과금 표시 — 발행(합성·업로드)이 나중에 실패해 failed 로 끝나도 예산·횟수에 잡히게 지금 기록한다. genMs 는 예상 시간 통계.
+          const genMs = Date.now() - g0;
+          noteGenMs(genMs);
+          try { await col.updateOne({ _id: doc._id }, { $set: { genAt: nowKST(), genMs } }); }
+          catch (e2) { console.warn('[쉼순간] genAt 기록 실패:', e2.message); }
+        }
+      }
       catch (e) {
         // 일시 오류(429·5xx·네트워크)는 과금이 안 됐으니 잡 재시도로 넘긴다 — 사진은 vault 에 다시 넣어 둔다.
         if (e && e.retryable && (doc.tries || 0) < 2) {
@@ -1086,9 +1183,11 @@ async function processOne(db, doc) {
     if (photo) { photo.buffer = null; photo = null; }
     sceneVault.set(String(doc._id), { buf: scene, via, extra, at: Date.now() });
 
+    // 관리자가 그리는 동안 문구를 고쳤을 수 있다 — 카드에는 지금 문서의 문장을 넣는다
+    const sentenceNow = await currentSentence(col, doc);
     const [artBuf, shareBuf] = await Promise.all([
       renderArtwork(scene),
-      renderShareCard(scene, doc.sentence, chip.type),
+      renderShareCard(scene, sentenceNow, chip.type),
     ]);
 
     const [imageUrl, shareUrl] = await Promise.all([
@@ -1097,7 +1196,7 @@ async function processOne(db, doc) {
     ]);
 
     const done = await col.updateOne({ _id: doc._id }, {
-      $set: Object.assign({ status: 'done', imageUrl, shareUrl, via, doneAt: nowKST() }, extra),
+      $set: Object.assign({ status: 'done', imageUrl, shareUrl, via, doneAt: nowKST(), totalMs: Date.now() - t0 }, extra),
       $unset: { lastError: '', analysis: '' },          // 접수 시 분석 텍스트는 그리는 동안만 둔다
     });
     sceneVault.delete(String(doc._id));
@@ -1119,7 +1218,8 @@ async function processOne(db, doc) {
       // 재시도 소진 — 빈손으로 보내지 않는다: 시드(실루엣)로라도 발행한다. 그것마저 안 되면 failed.
       try {
         const base2 = await loadBase(doc.chip);
-        const [artBuf, shareBuf] = await Promise.all([renderArtwork(base2), renderShareCard(base2, doc.sentence, chip.type)]);
+        const sentence2 = await currentSentence(col, doc);
+        const [artBuf, shareBuf] = await Promise.all([renderArtwork(base2), renderShareCard(base2, sentence2, chip.type)]);
         const [imageUrl, shareUrl] = await Promise.all([ftpUpload(artBuf, publicName('')), ftpUpload(shareBuf, publicName('_s'))]);
         await col.updateOne({ _id: doc._id }, { $set: { status: 'done', imageUrl, shareUrl, via: 'silhouette', theme: 'interior', usedPhoto: false, doneAt: nowKST(), tries, lastError }, $unset: { analysis: '' } });
         sceneVault.delete(String(doc._id));
@@ -1128,9 +1228,10 @@ async function processOne(db, doc) {
       } catch (e2) { console.error('[쉼순간] 실루엣 발행도 실패:', e2.message); }
     }
     const backoff = err && err.backoffMs ? err.backoffMs : 3000 * tries;
-    await col.updateOne({ _id: doc._id }, {
-      $set: { status: tries >= 3 ? 'failed' : 'pending', tries, nextAt: new Date(Date.now() + backoff), lastError },
-    });
+    const terminal = tries >= 3;
+    await col.updateOne({ _id: doc._id }, Object.assign({
+      $set: { status: terminal ? 'failed' : 'pending', tries, nextAt: new Date(Date.now() + backoff), lastError },
+    }, terminal ? { $unset: { analysis: '' } } : {}));   // 끝난(failed) 건은 분석 텍스트도 남기지 않는다 — 재시도 건만 유지
     console.error(`[쉼순간] 생성 실패 ${doc._id} (${tries}회, ${Math.round(backoff / 1000)}초 뒤 재시도):`, lastError);
   }
 }
@@ -1166,6 +1267,9 @@ function mount(app, deps) {
       const db = getDb(); if (!db) return;
       const r = await db.collection(ENTRY_COLLECTION).updateMany({ status: 'processing' }, { $set: { status: 'pending' }, $unset: { pickedAt: '' } });
       if (r && r.modifiedCount) console.log(`[쉼순간] 멈춘 processing ${r.modifiedCount}건 → pending`);
+      // 예전 버전이 failed 로 끝내며 남긴 분석 텍스트 정리 (한 번 지나가면 0건)
+      const a = await db.collection(ENTRY_COLLECTION).updateMany({ status: 'failed', analysis: { $exists: true } }, { $unset: { analysis: '' } });
+      if (a && a.modifiedCount) console.log(`[쉼순간] failed 건 분석 텍스트 ${a.modifiedCount}건 삭제`);
     } catch (e) { console.warn('[쉼순간] processing 복구 실패:', e.message); }
   }, 5000).unref();
 
@@ -1221,7 +1325,7 @@ function mount(app, deps) {
         if (!CHIPS[chip]) {
           return res.status(400).json({ ok: false, message: '쉬는 자세를 하나만 골라주세요.' });
         }
-        const text = String(sentence || '').trim();
+        const text = cleanText(sentence);
         if (!text) {
           return res.status(400).json({ ok: false, message: '한 문장을 남겨주세요.' });
         }
@@ -1234,11 +1338,16 @@ function mount(app, deps) {
           return res.status(400).json({ ok: false, message: '이벤트 기간이 아닙니다.' });
         }
 
+        // 회원 전용 — 아이디가 없으면 접수하지 않는다 (페이지가 로그인으로 안내). 400 + loginRequired 로 구분한다.
+        const mid = normId(memberId);
+        if (MEMBERS_ONLY && !mid) {
+          return res.status(400).json({ ok: false, loginRequired: true,
+            message: '회원만 참여할 수 있는 이벤트예요. 로그인 후 다시 시도해주세요.' });
+        }
         // 아이디당 최대 횟수. 실패한 건은 사용자 탓이 아니므로 세지 않는다.
-        const mid = memberId ? String(memberId) : null;
         const master = isMasterId(mid);              // 무제한 생성 — 키 없이 아이디만으로
         if (mid && !master) {
-          const used = await db.collection(ENTRY_COLLECTION).countDocuments({ memberId: mid, status: { $ne: 'failed' } });
+          const used = await db.collection(ENTRY_COLLECTION).countDocuments(usedFilter(mid));
           if (used >= MAX_PER_MEMBER) {
             return res.status(400).json({ ok: false, limitReached: true,
               message: '이 아이디로는 ' + MAX_PER_MEMBER + '번까지만 만들 수 있어요.' });
@@ -1279,7 +1388,7 @@ function mount(app, deps) {
         // 단순 재카운트로 지우면 동시 2건이 서로를 보고 둘 다 사라져 남은 자리도 못 쓴다.
         if (mid && !master) {
           const rank = await db.collection(ENTRY_COLLECTION)
-            .countDocuments({ memberId: mid, status: { $ne: 'failed' }, _id: { $lte: insertedId } });
+            .countDocuments(Object.assign(usedFilter(mid), { _id: { $lte: insertedId } }));
           if (rank > MAX_PER_MEMBER) {
             await db.collection(ENTRY_COLLECTION).deleteOne({ _id: insertedId });
             return res.status(400).json({ ok: false, limitReached: true,
@@ -1296,7 +1405,12 @@ function mount(app, deps) {
           req.file = null;
         }
 
-        return res.json({ ok: true, entryId: String(insertedId), jobId: String(insertedId), claimToken });
+        // 페이지가 바로 보여줄 것: 남은 횟수(차감 반영) · 예상 시간(카운트다운 시작값)
+        let quota = null, eta = null;
+        try { [quota, eta] = await Promise.all([quotaFor(db, mid), estimateEta(db.collection(ENTRY_COLLECTION), { status: 'pending', createdAt: now })]); }
+        catch (e) { console.warn('[쉼순간] 접수 응답 부가정보 실패:', e.message); }
+        return res.json({ ok: true, entryId: String(insertedId), jobId: String(insertedId), claimToken,
+          quota, etaSec: eta ? eta.etaSec : null, ahead: eta ? eta.ahead : null });
       } catch (err) {
         if (req.file) { req.file.buffer = null; req.file = null; }
         console.error('[쉼순간] 접수 오류:', err.message);
@@ -1314,8 +1428,15 @@ function mount(app, deps) {
       try { _id = new ObjectId(req.params.jobId); }
       catch { return res.status(400).json({ status: 'failed', message: '잘못된 요청입니다.' }); }
 
-      const doc = await db.collection(ENTRY_COLLECTION).findOne({ _id });
+      const col = db.collection(ENTRY_COLLECTION);
+      const doc = await col.findOne({ _id });
       if (!doc) return res.status(404).json({ status: 'failed', message: '응모를 찾을 수 없습니다.' });
+
+      // 기다리는 동안엔 예상 시간, 끝나면 횟수·적립 상태(결과 화면의 "N회 남음" · "적립금 지급완료")
+      const finished = doc.status === 'done' || doc.status === 'failed';
+      // 부가 정보(예상 시간·횟수)가 실패해도 상태 자체는 답한다 — 여기서 500 이 나면 페이지가 "실패" 로 오해한다
+      const eta = finished ? { etaSec: 0, ahead: 0 } : await estimateEta(col, doc).catch(() => ({ etaSec: null, ahead: null }));
+      const quota = finished ? await quotaFor(db, doc.memberId || null).catch(() => null) : null;
 
       return res.json({
         status: doc.status,
@@ -1328,11 +1449,29 @@ function mount(app, deps) {
         shareUrl: doc.shareUrl || null,
         type: doc.type,
         sentence: doc.sentence,
-        rewarded: !!doc.rewarded,
+        // 이 응모로 받았든, 이 아이디가 전에 다른 응모로 받았든 — 이미 받았으면 버튼을 "지급완료"로 잠근다
+        rewarded: !!doc.rewarded || !!(quota && quota.rewarded),
+        etaSec: eta.etaSec, ahead: eta.ahead,
+        quota,
       });
     } catch (err) {
       console.error('[쉼순간] 상태 조회 오류:', err.message);
-      return res.status(500).json({ status: 'failed' });
+      // 'failed' 가 아니라 'error' — 일시 오류로 페이지가 실패 화면으로 가지 않고 계속 폴링하게
+      return res.status(500).json({ status: 'error', message: '잠시 후 다시 시도해주세요.' });
+    }
+  });
+
+  // ── 내 횟수·적립 상태 ── 폼 아래 "3회 중 N회 남음" · "적립금 지급완료". 마스터(testid·yogibo)는 unlimited.
+  //    memberId 는 페이지가 아는 값(클라이언트 값)이라 남의 횟수를 볼 수는 있지만, 숫자 하나뿐이라 노출 가치가 없다.
+  app.get('/api/rest-moment/quota', allowRead, async (req, res) => {
+    try {
+      const db = getDb();
+      const mid = normId(req.query.memberId);
+      const [quota, avg] = await Promise.all([quotaFor(db, mid), avgGenMs(db.collection(ENTRY_COLLECTION))]);
+      return res.json(Object.assign({ ok: true, avgSec: Math.round(avg / 1000) }, quota));
+    } catch (err) {
+      console.error('[쉼순간] 횟수 조회 오류:', err.message);
+      return res.status(500).json({ ok: false });
     }
   });
 
@@ -1345,7 +1484,7 @@ function mount(app, deps) {
       const col = db.collection(ENTRY_COLLECTION);
 
       // 마스터 아이디(testid·yogibo)가 ?as=<id>&mk=<key>&all=1 로 부르면 숨김 건까지 보여주고 id 를 준다 (페이지 내 숨김·삭제용)
-      const master = isMasterStrict(String(req.query.as || ''), req);   // 키(헤더)가 있어야 열린다
+      const master = isMasterStrict(normId(req.query.as), req);   // 기본은 아이디만(MASTER_ID_ONLY), 내리면 키(헤더)까지
       const filter = { status: 'done', imageUrl: { $ne: null } };
       if (!(master && String(req.query.all) === '1')) filter.approved = true;
       // 실제로 사진이 쓰였는지(usedPhoto)가 있으면 그걸로, 없으면(옛 문서) 첨부 여부(hadPhoto)로 가른다
@@ -1423,9 +1562,16 @@ function mount(app, deps) {
   app.post('/api/rest-moment/moderate', allowWrite, async (req, res) => {
     try {
       const db = getDb();
-      const { memberId, entryId, action } = req.body || {};
+      const { entryId, action } = req.body || {};
+      const memberId = normId(req.body && req.body.memberId);
       if (!MASTER_KEY) return res.status(403).json({ ok: false, notConfigured: true, message: 'REST_MOMENT_MASTER_KEY 가 서버에 설정되지 않았습니다.' });
       if (!isMasterStrict(memberId, req)) return res.status(403).json({ ok: false, message: '권한이 없습니다.' });
+      // 삭제(공개 파일까지 지움)는 아이디만으로는 열지 않는다 — memberId 는 클라이언트 값이라 'testid' 는 누구나 보낼 수 있고,
+      // 그 상태로 전체 삭제가 열리면 갤러리를 통째로 지울 수 있다. 숨김/복원은 되돌릴 수 있으니 아이디만으로 둔다.
+      if (action === 'delete' && !isMaster(memberId, req)) {
+        return res.status(403).json({ ok: false, needKey: true,
+          message: '삭제는 관리 페이지(/rest-admin.html)에서 해주세요. 이 페이지에서 지우려면 ?ai_master=키 로 한 번 접속해 두면 됩니다. 숨김은 바로 됩니다.' });
+      }
       const _id = oid(entryId);
       if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
       const col = db.collection(ENTRY_COLLECTION);
@@ -1483,7 +1629,7 @@ function mount(app, deps) {
         entries: { total, pending, processing, done, failed, approved, review, flagged, withPhoto, master },
         members: members.length,
         rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
-        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY, logoStamp: LOGO_STAMP },
+        config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, membersOnly: MEMBERS_ONLY, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY, logoStamp: LOGO_STAMP, avgGenSec: Math.round((await avgGenMs(e)) / 1000) },
         gen: await genBudget(e),            // { total, today, inflight, allowed, reason, maxTotal, maxDaily }
       });
     } catch (err) {
@@ -1543,6 +1689,54 @@ function mount(app, deps) {
         const r = await deleteEntry(db, _id, 'admin');
         if (!r) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
         return res.json({ ok: true, ftpRemoved: r.ftpRemoved, warn: r.ftpRemoved ? null : '이미지 파일 삭제에 실패했습니다. 기록은 지웠고 URL 은 휴지통(restMomentTrash)에 남겼습니다.' });
+      } else if (action === 'edit') {
+        // 문구 수정 — 고객이 쓴 문장을 관리자가 고친다. 공유 카드(문장이 조판된 이미지)는 원화로 다시 만들어
+        // 새 파일명으로 올리고 옛 카드를 지운다 (같은 이름으로 덮으면 브라우저·CDN 캐시가 옛 문장을 보여준다).
+        const text = cleanText((req.body || {}).sentence);
+        if (!text) return res.status(400).json({ ok: false, message: '문장을 입력해주세요.' });
+        if (text.length > MAX_SENTENCE) return res.status(400).json({ ok: false, message: `문장은 ${MAX_SENTENCE}자까지 쓸 수 있습니다.` });
+        const doc = await col.findOne({ _id });
+        if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+        const flagged = looksInappropriate(text);
+        const set = { sentence: text, autoFlag: flagged, editedAt: new Date(), editedBy: 'admin', sentenceBefore: doc.sentence };
+        let warn = null, newUrl = null;
+        if (doc.status === 'done' && doc.imageUrl) {
+          try {
+            const r = await fetch(doc.imageUrl, { signal: AbortSignal.timeout(20000) });
+            if (!r.ok) throw new Error('원화 내려받기 실패 ' + r.status);
+            const art = Buffer.from(await r.arrayBuffer());
+            const typeLabel = doc.type || (CHIPS[doc.chip] && CHIPS[doc.chip].type) || '';
+            const card = await renderShareCard(art, text, typeLabel, doc.doneAt);
+            newUrl = await ftpUpload(card, publicName('_s'));
+            set.shareUrl = newUrl;                       // 새 카드를 실제로 만들었을 때만 shareUrl 을 바꾼다
+          } catch (e) {
+            warn = '문장은 바꿨지만 공유 카드 이미지를 다시 만들지 못했습니다: ' + e.message;
+            console.error('[쉼순간] 문구 수정 — 공유 카드 재생성 실패:', String(_id), e.message);
+          }
+        } else if (doc.status !== 'done') {
+          // 아직 그리는 중 — 워커가 카드를 만들기 직전에 문장을 다시 읽으므로 대개 새 문구가 들어간다. 확인만 부탁한다.
+          warn = '아직 생성 중인 건이라, 완성될 때 그 시점의 문구로 공유 카드가 만들어집니다. 완성 후 카드를 확인해주세요.';
+        }
+        // Mongo 를 먼저 바꾼다 — 그 사이 지워졌으면(0건) 방금 올린 카드를 되돌린다. 옛 카드는 문서가 새 카드를 가리킨 뒤에 지운다.
+        const up = await col.updateOne({ _id }, { $set: set });
+        if (!up.matchedCount) {
+          if (newUrl) await ftpRemoveByUrl(newUrl);
+          return res.status(404).json({ ok: false, message: '기록이 없습니다. (수정하는 사이 삭제됨)' });
+        }
+        const old = doc.shareUrl || null;
+        if (newUrl && old && old !== newUrl) {
+          const rm = await ftpRemoveByUrl(old);
+          if (!rm.ok) {
+            warn = (warn ? warn + ' ' : '') + '옛 공유 카드 파일은 지우지 못했습니다(휴지통에 기록).';
+            console.warn('[쉼순간] 옛 공유 카드 삭제 실패:', old, rm.error);
+            try {
+              await db.collection(TRASH_COLLECTION).insertOne({ entryId: String(_id), memberId: doc.memberId || null, sentence: doc.sentence, status: doc.status,
+                imageUrl: null, shareUrl: old, deletedBy: 'admin:edit', deletedAt: new Date(), ftpRemoved: false, errors: [old + ' — ' + rm.error] });
+            } catch (e) { console.warn('[쉼순간] 휴지통 기록 실패:', e.message); }
+          }
+        }
+        console.log(`[쉼순간] 관리: 문구 수정 ${String(_id)} "${doc.sentence}" → "${text}"`);
+        return res.json({ ok: true, sentence: text, shareUrl: newUrl || old, autoFlag: flagged, warn });
       } else {
         return res.status(400).json({ ok: false, message: '알 수 없는 action' });
       }
@@ -1614,8 +1808,10 @@ function mount(app, deps) {
   });
 
   app.post('/api/rest-moment/reward', allowWrite, async (req, res) => {
-    const { memberId, entryId, claimToken } = req.body || {};
-    if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    const { entryId, claimToken } = req.body || {};
+    // 아이디당 1회 — rewards.memberId unique index 가 막는다. 대소문자만 바꾼 아이디로 두 번 받지 못하게 정규화한다.
+    const memberId = normId(req.body && typeof req.body.memberId === 'string' ? req.body.memberId : null);
+    if (!memberId || memberId.startsWith('guest_')) {
       return res.status(400).json({ ok: false, message: '로그인 후 받을 수 있습니다.' });
     }
 
@@ -1747,4 +1943,4 @@ module.exports = {
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard, sanitizeAnalysis, preAnalyzePhoto };
+module.exports.__internals = { generateScene, loadBase, posePath, genBudget, hexLum, locateTagZoom, findTag, stampAt, verifyTag, CHIPS, stampLogo, locateTag, renderArtwork, renderShareCard, sanitizeAnalysis, preAnalyzePhoto, estimateEta, quotaFor, normId, avgGenMs, noteGenMs };

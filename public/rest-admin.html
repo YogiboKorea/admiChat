@@ -302,6 +302,7 @@ section{margin-top:28px}
       '</div></div>' +
       '<div class="acts">' +
         (canToggle ? '<button class="btn sm ' + (it.approved ? '' : 'ok') + '" data-act="' + (it.approved ? 'unapprove' : 'approve') + '">' + (it.approved ? '숨김' : '공개') + '</button>' : '') +
+        '<button class="btn sm" data-act="edit" title="고객이 쓴 문장을 고칩니다. 완성된 건은 공유 카드도 새 문구로 다시 만들어집니다">문구 수정</button>' +
         '<button class="btn sm bad" data-act="delete">삭제</button>' +
       '</div></div>';
   }
@@ -337,6 +338,7 @@ section{margin-top:28px}
     var btn = e.target.closest('button[data-act]'); if (!btn) return;
     var rowEl = btn.closest('.row'), id = rowEl.getAttribute('data-id'), act = btn.getAttribute('data-act');
     var it = items.filter(function (x) { return x.id === id; })[0] || {};
+    var body = { action: act };
     if (act === 'delete') {
       var parts = ['이 응모를 삭제할까요?'];
       if (it.imageUrl) parts.push('공개된 그림·공유 카드 파일도 함께 지워집니다.');
@@ -345,11 +347,24 @@ section{margin-top:28px}
       if (it.rewarded) parts.push('적립 기록은 유지됩니다.');
       if (!confirm(parts.join('\n'))) return;
     }
+    if (act === 'edit') {
+      /* 문구 수정 — 고객이 쓴 문장을 고친다. 완성된 건은 서버가 공유 카드를 새 문구로 다시 만든다 */
+      var t = prompt('문구를 수정합니다 (60자까지).\n완성된 건은 공유 카드 이미지도 새 문구로 다시 만들어집니다.', it.sentence || '');
+      if (t == null) return;
+      t = t.trim();
+      if (!t) { alert('문장을 입력해주세요.'); return; }
+      if (t.length > 60) { alert('60자까지만 쓸 수 있어요. (지금 ' + t.length + '자)'); return; }
+      if (t === it.sentence) return;
+      body.sentence = t;
+    }
     btn.disabled = true;
-    api('/api/rest-moment/admin/entries/' + encodeURIComponent(id), { method: 'POST', body: { action: act } })
+    api('/api/rest-moment/admin/entries/' + encodeURIComponent(id), { method: 'POST', body: body })
       .then(function (d) {
         var before = items.length;
         if (act === 'delete') { items = items.filter(function (x) { return x.id !== id; }); }
+        else if (act === 'edit') {
+          items.forEach(function (x) { if (x.id === id) { x.sentence = d.sentence; x.autoFlag = !!d.autoFlag; if (d.shareUrl) x.shareUrl = d.shareUrl; } });
+        }
         else {
           items.forEach(function (x) { if (x.id === id) x.approved = (act === 'approve'); });
           if (view === 'review' || view === 'approved') items = items.filter(function (x) { return x.id !== id; });
