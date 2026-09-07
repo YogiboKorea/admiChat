@@ -343,9 +343,17 @@ async function loadBase(chipKey, seed) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+/**
+ * 출력 크기 — 페이지가 최대 1400px 폭으로 깔리므로 가장 긴 변을 1400 에 맞춘다.
+ * 4:5 를 유지하니 1120x1400. 원본(gpt-image-2 1024x1536)에서 가로가 9% 확대되는데,
+ * 1024 그대로 두고 1400 폭에 늘려 까는 것보다 이쪽이 선명하다.
+ */
+const OUT_W = 1120, OUT_H = 1400;
+const CARD_BAND = 328;                 // 공유 카드 하단 문장 띠 (1120 폭에 맞춰 비례)
+
 /** 갤러리용 — 문장 없이 그림만. 워터마크는 필수라 여기에도 넣는다. */
 async function renderArtwork(baseBuf) {
-  const W = 1024, H = 1280;
+  const W = OUT_W, H = OUT_H;
   const img = sharp(baseBuf).resize(W, H, { fit: 'cover' });
   const mark = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
@@ -361,7 +369,7 @@ async function renderArtwork(baseBuf) {
  * 구성안: "그림 위에 글자가 얹히면 답답해 보인다. 겹치지 않게 그림 아래 여백 띠에."
  */
 async function renderShareCard(baseBuf, sentence, typeLabel) {
-  const W = 1024, IMG_H = 1280, BAND = 300, H = IMG_H + BAND;
+  const W = OUT_W, IMG_H = OUT_H, BAND = CARD_BAND, H = IMG_H + BAND;
 
   const art = await sharp(baseBuf).resize(W, IMG_H, { fit: 'cover' }).toBuffer();
 
@@ -635,9 +643,9 @@ async function stampLogo(buf, box) {
   return { buf: out, stamped: true };
 }
 
-/** 1024x1536 → 4:5. 한복은 인사말이 위에 있으니 위쪽 기준으로 자른다. */
+/** 1024x1536 → 4:5(OUT_W x OUT_H). 한복은 인사말이 위에 있으니 위쪽 기준으로 자른다. */
 function cropPoster(buf, theme) {
-  return sharp(buf).resize(1024, 1280, { fit: 'cover', position: theme === 'hanbok' ? 'top' : 'centre' }).png().toBuffer();
+  return sharp(buf).resize(OUT_W, OUT_H, { fit: 'cover', position: theme === 'hanbok' ? 'top' : 'centre' }).png().toBuffer();
 }
 
 /**
