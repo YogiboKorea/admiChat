@@ -1229,7 +1229,7 @@ function mount(app, deps) {
         members: members.length,
         rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
         config: { requireReview: REQUIRE_REVIEW, maxPerMember: MAX_PER_MEMBER, masterIds: MASTER_IDS, masterKeySet: !!MASTER_KEY, pointAmount: POINT_AMOUNT, eventEnd: EVENT_END, maxGen: MAX_GEN_TOTAL, dailyGen: MAX_GEN_DAILY },
-        gen: await genBudget(col),          // { total, today, inflight, allowed, reason, maxTotal, maxDaily }
+        gen: await genBudget(e),            // { total, today, inflight, allowed, reason, maxTotal, maxDaily }
       });
     } catch (err) {
       console.error('[쉼순간] 관리 통계 오류:', err.message);
