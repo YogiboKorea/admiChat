@@ -76,7 +76,13 @@ function isMaster(id, req) {
   return keyEq(masterKeyOf(req), MASTER_KEY);
 }
 // 파괴적 조치(숨김·삭제)와 아이디 열거(/recent 마스터 모드)는 키가 있어야만 연다 — 아이디만으로는 절대 열리지 않는다.
-function isMasterStrict(id, req) { return !!MASTER_KEY && isMaster(id, req); }
+// 기본은 아이디만으로 연다(과장님 결정 — URL 키 없이 로그인만으로). memberId 는 클라이언트 값이라 흉내 낼 수 있으니,
+// 이벤트 중 문제가 보이면 REST_MOMENT_MASTER_ID_ONLY=0 으로 내려 키(헤더)를 다시 요구한다.
+const MASTER_ID_ONLY = /^(1|true|yes)$/i.test(String(process.env.REST_MOMENT_MASTER_ID_ONLY == null ? '1' : process.env.REST_MOMENT_MASTER_ID_ONLY));
+function isMasterStrict(id, req) {
+  if (MASTER_ID_ONLY) return isMasterId(id);
+  return !!MASTER_KEY && isMaster(id, req);
+}
 // 생성 무제한은 아이디만으로 연다 — testid·yogibo 는 키 없이도 무한. (memberId 는 클라이언트가 보내는 값이라
 // 누가 흉내 낼 수는 있지만, 이벤트 전체 상한(REST_MOMENT_MAX_GEN)이 예산을 막는다.)
 function isMasterId(id) { return !!id && MASTER_IDS.includes(String(id)); }
