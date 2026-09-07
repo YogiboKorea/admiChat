@@ -669,7 +669,9 @@ async function generateScene(doc, chip, base, photo) {
     if (!usePhoto && photo) { photo.buffer = null; photo.discarded = true; }
   }
 
-  const refs = ['product', 'mate'].concat(usePhoto ? ['photo'] : []);
+  // 티렉스 메가메이트 레퍼런스가 있으면 3번 참조로 붙인다 (팍스 다음, 사진 앞) — 없으면 팍스만.
+  const mate2 = loadAsset('ref-mate-trex.png') || loadAsset('ref-mate-trex.jpg');
+  const refs = ['product', 'mate'].concat(mate2 ? ['mate2'] : []).concat(usePhoto ? ['photo'] : []);
   const { prompt, greeting, double, drawn, omitted } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs });
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
   const mate = loadAsset('ref-mate-fox.png');
@@ -694,6 +696,10 @@ async function generateScene(doc, chip, base, photo) {
   fd.append('n', '1');
   fd.append('image[]', new Blob([productRef], { type: 'image/png' }), 'product.png');
   fd.append('image[]', new Blob([mate], { type: 'image/png' }), 'mate.png');
+  if (mate2) {
+    const m2 = await sharp(mate2).resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+    fd.append('image[]', new Blob([m2], { type: 'image/png' }), 'mate2.png');
+  }
   if (usePhoto) {
     const ph = await sharp(photo.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
     fd.append('image[]', new Blob([ph], { type: 'image/jpeg' }), 'person.jpg');

@@ -37,6 +37,9 @@ const STYLE = [
   'around lamps or the moon; rich saturated palette (deep navy, warm yellow, lavender, orange, cream) kept harmonious; simplified but',
   'charming faces (small nose, soft closed-eye smile); cozy props drawn as clean shapes. Not photorealistic, no painterly brush texture,',
   'no 3D-render look. Vertical poster composition: the product large and central, the character(s) resting ON the product.',
+  'TONE (important): BRIGHT and high-key. Clean luminous colours, clear whites, soft warm light filling the room; skin and fabric stay',
+  'bright and clear. Even a night scene stays luminous — deep saturated navy sky, glowing lamp and moon, no murky or desaturated areas.',
+  'Never muddy, dim, brownish, grey-washed or gloomy. Think cheerful holiday key visual, not a moody illustration.',
 ].join(' ');
 
 function refLabel(refs, kind) {
@@ -61,12 +64,27 @@ function productDirective(chip, refs, opts = {}) {
   ].join(' ');
 }
 
-function mateDirective(refs) {
+/** 메이트(플러시 캐릭터)는 빈백이 아니라 태그도 로고도 없다 — 1~2개 두어도 로고 파이프라인과 무관하다. */
+function mateDirective(refs, count = 1) {
   const ref = refLabel(refs, 'mate');
+  const ref2 = refLabel(refs, 'mate2');
+  // 티렉스 레퍼런스가 붙어 있으면 팍스+티렉스 둘 다 캐릭터 옆에. 없으면 팍스 1~2개.
+  if (ref2) {
+    return [
+      `MATES (two plush Yogibo Mate characters, BOTH sitting right beside the character(s) on or against the bean bag, clearly visible and complete, drawn in the same flat style):`,
+      `(1) the fox Mate — match ${ref}: round orange body, cream belly and muzzle, small dark-grey paws and ear tips, simple dot eyes.`,
+      `(2) the T-Rex Mega Mate — match ${ref2}: a friendly plush green T-Rex dinosaur with a lighter belly, tiny arms, small tail and simple dot eyes, a little bigger than the fox.`,
+      'Exactly these TWO Mates, one on each side of the character(s) or side by side; never omit either, never merge them, no other plush toys. Mates are plush toys, not bean bags.',
+    ].join(' ');
+  }
+  const two = count >= 2;
   return [
     `MATE${ref ? ` (match ${ref})` : ''}: a plush orange fox character (Yogibo Mate Fox) — round orange body, cream belly and muzzle,`,
     'small dark-grey paws and ear tips, simple dot eyes. It MUST appear in the scene, sitting beside or leaning on the character(s),',
     'clearly visible and complete, drawn in the same flat style. Never omit it.',
+    two
+      ? 'Add a SECOND Yogibo Mate plush of the same fox design, smaller and further away — sitting on the shelf, on the rug in the foreground, or by the window — so there are exactly TWO Mates in the room. Mates are plush toys, not bean bags.'
+      : 'Exactly ONE Mate in the scene.',
   ].join(' ');
 }
 
@@ -175,7 +193,7 @@ function personDirective(analysis, theme, refs, chip) {
     `CHARACTERS (draw exactly ${people.length} ${people.length === 1 ? 'person' : 'people'}${photoRef ? `, the people shown in ${photoRef}` : ''}):`,
     ...lines,
     `STAGING: exactly ${people.length} ${people.length === 1 ? 'person' : 'people'} in the frame — ${onProduct.length} on the bean bag, ${around.length} around it on the rug. Add NOBODY else.`,
-    'There is EXACTLY ONE Yogibo product in the whole image. Do not add a second bean bag, cushion or any other Yogibo item.',
+    'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. (Yogibo Mate plush characters are allowed as described in MATE.)',
     around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
     'Keep each person\'s perceived gender presentation, age group, hair, glasses and build EXACTLY as described — never swap, add or "correct" them.',
     photoRef ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look.` : '',
@@ -195,9 +213,10 @@ function buildPrompt(p) {
   const greeting = p.greeting || pickGreeting();
   const scene = theme === 'hanbok' ? SCENES.hanbok(greeting) : SCENES.interior;
   return {
-    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
+    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs, drawn >= 3 ? 1 : 2), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
     greeting: theme === 'hanbok' ? greeting : null,
     double: seated >= 2,              // 제품 위 2인 (연인 컷)
+    mates: drawn >= 3 ? 1 : 2,        // 메이트 수 — 1~2명이면 둘, 3명 이상이면 하나(화면이 붐빈다)
     drawn,
     omitted: Math.max(0, count - MAX_PEOPLE),
   };
