@@ -157,6 +157,9 @@ const AROUND_SPOTS = [
   'sitting on the rug to the RIGHT of the bean bag, knees drawn up, one elbow resting on it',
 ];
 
+/** 사람 키 기준. 제품 치수(SIZE_EN)와 같은 자로 그리게 한다 — 남 175 · 여 162 (지정값), 청소년·아이는 비례. */
+const BODY_SCALE = 'BODY SCALE: masculine-presenting adults are about 175 cm tall, feminine-presenting adults about 162 cm, teenagers about 160 cm, children about 115 cm. Size every person with these heights and size the product with its dimensions above, on the same scale — a 170 cm Max is about as long as the man is tall, a 60 cm Lounger reaches his knee.';
+
 /** 분석 결과 → 인물 지시. 한복이면 성별 표현·연령에 맞는 옷을 구체적으로. */
 function personDirective(analysis, theme, refs, chip) {
   const all = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
@@ -164,8 +167,8 @@ function personDirective(analysis, theme, refs, chip) {
   const photoRef = refLabel(refs, 'photo');
   if (!people.length) {
     return theme === 'hanbok'
-      ? 'CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), calm content expression, eyes closed or half-closed, simplified anime-style face.'
-      : 'CHARACTER: one young Korean adult in comfortable home clothes, calm content expression, eyes closed or half-closed, simplified anime-style face.';
+      ? 'CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), calm content expression, eyes closed or half-closed, simplified anime-style face. ' + BODY_SCALE
+      : 'CHARACTER: one young Korean adult in comfortable home clothes, calm content expression, eyes closed or half-closed, simplified anime-style face. ' + BODY_SCALE;
   }
   // 주인공은 제품 위에. 정원 2인 제품(맥스)이고 인원이 2명 이상이면 옆사람까지 붙여 앉힌다.
   const seats = Math.min(SEATS[chip && chip.key] || 1, people.length);
@@ -203,6 +206,7 @@ function personDirective(analysis, theme, refs, chip) {
   return [
     `CHARACTERS (draw exactly ${people.length} ${people.length === 1 ? 'person' : 'people'}${photoRef ? `, the people shown in ${photoRef}` : ''}):`,
     ...lines,
+    BODY_SCALE,
     `STAGING: exactly ${people.length} ${people.length === 1 ? 'person' : 'people'} in the frame — ${onProduct.length} on the bean bag, ${around.length} around it on the rug. Add NOBODY else.`,
     'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. (Yogibo Mate plush characters are allowed as described in MATE.)',
     around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
