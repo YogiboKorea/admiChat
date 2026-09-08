@@ -954,7 +954,7 @@ async function generateScene(doc, chip, base, photo) {
   let briefSetting = null;
   try { const b = await sceneBrief(doc.sentence, theme, Object.assign({ key: doc.chip }, chip), RP.pickSetting(seed, theme)); briefSetting = RP.sanitizeSetting(b && b.setting); }
   catch (e) { console.warn(`[쉼순간] ${doc._id} 배경 브리프 실패 → 기본 풀:`, e.message); }
-  const variety = RP.pickVariety(seed, doc.chip);
+  const variety = RP.pickVariety(seed, doc.chip, theme);
   const { prompt, greeting, double, drawn, omitted, mates, mateKinds, setting, settingSource } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed, setting: briefSetting, variety });
   console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명 · 포즈 "${variety.pose.slice(0, 40)}…"${variety.mirror ? ' · 참조 반전' : ''} · 배경(${settingSource}) ${setting.slice(0, 80)}…`);
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);

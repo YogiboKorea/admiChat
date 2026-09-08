@@ -50,8 +50,10 @@ const STYLE = [
   'STYLE (follow exactly): Korean commercial animation-style flat illustration, like a premium Korean brand\'s holiday key visual.',
   'Bold clean line art with slightly varied line weight; flat cel shading with 2-3 tones per surface; no gradients except a soft glow',
   'around lamps or the moon; rich saturated palette (deep navy, warm yellow, lavender, orange, cream) kept harmonious; simplified but',
-  'charming faces (small nose, soft closed-eye smile); cozy props drawn as clean shapes. Not photorealistic, no painterly brush texture,',
-  'no 3D-render look. Vertical poster composition: the product large and central, the character(s) resting ON the product.',
+  'charming faces (small nose, soft features) whose exact expression follows the CHARACTERS section below; cozy props drawn as clean shapes.',
+  'Not photorealistic, no painterly brush texture,',
+  'no 3D-render look. Vertical poster format; the product with the character(s) on it is the main subject — its exact framing, angle and',
+  'placement follow the COMPOSITION line below rather than a fixed centred layout.',
   'TONE (important): BRIGHT and high-key. Clean luminous colours, clear whites, soft warm light filling the room; skin and fabric stay',
   'bright and clear. Even a night scene stays luminous — deep saturated navy sky, glowing lamp and moon, no murky or desaturated areas.',
   'Never muddy, dim, brownish, grey-washed or gloomy. Think cheerful holiday key visual, not a moody illustration.',
@@ -80,11 +82,19 @@ function productDirective(chip, refs, opts = {}) {
   ].join(' ');
 }
 
-/** 시드 문자열 → 0 이상의 정수 (FNV-1a). 같은 응모 id 는 재시도해도 같은 값을 낸다. */
+/**
+ * 시드 문자열 → 0 이상의 정수 (FNV-1a + 최종 확산). 같은 응모 id 는 재시도해도 같은 값을 낸다.
+ * 확산을 붙인 이유: FNV-1a 만 쓰면 낮은 비트가 입력을 충분히 섞지 못해, 같은 시드에 솔트만 바꿔 뽑은 축들이 서로 얽힌다.
+ * 실측(연속 ObjectId 600건)에서 포즈×카메라 48칸 중 24칸만 나왔고, 확산을 넣자 48칸 전부 나왔다.
+ */
 function hashSeed(s) {
   let h = 2166136261;
   for (const ch of String(s == null ? '' : s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
-  return h >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  h = Math.imul(h, 0x7feb352d) >>> 0;
+  h = (h ^ (h >>> 15)) >>> 0;
+  h = Math.imul(h, 0x846ca68b) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
 }
 
 /**
@@ -265,7 +275,7 @@ const SCENE_RULES = [
 const SCENES = {
   interior: (setting) => [
     `SCENE: ${setting || SCENE_POOL.interior[0]}.`,
-    'The character(s) recline freely on the product with arms relaxed and legs stretched out, fully at rest.',
+    'The character(s) are fully at rest on the product, in exactly the pose described in CHARACTERS above.',
     'Mood: quiet, warm, exhaling after a long day.', SCENE_RULES,
     'NO TEXT of any kind — no letters, numbers, captions, logos or watermarks.',
   ].join(' '),
@@ -337,66 +347,131 @@ const POSES = {
     'sprawled with legs stretched out and an open book face-down on the chest',
     'arms folded behind the head, ankles crossed, gazing up at the ceiling',
     'half-turned to one side, cradling a warm mug on the belly, a blanket over the legs',
+    'slid down low so the shoulders rest on the fabric and the legs sprawl onto the floor, arms loose at the sides',
+    'sitting sideways and sunk in, one arm hooked over the top edge, the other hand resting on a drawn-up knee',
+    'draped forward over its raised end, arms hanging loose down its front, head turned to the side with one cheek on the fabric',
   ],
   lean: [
     'seated low with the whole back against the raised part, legs stretched forward, hands resting on the stomach',
     'seated with one knee up and the other leg stretched out, head tipped back against the backrest',
     'seated sideways with legs draped over one edge of the seat, an arm along the backrest',
     'slouched deep with feet crossed at the ankles, a mug held in both hands',
+    'sitting cross-legged on the seat with the back against the raised part, elbows on knees',
+    'leaning back with the head turned to look out toward the light, one hand behind the neck',
+    'curled into one corner of it with knees tucked to the side and both hands under the cheek',
   ],
   liedown: [
     'lying full length on the back, one arm over the eyes, the other hand on the chest',
     'lying on the side, knees slightly bent, one hand tucked under the cheek',
     'lying on the back with a book held up above the face, one foot resting on the other knee',
     'lying diagonally across it, head at the far end, one arm trailing onto the floor',
+    'lying on the stomach, propped on both elbows, chin on hands, feet crossed in the air',
+    'lying on the back with knees bent up and both arms flung out wide, eyes closed',
+    'half-rolled onto one side, a blanket pulled to the shoulder, only the face and one hand showing',
   ],
   floor: [
     'sitting low and sunk in with knees bent, elbows on knees, chin on hands',
     'sitting cross-legged sunk into it, shoulders relaxed, head resting to one side',
     'leaning back into it with one leg stretched out and the other bent, hands behind the head',
     'sitting sideways in it with legs curled up, hugging one knee',
+    'sunk in and tipped back so the head rests on the top of it, face turned up, arms slack',
+    'folded forward into it with both arms wrapped around its front, one cheek on the fabric, face turned toward the viewer',
+    'sitting in it with both legs stretched straight out and crossed at the ankles, leaning on one hand behind',
   ],
   myspot: [
     'sitting snugly with knees pulled up and arms wrapped around them',
     'sitting cross-legged with a tablet or small book in the lap, leaning back a little',
     'sitting sideways with legs hanging over the edge, resting the head on one hand',
     'perched with feet tucked to one side, a mug held close, shoulders relaxed',
+    'sitting back in it with the spine against its raised side, legs stretched straight out onto the rug',
+    'curled into it sideways with the knees up and the head tipped back, eyes closed',
+    'sitting forward on the edge of it, elbows on knees, both hands around a mug',
   ],
   hug: [
     'sitting on the floor inside the U shape, hugging it close with both arms, cheek pressed to it',
     'lying on the side with the U wrapped around the upper body, one leg over its end',
     'sitting with the U around the lower back and the arms resting along its arms, eyes closed',
     'curled on the side with the U pulled in like a body pillow, knees tucked',
+    'sitting cross-legged with the U hugged to the chest, chin resting on its top edge',
+    'leaning forward over the U with both arms folded on it, chin resting on the arms, face turned toward the viewer',
+    'lying on the back with the U tucked under the knees and one arm across the eyes',
   ],
 };
 const PROPS = [
   'a mug of warm tea within reach',
   'an open paperback resting nearby',
-  'over-ear headphones on, eyes closed',
+  'over-ear headphones on',
   'a small cat curled up asleep close by',
   'a light knitted blanket over the legs',
   'a phone set face-down and forgotten',
   'a bowl of tangerines within reach',
   'a small candle and a potted plant close by',
+  'a pair of slippers kicked off beside it',
   '',
 ];
+/** 한가위 장면 소품 — 헤드폰·휴대폰 같은 현대 소품은 한복·보름달 연출과 어울리지 않아 뺀다. */
+const PROPS_HANBOK = [
+  'a cup of barley tea within reach',
+  'a small brass tray of chestnuts and jujubes nearby',
+  'a light quilted blanket over the legs',
+  'a small cat curled up asleep close by',
+  'a paper lantern set down beside them',
+  'a bowl of tangerines within reach',
+  'a pair of gomusin shoes set neatly on the floor',
+  '',
+];
+/** 카메라 — 세로 4:5 크롭을 견디는 각도만. 극단적 부감·앙각은 얼굴이나 태그를 잃는다. */
 const CAMERAS = [
   'a three-quarter view from slightly above',
   'an eye-level view from the side',
   'a slightly low angle from the foot end',
   'a calm straight-on frontal view',
+  'a three-quarter view from the other side, slightly above',
+  'a gentle high angle looking down at about 30 degrees',
 ];
-/** 시드 → 연출 묶음. 같은 응모는 재시도해도 같다. */
-function pickVariety(seed, chipKey) {
-  const h = hashSeed(String(seed == null ? '' : seed) + ':pose');
+/** 프레이밍 — 인물과 제품이 다 들어가는 선까지만. 제품의 무지 태그는 항상 프레임 안에 또렷하게 남아야 한다(후보정 로고). */
+const SHOTS = [
+  'frame the whole product and person with a generous margin of the room around them',
+  'frame the product and person a little closer, filling most of the frame, with just enough room to read the setting',
+  'frame it at a medium distance, the product and person centred in depth, the room clearly visible behind',
+];
+/** 시선·표정 — "눈 감고 미소"만 반복되지 않게. */
+const GAZES = [
+  'eyes closed, a small content smile',
+  'eyes half-closed, gaze drifting toward the light',
+  'looking out at the view with a soft, unfocused expression',
+  'eyes closed and mouth slightly open, on the edge of a nap',
+  'a soft, sleepy half-smile with the chin tucked in',
+];
+/** 포즈가 이미 눈·시선·손에 든 것을 정해 놓았으면 시선 축을 붙이지 않는다 — 두 지시가 부딪히면 얼굴이 뭉개진다. */
+const POSE_FIXES_GAZE = /\b(eyes?|gaz\w*|look\w*|book|tablet|asleep|nap)\b/i;
+/**
+ * 시드 → 연출 묶음. 같은 응모는 재시도해도 같다.
+ * theme='hanbok' 이면 인사말이 위쪽 28% 에 조판되므로, 제품·인물을 아래쪽으로 내리고 하늘이 넓게 남는 프레이밍만 쓴다.
+ */
+function pickVariety(seed, chipKey, theme) {
+  // 축마다 따로 해시한다. 한 해시를 비트로 쪼개 쓰면, 실제 응모 id(ObjectId: 앞부분 고정 + 뒤 카운터 증가)처럼
+  // 거의 연속인 시드에서 낮은 비트가 함께 움직여 연속 몇 건이 같은 포즈로 뭉친다 — 실측으로 확인해 바꿨다.
+  const s = String(seed == null ? '' : seed);
+  const pick = (salt, arr) => arr[hashSeed(s + ':' + salt) % arr.length];
   const poses = POSES[chipKey] || POSES.sink;
+  const hanbok = theme === 'hanbok';
+  const cams = hanbok ? CAMERAS.slice(0, 5) : CAMERAS;     // 한가위는 강한 부감(하늘이 사라진다)을 뺀다
   return {
-    pose: poses[h % poses.length],
-    prop: PROPS[(h >>> 4) % PROPS.length],
-    camera: CAMERAS[(h >>> 8) % CAMERAS.length],
-    mirror: !!((h >>> 12) & 1),                       // 제품 참조 컷 좌우 반전 — 같은 컷 재탕 느낌을 줄인다
-    aroundOffset: (h >>> 13) % AROUND_SPOTS.length,
-    side: ((h >>> 16) & 1) ? 'slightly LEFT of center, with the room opening to the right' : 'slightly RIGHT of center, with the room opening to the left',
+    pose: pick('pose', poses),
+    prop: pick('prop', hanbok ? PROPS_HANBOK : PROPS),
+    camera: pick('cam', cams),
+    // 한가위는 위쪽에 인사말이 조판되고(상단 28%), 완성본은 위 기준으로 잘려 아래 약 17% 가 사라진다.
+    // 그래서 인물·제품을 "가운데 띠"(위 1/3 아래, 바닥 1/5 위)에 두게 한다 — 아래로 몰면 잘리고, 위로 붙으면 인사말과 겹친다.
+    shot: hanbok
+      ? 'frame the product and people in the MIDDLE band of the picture — below the top third, and clear of the bottom fifth — leaving the night sky open across the top'
+      : pick('shot', SHOTS),
+    gaze: pick('gaze', GAZES),
+    mirror: hashSeed(s + ':mirror') % 2 === 1,        // 제품 참조 컷 좌우 반전 — 같은 컷 재탕 느낌을 줄인다
+    aroundOffset: hashSeed(s + ':around') % AROUND_SPOTS.length,
+    side: hashSeed(s + ':side') % 2 === 1
+      ? 'slightly LEFT of center, with the room opening to the right'
+      : 'slightly RIGHT of center, with the room opening to the left',
   };
 }
 
@@ -417,15 +492,20 @@ function personDirective(analysis, theme, refs, chip, variety) {
   const all = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
   const people = all.slice(0, MAX_PEOPLE);
   const photoRef = refLabel(refs, 'photo');
-  const v = variety || pickVariety('', chip && chip.key);
+  const v = variety || pickVariety('', chip && chip.key, theme);
+  // 시선은 포즈가 눈·손을 이미 정하지 않았을 때만 붙인다(충돌 방지).
+  const gaze = POSE_FIXES_GAZE.test(v.pose) ? null : v.gaze;
   const stagingLine = [
-    `COMPOSITION: ${v.camera}; the product sits ${v.side}.`,
+    `COMPOSITION: ${v.camera}; ${v.shot}; the product sits ${v.side}.`,
+    // "읽을 수 있게" 라고 쓰면 모델이 태그에 글자를 넣는다 — 태그는 무지여야 로고 후보정이 붙는다. 크기·가림 여부만 말한다.
+    'Keep the product\'s small blank fabric tag fully inside the frame and unobstructed, big enough to read as one clean shape — it stays blank, with no lettering on it.',
     v.prop ? `A small touch of the moment: ${v.prop}.` : '',
   ].filter(Boolean).join(' ');
   if (!people.length) {
+    const face = gaze ? `${gaze}, simplified anime-style face` : 'simplified anime-style face, calm and at ease';
     return (theme === 'hanbok'
-      ? `CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), ${v.pose}; calm content expression, eyes closed or half-closed, simplified anime-style face. `
-      : `CHARACTER: one young Korean adult in comfortable home clothes, ${v.pose}; calm content expression, eyes closed or half-closed, simplified anime-style face. `)
+      ? `CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), ${v.pose}; ${face}. `
+      : `CHARACTER: one young Korean adult in comfortable home clothes, ${v.pose}; ${face}. `)
       + stagingLine + ' ' + BODY_SCALE;
   }
   // 주인공은 제품 위에. 정원 2인 제품(맥스)이고 인원이 2명 이상이면 옆사람까지 붙여 앉힌다.
@@ -471,7 +551,9 @@ function personDirective(analysis, theme, refs, chip, variety) {
     around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
     'Keep each person\'s perceived gender presentation, age group, hair, glasses and build EXACTLY as described — never swap, add or "correct" them.',
     photoRef ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look.` : '',
-    'Faces are stylized anime-style characters, not photorealistic likenesses; friendly, calm, eyes closed or half-closed.',
+    'Faces are stylized anime-style characters, not photorealistic likenesses.'
+      + (gaze ? ` The person on the product has ${gaze}.` : '')
+      + (around.length ? ' The others look relaxed each in their own way rather than all wearing the same expression.' : ''),
   ].filter(Boolean).join(' ');
 }
 
@@ -489,8 +571,8 @@ function buildPrompt(p) {
   // 배경 — 브리프(p.setting)가 있으면 그것, 없으면 시드 풀. 어느 쪽이든 정리(sanitizeSetting)를 거친다.
   const setting = sanitizeSetting(p.setting) || pickSetting(p.seed, theme);
   const scene = theme === 'hanbok' ? SCENES.hanbok(greeting, setting) : SCENES.interior(setting);
-  // 연출 변주(포즈·소품·카메라·좌우) — 주면 그대로, 없으면 시드로
-  const variety = p.variety || pickVariety(p.seed, p.chip && p.chip.key);
+  // 연출 변주(포즈·소품·카메라·프레이밍·시선·좌우) — 주면 그대로, 없으면 시드로. 한가위는 인사말 자리를 비우는 프레이밍.
+  const variety = p.variety || pickVariety(p.seed, p.chip && p.chip.key, theme);
   // 메이트 — 배열(['fox','trex'] 등)이 정식. 숫자는 옛 방식(팍스 n개). 없으면 시드로 추첨. 참조가 안 붙은 종류는 뺀다.
   let kinds = Array.isArray(p.mates) ? p.mates.slice()
     : typeof p.mates === 'number' ? (p.mates >= 2 ? ['fox', 'fox'] : p.mates >= 1 ? ['fox'] : [])
@@ -511,4 +593,4 @@ function buildPrompt(p) {
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, POSES, PROPS, CAMERAS, AROUND_SPOTS, pickGreeting, pickMates, pickSetting, pickVariety, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, POSES, PROPS, PROPS_HANBOK, CAMERAS, SHOTS, GAZES, AROUND_SPOTS, pickGreeting, pickMates, pickSetting, pickVariety, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
