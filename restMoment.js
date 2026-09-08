@@ -647,8 +647,8 @@ async function analyzePhoto(photo) {
 }
 
 /** 배경 브리프 — 고객 문장을 읽어 장소·시간·빛·소품을 정한다. 텍스트만 보내는 작은 호출 (≈ $0.0003). */
-async function sceneBrief(sentence, theme, chip) {
-  return openaiJson([{ type: 'text', text: RP.sceneBriefPrompt(sentence, theme, chip) }], { maxTokens: 260 });
+async function sceneBrief(sentence, theme, chip, baseSetting) {
+  return openaiJson([{ type: 'text', text: RP.sceneBriefPrompt(sentence, theme, chip, baseSetting) }], { maxTokens: 260 });
 }
 
 /** 3단계 — 생성본에서 무지 태그 위치를 찾는다. */
@@ -950,11 +950,13 @@ async function generateScene(doc, chip, base, photo) {
   const mate2 = kinds.indexOf('trex') >= 0 ? trexAsset : null;
   const refs = ['product'].concat(mate ? ['mate'] : []).concat(mate2 ? ['mate2'] : []).concat(usePhoto ? ['photo'] : []);
   // 배경 — 고객 문장에서 장소·시간·소품을 읽는다(브리프). 실패하면 buildPrompt 가 시드 풀에서 고른다. 어느 쪽이든 과금 전 단계.
+  // 문장에 장소가 없으면 브리프가 시드 풀의 배경에서 출발한다 — 밋밋한 문장이어도 응모마다 장소가 달라진다.
   let briefSetting = null;
-  try { const b = await sceneBrief(doc.sentence, theme, Object.assign({ key: doc.chip }, chip)); briefSetting = RP.sanitizeSetting(b && b.setting); }
+  try { const b = await sceneBrief(doc.sentence, theme, Object.assign({ key: doc.chip }, chip), RP.pickSetting(seed, theme)); briefSetting = RP.sanitizeSetting(b && b.setting); }
   catch (e) { console.warn(`[쉼순간] ${doc._id} 배경 브리프 실패 → 기본 풀:`, e.message); }
-  const { prompt, greeting, double, drawn, omitted, mates, mateKinds, setting, settingSource } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed, setting: briefSetting });
-  console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명 · 배경(${settingSource}) ${setting.slice(0, 80)}…`);
+  const variety = RP.pickVariety(seed, doc.chip);
+  const { prompt, greeting, double, drawn, omitted, mates, mateKinds, setting, settingSource } = RP.buildPrompt({ theme, chip: Object.assign({ key: doc.chip }, chip), analysis, refs, mates: kinds, seed, setting: briefSetting, variety });
+  console.log(`[쉼순간] ${doc._id} 메이트 ${mateKinds.length ? mateKinds.join('+') : '없음'} · 인원 ${drawn}명 · 포즈 "${variety.pose.slice(0, 40)}…"${variety.mirror ? ' · 참조 반전' : ''} · 배경(${settingSource}) ${setting.slice(0, 80)}…`);
   if (omitted > 0) console.warn(`[쉼순간] ${doc._id} 사진 인원 ${(analysis && analysis.count) || 0}명 중 ${drawn}명만 그립니다(상한 ${RP.MAX_PEOPLE}명)`);
   // 제품 위 인원이 2명으로 정해졌으면 둘이 붙어 앉은 컷으로 바꿔 든다 (없으면 그대로).
   let productSrc = base;
@@ -965,7 +967,10 @@ async function generateScene(doc, chip, base, photo) {
       catch (e) { console.warn('[쉼순간] 2인 포즈 컷 읽기 실패 → 기본 컷:', e.message); }
     }
   }
-  const productRef = await sharp(productSrc).resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
+  // 참조 컷 좌우 반전(시드 50%) — 같은 컷을 늘 같은 방향으로 보내면 구도가 재탕처럼 보인다. 형태·색 지시는 그대로다.
+  let productPipe = sharp(productSrc);
+  if (variety.mirror) productPipe = productPipe.flop();
+  const productRef = await productPipe.resize({ width: 1024, height: 1024, fit: 'inside' }).png().toBuffer();
 
   const fd = new FormData();
   fd.append('model', OPENAI_MODEL);
@@ -1032,6 +1037,7 @@ async function generateScene(doc, chip, base, photo) {
       // usedPhoto = 고객 사진이 그림에 반영됐는가(참조로 넣었든, 접수 시 분석으로 인원을 잡았든). photoLost = 참조는 못 넣었다.
       theme, greeting, double, tagStamped, minorFlag, usedPhoto: usePhoto || !!analysis, photoLost, mates, mateKinds,
       setting: setting.slice(0, 240), settingSource,
+      pose: variety.pose.slice(0, 120), mirror: variety.mirror,
       // 인원: 사진에서 센 수 · 실제로 그린 수 · 상한에 걸려 뺀 수. 성별 표현 같은 파생 속성은 완성 후 남기지 않는다(analysis 는 done 때 지운다).
       people: analysis ? { count: Number(analysis.count) || 0, drawn, omitted } : null,
       genTokens: usage.output_tokens || null,

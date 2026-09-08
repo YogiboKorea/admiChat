@@ -76,7 +76,7 @@ function productDirective(chip, refs, opts = {}) {
     'fabric and facing the viewer, rendered as a plain BLANK cream-white rounded rectangle with NO lettering — slightly taller than it is wide',
     '(about 1/15 of the product width), its face clean and evenly lit so it reads as one flat shape.',
     'Do not draw any brand wordmark or logo anywhere. No other furniture brands.',
-    ref ? `If ${ref} shows a person using the product, copy HOW the product is used — the angle it is propped at, how it folds under the body, where the weight sits — but never that person's face, clothing or identity.` : '',
+    ref ? `If ${ref} shows a person using the product, copy only how the product is propped and how it folds under a body — the person's actual pose follows the CHARACTERS section and may differ from the reference person's pose; never copy that person's face, clothing or identity.` : '',
   ].join(' ');
 }
 
@@ -150,19 +150,38 @@ function mateDirective(refs, kinds = ['fox']) {
  */
 const SCENE_POOL = {
   interior: [
+    // ── 집 안 (시간대·날씨를 서로 다르게) ──
     'a cozy Korean living room at night: a wooden-framed balcony door showing a deep blue evening, sheer cream curtains, a slim tripod floor lamp pouring warm amber light, a low wooden shelf with a potted plant and a woven basket, a thick cream shag rug, a small round table with a mug of tea and two books',
     'a bright living room on a Sunday morning: tall windows with soft white daylight, linen curtains lifting in a breeze, hanging plants, a light oak floor with a woven jute rug, a tray with toast and coffee, a cat asleep in a sunbeam',
-    'an apartment balcony at sunset: the bean bag on an outdoor rug between potted olive trees and string lights, a low table with iced tea, the city skyline glowing orange and pink beyond the railing',
-    'a quiet forest clearing in early autumn afternoon: the bean bag on a checked picnic blanket, tall pines and a few maples turning orange, dappled sunlight, a small thermos and a book, soft moss and fallen leaves around',
-    'a park lawn under a big zelkova tree on a clear afternoon: the bean bag on a picnic mat, a wicker basket with fruit, a bicycle leaning nearby, gentle hills and a pond in the distance, high blue sky',
-    'a calm beach at golden hour: the bean bag on a straw mat on pale sand, gentle waves and a long shadow, a straw hat and a pair of sandals, sea-grass on a low dune behind',
-    'a rooftop at night: the bean bag on a wooden deck with warm string lights overhead, a little herb garden in crates, a lantern, and the city lights and a navy sky with a few stars beyond the parapet',
-    'a lakeside campsite at dusk: the bean bag on a camping rug beside a small tent, a hanging lantern and a tiny campfire, pine trees and a violet-orange sky mirrored in the still water',
+    'a small studio apartment in the late afternoon: low golden sun striping the wall through blinds, a wall of taped photos and a guitar in the corner, a woven rug, an electric kettle steaming on a tiny table',
     'a bedroom on a rainy afternoon: the bean bag by a big window with raindrops, soft grey-blue light, a linen bed with rumpled cream bedding, a bedside lamp glowing warm, a mug of cocoa on the sill',
-    'the wooden porch (maru) of a hanok on a clear autumn day: the bean bag on the warm wooden floor, a courtyard with a persimmon tree heavy with fruit, clay pots, sunlight sliding under the tiled eaves',
-    'a corner of a small neighbourhood bookshop cafe in the evening: the bean bag on a worn rug between tall bookshelves, a green banker lamp, a cup of latte, rain-streaked window with warm street light outside',
-    'a countryside field of pampas grass and cosmos at sunset in early autumn: the bean bag on a picnic mat on a grassy rise, a winding path, low hills, the sky peach and lavender',
+    'a sunroom full of plants at midday: white-framed glass on two sides, monstera and fiddle-leaf figs everywhere, a rattan side table, watering can, dappled leaf shadows across a pale rug',
+    'a tidy home office after work hours: the desk lamp left on and the laptop closed, a corkboard of notes, a tall window with the blue hour outside, the bean bag deliberately turned away from the desk',
+    'an attic room under a sloped ceiling on a clear night: a skylight full of stars, fairy lights along the beam, stacked books and a record player, a warm pool of lamplight on a flat woven rug',
+    'a wide living room on the first snowy evening: a big window with slow snowflakes and blue dusk, warm indoor light, a knitted throw, a mug leaving a ring on a wooden stool',
+    // ── 집 근처 · 야외 ──
+    'an apartment balcony at sunset: the bean bag on an outdoor rug between potted olive trees and string lights, a low table with iced tea, the city skyline glowing orange and pink beyond the railing',
+    'a rooftop at night: the bean bag on a wooden deck with warm string lights overhead, a little herb garden in crates, a lantern, and the city lights and a navy sky with a few stars beyond the parapet',
+    'a park lawn under a big zelkova tree on a clear afternoon: the bean bag on a picnic mat, a wicker basket with fruit, a bicycle leaning nearby, gentle hills and a pond in the distance, high blue sky',
     'a riverside walkway at dusk: the bean bag on a wooden deck by the water, paper lanterns on a railing, reflections of a bridge, a warm breeze bending the reeds, a bag of roasted chestnuts',
+    'a neighbourhood rooftop garden at golden hour: the bean bag on artificial grass among crates of lettuce and cherry tomatoes, a watering can, laundry drying on a line, low warm sun',
+    // ── 자연 ──
+    'a quiet forest clearing in early autumn afternoon: the bean bag on a checked picnic blanket, tall pines and a few maples turning orange, dappled sunlight, a small thermos and a book, soft moss and fallen leaves around',
+    'a calm beach at golden hour: the bean bag on a straw mat on pale sand, gentle waves and a long shadow, a straw hat and a pair of sandals, sea-grass on a low dune behind',
+    'a lakeside campsite at dusk: the bean bag on a camping rug beside a small tent, a hanging lantern and a tiny campfire, pine trees and a violet-orange sky mirrored in the still water',
+    'a countryside field of pampas grass and cosmos at sunset in early autumn: the bean bag on a picnic mat on a grassy rise, a winding path, low hills, the sky peach and lavender',
+    'a mountain hut deck in the early morning: the bean bag on weathered planks, a sea of clouds below the ridge, cold blue air turning gold, a steaming enamel mug, a folded windbreaker',
+    'a wooden pier on a still lake at dawn: the bean bag on the planks, mist lifting off the water, a rowboat tied nearby, pale pink light, a flask and a folded blanket',
+    'a stone terrace in an autumn maple valley at midday: the bean bag on a flat woven mat, blazing red and orange maples on the slope, a small stream, a lunch box and a thermos',
+    'a tangerine orchard on Jeju in the late afternoon: the bean bag on a mat between low trees heavy with orange fruit, black volcanic stone walls, warm slanting light, a basket of tangerines',
+    'a snowy pine forest at blue hour: the bean bag on a thick sheepskin over packed snow, soft violet light, a lantern in the snow, breath visible, a flask of hot tea',
+    // ── 그 밖의 일상 공간 ──
+    'a corner of a small neighbourhood bookshop cafe in the evening: the bean bag on a worn rug between tall bookshelves, a green banker lamp, a cup of latte, rain-streaked window with warm street light outside',
+    'the wooden porch (maru) of a hanok on a clear autumn day: the bean bag on the warm wooden floor, a courtyard with a persimmon tree heavy with fruit, clay pots, sunlight sliding under the tiled eaves',
+    'a quiet public library reading corner in the afternoon: the bean bag on a low carpeted platform by a tall arched window, warm wood shelves, a stack of books, dust motes in the light',
+    'a small art studio at night: the bean bag beside an easel and jars of brushes, a clip lamp, canvases leaning on the wall, a paint-spattered floor cloth, the window black with city glow',
+    'a stargazing spot on a grassy hilltop at night: the bean bag on a picnic mat, the Milky Way overhead, a lantern turned low, a telescope on a tripod, a blanket over the legs',
+    'a countryside guesthouse yard on a warm evening: the bean bag on a mat under a wisteria trellis with hanging bulbs, a watermelon on a low table, crickets, a deep indigo sky',
   ],
   hanbok: [
     'the wooden porch (maru) of a hanok at night: the bean bag on the warm wooden floor, a courtyard with a persimmon tree, clay jars, a paper lantern glowing, and the huge full moon rising over the tiled roof',
@@ -171,6 +190,12 @@ const SCENE_POOL = {
     'an apartment rooftop on Chuseok night: the bean bag on a wooden deck, string lights and a lantern, a tray of songpyeon on a low table, the city skyline and the huge full moon low and golden',
     'a hanok courtyard on Chuseok night: the bean bag on a woven mat on the stone yard, jangdok clay jars, a mulberry tree, lanterns on the gate, the full moon bright above the roofline',
     'a lakeside deck on Chuseok night: the bean bag on a wooden pier, a paper lantern, still water mirroring the huge full moon, distant mountains, a tray of songpyeon and chestnuts',
+    'a village lane between hanok walls on Chuseok night: the bean bag on a woven mat beside a low stone wall, cosmos flowers along it, hanging lanterns, tiled roofs, the giant full moon over the hills',
+    'a harvested rice field at the edge of a village on Chuseok night: the bean bag on a straw mat, golden stubble and stacked straw bundles, a scarecrow, warm village lights, the enormous full moon low on the horizon',
+    'a temple courtyard on Chuseok night: the bean bag on a mat on flagstones, rows of paper lanterns, an old pine, a stone pagoda, the huge full moon above the tiled eaves',
+    'a persimmon orchard on Chuseok night: the bean bag on a mat under branches strung with drying persimmons, a lantern hanging from a bough, distant mountain ridges, the full moon bright and yellow',
+    'a seaside village deck on Chuseok night: the bean bag on wooden planks above the water, small fishing boats with lamps, the huge full moon over the horizon laying a bright path across the sea, a tray of songpyeon and chestnuts',
+    'a mountain valley clearing on Chuseok night: the bean bag on a woven mat, silver pampas grass and maples, a small stream, a hanging lantern, the enormous full moon between the ridges',
   ],
 };
 
@@ -200,13 +225,18 @@ const REST_HINT_EN = {
   hug:     'hugging something soft until sleep comes',
 };
 
-/** ① 고객 문장 + 쉬는 방식(칩) → 배경 브리프. 텍스트만 보내는 작은 호출 (≈ $0.0003). JSON 만 받는다. */
-function sceneBriefPrompt(sentence, theme, chip) {
+/** ① 고객 문장 + 쉬는 방식(칩) → 배경 브리프. 텍스트만 보내는 작은 호출 (≈ $0.0003). JSON 만 받는다.
+ *  baseSetting: 문장에 장소가 없을 때 출발점으로 삼을 배경(시드 풀에서 뽑아 넘긴다) — 문장이 밋밋해도 응모마다 장소가 달라지게. */
+function sceneBriefPrompt(sentence, theme, chip, baseSetting) {
   const s = String(sentence || '').replace(/[\x00-\x1F\x7F"]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
   const hanbok = theme === 'hanbok';
   const key = chip && chip.key;
   const restLine = key && REST_HINT_EN[key]
     ? `They chose how they rest: "${String(chip.type || key).replace(/"/g, '')}" — ${REST_HINT_EN[key]}. Let the place, the light and the props suit that way of resting.`
+    : '';
+  const base = sanitizeSetting(baseSetting);
+  const baseLine = base
+    ? `If the sentence names NO specific place, do NOT default to a living room: KEEP the place, time of day and light of this base setting and only adapt its props to the sentence — "${base.replace(/"/g, '')}".`
     : '';
   return [
     'You design the backdrop for one flat-illustration poster. A customer wrote, in Korean, the moment they most wanted to rest today:',
@@ -220,7 +250,8 @@ function sceneBriefPrompt(sentence, theme, chip) {
     'If the sentence names a place where a big bean bag would be absurd (subway, bus, car, office desk, classroom, bathroom, kitchen counter),',
     'draw the rest that comes AFTER it — back home, a rooftop, a park lawn, a quiet cafe corner — and keep only a small prop as a hint of the original place.',
     'Vary freely: living room, bedroom, balcony, rooftop, hanok porch, forest clearing, park lawn, riverside, beach, campsite, cafe, countryside field.',
-    'Choose what fits the sentence best. If the sentence gives no place at all, pick one that fits its mood and is NOT a night-time living room.',
+    'Choose what fits the sentence best.',
+    baseLine || 'If the sentence gives no place at all, pick one that fits its mood and is NOT a night-time living room.',
     'Season: early autumn (September) in Korea. Safe and gentle for all ages. No other people in the description, no text, no brand names.',
     hanbok ? 'It is Chuseok (Korean harvest festival) NIGHT: the setting must include a huge full moon clearly visible (in the sky or through a window); indoors or outdoors both fine (hanok courtyard, wooden porch, hillside, rooftop, living-room window).' : '',
   ].filter(Boolean).join(' ');
@@ -285,12 +316,89 @@ const TAG_LOCATE_PROMPT = [
 const SEATS = { sink: 1, liedown: 1, lean: 1, floor: 1, myspot: 1, hug: 1 };
 const MAX_PEOPLE = 4;                 // 5명 이상은 앞 4명까지. 조용히 지우지 않고 호출부가 omitted 로 기록한다.
 
-/** 주변 자리. 세로 프레임이라 좌우로 늘어세우지 않고 앞뒤(깊이)로 나눈다 — 얼굴이 서로 가리지 않게. */
+/** 주변 자리. 세로 프레임이라 좌우로 늘어세우지 않고 앞뒤(깊이)로 나눈다 — 얼굴이 서로 가리지 않게. 시드로 시작점을 돌린다. */
 const AROUND_SPOTS = [
   'sitting on the rug immediately to the LEFT of the bean bag, leaning back against its side',
   'sitting cross-legged on the rug in the FOREGROUND, nearer the viewer and lower in the frame',
   'sitting on the rug to the RIGHT of the bean bag, knees drawn up, one elbow resting on it',
+  'lying on their stomach on the rug in the FOREGROUND, chin on hands, feet up behind',
+  'sitting on the rug to the LEFT of the bean bag, back against it, legs stretched out toward the viewer',
+  'kneeling on the rug to the RIGHT of the bean bag, leaning in with one arm draped over its edge',
 ];
+
+/**
+ * 연출 변주 — "배경도 포즈도 늘 똑같다" 는 지적(결정 사항). 응모 id 시드로 포즈·소품·카메라·좌우·참조 반전을 뽑는다.
+ * 포즈는 제품 형태와 어긋나지 않는 범위 안에서만 (맥스=기대 눕기, 라운저=앉아 기대기, 눕힌 맥스=눕기, 드롭=낮게 앉기, 미니=오붓하게 앉기, 서포트=안기).
+ */
+const POSES = {
+  sink: [
+    'sunk deep into it, head tilted back, eyes closed, one arm dangling over the side',
+    'curled up sideways with knees drawn in, cheek resting against the fabric',
+    'sprawled with legs stretched out and an open book face-down on the chest',
+    'arms folded behind the head, ankles crossed, gazing up at the ceiling',
+    'half-turned to one side, cradling a warm mug on the belly, a blanket over the legs',
+  ],
+  lean: [
+    'seated low with the whole back against the raised part, legs stretched forward, hands resting on the stomach',
+    'seated with one knee up and the other leg stretched out, head tipped back against the backrest',
+    'seated sideways with legs draped over one edge of the seat, an arm along the backrest',
+    'slouched deep with feet crossed at the ankles, a mug held in both hands',
+  ],
+  liedown: [
+    'lying full length on the back, one arm over the eyes, the other hand on the chest',
+    'lying on the side, knees slightly bent, one hand tucked under the cheek',
+    'lying on the back with a book held up above the face, one foot resting on the other knee',
+    'lying diagonally across it, head at the far end, one arm trailing onto the floor',
+  ],
+  floor: [
+    'sitting low and sunk in with knees bent, elbows on knees, chin on hands',
+    'sitting cross-legged sunk into it, shoulders relaxed, head resting to one side',
+    'leaning back into it with one leg stretched out and the other bent, hands behind the head',
+    'sitting sideways in it with legs curled up, hugging one knee',
+  ],
+  myspot: [
+    'sitting snugly with knees pulled up and arms wrapped around them',
+    'sitting cross-legged with a tablet or small book in the lap, leaning back a little',
+    'sitting sideways with legs hanging over the edge, resting the head on one hand',
+    'perched with feet tucked to one side, a mug held close, shoulders relaxed',
+  ],
+  hug: [
+    'sitting on the floor inside the U shape, hugging it close with both arms, cheek pressed to it',
+    'lying on the side with the U wrapped around the upper body, one leg over its end',
+    'sitting with the U around the lower back and the arms resting along its arms, eyes closed',
+    'curled on the side with the U pulled in like a body pillow, knees tucked',
+  ],
+};
+const PROPS = [
+  'a mug of warm tea within reach',
+  'an open paperback resting nearby',
+  'over-ear headphones on, eyes closed',
+  'a small cat curled up asleep close by',
+  'a light knitted blanket over the legs',
+  'a phone set face-down and forgotten',
+  'a bowl of tangerines within reach',
+  'a small candle and a potted plant close by',
+  '',
+];
+const CAMERAS = [
+  'a three-quarter view from slightly above',
+  'an eye-level view from the side',
+  'a slightly low angle from the foot end',
+  'a calm straight-on frontal view',
+];
+/** 시드 → 연출 묶음. 같은 응모는 재시도해도 같다. */
+function pickVariety(seed, chipKey) {
+  const h = hashSeed(String(seed == null ? '' : seed) + ':pose');
+  const poses = POSES[chipKey] || POSES.sink;
+  return {
+    pose: poses[h % poses.length],
+    prop: PROPS[(h >>> 4) % PROPS.length],
+    camera: CAMERAS[(h >>> 8) % CAMERAS.length],
+    mirror: !!((h >>> 12) & 1),                       // 제품 참조 컷 좌우 반전 — 같은 컷 재탕 느낌을 줄인다
+    aroundOffset: (h >>> 13) % AROUND_SPOTS.length,
+    side: ((h >>> 16) & 1) ? 'slightly LEFT of center, with the room opening to the right' : 'slightly RIGHT of center, with the room opening to the left',
+  };
+}
 
 /** 사람 키 기준. 제품 치수(SIZE_EN)와 같은 자로 그리게 한다 — 남 175 · 여 162 (지정값), 청소년·아이는 비례. */
 const BODY_SCALE = 'BODY SCALE: masculine-presenting adults are about 175 cm tall, feminine-presenting adults about 162 cm, teenagers about 160 cm, children about 115 cm. Size every person with these heights and size the product with its dimensions above, on the same scale — a 170 cm Max is about as long as the man is tall, a 60 cm Lounger reaches his knee.';
@@ -305,14 +413,20 @@ const TAG_VERIFY_PROMPT = [
 ].join(' ');
 
 /** 분석 결과 → 인물 지시. 한복이면 성별 표현·연령에 맞는 옷을 구체적으로. */
-function personDirective(analysis, theme, refs, chip) {
+function personDirective(analysis, theme, refs, chip, variety) {
   const all = (analysis && Array.isArray(analysis.people)) ? analysis.people : [];
   const people = all.slice(0, MAX_PEOPLE);
   const photoRef = refLabel(refs, 'photo');
+  const v = variety || pickVariety('', chip && chip.key);
+  const stagingLine = [
+    `COMPOSITION: ${v.camera}; the product sits ${v.side}.`,
+    v.prop ? `A small touch of the moment: ${v.prop}.` : '',
+  ].filter(Boolean).join(' ');
   if (!people.length) {
-    return theme === 'hanbok'
-      ? 'CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), calm content expression, eyes closed or half-closed, simplified anime-style face. ' + BODY_SCALE
-      : 'CHARACTER: one young Korean adult in comfortable home clothes, calm content expression, eyes closed or half-closed, simplified anime-style face. ' + BODY_SCALE;
+    return (theme === 'hanbok'
+      ? `CHARACTER: one young Korean adult in a modern hanbok (jeogori and chima, soft cream and pastel tones), ${v.pose}; calm content expression, eyes closed or half-closed, simplified anime-style face. `
+      : `CHARACTER: one young Korean adult in comfortable home clothes, ${v.pose}; calm content expression, eyes closed or half-closed, simplified anime-style face. `)
+      + stagingLine + ' ' + BODY_SCALE;
   }
   // 주인공은 제품 위에. 정원 2인 제품(맥스)이고 인원이 2명 이상이면 옆사람까지 붙여 앉힌다.
   const seats = Math.min(SEATS[chip && chip.key] || 1, people.length);
@@ -343,13 +457,14 @@ function personDirective(analysis, theme, refs, chip) {
     const spot = onProduct.indexOf(i) >= 0
       ? (onProduct.length > 1
           ? 'reclining ON the bean bag together with the other person, snuggled close ALONG its length (it is only about one person wide — never seated side by side across it), shoulders touching, both sunk into it'
-          : 'reclining ON the bean bag, sunk into it, fully supported and at rest')
-      : AROUND_SPOTS[around.indexOf(i) % AROUND_SPOTS.length];
+          : `ON the bean bag, ${v.pose}, fully supported and at rest`)
+      : AROUND_SPOTS[(v.aroundOffset + around.indexOf(i)) % AROUND_SPOTS.length];
     return `Person ${i + 1} (${ordinal(i)} from the left in the photo): ${art} ${pres} ${age} with ${feats || 'natural features'}, wearing ${outfit} — ${spot}.`;
   });
   return [
     `CHARACTERS (draw exactly ${people.length} ${people.length === 1 ? 'person' : 'people'}${photoRef ? `, the people shown in ${photoRef}` : ''}):`,
     ...lines,
+    stagingLine,
     BODY_SCALE,
     `STAGING: exactly ${people.length} ${people.length === 1 ? 'person' : 'people'} in the frame — ${onProduct.length} on the bean bag, ${around.length} around it on the rug. Add NOBODY else.`,
     'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. Plush Mate characters appear ONLY if the MATE section above asks for them.',
@@ -374,6 +489,8 @@ function buildPrompt(p) {
   // 배경 — 브리프(p.setting)가 있으면 그것, 없으면 시드 풀. 어느 쪽이든 정리(sanitizeSetting)를 거친다.
   const setting = sanitizeSetting(p.setting) || pickSetting(p.seed, theme);
   const scene = theme === 'hanbok' ? SCENES.hanbok(greeting, setting) : SCENES.interior(setting);
+  // 연출 변주(포즈·소품·카메라·좌우) — 주면 그대로, 없으면 시드로
+  const variety = p.variety || pickVariety(p.seed, p.chip && p.chip.key);
   // 메이트 — 배열(['fox','trex'] 등)이 정식. 숫자는 옛 방식(팍스 n개). 없으면 시드로 추첨. 참조가 안 붙은 종류는 뺀다.
   let kinds = Array.isArray(p.mates) ? p.mates.slice()
     : typeof p.mates === 'number' ? (p.mates >= 2 ? ['fox', 'fox'] : p.mates >= 1 ? ['fox'] : [])
@@ -381,16 +498,17 @@ function buildPrompt(p) {
   kinds = kinds.filter(k => (k === 'fox' && refs.indexOf('mate') >= 0) || (k === 'trex' && refs.indexOf('mate2') >= 0));
   if (drawn >= 3) kinds = kinds.slice(0, 1);
   return {
-    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs, kinds), personDirective(p.analysis, theme, refs, p.chip), scene].join(' '),
+    prompt: [STYLE, productDirective(p.chip, refs), mateDirective(refs, kinds), personDirective(p.analysis, theme, refs, p.chip, variety), scene].join(' '),
     greeting: theme === 'hanbok' ? greeting : null,
     double: seated >= 2,              // 제품 위 2인 (연인 컷)
     mates: kinds.length,              // 실제로 지시한 메이트 수 (0~2)
     mateKinds: kinds,                 // ['fox'] | ['trex'] | ['fox','trex'] | ['fox','fox'] | []
     setting,                          // 실제로 쓴 배경 문장
     settingSource: sanitizeSetting(p.setting) ? 'brief' : 'pool',
+    variety,                          // { pose, prop, camera, mirror, aroundOffset, side }
     drawn,
     omitted: Math.max(0, count - MAX_PEOPLE),
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, pickGreeting, pickMates, pickSetting, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, POSES, PROPS, CAMERAS, AROUND_SPOTS, pickGreeting, pickMates, pickSetting, pickVariety, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
