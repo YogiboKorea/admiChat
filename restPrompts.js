@@ -299,10 +299,13 @@ const PHOTO_ANALYSIS_PROMPT = [
   'You are preparing an illustration brief. Look at the photo and describe the people ONLY as needed to draw them as stylized characters.',
   'Return STRICT JSON with this shape and nothing else:',
   '{"people":[{"presentation":"masculine|feminine|ambiguous","ageGroup":"child|teen|adult|senior","hair":"<length, style, color in a few words>",',
-  '"glasses":true|false,"facialHair":"none|light|full","build":"slim|average|sturdy","skinTone":"light|medium|deep","notableItems":"<hat, headband, etc. or empty>"}],',
+  '"glasses":true|false,"facialHair":"none|full|light","build":"slim|average|sturdy","skinTone":"light|medium|deep","notableItems":"<hat, headband, etc. or empty>",',
+  '"outfit":"<what they are wearing, 3-8 words: garment type and colour for top and bottom, e.g. cream hoodie and grey sweatpants>"}],',
   '"count":<number of people>,"primaryIndex":<index into people>,"minorPresent":true|false,"confidence":"high|medium|low"}',
   'ORDER the "people" array strictly LEFT to RIGHT as they appear in the photo — index 0 is the leftmost person. This order decides where each person is placed, so keep it exact.',
   '"primaryIndex" is the most prominent person — largest in frame, nearest the camera, or most centered. If they are all equal, use 0.',
+  '"outfit" describes only garment TYPE and COLOUR so the character can wear something similar. Never write a brand name, a slogan, a printed word or any text that appears on the clothing,',
+  'and never describe underwear or swimwear — in that case write the nearest ordinary outfit instead (e.g. "a plain white tee and shorts").',
   'Rules: count every visible person. "presentation" is how the person visually presents (clothing, hair, features) — do not guess identity.',
   '"minorPresent" is true if anyone looks clearly under 14. If the photo has no people, return {"people":[],"count":0,"primaryIndex":0,"minorPresent":false,"confidence":"high"}.',
 ].join(' ');
@@ -445,6 +448,26 @@ const GAZES = [
 ];
 /** 포즈가 이미 눈·시선·손에 든 것을 정해 놓았으면 시선 축을 붙이지 않는다 — 두 지시가 부딪히면 얼굴이 뭉개진다. */
 const POSE_FIXES_GAZE = /\b(eyes?|gaz\w*|look\w*|book|tablet|asleep|nap)\b/i;
+
+/**
+ * 사진에서 읽은 옷차림을 프롬프트에 넣을 수 있게 다듬는다.
+ * 비전 모델이 돌려주는 값이라 그대로 믿지 않는다 — 상표·문구·따옴표를 걷어내고 길이를 자른다.
+ * 걸러낼 게 남거나 너무 짧으면 null 을 돌려 기본 문구('comfortable home clothes')로 간다.
+ */
+function cleanOutfit(v) {
+  if (v == null) return null;
+  let s = String(v).replace(/[\x00-\x1F\x7F"'`]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  // 상표·프린트 문구가 섞여 들어오면 그 부분만 덜어낸다
+  s = s.replace(/\b(?:nike|adidas|puma|gucci|prada|supreme|uniqlo|the north face|new balance|carhartt|champion)\b/ig, '')
+       .replace(/\b(?:logo|brand|printed|graphic|slogan|lettering|text)\b[^,]*/ig, '')
+       .replace(/\s{2,}/g, ' ').replace(/\s*,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '');
+  if (s.length < 4) return null;
+  if (/\b(?:underwear|lingerie|swimsuit|bikini|naked|nude|topless)\b/i.test(s)) return null;
+  const words = s.split(' ');
+  if (words.length > 12) s = words.slice(0, 12).join(' ');
+  return s.length > 90 ? s.slice(0, 90).replace(/\s+\S*$/, '') : s;
+}
 /**
  * 시드 → 연출 묶음. 같은 응모는 재시도해도 같다.
  * theme='hanbok' 이면 인사말이 위쪽 28% 에 조판되므로, 제품·인물을 아래쪽으로 내리고 하늘이 넓게 남는 프레이밍만 쓴다.
@@ -527,7 +550,9 @@ function personDirective(analysis, theme, refs, chip, variety) {
     const art = /^[aeiou]/i.test(pres) ? 'an' : 'a';
     const feats = [p.hair ? `${p.hair} hair` : '', p.glasses ? 'glasses' : '', p.facialHair && p.facialHair !== 'none' ? `${p.facialHair} facial hair` : '',
       p.build ? `${p.build} build` : '', p.skinTone ? `${p.skinTone} skin tone` : '', p.notableItems].filter(Boolean).join(', ');
-    let outfit = 'comfortable home clothes';
+    // 실내복 테마는 사진에 입고 온 옷을 그대로 입힌다(결정 사항 — 얼굴만으로는 "내 모습" 이 안 산다).
+    // 한복 테마는 명절 옷이 목적이라 사진 옷을 무시한다.
+    let outfit = cleanOutfit(p.outfit) || 'comfortable home clothes';
     if (theme === 'hanbok') {
       if (p.ageGroup === 'child') outfit = 'a child\'s saekdong hanbok (rainbow-striped sleeves) with a small vest';
       else if (p.presentation === 'masculine') outfit = 'a men\'s hanbok: baji (trousers), jeogori (jacket) and a jokki vest in muted navy, grey and cream tones';
@@ -550,7 +575,11 @@ function personDirective(analysis, theme, refs, chip, variety) {
     'There is EXACTLY ONE Yogibo bean bag in the whole image. Do not add a second bean bag, cushion or floor seat. Plush Mate characters appear ONLY if the MATE section above asks for them.',
     around.length ? 'Arrange them in DEPTH, not in a row: the bean bag and whoever is on it sit higher in the frame; the others sit lower and nearer the viewer. Every face stays fully visible and unobstructed, and nobody covers the product fabric tag.' : '',
     'Keep each person\'s perceived gender presentation, age group, hair, glasses and build EXACTLY as described — never swap, add or "correct" them.',
-    photoRef ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look.` : '',
+    photoRef
+      ? (theme === 'hanbok'
+          ? `Use ${photoRef} only for who the people are; do NOT copy its background, furniture, clothing or photo look — everyone wears the hanbok described above.`
+          : `Use ${photoRef} for who the people are and roughly what they wear; do NOT copy its background, furniture, camera angle or photo look, and never copy any brand mark, logo or printed text from their clothes.`)
+      : '',
     'Faces are stylized anime-style characters, not photorealistic likenesses.'
       + (gaze ? ` The person on the product has ${gaze}.` : '')
       + (around.length ? ' The others look relaxed each in their own way rather than all wearing the same expression.' : ''),
@@ -593,4 +622,4 @@ function buildPrompt(p) {
   };
 }
 
-module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, POSES, PROPS, PROPS_HANBOK, CAMERAS, SHOTS, GAZES, AROUND_SPOTS, pickGreeting, pickMates, pickSetting, pickVariety, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };
+module.exports = { CHIP_EN, SIZE_EN, STYLE, SEATS, MAX_PEOPLE, GREETINGS, SCENE_POOL, POSES, PROPS, PROPS_HANBOK, CAMERAS, SHOTS, GAZES, AROUND_SPOTS, cleanOutfit, pickGreeting, pickMates, pickSetting, pickVariety, sanitizeSetting, sceneBriefPrompt, hashSeed, PHOTO_ANALYSIS_PROMPT, TAG_LOCATE_PROMPT, TAG_VERIFY_PROMPT, personDirective, productDirective, mateDirective, buildPrompt };

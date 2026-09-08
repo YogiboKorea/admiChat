@@ -485,6 +485,7 @@ function sanitizeAnalysis(a) {
     presentation: s(p && p.presentation, 12), ageGroup: s(p && p.ageGroup, 8), hair: s(p && p.hair),
     glasses: !!(p && (p.glasses === true || p.glasses === 'true')), facialHair: s(p && p.facialHair, 8),
     build: s(p && p.build, 8), skinTone: s(p && p.skinTone, 8), notableItems: s(p && p.notableItems),
+    outfit: s(p && p.outfit, 90),                    // 실내복 테마에서 그대로 입힌다 (한복 테마는 무시)
   }));
   const count = Number(a.count);
   return {
