@@ -248,7 +248,13 @@ function escXml(s) {
 }
 
 /** 부적절 표현 1차 자동 필터. 통과해도 갤러리 공개는 수동 검수 후다. */
-const BANNED = ['씨발', '시발', '병신', '좆', '개새', '섹스', 'ㅅㅂ', 'ㅄ', '자살', '죽어'];
+// 음절로 쓴 금칙어 — 원문과 자모 분해형 양쪽에서 찾는다 (표기 우회를 잡기 위해).
+const BANNED = ['씨발', '시발', '병신', '좆', '개새', '섹스', '자살', '죽어'];
+// 자모로만 쓴 축약어 — 사용자가 그대로 친 형태에서만 찾는다.
+//   분해형에서까지 찾으면 멀쩡한 글자가 걸린다. 받침이 그 모양이 되기 때문이다:
+//     없 → ㅇㅓ[ㅄ] · 값 → ㄱㅏ[ㅄ] · 맛보다 → ㅁㅏ[ㅅㅂ]ㅗㄷㅏ
+//   실제로 "아무 생각 없이 편안하게 잠들고 싶을 때" 가 이것 때문에 걸려 갤러리에서 빠졌다.
+const BANNED_SHORT = ['ㅅㅂ', 'ㅄ'];
 // 한글 음절을 호환 자모(초·중·종성)로 풀어 쓴다. '씨.발' '씨1발' 'ㅆㅣㅂㅏㄹ' 같은 우회를 같은 형태로 만들기 위해서다.
 const CHO  = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
 const JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
@@ -270,7 +276,9 @@ function looksInappropriate(text) {
   const base = String(text || '').toLowerCase().replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]/g, '');
   const noDigit = base.replace(/[0-9]/g, '');
   const forms = [base, noDigit, jamo(base), jamo(noDigit)];
-  return forms.some(f => BANNED_FORMS.some(w => w && f.includes(w)));
+  if (forms.some(f => BANNED_FORMS.some(w => w && f.includes(w)))) return true;
+  // 자모 축약어는 분해하지 않은 형태에서만 (분해형에서 찾으면 '없'·'값'·'맛보' 가 걸린다)
+  return [base, noDigit].some(f => BANNED_SHORT.some(w => f.includes(w)));
 }
 
 function withinEventPeriod(d) {
@@ -1287,6 +1295,19 @@ function mount(app, deps) {
       // 예전 버전이 failed 로 끝내며 남긴 분석 텍스트 정리 (한 번 지나가면 0건)
       const a = await db.collection(ENTRY_COLLECTION).updateMany({ status: 'failed', analysis: { $exists: true } }, { $unset: { analysis: '' } });
       if (a && a.modifiedCount) console.log(`[쉼순간] failed 건 분석 텍스트 ${a.modifiedCount}건 삭제`);
+
+      // 금칙어 판정이 고쳐진 뒤 — 예전 기준으로 잘못 걸렸던 건을 다시 봐서 되살린다.
+      // 관리자가 이미 손댄 건(reviewedAt)은 건드리지 않는다. 사람의 판단이 우선이다.
+      const stale = await db.collection(ENTRY_COLLECTION)
+        .find({ autoFlag: true, reviewedAt: { $exists: false } }).project({ sentence: 1 }).toArray();
+      let healed = 0;
+      for (const d of stale) {
+        if (looksInappropriate(d.sentence || '')) continue;          // 지금 기준으로도 걸리면 그대로 둔다
+        await db.collection(ENTRY_COLLECTION).updateOne({ _id: d._id },
+          { $set: Object.assign({ autoFlag: false }, REQUIRE_REVIEW ? {} : { approved: true }) });
+        healed++;
+      }
+      if (healed) console.log(`[쉼순간] 잘못 걸렸던 금칙어 플래그 ${healed}건 해제` + (REQUIRE_REVIEW ? '' : ' → 갤러리 공개'));
     } catch (e) { console.warn('[쉼순간] processing 복구 실패:', e.message); }
   }, 5000).unref();
 
