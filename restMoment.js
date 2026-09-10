@@ -505,6 +505,23 @@ function sanitizeAnalysis(a) {
 }
 
 /**
+ * 아이가 함께 있는 사진 — 아이의 생김새는 한 글자도 가져오지 않는다.
+ * "몇 번째 자리에 아이가 있었다" 는 사실과 남/여 정도만 남기고
+ * 머리·안경·수염·체격·피부톤·소지품·옷을 전부 비운다.
+ * 그러면 그림 속 아이는 그 아이를 닮지 않은 임의의 캐릭터가 되고, 가족이 함께 있는 구도만 살아난다.
+ * 어른은 본인이 동의하고 올린 것이므로 브리프를 그대로 둔다.
+ * 사진 원본은 어차피 참조로 넣지 않는다(minorFlag → usePhoto=false) — 아이 얼굴이 생성 모델에 가지 않는다.
+ */
+function genericizeMinors(a) {
+  if (!a || !Array.isArray(a.people)) return a;
+  const people = a.people.map(p => (p && (p.ageGroup === 'child' || p.ageGroup === 'teen'))
+    ? { presentation: p.presentation || 'ambiguous', ageGroup: p.ageGroup,
+        hair: '', glasses: false, facialHair: 'none', build: '', skinTone: '', notableItems: '', outfit: '' }
+    : p);
+  return Object.assign({}, a, { people });
+}
+
+/**
  * 접수 시점 분석 — 사진은 메모리에만 두지만 "몇 명 · 어떤 모습"은 문서에 남긴다.
  * 재배포·재시작(processing→pending 복구)이나 대기 만료로 메모리 사진이 사라져도 인원 구성은 지켜진다
  * (닮은꼴 참조만 빠진다). 예전엔 이 경우 조용히 1인 기본 인물로 그려졌다.
@@ -519,7 +536,9 @@ async function preAnalyzePhoto(file) {
   if (!raw) return { analysis: null, keep: true, minor: false, note };
   const analysis = sanitizeAnalysis(raw);
   if (!analysis) return { analysis: null, keep: true, minor: false, note: 'analyze_deferred' };
-  if (analysis.minorPresent) return { analysis: null, keep: false, minor: true, note: 'minor' };
+  // 아이가 보이면 사진은 여기서 끝(보관도 참조도 안 한다). 다만 "아이가 함께 있었다" 는 사실은 남겨
+  // 임의의 아이 캐릭터로 함께 그린다 — 가족 사진을 올린 분이 혼자 있는 그림을 받지 않게.
+  if (analysis.minorPresent) return { analysis: genericizeMinors(analysis), keep: false, minor: true, note: 'minor' };
   if (!(analysis.count > 0)) return { analysis: null, keep: false, minor: false, note: 'no_people' };
   return { analysis, keep: true, minor: false, note: null };
 }
@@ -923,7 +942,8 @@ function cropPoster(buf, theme) {
 /**
  * 응모 한 건의 장면을 그린다.
  * 참조: 제품(칩의 시드 일러스트 — 형태·색), 메이트 팍스, (있으면) 고객 사진.
- * 14세 미만이 보이면 사진을 쓰지 않고 minorFlag 만 남긴다.
+ * 14세 미만이 보이면 사진을 참조로 쓰지 않는다(minorFlag). 아이는 생김새를 가져오지 않고
+ * 임의의 캐릭터로 그리되, 함께 있었다는 구성은 살린다 — genericizeMinors 참고.
  */
 async function generateScene(doc, chip, base, photo) {
   const key = process.env.OPENAI_API_KEY;
@@ -937,7 +957,7 @@ async function generateScene(doc, chip, base, photo) {
     // 접수 때 분석이 안 된 건(비전 일시 오류) — 사진이 있으니 여기서 한다.
     try { analysis = sanitizeAnalysis(await analyzePhoto(photo)); }
     catch (e) { console.warn(`[쉼순간] ${doc._id} 사진 분석 실패 → 사진 없이 진행:`, e.message); analysis = null; usePhoto = false; }
-    if (analysis && analysis.minorPresent) { minorFlag = true; usePhoto = false; analysis = null; }
+    if (analysis && analysis.minorPresent) { minorFlag = true; usePhoto = false; analysis = genericizeMinors(analysis); }
     if (analysis && !(analysis.count > 0)) { usePhoto = false; analysis = null; }
   } else if (!usePhoto && doc.hadPhoto && !minorFlag && doc.photoNote !== 'no_people') {
     // 사진을 첨부했는데 지금 손에 없다 — 재배포(processing→pending 복구)나 30분 대기 만료. 예전엔 여기서 조용히 1인 기본으로 갔다.
@@ -2013,6 +2033,7 @@ module.exports = {
   CHIPS,
   publicName,
   looksInappropriate,
+  genericizeMinors,
 };
 
 // 테스트·운영 점검용 내부 진입점 (라우트에는 쓰지 않는다)
