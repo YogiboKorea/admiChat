@@ -1492,6 +1492,38 @@ function mount(app, deps) {
     }
   });
 
+  // ── 내가 만든 그림 ── 결과 화면을 닫은 뒤에도 다시 보고 공유할 수 있게. 완성된 것만 최신순.
+  //    memberId 는 페이지가 아는 값(클라이언트 값)이라 남의 아이디를 넣어 볼 수는 있지만,
+  //    돌려주는 건 갤러리에 이미 공개되는 문장·그림뿐이다 — 아이디·적립·사진 정보는 넣지 않는다.
+  app.get('/api/rest-moment/mine', allowRead, async (req, res) => {
+    try {
+      const db = getDb();
+      const mid = normId(req.query.memberId);
+      if (!mid) return res.json({ ok: true, total: 0, items: [] });
+      const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 30);
+      const rows = await db.collection(ENTRY_COLLECTION)
+        .find({ memberId: mid, status: 'done', imageUrl: { $ne: null } })
+        .sort({ doneAt: -1 }).limit(limit).toArray();
+      return res.json({
+        ok: true,
+        total: rows.length,
+        items: rows.map(d => ({
+          id: String(d._id),
+          date: d.doneAt ? ymd(d.doneAt) : null,
+          theme: d.theme || 'interior',
+          type: d.type,
+          caption: d.sentence,
+          imageUrl: d.imageUrl,
+          shareUrl: d.shareUrl || d.imageUrl,     // 카카오 공유·저장은 문장이 조판된 카드로
+          approved: !!d.approved,                 // false 면 검수 중 — 갤러리에는 아직 안 보인다
+        })),
+      });
+    } catch (err) {
+      console.error('[쉼순간] 내 그림 조회 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   // ── 갤러리 · 미리보기 (검수 통과분만) ──
   app.get('/api/rest-moment/recent', allowRead, async (req, res) => {
     try {
