@@ -38,7 +38,11 @@ const MAX_SENTENCE = 60;
 const POINT_AMOUNT = Number(process.env.REST_MOMENT_POINT || 3000);
 const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 // 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
-const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
+// 계정당 그림 만들기 횟수. 0 = 무제한이 기본값 (2026-09-14 결정 — 회원도 횟수 제한 없이 만든다. MD 확정).
+// 생성비는 전체 상한(REST_MOMENT_MAX_GEN)·일일 상한(REST_MOMENT_DAILY_GEN)이 막는다.
+// 다시 계정당 제한을 걸려면 REST_MOMENT_MAX_PER_MEMBER=3 처럼 숫자를 준다.
+const MAX_PER_MEMBER = Math.max(0, Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 0) || 0);
+const PER_MEMBER_UNLIMITED = MAX_PER_MEMBER === 0;
 // 회원 전용. 기본 1 — 비회원 접수를 받지 않는다(페이지는 "회원만 이용할 수 있는 혜택" + 로그인으로 안내).
 // 비회원 참여 — 기본 허용 (2026-09-14 결정). 비회원은 적립금 없이 그림만 받고,
 // 로그인하면 접수 때 받은 claimToken 으로 그 응모의 적립금을 받는다.
@@ -1162,7 +1166,9 @@ function usedFilter(mid) { return { memberId: mid, $or: [{ status: { $ne: 'faile
 
 /** 아이디의 생성 횟수·적립 상태 — 폼 아래 "3회 중 N회 남음", 결과 화면 "적립금 지급완료" 표시용. 마스터는 무제한. */
 async function quotaFor(db, mid) {
-  const base = { loggedIn: false, unlimited: false, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, done: 0, rewarded: false, membersOnly: MEMBERS_ONLY };
+  // unlimited = 이 사람에게 횟수 제한이 없다(마스터이거나 전체 무제한). master = 관리자 아이디 — 페이지가 "관리자 계정" 표시를 이것으로만 띄운다
+  const base = { loggedIn: false, unlimited: PER_MEMBER_UNLIMITED, master: false, max: MAX_PER_MEMBER, used: 0,
+                 left: PER_MEMBER_UNLIMITED ? null : MAX_PER_MEMBER, done: 0, rewarded: false, membersOnly: MEMBERS_ONLY };
   if (!mid) return base;
   // done = 완성된 응모 수. 참여는 했는데 적립금을 안 받은 회원에게 페이지 하단 "적립금 받기" 바를 띄우는 기준이다.
   const [used, done, reward] = await Promise.all([
@@ -1173,7 +1179,8 @@ async function quotaFor(db, mid) {
   const master = isMasterId(mid);
   // settled 가 없는 옛 기록은 지급 완료로 본다 (적립 라우트와 같은 기준)
   const rewarded = !!reward && (reward.settled === true || reward.settled === undefined);
-  return Object.assign(base, { loggedIn: true, unlimited: master, used, done, left: master ? null : Math.max(0, MAX_PER_MEMBER - used), rewarded });
+  const free = master || PER_MEMBER_UNLIMITED;
+  return Object.assign(base, { loggedIn: true, unlimited: free, master, used, done, left: free ? null : Math.max(0, MAX_PER_MEMBER - used), rewarded });
 }
 
 async function processOne(db, doc) {
@@ -1409,7 +1416,7 @@ function mount(app, deps) {
         }
         // 아이디당 최대 횟수. 실패한 건은 사용자 탓이 아니므로 세지 않는다.
         const master = isMasterId(mid);              // 무제한 생성 — 키 없이 아이디만으로
-        if (mid && !master) {
+        if (mid && !master && !PER_MEMBER_UNLIMITED) {         // 무제한(기본)이면 세지 않는다
           const used = await db.collection(ENTRY_COLLECTION).countDocuments(usedFilter(mid));
           if (used >= MAX_PER_MEMBER) {
             return res.status(400).json({ ok: false, limitReached: true,
@@ -1449,7 +1456,7 @@ function mount(app, deps) {
 
         // 세고 넣는 사이의 경합을 막는다. 넣은 뒤 자기 순번(_id 순)이 한도를 넘으면 자기 것만 지운다 —
         // 단순 재카운트로 지우면 동시 2건이 서로를 보고 둘 다 사라져 남은 자리도 못 쓴다.
-        if (mid && !master) {
+        if (mid && !master && !PER_MEMBER_UNLIMITED) {
           const rank = await db.collection(ENTRY_COLLECTION)
             .countDocuments(Object.assign(usedFilter(mid), { _id: { $lte: insertedId } }));
           if (rank > MAX_PER_MEMBER) {
