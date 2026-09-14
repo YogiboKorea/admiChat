@@ -40,8 +40,11 @@ const EVENT_END = process.env.REST_MOMENT_END || '2026-09-27';
 // 아이디당 생성 횟수. 마스터 아이디는 검수·테스트용이라 제한을 받지 않는다.
 const MAX_PER_MEMBER = Number(process.env.REST_MOMENT_MAX_PER_MEMBER || 3);
 // 회원 전용. 기본 1 — 비회원 접수를 받지 않는다(페이지는 "회원만 이용할 수 있는 혜택" + 로그인으로 안내).
-// REST_MOMENT_MEMBERS_ONLY=0 이면 옛 동작(비회원 접수 후 가입 시 claimToken 으로 지급).
-const MEMBERS_ONLY = !/^(0|false|no|off)$/i.test(String(process.env.REST_MOMENT_MEMBERS_ONLY == null ? '1' : process.env.REST_MOMENT_MEMBERS_ONLY));
+// 비회원 참여 — 기본 허용 (2026-09-14 결정). 비회원은 적립금 없이 그림만 받고,
+// 로그인하면 접수 때 받은 claimToken 으로 그 응모의 적립금을 받는다.
+// 비회원은 계정 한도(3회)가 없으므로 생성 장수는 전체 상한(REST_MOMENT_MAX_GEN)·일일 상한이 막는다.
+// 다시 회원 전용으로 돌리려면 REST_MOMENT_MEMBERS_ONLY=1.
+const MEMBERS_ONLY = /^(1|true|yes|on)$/i.test(String(process.env.REST_MOMENT_MEMBERS_ONLY || ''));
 // 회원 아이디 정규화 — Cafe24 아이디는 영문 소문자·숫자라 소문자로 맞춘다.
 // 'TestId' 처럼 대소문자만 바꿔 다른 아이디 행세(적립 이중 지급·횟수 우회)를 못 하게 접수·적립·조회가 전부 이걸 거친다.
 function normId(v) {
@@ -1159,16 +1162,18 @@ function usedFilter(mid) { return { memberId: mid, $or: [{ status: { $ne: 'faile
 
 /** 아이디의 생성 횟수·적립 상태 — 폼 아래 "3회 중 N회 남음", 결과 화면 "적립금 지급완료" 표시용. 마스터는 무제한. */
 async function quotaFor(db, mid) {
-  const base = { loggedIn: false, unlimited: false, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, rewarded: false, membersOnly: MEMBERS_ONLY };
+  const base = { loggedIn: false, unlimited: false, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, done: 0, rewarded: false, membersOnly: MEMBERS_ONLY };
   if (!mid) return base;
-  const [used, reward] = await Promise.all([
+  // done = 완성된 응모 수. 참여는 했는데 적립금을 안 받은 회원에게 페이지 하단 "적립금 받기" 바를 띄우는 기준이다.
+  const [used, done, reward] = await Promise.all([
     db.collection(ENTRY_COLLECTION).countDocuments(usedFilter(mid)),
+    db.collection(ENTRY_COLLECTION).countDocuments({ memberId: mid, status: 'done' }),
     db.collection(REWARD_COLLECTION).findOne({ memberId: mid }, { projection: { settled: 1 } }),
   ]);
   const master = isMasterId(mid);
   // settled 가 없는 옛 기록은 지급 완료로 본다 (적립 라우트와 같은 기준)
   const rewarded = !!reward && (reward.settled === true || reward.settled === undefined);
-  return Object.assign(base, { loggedIn: true, unlimited: master, used, left: master ? null : Math.max(0, MAX_PER_MEMBER - used), rewarded });
+  return Object.assign(base, { loggedIn: true, unlimited: master, used, done, left: master ? null : Math.max(0, MAX_PER_MEMBER - used), rewarded });
 }
 
 async function processOne(db, doc) {
@@ -1611,6 +1616,7 @@ function mount(app, deps) {
           type: d.type,
           imageUrl: d.imageUrl,
           displayId: d.displayId || null,
+          guest: !d.memberId,                      // 비회원이 만든 그림 — 갤러리에 "비회원" 아이콘으로 표시한다
         })),
       });
     } catch (err) {
