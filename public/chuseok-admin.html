@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>추석 AI 사진관 관리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+/* 내부 운영 도구 — 「나의 쉼 순간」 관리 페이지(/rest-admin.html)와 같은 모양·방식. 밝은 테마 하나로 고정한다. */
+:root{
+  --font:Pretendard,"Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --bg:#F5F6F7; --card:#FFFFFF; --surface:#F0F1F3; --surface-2:#E6E8EB; --line:#E2E4E7; --line-2:#CFD3D8;
+  --ink:#1A1A1A; --ink-2:#3A3A3A; --ink-3:#6D6D6D; --ink-4:#9A9A9A;
+  --aqua:#0075BD; --aqua-ink:#005F9E; --aqua-050:#E7F2FA; --aqua-deep:#00568F;
+  --night:#161D45; --moon:#C99A1E; --moon-050:#FBF3DD;
+  --ok:#1E7F4F; --ok-050:#E6F4EC; --warn:#9A6200; --warn-050:#FFF4DE; --bad:#B42318; --bad-050:#FDECEA;
+  --r:10px; --r-lg:16px; --pill:999px;
+  --shadow:0 1px 2px rgba(20,26,32,.05),0 8px 20px -14px rgba(20,26,32,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0;margin:0}
+a{color:var(--aqua-ink);text-decoration:none}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--surface);padding:1px 6px;border-radius:6px;color:var(--ink-2)}
+.wrap{max-width:1300px;margin:0 auto;padding:0 20px 80px}
+
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:5;background:rgba(245,246,247,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1300px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.top h1 i{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 40% 38%,#FFF1C4 0,#F6D77A 60%,#E9B949 100%);box-shadow:0 0 0 3px rgba(246,215,122,.25)}
+.top .sp{flex:1}
+.key{display:flex;gap:6px;align-items:center}
+.key input{height:36px;width:220px;max-width:50vw;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);outline:none}
+.key input:focus{border-color:var(--aqua);box-shadow:0 0 0 3px rgba(0,117,189,.18)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r);font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink-2);transition:background-color .14s linear,transform .2s cubic-bezier(.34,1.4,.64,1)}
+.btn:hover{background:#DCDFE3}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,.tab:focus-visible,select:focus-visible{outline:2px solid var(--aqua);outline-offset:2px}
+.btn.pri{background:var(--aqua);color:#fff}
+.btn.pri:hover{background:var(--aqua-deep)}
+.btn.ok{background:var(--ok-050);color:var(--ok)}
+.btn.warn{background:var(--warn-050);color:var(--warn)}
+.btn.bad{background:var(--bad-050);color:var(--bad)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px;border-radius:8px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.status{font-size:12px;color:var(--ink-3);min-height:1em}
+.status.err{color:var(--bad);font-weight:600}
+
+/* 요약 타일 */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:20px}
+@media(min-width:600px){.tiles{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:960px){.tiles{grid-template-columns:repeat(6,1fr)}}
+.tile{background:var(--card);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.tile .l{font-size:12px;font-weight:600;color:var(--ink-3)}
+.tile .v{margin-top:4px;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:12px;font-weight:600;color:var(--ink-3);margin-left:4px}
+.tile.warn .v{color:var(--warn)}
+.tile.bad .v{color:var(--bad)}
+.tile.aqua .v{color:var(--aqua-ink)}
+.tile .bar{margin-top:8px;height:5px;border-radius:var(--pill);background:var(--surface-2);overflow:hidden}
+.tile .bar i{display:block;height:100%;background:var(--aqua);border-radius:var(--pill)}
+.tile .bar i.hot{background:var(--bad)}
+.cfg{margin-top:10px;font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 14px}
+.cfg b{color:var(--ink-2);font-weight:600}
+
+/* 섹션 */
+section{margin-top:28px}
+.sec-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sec-h h2{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em}
+.sec-h .sp{flex:1}
+.tabs{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--surface-2);border-radius:14px}
+.tab{height:30px;padding:0 12px;border-radius:var(--pill);font-size:13px;font-weight:700;color:var(--ink-3)}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--card);color:var(--aqua-ink);box-shadow:0 1px 2px rgba(20,26,32,.08)}
+.tab b{margin-left:4px;font-size:11px;color:var(--ink-4);font-variant-numeric:tabular-nums}
+.search,.sel{height:34px;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);outline:none}
+.search{width:220px;max-width:100%}
+.search:focus,.sel:focus{border-color:var(--aqua)}
+
+/* 응모 목록 */
+.list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:64px 1fr;gap:12px;background:var(--card);border-radius:var(--r-lg);padding:10px 12px;box-shadow:var(--shadow)}
+@media(min-width:860px){.row{grid-template-columns:64px 1fr auto;align-items:center}}
+.thumb{width:64px;height:80px;border-radius:8px;background:var(--surface-2) center/cover no-repeat;display:block;flex:none}
+.thumb.none{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-4);text-align:center}
+.body .s{font-size:14px;font-weight:600;color:var(--ink);line-height:1.45}
+.body .s .lbl{color:var(--ink-3);font-weight:500}
+.body .m{margin-top:4px;font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.pill{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--pill);font-size:11px;font-weight:700;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.pill.ok{background:var(--ok-050);color:var(--ok)}
+.pill.warn{background:var(--warn-050);color:var(--warn)}
+.pill.bad{background:var(--bad-050);color:var(--bad)}
+.pill.aqua{background:var(--aqua-050);color:var(--aqua-ink)}
+.pill.moon{background:var(--moon-050);color:#7C5300}
+.pill.night{background:var(--night);color:#FFF1C4}
+.acts{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1}
+@media(min-width:860px){.acts{grid-column:auto;justify-content:flex-end}}
+.empty{margin-top:12px;padding:28px;text-align:center;color:var(--ink-3);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.more{margin:12px auto 0;display:flex;width:100%;max-width:320px}
+
+/* 정산 */
+.rrow{background:var(--card);border-radius:var(--r-lg);padding:12px 14px;box-shadow:var(--shadow);display:grid;gap:8px}
+@media(min-width:800px){.rrow{grid-template-columns:1fr auto;align-items:center}}
+.rrow .m{font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px}
+.rrow .err{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--bad);word-break:break-all}
+.note{margin-top:8px;font-size:12px;color:var(--ink-3);line-height:1.6}
+.note b{color:var(--ink-2)}
+.locked{padding:60px 20px;text-align:center;color:var(--ink-3)}
+.locked .t{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){ *{transition-duration:.01ms!important} }
+</style>
+</head>
+<body>
+
+<div class="top"><div class="in">
+  <h1><i></i>추석 AI 사진관 관리</h1>
+  <span class="status" id="status" role="status"></span>
+  <span class="sp"></span>
+  <form class="key" id="keyform" autocomplete="off">
+    <input type="password" id="key" placeholder="관리 키" aria-label="관리 키">
+    <button type="submit" class="btn pri">연결</button>
+    <button type="button" class="btn" id="logout" hidden>끊기</button>
+  </form>
+</div></div>
+
+<div class="wrap">
+
+  <div class="locked" id="locked">
+    <div class="t">관리 키를 입력하면 열립니다</div>
+    서버 환경변수 <code>CHUSEOK_ADMIN_KEY</code> 와 같은 값입니다. 따로 두지 않았다면 「나의 쉼 순간」 관리 키(<code>REST_MOMENT_ADMIN_KEY</code>)와 같습니다.
+  </div>
+
+  <div id="app" hidden>
+    <div class="tiles" id="tiles"></div>
+    <div class="cfg" id="cfg"></div>
+
+    <section>
+      <div class="sec-h">
+        <h2>만든 사진</h2>
+        <div class="tabs" role="tablist" id="tabs">
+          <button class="tab" role="tab" data-view="public" aria-selected="true">갤러리 공개 중<b id="n-public"></b></button>
+          <button class="tab" role="tab" data-view="hidden" aria-selected="false">숨김<b id="n-hidden"></b></button>
+          <button class="tab" role="tab" data-view="private" aria-selected="false">나만 보기<b id="n-private"></b></button>
+          <button class="tab" role="tab" data-view="working" aria-selected="false">생성 중<b id="n-working"></b></button>
+          <button class="tab" role="tab" data-view="failed" aria-selected="false">실패<b id="n-failed"></b></button>
+          <button class="tab" role="tab" data-view="marketing" aria-selected="false" title="(선택) 광고·홍보 활용에 동의한 완성 건">📣 홍보 동의<b id="n-marketing"></b></button>
+          <button class="tab" role="tab" data-view="all" aria-selected="false">전체<b id="n-total"></b></button>
+        </div>
+        <span class="sp"></span>
+        <select class="sel" id="type" aria-label="종류">
+          <option value="">모든 종류</option>
+          <option value="card">한가위 축전</option>
+          <option value="studio">한가위 사진관</option>
+          <option value="pet">댕냥이 한복</option>
+          <option value="moon">달나라 떡방아</option>
+        </select>
+        <input class="search" id="q" placeholder="아이디 · 인사말 검색" aria-label="검색">
+        <button class="btn" id="refresh">새로고침</button>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="empty" id="empty" hidden>해당하는 사진이 없습니다.</div>
+      <button class="btn more" id="more" hidden>더 보기</button>
+      <p class="note">
+        <b>갤러리 공개 중</b>은 고객이 "공개할게요"를 골라 갤러리에 보이는 사진입니다. <b>숨김</b>을 누르면 갤러리에서만 빠지고(고객의 '내가 만든 사진'에는 남음), 그 회원의 <b>공개 보너스 +1장</b>도 빠집니다. <b>되돌리기</b>로 다시 공개할 수 있습니다.<br>
+        <b>삭제</b>는 기록과 이미지 파일을 모두 지웁니다 — 되돌릴 수 없습니다. 갤러리에서만 빼려면 <b>숨김</b>을 쓰세요. 완성·진행 중 건을 지우면 회원의 만들기 횟수가 하나 돌아가고, 적립 기록은 그대로 둡니다.
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-h">
+        <h2>적립 확인 (예외 건만)</h2>
+        <span class="pill warn" id="rw-count" hidden></span>
+        <span class="sp"></span>
+        <label style="font-size:12px;color:var(--ink-3)"><input type="checkbox" id="rw-all"> 전체 적립 기록 보기</label>
+      </div>
+      <div class="list" id="rw-list"></div>
+      <div class="empty" id="rw-empty" hidden>확인할 건이 없습니다 — 적립은 전부 자동으로 잘 들어갔습니다.</div>
+      <button class="btn more" id="rw-more" hidden>더 보기</button>
+      <p class="note">
+        적립금은 고객이 결과 화면에서 버튼을 누르면 <b>자동으로 지급</b>됩니다(아이디당 1회). 평소엔 여기가 비어 있는 게 정상입니다.<br>
+        여기에 뜨는 건 Cafe24 적립 API 를 불렀는데 <b>응답이 오지 않아 들어갔는지 모르는 건(결과 불명)</b>입니다.
+        Cafe24 어드민 &gt; 회원 &gt; 적립금 내역에서 확인한 뒤 — 들어갔으면 <b>지급 확인</b>(기록만 확정), 안 들어갔으면 <b>미지급 확인</b>(기록 삭제 → 회원이 다시 받을 수 있음).
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = '';                                    // 같은 서버가 서빙하므로 상대 경로
+  var KEY_STORE = 'chuseok_admin_key';
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+  var TYPE_LABEL = { card:'한가위 축전', studio:'한가위 사진관', pet:'댕냥이 한복', moon:'달나라 떡방아' };
+
+  var key = '';
+  try { key = sessionStorage.getItem(KEY_STORE) || ''; } catch (e) {}
+
+  function setStatus(msg, bad) { var el = $('#status'); el.textContent = msg || ''; el.className = 'status' + (bad ? ' err' : ''); }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { 'x-chuseok-admin-key': key };
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    return fetch(API + path, { method: opts.method || 'GET', headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (r.status === 401 || (r.status === 403 && d.notConfigured)) {
+            key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {}
+            lock(d.message || '관리 키가 맞지 않습니다.');
+            var ae = new Error(d.message || '인증 실패'); ae.auth = true; throw ae;
+          }
+          if (!r.ok || d.ok === false) { var e2 = new Error(d.message || ('요청 실패 (' + r.status + ')')); e2.status = r.status; throw e2; }
+          return d;
+        });
+      });
+  }
+  function fail(err, fallback) { if (err && err.auth) return; setStatus((err && err.message) || fallback || '처리에 실패했습니다.', true); }
+
+  /* createdAt/doneAt 은 서버가 KST 로 옮긴 시각(ISO 로 오면 그대로 자른다), reservedAt 등은 UTC → KST 로 */
+  function fmtKst(v) { if (!v) return ''; return String(v).replace('T', ' ').slice(5, 16); }
+  function fmtUtc(v) { if (!v) return ''; try { return new Date(v).toLocaleString('ko-KR', { timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }); } catch (e) { return String(v); } }
+
+  function lock(msg) { $('#app').hidden = true; $('#locked').hidden = false; $('#logout').hidden = true; setStatus(msg || '', !!msg); }
+  function unlock() { $('#app').hidden = false; $('#locked').hidden = true; $('#logout').hidden = false; setStatus('연결됨'); loadStats(); loadEntries(true); loadRewards(false); }
+
+  $('#keyform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var k = $('#key').value.trim();
+    if (!k) return;
+    if (/[^\x21-\x7E]/.test(k)) { setStatus('관리 키는 영문·숫자·기호만 됩니다 (한글·공백 불가).', true); return; }
+    key = k;
+    api('/api/chuseok/admin/stats')
+      .then(function () { try { sessionStorage.setItem(KEY_STORE, key); } catch (x) {} $('#key').value = ''; unlock(); })
+      .catch(function (err) { fail(err, '연결에 실패했습니다.'); });
+  });
+  $('#logout').addEventListener('click', function () { key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {} lock(''); });
+
+  /* ── 통계 ── */
+  function tile(l, v, cls, small, bar) {
+    return '<div class="tile ' + (cls || '') + '"><div class="l">' + l + '</div><div class="v">' + v + (small ? '<small>' + small + '</small>' : '') + '</div>' + (bar || '') + '</div>';
+  }
+  function loadStats() {
+    return api('/api/chuseok/admin/stats').then(function (d) {
+      var e = d.entries, r = d.rewards, g = d.gen, c = d.config;
+      var pct = g.maxTotal ? Math.min(100, Math.round(g.total / g.maxTotal * 100)) : 0;
+      $('#tiles').innerHTML =
+        tile('응모', e.total, '', d.members + '명') +
+        tile('완성', e.done, 'aqua', e.failed ? '실패 ' + e.failed : '') +
+        tile('갤러리 공개 중', e.public, '', e.hidden ? '숨김 ' + e.hidden : '') +
+        tile('생성 수', g.total, g.allowed ? '' : 'bad', g.maxTotal ? '/ ' + g.maxTotal.toLocaleString() + ' · 오늘 ' + g.today : '오늘 ' + g.today,
+          g.maxTotal ? '<div class="bar"><i class="' + (pct >= 90 ? 'hot' : '') + '" style="width:' + pct + '%"></i></div>' : '') +
+        tile('적립 완료', r.settled, '', (r.points || 0).toLocaleString() + '원') +
+        tile('적립 확인 필요', r.problem, r.problem ? 'bad' : '');
+      var bt = e.byType || {};
+      $('#cfg').innerHTML =
+        '<span>종류: 축전 <b>' + (bt.card || 0) + '</b> · 사진관 <b>' + (bt.studio || 0) + '</b> · 댕냥이 <b>' + (bt.pet || 0) + '</b> · 떡방아 <b>' + (bt.moon || 0) + '</b></span>' +
+        '<span>회원당 <b>' + c.maxPerMember + '장</b> (공개 +' + c.publicBonus + ')</span>' +
+        '<span>관리자 아이디: <b>' + esc((c.masterIds || []).join(', ')) + '</b></span>' +
+        '<span>메이트 등장 <b>' + c.mateRate + '%</b> · AI 표기 <b>' + (c.watermark ? '켬' : '끔') + '</b></span>' +
+        '<span>적립 <b>' + (c.pointAmount || 0).toLocaleString() + '원</b> · 종료 <b>' + esc(c.eventEnd) + '</b></span>' +
+        '<span>평균 생성 <b>' + c.avgGenSec + '초</b> · ' + esc(c.model) + ' ' + esc(c.quality) + '</span>' +
+        (e.minor ? '<span>아이 사진 → 캐릭터 대체 <b>' + e.minor + '건</b></span>' : '') +
+        (!g.allowed ? '<span style="color:var(--bad);font-weight:700">생성 상한 도달 — 새 접수는 과금 없이 실패 처리됩니다</span>' : '');
+      $('#n-public').textContent = e.public || '';
+      $('#n-hidden').textContent = e.hidden || '';
+      $('#n-private').textContent = e.private || '';
+      $('#n-working').textContent = (e.pending + e.processing) || '';
+      $('#n-failed').textContent = e.failed || '';
+      $('#n-marketing').textContent = e.marketing || '';
+      $('#n-total').textContent = e.total || '';
+      $('#rw-count').textContent = r.problem ? r.problem + '건' : '';
+      $('#rw-count').hidden = !r.problem;
+    }).catch(function (err) { fail(err, '통계를 불러오지 못했습니다.'); });
+  }
+
+  /* ── 목록 ── */
+  var view = 'public', type = '', offset = 0, items = [], hasMore = false, req = 0, qtext = '';
+  function statusPill(it) {
+    if (it.status === 'done') return '<span class="pill ok">완성</span>';
+    if (it.status === 'failed') return '<span class="pill bad">실패' + (it.tries ? ' ×' + it.tries : '') + '</span>';
+    return '<span class="pill">' + (it.status === 'pending' ? '대기' : '생성 중') + '</span>';
+  }
+  function visPill(it) {
+    if (it.status !== 'done') return it.public ? '<span class="pill">공개 선택</span>' : '';
+    if (it.hidden) return '<span class="pill warn">숨김</span>';
+    return it.public ? '<span class="pill ok">갤러리 공개</span>' : '<span class="pill">나만 보기</span>';
+  }
+  function detail(it) {
+    if (it.type === 'card') return it.greeting ? '&ldquo;' + esc(it.greeting) + '&rdquo;' : '<span class="lbl">(인사말 없음)</span>';
+    if (it.type === 'pet') return '<span class="lbl">' + esc(TYPE_LABEL.pet) + '</span> · ' + esc(it.species === 'cat' ? '고양이' : it.species === 'dog' ? '강아지' : '반려동물') + ' · ' + (it.petGender === 'girl' ? '여아' : '남아') + ' 한복';
+    return '<span class="lbl">' + esc(TYPE_LABEL[it.type] || it.typeLabel || it.type) + '</span>';
+  }
+  function row(it) {
+    var thumb = it.imageUrl
+      ? '<a class="thumb" href="' + esc(it.imageUrl) + '" target="_blank" rel="noopener" style="background-image:url(' + esc(it.imageUrl) + ')" aria-label="이미지 크게 열기"></a>'
+      : '<div class="thumb none">' + (it.status === 'failed' ? '실패' : '생성 중') + '</div>';
+    var canHide = it.status === 'done' && it.public;
+    return '<div class="row" data-id="' + esc(it.id) + '">' + thumb +
+      '<div class="body"><div class="s">' + detail(it) + '</div>' +
+      '<div class="m"><code>' + esc(it.memberId || '-') + '</code>' +
+        (it.master ? '<span class="pill aqua">관리자</span>' : '') +
+        (it.displayId ? '<span>표시 ' + esc(it.displayId) + '</span>' : '') +
+        '<span class="pill night">' + esc(TYPE_LABEL[it.type] || it.type) + '</span>' +
+        statusPill(it) + visPill(it) +
+        (it.minorFlag ? '<span class="pill warn" title="14세 미만이 보여 사진 대신 캐릭터로 그렸습니다">아이 → 캐릭터</span>' : '') +
+        (it.mate && it.mate !== 'none' ? '<span class="pill moon">메이트 ' + (it.mate === 'fox' ? '팍스' : '티렉스') + '</span>' : '') +
+        (it.agreeMarketing ? '<span class="pill ok" title="(선택) 광고·홍보 활용에 동의함">📣 홍보 동의</span>' : '') +
+        (it.rewarded ? '<span class="pill aqua">적립 완료</span>' : '') +
+        (it.chargeUnknown ? '<span class="pill warn" title="보낸 뒤 응답을 못 받아 과금 여부를 모릅니다 — 예산엔 세고 회원 횟수엔 안 셉니다">과금 불명</span>' : '') +
+        (it.lastError ? '<span class="pill bad" title="' + esc(it.lastError) + '">⚠ ' + esc(String(it.lastError).slice(0, 60)) + '</span>' : '') +
+        '<span>' + fmtKst(it.createdAt) + '</span>' +
+      '</div></div>' +
+      '<div class="acts">' +
+        (canHide ? (it.hidden
+          ? '<button class="btn sm ok" data-act="unhide">되돌리기</button>'
+          : '<button class="btn sm warn" data-act="hide">숨김</button>') : '') +
+        (it.imageUrl ? '<a class="btn sm" href="' + esc(it.imageUrl) + '" target="_blank" rel="noopener">원본</a>' : '') +
+        '<button class="btn sm bad" data-act="delete">삭제</button>' +
+      '</div></div>';
+  }
+  function paint() {
+    $('#list').innerHTML = items.map(row).join('');
+    $('#empty').hidden = !!items.length;
+    $('#more').hidden = !hasMore;
+    $('#more').disabled = false; $('#more').textContent = '더 보기';
+  }
+  function loadEntries(reset) {
+    if (reset) { offset = 0; items = []; hasMore = false; }
+    var my = ++req;
+    if (!reset) { $('#more').disabled = true; $('#more').textContent = '불러오는 중…'; }
+    return api('/api/chuseok/admin/entries?view=' + view + (type ? '&type=' + type : '') + '&offset=' + offset + '&limit=30' + (qtext ? '&q=' + encodeURIComponent(qtext) : ''))
+      .then(function (d) {
+        if (my !== req) return;
+        items = items.concat(d.items || []); offset += (d.items || []).length; hasMore = !!d.hasMore;
+        paint();
+      }).catch(function (err) { if (my === req) { paint(); fail(err, '목록을 불러오지 못했습니다.'); } });
+  }
+  $$('#tabs .tab').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('#tabs .tab').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      view = b.getAttribute('data-view'); loadEntries(true);
+    });
+  });
+  $('#type').addEventListener('change', function () { type = $('#type').value; loadEntries(true); });
+  var qTimer = null;
+  $('#q').addEventListener('input', function () { clearTimeout(qTimer); qTimer = setTimeout(function () { qtext = $('#q').value.trim(); loadEntries(true); }, 300); });
+  $('#refresh').addEventListener('click', function () { loadStats(); loadEntries(true); loadRewards(false); });
+  $('#more').addEventListener('click', function () { loadEntries(false); });
+
+  $('#list').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-act]'); if (!btn) return;
+    var rowEl = btn.closest('.row'), id = rowEl.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    var it = items.filter(function (x) { return x.id === id; })[0] || {};
+    if (act === 'delete') {
+      var parts = ['이 사진을 삭제할까요? 되돌릴 수 없습니다.'];
+      if (it.imageUrl) parts.push('이미지 파일도 함께 지워집니다 (카톡으로 이미 보낸 링크도 열리지 않게 됩니다).');
+      if (it.status === 'done' && it.public && !it.hidden) parts.push('갤러리에서 빠집니다.');
+      if (it.status !== 'failed' && it.memberId && !it.master) parts.push('회원의 만들기 횟수가 하나 돌아갑니다.');
+      if (it.rewarded) parts.push('적립 기록은 그대로 둡니다.');
+      if (!confirm(parts.join('\n'))) return;
+    }
+    if (act === 'hide' && !confirm('갤러리에서 숨길까요?\n고객의 \'내가 만든 사진\'에는 남고, 이 회원의 공개 보너스 +1장이 빠집니다.')) return;
+    btn.disabled = true;
+    api('/api/chuseok/admin/entries/' + encodeURIComponent(id), { method: 'POST', body: { action: act } })
+      .then(function (d) {
+        var before = items.length;
+        if (act === 'delete') items = items.filter(function (x) { return x.id !== id; });
+        else {
+          items.forEach(function (x) { if (x.id === id) x.hidden = (act === 'hide'); });
+          if (view === 'public' || view === 'hidden') items = items.filter(function (x) { return x.id !== id; });
+        }
+        offset -= (before - items.length);          /* 빠진 만큼 되돌려야 '더 보기' 가 건너뛰지 않는다 */
+        paint(); loadStats();
+        if (d && d.warn) setStatus(d.warn, true);
+        else setStatus(act === 'delete' ? '삭제했습니다' : act === 'hide' ? '숨겼습니다' : '되돌렸습니다');
+      })
+      .catch(function (err) { btn.disabled = false; fail(err); });
+  });
+
+  /* ── 적립 정산 ── */
+  function rrow(it) {
+    var st = it.settled === true ? '<span class="pill ok">지급 확정' + (it.settledBy === 'admin' ? ' (수동)' : '') + '</span>'
+           : it.settled === 'unknown' ? '<span class="pill bad">결과 불명</span>'
+           : '<span class="pill warn">' + (it.phase === 'calling' ? '호출 중 멈춤' : '예약만 남음') + '</span>';
+    var canAct = it.settled !== true;
+    return '<div class="rrow" data-id="' + esc(it.id) + '"><div>' +
+      '<div><code>' + esc(it.memberId) + '</code> ' + st + ' <b>' + (it.amount || 0).toLocaleString() + '원</b></div>' +
+      '<div class="m"><span>응모 ' + esc(it.entryId || '') + '</span>' +
+        (it.reservedAt ? '<span>예약 ' + fmtUtc(it.reservedAt) + '</span>' : '') +
+        (it.failedAt ? '<span>실패 ' + fmtUtc(it.failedAt) + '</span>' : '') +
+        (it.settledAt ? '<span>확정 ' + fmtUtc(it.settledAt) + '</span>' : (it.participatedAt ? '<span>' + fmtKst(it.participatedAt) + '</span>' : '')) +
+      '</div>' + (it.lastError ? '<div class="err">' + esc(it.lastError) + '</div>' : '') + '</div>' +
+      '<div class="acts">' +
+        (canAct ? '<button class="btn sm ok" data-act="settle">지급 확인</button>' : '') +
+        (it.canRelease ? '<button class="btn sm bad" data-act="release">미지급 확인</button>' : (canAct ? '<span class="pill">진행 중 — 2분 뒤</span>' : '')) +
+      '</div></div>';
+  }
+  var rwOffset = 0, rwItems = [], rwHasMore = false;
+  function loadRewards(more) {
+    var all = $('#rw-all').checked;
+    if (!more) { rwOffset = 0; rwItems = []; }
+    return api('/api/chuseok/admin/rewards?state=' + (all ? 'all' : 'problem') + '&offset=' + rwOffset + '&limit=50').then(function (d) {
+      var list = d.items || [];
+      rwItems = rwItems.concat(list); rwOffset += list.length; rwHasMore = !!d.hasMore;
+      $('#rw-list').innerHTML = rwItems.map(rrow).join('');
+      $('#rw-empty').hidden = !!rwItems.length;
+      $('#rw-empty').textContent = all ? '적립 기록이 없습니다.' : '확인할 건이 없습니다 — 적립은 전부 자동으로 잘 들어갔습니다.';
+      $('#rw-more').hidden = !rwHasMore;
+    }).catch(function (err) { fail(err, '정산 목록을 불러오지 못했습니다.'); });
+  }
+  $('#rw-all').addEventListener('change', function () { loadRewards(false); });
+  $('#rw-more').addEventListener('click', function () { loadRewards(true); });
+  $('#rw-list').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-act]'); if (!btn) return;
+    var id = btn.closest('.rrow').getAttribute('data-id'), act = btn.getAttribute('data-act');
+    var msg = act === 'settle'
+      ? 'Cafe24 에 적립이 실제로 들어간 것을 확인하셨나요? 기록을 "지급 확정"으로 바꿉니다. 회원은 다시 받을 수 없습니다.'
+      : 'Cafe24 에 적립이 안 들어간 것을 확인하셨나요? 예약을 지우면 회원이 버튼을 다시 눌러 받을 수 있습니다. 실제로 들어갔다면 이중 지급이 됩니다.';
+    if (!confirm(msg)) return;
+    btn.disabled = true;
+    api('/api/chuseok/admin/rewards/' + encodeURIComponent(id), { method: 'POST', body: { action: act } })
+      .then(function () { loadRewards(false); loadStats(); })
+      .catch(function (err) { btn.disabled = false; fail(err); });
+  });
+
+  if (key) api('/api/chuseok/admin/stats').then(unlock).catch(function (err) { fail(err); }); else lock('');
+})();
+</script>
+</body>
+</html>

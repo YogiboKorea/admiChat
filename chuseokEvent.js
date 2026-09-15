@@ -37,6 +37,7 @@ const { sanitizeAnalysis, normId } = RM.__internals;
 // ── 컬렉션 · 고정 규칙 ───────────────────────────────────────────
 const ENTRY_COLLECTION = 'chuseokEntry';
 const REWARD_COLLECTION = 'chuseokReward';
+const TRASH_COLLECTION = 'chuseokTrash';                  // 관리자가 지운 응모의 URL 기록 — 파일 삭제 실패 시 재시도 근거
 
 const MAX_PER_MEMBER = 5;                                 // 고정 (결정 사항)
 const PUBLIC_BONUS = 1;                                   // 갤러리에 공개하면 +1장 (결정 사항 2026-09-15). 공개 중인 사진이 있을 때만
@@ -245,7 +246,30 @@ const impl = {
     }
     throw last;
   },
+
+  /** 공개 URL 하나를 FTP 에서 지운다 — 이 이벤트가 올린 파일(추석 폴더 · YYYYMMDD_난수10.jpg)만. 그 밖의 것은 절대 건드리지 않는다 */
+  async remove(url) {
+    if (!url) return { ok: true };
+    const u = String(url);
+    if (u.indexOf(FTP_PUBLIC + '/') !== 0) return { ok: false, error: '추석 폴더 파일이 아님: ' + u };
+    const name = u.slice(FTP_PUBLIC.length + 1);
+    if (!PUBLIC_NAME_RE.test(name)) return { ok: false, error: '지울 수 없는 파일명: ' + name };
+    if (!process.env.FTP_USER) return { ok: false, error: 'FTP 계정 미설정' };
+    const client = new ftp.Client(30000);
+    client.ftp.verbose = false;
+    try {
+      await client.access({
+        host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com', port: Number(process.env.FTP_PORT || 21),
+        user: process.env.FTP_USER, password: process.env.FTP_PASS, secure: false,
+      });
+      await client.remove(`${FTP_DIR_REL}/${name}`);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    } finally { client.close(); }
+  },
 };
+const PUBLIC_NAME_RE = /^\d{8}_[0-9a-f]{10}\.jpg$/;     // publicName() 이 만드는 모양
 
 // ── 사진 확인 (접수 시, 과금 전) ─────────────────────────────────
 async function smallJpeg(buf, side = 768) {
@@ -862,43 +886,214 @@ function mount(app, deps) {
     }
   });
 
-  // ── 관리 — 갤러리에서 숨기기/되돌리기 · 목록 ──
+  // ── 관리 (/chuseok-admin.html) ── 「나의 쉼 순간」 관리 페이지와 같은 방식
   // 키는 헤더 x-chuseok-admin-key (없으면 「나의 쉼 순간」과 같은 REST_MOMENT_ADMIN_KEY / x-rest-admin-key 를 쓴다)
   const allowAdmin = (req, res, next) => {
+    // 503 은 클라우드타입 게이트웨이가 자기 에러 페이지로 바꿔치기한다 — 앱 상태는 4xx JSON 으로 알린다
     if (!ADMIN_KEY) return res.status(403).json({ ok: false, notConfigured: true, message: 'CHUSEOK_ADMIN_KEY(또는 REST_MOMENT_ADMIN_KEY)가 서버에 없습니다.' });
     const given = req.get('x-chuseok-admin-key') || req.get('x-rest-admin-key');
     if (!keyEq(given, ADMIN_KEY)) return res.status(401).json({ ok: false, message: '관리 키가 맞지 않습니다.' });
     next();
   };
+  const oid = v => { try { return new ObjectId(String(v)); } catch { return null; } };
+  const STALE_MS = 2 * 60 * 1000;
+  // "적립 확인 필요" 의 정의를 한 곳에 — 통계·목록·release 가 같은 기준을 쓴다 (쉼순간과 동일)
+  const problemClauses = staleAt => ({
+    unknown:  { settled: 'unknown' },
+    calling:  { settled: false, phase: 'calling',  reservedAt: { $lt: staleAt } },
+    reserved: { settled: false, phase: 'reserved', reservedAt: { $lt: staleAt } },
+  });
+  const ADMIN_VIEWS = {
+    all:       {},
+    public:    { status: 'done', public: true, hidden: { $ne: true } },   // 갤러리에 보이는 것
+    hidden:    { status: 'done', hidden: true },                           // 관리자가 뺀 것
+    private:   { status: 'done', public: { $ne: true } },                  // 나만 보기
+    working:   { status: { $in: ['pending', 'processing'] } },
+    failed:    { status: 'failed' },
+    marketing: { status: 'done', agreeMarketing: true },                   // (선택) 광고·홍보 활용 동의
+  };
+
+  app.get('/api/chuseok/admin/stats', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const e = db.collection(ENTRY_COLLECTION), r = db.collection(REWARD_COLLECTION);
+      const c = (col, f) => col.countDocuments(f);
+      const staleAt = new Date(Date.now() - STALE_MS);
+      const p = problemClauses(staleAt);
+      const [total, pending, processing, done, failed, pub, hidden, priv, marketing, minor, members,
+             card, studio, pet, moon, settled, unknown, calling, reserved, budget] = await Promise.all([
+        c(e, {}), c(e, { status: 'pending' }), c(e, { status: 'processing' }), c(e, { status: 'done' }), c(e, { status: 'failed' }),
+        c(e, ADMIN_VIEWS.public), c(e, ADMIN_VIEWS.hidden), c(e, ADMIN_VIEWS.private), c(e, ADMIN_VIEWS.marketing), c(e, { minorFlag: true }),
+        e.distinct('memberId', { memberId: { $ne: null } }),
+        c(e, { status: 'done', type: 'card' }), c(e, { status: 'done', type: 'studio' }), c(e, { status: 'done', type: 'pet' }), c(e, { status: 'done', type: 'moon' }),
+        c(r, { $or: [{ settled: true }, { settled: { $exists: false } }] }), c(r, p.unknown), c(r, p.calling), c(r, p.reserved),
+        genBudget(e),
+      ]);
+      return res.json({
+        ok: true,
+        entries: { total, pending, processing, done, failed, public: pub, hidden, private: priv, marketing, minor, byType: { card, studio, pet, moon } },
+        members: members.length,
+        rewards: { settled, unknown, calling, staleReserved: reserved, problem: unknown + calling + reserved, points: settled * POINT_AMOUNT },
+        gen: { total: budget.total, today: budget.today, maxTotal: MAX_GEN_TOTAL, maxDaily: MAX_GEN_DAILY, allowed: budget.allowed, reason: budget.reason },
+        config: {
+          maxPerMember: MAX_PER_MEMBER, publicBonus: PUBLIC_BONUS, masterIds: MASTER_IDS, pointAmount: POINT_AMOUNT,
+          eventStart: EVENT_START || null, eventEnd: EVENT_END, mateRate: MATE_RATE, watermark: WATERMARK,
+          model: OPENAI_MODEL, quality: OPENAI_QUALITY, avgGenSec: Math.round(avgGenMs() / 1000),
+        },
+      });
+    } catch (err) {
+      console.error('[추석] 관리 통계 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
   app.get('/api/chuseok/admin/entries', allowAdmin, async (req, res) => {
     try {
-      const col = getDb().collection(ENTRY_COLLECTION);
-      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-      const offset = Math.max(Number(req.query.offset) || 0, 0);
-      const filter = { status: 'done' };
-      if (req.query.view === 'public') Object.assign(filter, { public: true, hidden: { $ne: true } });
-      if (req.query.view === 'hidden') filter.hidden = true;
-      const rows = await col.find(filter).sort({ doneAt: -1 }).skip(offset).limit(limit).toArray();
-      return res.json({ ok: true, items: rows.map(d => ({
-        id: String(d._id), memberId: d.memberId, displayId: d.displayId || null, type: d.type, greeting: d.greeting || null,
-        imageUrl: d.imageUrl, public: !!d.public, hidden: !!d.hidden, mate: d.mate || null, date: d.doneAt ? ymd(d.doneAt) : null,
+      const db = getDb();
+      const col = db.collection(ENTRY_COLLECTION);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 200);
+      const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 20000);
+      const view = Object.prototype.hasOwnProperty.call(ADMIN_VIEWS, String(req.query.view)) ? String(req.query.view) : 'all';
+      const filter = Object.assign({}, ADMIN_VIEWS[view]);
+      if (TYPES[String(req.query.type)]) filter.type = String(req.query.type);
+      const qtext = String(req.query.q || '').trim().slice(0, 60);
+      if (qtext) {
+        const re = new RegExp(qtext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        filter.$or = [{ memberId: qtext.toLowerCase() }, { memberId: re }, { displayId: re }, { greeting: re }];
+      }
+      const rowsAll = await col.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit + 1).toArray();
+      const hasMore = rowsAll.length > limit;
+      const rows = hasMore ? rowsAll.slice(0, limit) : rowsAll;
+      // 적립 여부는 회원 단위 — 이 쪽에 나온 회원들의 적립 기록만 한 번에 읽는다
+      const mids = [...new Set(rows.map(d => d.memberId).filter(Boolean))];
+      const rewarded = new Set();
+      if (mids.length) {
+        const rw = await db.collection(REWARD_COLLECTION).find({ memberId: { $in: mids } }).toArray();
+        rw.forEach(x => { if (x.settled === true || x.settled === undefined) rewarded.add(x.memberId); });
+      }
+      return res.json({ ok: true, view, offset, hasMore, items: rows.map(d => ({
+        id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
+        type: d.type, typeLabel: d.typeLabel || (TYPES[d.type] && TYPES[d.type].label) || '', greeting: d.greeting || null,
+        species: d.species || null, petGender: d.petGender || null,
+        status: d.status, public: !!d.public, hidden: !!d.hidden, agreeMarketing: !!d.agreeMarketing,
+        minorFlag: !!d.minorFlag, photoCount: d.photoCount || 0, mate: d.mate || null,
+        imageUrl: d.imageUrl || null, rewarded: rewarded.has(d.memberId),
+        tries: d.tries || 0, lastError: d.lastError || null, chargeUnknown: !!d.genUnknownAt,
+        createdAt: d.createdAt || null, doneAt: d.doneAt || null,
       })) });
     } catch (err) {
       console.error('[추석] 관리 목록 오류:', err.message);
       return res.status(500).json({ ok: false });
     }
   });
+
+  /** 응모 한 건을 파일까지 지운다. 휴지통 기록을 파일 삭제보다 먼저 쓴다 — FTP 도중 죽어도 재시도 근거가 남는다 */
+  async function deleteEntry(db, _id, by) {
+    const col = db.collection(ENTRY_COLLECTION);
+    const found = await col.findOneAndDelete({ _id });
+    // 드라이버 6 은 문서를, 5 이하는 { value } 를 돌려준다
+    const doc = found && Object.prototype.hasOwnProperty.call(found, 'value') && !found._id ? found.value : found;
+    if (!doc) return null;
+    photoVault.delete(String(_id));
+    const trash = db.collection(TRASH_COLLECTION);
+    const { insertedId: trashId } = await trash.insertOne({
+      entryId: String(_id), memberId: doc.memberId || null, type: doc.type, greeting: doc.greeting || null, status: doc.status,
+      public: !!doc.public, imageUrl: doc.imageUrl || null, deletedBy: by || 'admin', deletedAt: new Date(), ftpRemoved: null, error: null,
+    });
+    const rm = doc.imageUrl ? await impl.remove(doc.imageUrl) : { ok: true };
+    await trash.updateOne({ _id: trashId }, { $set: { ftpRemoved: !!rm.ok, error: rm.ok ? null : rm.error } });
+    console.log(`[추석] 관리 삭제(${by || 'admin'}) ${String(_id)} · 파일 ${rm.ok ? '삭제됨' : '삭제 실패 — ' + rm.error}`);
+    return { ftpRemoved: !!rm.ok, error: rm.ok ? null : rm.error };
+  }
+
+  // action: hide(갤러리에서 빼기) · unhide(되돌리기) · delete(기록+이미지 파일 삭제)
+  app.post('/api/chuseok/admin/entries/:id', allowAdmin, async (req, res) => {
+    try {
+      const db = getDb();
+      const _id = oid(req.params.id);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
+      const action = String((req.body || {}).action || '');
+      if (action === 'hide' || action === 'unhide') {
+        const r = await db.collection(ENTRY_COLLECTION).updateOne({ _id }, { $set: { hidden: action === 'hide', reviewedAt: new Date(), reviewedBy: 'admin' } });
+        if (!r.matchedCount) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+        console.log(`[추석] 관리 ${action === 'hide' ? '숨김' : '되돌림'} ${String(_id)}`);
+        return res.json({ ok: true, hidden: action === 'hide' });
+      }
+      if (action === 'delete') {
+        const r = await deleteEntry(db, _id, 'admin');
+        if (!r) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+        return res.json({ ok: true, ftpRemoved: r.ftpRemoved, warn: r.ftpRemoved ? null : '기록은 지웠지만 이미지 파일 삭제에 실패했습니다(' + r.error + '). URL 은 휴지통(chuseokTrash)에 남겼습니다.' });
+      }
+      return res.status(400).json({ ok: false, message: '알 수 없는 action' });
+    } catch (err) {
+      console.error('[추석] 관리 변경 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+  // 예전 경로 — 그대로 둔다 (entries/:id 의 hide/unhide 와 같다)
   app.post('/api/chuseok/admin/hide', allowAdmin, async (req, res) => {
     try {
-      let _id;
-      try { _id = new ObjectId(String(req.body && req.body.entryId)); } catch { return res.status(400).json({ ok: false, message: '잘못된 id' }); }
+      const _id = oid(req.body && req.body.entryId);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
       const hidden = !(req.body && (req.body.hidden === false || req.body.hidden === '0'));
-      const r = await getDb().collection(ENTRY_COLLECTION).updateOne({ _id }, { $set: { hidden, reviewedAt: new Date() } });
+      const r = await getDb().collection(ENTRY_COLLECTION).updateOne({ _id }, { $set: { hidden, reviewedAt: new Date(), reviewedBy: 'admin' } });
       if (!r.matchedCount) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
       console.log(`[추석] 관리자 ${hidden ? '숨김' : '되돌림'} ${String(_id)}`);
       return res.json({ ok: true, hidden });
     } catch (err) {
       console.error('[추석] 관리 숨김 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  app.get('/api/chuseok/admin/rewards', allowAdmin, async (req, res) => {
+    try {
+      const r = getDb().collection(REWARD_COLLECTION);
+      const staleAt = new Date(Date.now() - STALE_MS);
+      const p = problemClauses(staleAt);
+      const state = String(req.query.state || 'problem');
+      const filter = state === 'all' ? {} : { $or: [p.unknown, p.calling, p.reserved] };
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+      const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 20000);
+      const rowsAll = await r.find(filter).sort({ reservedAt: -1 }).skip(offset).limit(limit + 1).toArray();
+      const hasMore = rowsAll.length > limit;
+      const rows = hasMore ? rowsAll.slice(0, limit) : rowsAll;
+      const canRelease = d => d.settled === 'unknown' || (d.settled === false && d.reservedAt && new Date(d.reservedAt) < staleAt);
+      return res.json({ ok: true, state, offset, hasMore, items: rows.map(d => ({
+        canRelease: canRelease(d),
+        id: String(d._id), memberId: d.memberId, entryId: d.entryId, amount: d.amount,
+        settled: d.settled === undefined ? true : d.settled, phase: d.phase || null,
+        reservedAt: d.reservedAt || null, settledAt: d.settledAt || null, failedAt: d.failedAt || null,
+        lastError: d.lastError || null, participatedAt: d.participatedAt || null, settledBy: d.settledBy || null,
+      })) });
+    } catch (err) {
+      console.error('[추석] 관리 적립 목록 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+  // settle: Cafe24 어드민에서 실제 적립을 확인한 뒤 "지급됨" 으로 확정 · release: 안 들어간 걸 확인한 뒤 예약 삭제(회원이 다시 받을 수 있게)
+  app.post('/api/chuseok/admin/rewards/:id', allowAdmin, async (req, res) => {
+    try {
+      const r = getDb().collection(REWARD_COLLECTION);
+      const _id = oid(req.params.id);
+      if (!_id) return res.status(400).json({ ok: false, message: '잘못된 id' });
+      const doc = await r.findOne({ _id });
+      if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
+      const action = String((req.body || {}).action || '');
+      if (action === 'settle') {
+        await r.updateOne({ _id }, { $set: { settled: true, phase: 'settled', settledAt: new Date(), settledBy: 'admin' } });
+      } else if (action === 'release') {
+        // 조건부 삭제 — 진행 중(2분 안 된 예약/호출)이거나 확정된 기록은 절대 지우지 않는다
+        const staleAt = new Date(Date.now() - STALE_MS);
+        const { deletedCount } = await r.deleteOne({ _id, $or: [{ settled: 'unknown' }, { settled: false, reservedAt: { $lt: staleAt } }] });
+        if (!deletedCount) return res.status(400).json({ ok: false, message: '진행 중이거나 이미 확정된 기록은 되돌릴 수 없습니다. 2분 뒤 다시 확인해주세요.' });
+      } else {
+        return res.status(400).json({ ok: false, message: '알 수 없는 action' });
+      }
+      console.log('[추석] 관리 적립:', action, doc.memberId, String(_id));
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[추석] 관리 적립 변경 오류:', err.message);
       return res.status(500).json({ ok: false });
     }
   });
@@ -977,5 +1172,5 @@ function mount(app, deps) {
   console.log('✅ [추석] 라우트 등록 완료 · FTP', FTP_DIR);
 }
 
-module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TYPES, MAX_PER_MEMBER };
+module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, TYPES, MAX_PER_MEMBER };
 module.exports.__internals = { impl, recoverStuck, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };
