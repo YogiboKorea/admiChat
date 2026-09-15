@@ -376,7 +376,8 @@ async function buildJob(doc, photos) {
     // groups 순서 = 사진 1·2 순서. 사진이 있는 그룹만 참조로 보낸다
     const groups = (doc.groups || []).map((g, i) => {
       const ph = (photos || []).find(p => p.slot === i);
-      return ph ? { source: 'photo', ph } : { source: 'brief', people: (g.analysis && g.analysis.people) || [] };
+      // count: 접수 때 비전으로 센 인원 — 프롬프트가 "정확히 N명" 을 말해 사람이 빠지거나 늘지 않게
+      return ph ? { source: 'photo', ph, count: g.count } : { source: 'brief', people: (g.analysis && g.analysis.people) || [] };
     });
     for (const g of groups) if (g.source === 'photo') refs.push(await toRef(g.ph, refs.length));
     prompt = CP.studioPrompt(seed, groups, mate);

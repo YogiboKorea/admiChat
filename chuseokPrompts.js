@@ -49,7 +49,7 @@ function mateLine(kind, placement) {
     return 'Do not add any plush toys, stuffed animals, dolls or mascot characters.';
   }
   return [
-    `Hidden prop: include exactly ONE small ${MATE_DESC[kind]}, matching the plush toy reference image (the last reference image). ${MATE_REF_NOTE[kind]}`,
+    `Hidden prop: include exactly ONE small plush toy, ${MATE_DESC[kind]}, matching the plush toy reference image (the last reference image). ${MATE_REF_NOTE[kind]}`,
     `Keep it SMALL — roughly one tenth of the image height — and secondary, never the focus and never covering a face: ${placement}.`,
     'It may wear a tiny festive hanbok vest or ribbon, but its shape and colours must stay clearly recognisable as that product. No other plush toys or mascots.',
   ].join(' ').replace(/\s+/g, ' ');
@@ -91,10 +91,14 @@ function cardPrompt(seed, mate) {
 }
 
 // ── 2. 한가위 사진관 ───────────────────────────────────────────────
+// 장면마다 "그 장면에 맞는 조명 하나" 를 짝지어 둔다 — 조명이 하나로 정해져야 사람마다 빛이 달라 붙여넣은 티가 나지 않는다 (2026-09-15 "합성티" 피드백)
 const STUDIO_SETS = [
-  'a premium traditional Korean photo studio: a painted folding screen (byeongpung) with a full moon, pine trees and cranes behind them, a low wooden table, silk cushions, soft warm studio lighting',
-  'a moonlit hanok courtyard at night: wooden veranda (maru), paper lanterns glowing, a big full moon above the tiled roof, gentle warm light on faces',
-  'in front of a grand Korean palace gate at dusk: colourful dancheong eaves, stone steps, soft golden hour light, a faint full moon in the sky',
+  { scene: 'a premium traditional Korean photo studio: a painted folding screen (byeongpung) with a full moon, pine trees and cranes behind the group, a low wooden bench, silk cushions on a warm wooden floor',
+    light: 'one large soft key light (softbox) from the front-left, a gentle fill from the right and a faint warm rim light from behind; warm studio colour temperature' },
+  { scene: 'a moonlit hanok courtyard at night: wooden veranda (maru) as the seat, paper lanterns glowing, a big full moon above the tiled roof',
+    light: 'warm lantern light from the front-left as the main light on every face, soft cool moonlight from behind as a rim light; the same two lights on everyone' },
+  { scene: 'in front of a grand Korean palace gate at dusk: colourful dancheong eaves, wide stone steps as the seat, a faint full moon in the sky',
+    light: 'low golden-hour sunlight from the left as the single main light, soft skylight fill from the front; every face and hanbok lit from the same side' },
 ];
 const STUDIO_COLOURS = [
   'soft pastel hanbok colours — blush pink, mint, lavender, cream',
@@ -110,7 +114,7 @@ function studioPrompt(seed, groups, mate) {
     if (g.source === 'photo') {
       refIndex++;
       refs.push(`reference photo ${refIndex} shows group ${i + 1}`);
-      lines.push(`Group ${i + 1}: every person visible in reference photo ${refIndex}. Keep each face, hairstyle, skin tone, age and build faithful and recognizable.`);
+      lines.push(`Group ${i + 1}: every person visible in reference photo ${refIndex}. Keep each face, hairstyle, skin tone, age and build faithful and recognizable — but re-pose and re-light them for this photo; do not reuse their original background, pose, clothing, lighting, colour cast, blur or image quality.`);
     } else {
       const who = (g.people || []).map(p => {
         const age = { child: 'child', teen: 'teenager', adult: 'adult', senior: 'older adult' }[p.ageGroup] || 'adult';
@@ -121,18 +125,32 @@ function studioPrompt(seed, groups, mate) {
       lines.push(`Group ${i + 1} (described, no photo): ${who.join('; ') || 'one adult'}. Children here are generic, not based on any real child.`);
     }
   });
+  const set = pick(seed, 'set', STUDIO_SETS);
+  // 전체 인원 — 사진 그룹은 접수 때 센 count, 설명 그룹은 people 수. 모르면 0(문장 생략)
+  const total = groups.reduce((n, g) => n + (g.source === 'photo' ? (Number(g.count) || 0) : ((g.people || []).length || 0)), 0)
+    * (groups.every(g => g.source !== 'photo' || Number(g.count) > 0) ? 1 : 0);
+  // "합성티" 줄이기 (2026-09-15 피드백): 사람을 오려 붙이는 게 아니라 한 자리에서 한 번에 다시 찍은 사진으로.
+  // 참조 사진은 "누구인지" 만 쓰고, 자세·조명·색·화질은 이 장면 하나로 통일한다.
   return [
-    'Create ONE photorealistic formal Chuseok group portrait, as if professionally photographed together at a Korean hanbok photo studio.',
-    'Bring the people from the groups below into this single photo, posed naturally side by side (some seated in front, some standing behind), looking at the camera with warm smiles, as if they had always been in the same room.',
+    'Create ONE photorealistic Chuseok group portrait that looks like a single real photograph taken in one shot, with everyone physically together in the same place at the same moment.',
+    'It must NOT look like a collage or a composite: no people pasted in, no cut-out edges, halos or outlines, no person lit, coloured or sharpened differently from the others.',
+    'Use the reference photos only to know who each person is. Re-photograph every person from scratch inside this scene.',
     ...lines,
+    total > 0 ? `There are exactly ${total} people in total — no more, no fewer.` : '',
+    total > 0 && total <= 3
+      ? 'Pose them as one natural group (family, couple or friends) close together side by side — shoulders touching, one seated and the others standing just behind, or all seated shoulder to shoulder — a hand on a shoulder or linked arms, heads at natural staggered heights, bodies turned a little toward each other, relaxed warm smiles, everyone looking at the camera.'
+      : 'Pose them as one natural group (family, couple or friends): a front row seated and a back row standing close behind, shoulders slightly overlapping, a hand resting on a shoulder or in a lap here and there, heads at natural staggered heights, bodies turned a little toward the centre, relaxed warm smiles, everyone looking at the camera.',
+    'Keep real-world scale: head and body sizes must match where each person stands (people in the back row slightly smaller), with correct perspective from one camera position; nobody floats or is oversized.',
     'Dress every person in an elegant, well-fitted Korean hanbok that suits their age and presentation.',
     `Hanbok palette: ${pick(seed, 'colour', STUDIO_COLOURS)}.`,
-    `Setting: ${pick(seed, 'set', STUDIO_SETS)}.`,
-    'Consistent lighting and colour grading across everyone so it reads as one real photograph; natural skin texture, correct hands, no duplicated or missing people.',
-    mateLine(mate, 'seated on a small silk cushion on the floor at the edge of the group, like a studio prop'),
+    `Setting: ${set.scene}.`,
+    `Lighting (the same for everyone): ${set.light}. Identical light direction, softness and colour temperature on every face and every hanbok, with matching shadows under chins and soft contact shadows on the seat, the floor and where people touch.`,
+    'One camera: an 85mm portrait lens at eye level, f/5.6 so the whole group is equally sharp. One colour grade for the whole image — the same white balance, skin rendering and fine natural film grain everywhere; natural skin texture, correct hands, no duplicated or missing people.',
+    'Framing: keep the whole group centred with some space above the heads and below the knees, because the top and bottom of the image may be cropped.',
+    mateLine(mate, 'seated on a small silk cushion on the floor at the edge of the group, lit by the same light with a soft contact shadow, like a studio prop'),
     refOrder(refs, mate),
     NO_TEXT,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 /** 사진관 참조 순서 안내 — 고객 사진이 앞, 메이트(있을 때만)가 맨 뒤 */
