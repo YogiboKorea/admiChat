@@ -38,6 +38,7 @@ const { sanitizeAnalysis, normId } = RM.__internals;
 const ENTRY_COLLECTION = 'chuseokEntry';
 const REWARD_COLLECTION = 'chuseokReward';
 const TRASH_COLLECTION = 'chuseokTrash';                  // 관리자가 지운 응모의 URL 기록 — 파일 삭제 실패 시 재시도 근거
+const REJECT_COLLECTION = 'chuseokRejects';               // 사진 확인에서 돌려보낸 기록(이유·인원 수만, 사진 없음) — 관리 페이지에서 본다
 
 const MAX_PER_MEMBER = 5;                                 // 고정 (결정 사항)
 const PUBLIC_BONUS = 1;                                   // 갤러리에 공개하면 +1장 (결정 사항 2026-09-15). 공개 중인 사진이 있을 때만
@@ -170,7 +171,10 @@ const impl = {
     });
     if (!res.ok) throw new Error(`vision ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const json = await res.json();
-    const text = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '{}';
+    const choice = json.choices && json.choices[0];
+    // 답이 한도에서 잘리면 JSON 이 깨진다 — 이유를 분명히 남기고 다시 시도하게 한다 (여러 명 사진에서 400 토큰이 모자랐다)
+    if (choice && choice.finish_reason === 'length') throw new Error(`vision 응답 잘림(max_tokens ${maxTokens})`);
+    const text = (choice && choice.message && choice.message.content) || '{}';
     return JSON.parse(text);
   },
 
@@ -276,19 +280,21 @@ async function smallJpeg(buf, side = 768) {
   return sharp(buf).rotate().resize({ width: side, height: side, fit: 'inside' }).jpeg({ quality: 82 }).toBuffer();
 }
 /** 사람 사진 — 인원·연령대·14세 미만 여부. 두 번까지 시도하고 안 되면 null (호출부가 막는다 — 아이 사진이 모델로 새지 않게 닫힌 쪽으로) */
+// 분석 정확도 (2026-09-15 "자동 분석이 잘 안 된다"): 저해상도(detail low, 512px)에선 작은 얼굴의 나이·인원을 자주 틀렸다.
+// 1024px + detail high 로 보고, 여러 명(인물마다 설명이 붙는다)도 잘리지 않게 답 한도를 넉넉히 준다. 비용은 사진 한 장당 1원 안팎.
 async function analyzePeople(buf) {
-  const small = await smallJpeg(buf);
+  const small = await smallJpeg(buf, 1024);
   for (let i = 0; i < 2; i++) {
-    try { return sanitizeAnalysis(await impl.visionJson([{ type: 'text', text: CP.PEOPLE_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'low' } }])); }
+    try { return sanitizeAnalysis(await impl.visionJson([{ type: 'text', text: CP.PEOPLE_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'high' } }], 1400)); }
     catch (e) { console.warn(`[추석] 사람 사진 확인 실패(${i + 1}/2):`, e.message); }
   }
   return null;
 }
 async function analyzePet(buf) {
-  const small = await smallJpeg(buf);
+  const small = await smallJpeg(buf, 1024);
   for (let i = 0; i < 2; i++) {
     try {
-      const a = await impl.visionJson([{ type: 'text', text: CP.PET_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'low' } }], 160);
+      const a = await impl.visionJson([{ type: 'text', text: CP.PET_ANALYSIS_PROMPT }, { type: 'image_url', image_url: { url: dataUrl(small), detail: 'high' } }], 300);
       const animal = ['dog', 'cat', 'other', 'none'].includes(a && a.animal) ? a.animal : 'none';
       // 사람·아이 여부 — 답이 없거나 이상하면 "사람 있음·아이 있음" 으로 본다 (닫힌 쪽으로. 리뷰 2026-09-15)
       const people = Number(a && a.people);
@@ -414,7 +420,7 @@ async function buildJob(doc, photos) {
     const ph = (photos || [])[0];
     const person = ph ? { source: 'photo' } : { source: 'brief', people: (doc.analysis && doc.analysis.people) || [] };
     if (ph) refs.push(await toRef(ph, 0));
-    prompt = CP.moonPrompt(seed, person, mate);
+    prompt = CP.moonPrompt(seed, person, mate, doc.personGender);
   } else {
     throw Object.assign(new Error('알 수 없는 종류: ' + doc.type), { retryable: false });
   }
@@ -620,6 +626,12 @@ function validateInput(body, files) {
     if (g !== 'boy' && g !== 'girl') return { error: { status: 400, body: { ok: false, message: '반려동물 성별을 골라주세요.' } } };
     out.petGender = g;
   }
+  if (type === 'moon') {
+    // 성별은 고객이 고른다 — 사진 분석으로 추측하면 남자가 여자로 그려지는 일이 있었다
+    const g = String(body.personGender || '');
+    if (g !== 'male' && g !== 'female') return { error: { status: 400, body: { ok: false, message: '남자·여자 중 하나를 골라주세요.' } } };
+    out.personGender = g;
+  }
   return out;
 }
 
@@ -701,29 +713,40 @@ function mount(app, deps) {
           ownerKey: crypto.randomBytes(16).toString('hex'),
         };
         const keep = [];                                          // 모델에 보낼 사진만
+        // 사진 확인에서 돌려보낸 기록 — 관리 페이지에서 "왜 안 받아졌는지" 본다. 사진은 남기지 않고 이유·인원 수만
+        const reject = async (reason, extra) => {
+          console.log(`[추석] 사진 확인 거절 · ${def.key} · ${reason}`, JSON.stringify(extra || {}));
+          try { await db.collection(REJECT_COLLECTION).insertOne(Object.assign({ memberId: mid, type: def.key, reason, at: new Date() }, extra || {})); }
+          catch (e) { console.warn('[추석] 거절 기록 실패:', e.message); }
+        };
         if (def.key === 'card') {
           doc.greeting = v.greeting;
         } else if (def.key === 'pet') {
           const a = await analyzePet(used[0].buffer);
-          if (!a) { dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
-          if (a.animal === 'none') { dropFiles(); return res.status(400).json({ ok: false, message: '반려동물이 잘 보이는 사진으로 올려주세요.' }); }
+          if (!a) { await reject('analysis_failed'); dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
+          if (a.animal === 'none') { await reject('no_pet', { people: a.people }); dropFiles(); return res.status(400).json({ ok: false, message: '반려동물이 잘 보이는 사진으로 올려주세요.' }); }
           // 반려동물 사진은 사진을 빼고 설명으로 그릴 수 없다 — 아이가 함께 보이면 받지 않는다 (③ 아이 사진은 모델로 보내지 않는다)
-          if (a.people > 0 && a.minorPresent) { dropFiles(); return res.status(400).json({ ok: false, message: '아이가 함께 나온 사진은 쓸 수 없어요. 반려동물만 나온 사진으로 올려주세요.' }); }
+          if (a.people > 0 && a.minorPresent) { await reject('minor_with_pet', { people: a.people, animal: a.animal }); dropFiles(); return res.status(400).json({ ok: false, message: '아이가 함께 나온 사진은 쓸 수 없어요. 반려동물만 나온 사진으로 올려주세요.' }); }
           doc.species = a.animal; doc.petGender = v.petGender;
           keep.push(used[0]);
         } else if (def.key === 'moon') {
           const a = await analyzePeople(used[0].buffer);
-          if (!a) { dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
-          if (!(a.count > 0)) { dropFiles(); return res.status(400).json({ ok: false, message: '얼굴이 잘 보이는 사진으로 올려주세요.' }); }
-          if (a.count > 1) { dropFiles(); return res.status(400).json({ ok: false, message: '한 사람만 나온 사진으로 올려주세요.' }); }
-          if (a.minorPresent) { doc.minorFlag = true; doc.analysis = RM.genericizeMinors(a); used[0].buffer = null; }   // ③ 아이 사진은 보내지 않는다
-          else keep.push(used[0]);
+          if (!a) { await reject('analysis_failed'); dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
+          if (!(a.count > 0)) { await reject('no_face', { count: 0 }); dropFiles(); return res.status(400).json({ ok: false, message: '얼굴이 잘 보이는 사진으로 올려주세요.' }); }
+          doc.personGender = v.personGender;
+          // 뒤에 다른 어른이 찍혀 있어도 받는다 — 프롬프트가 "가장 크게 나온 한 사람" 만 그리게 한다 (예전엔 2명 이상이면 돌려보냈다)
+          if (a.count > 1) doc.extraPeople = a.count - 1;
+          if (a.minorPresent) {
+            // ③ 아이가 보이면 사진은 보내지 않는다 — 올린 사람이 아이면 캐릭터로, 뒤에 아이가 섞였으면 한 사람 사진으로 다시 받는다
+            if (a.count > 1) { await reject('minor_in_group', { count: a.count }); dropFiles(); return res.status(400).json({ ok: false, message: '아이가 함께 나온 사진은 쓸 수 없어요. 내 얼굴만 나온 사진으로 올려주세요.' }); }
+            doc.minorFlag = true; doc.analysis = RM.genericizeMinors(a); used[0].buffer = null;
+          } else keep.push(used[0]);
         } else if (def.key === 'studio') {
           const [a1, a2] = await Promise.all(used.map(f => analyzePeople(f.buffer)));
-          if (!a1 || !a2) { dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
+          if (!a1 || !a2) { await reject('analysis_failed', { failed: [!a1, !a2] }); dropFiles(); return res.status(409).json({ ok: false, message: '사진을 확인하지 못했어요. 잠시 후 다시 시도해주세요.' }); }
           const empty = [a1, a2].findIndex(a => !(a.count > 0));
-          if (empty >= 0) { dropFiles(); return res.status(400).json({ ok: false, message: `사진 ${empty + 1}에 사람이 잘 보이지 않아요. 다른 사진으로 올려주세요.` }); }
-          if (a1.count + a2.count > MAX_PEOPLE_TOTAL) { dropFiles(); return res.status(400).json({ ok: false, message: `두 사진을 합쳐 ${MAX_PEOPLE_TOTAL}명까지 함께 담을 수 있어요.` }); }
+          if (empty >= 0) { await reject('no_people', { photo: empty + 1, counts: [a1.count, a2.count] }); dropFiles(); return res.status(400).json({ ok: false, message: `사진 ${empty + 1}에 사람이 잘 보이지 않아요. 다른 사진으로 올려주세요.` }); }
+          if (a1.count + a2.count > MAX_PEOPLE_TOTAL) { await reject('too_many_people', { counts: [a1.count, a2.count] }); dropFiles(); return res.status(400).json({ ok: false, message: `두 사진을 합쳐 ${MAX_PEOPLE_TOTAL}명까지 함께 담을 수 있어요.` }); }
           doc.groups = [a1, a2].map((a, i) => {
             if (a.minorPresent) { doc.minorFlag = true; used[i].buffer = null; return { minor: true, analysis: RM.genericizeMinors(a) }; }
             keep.push(used[i]);
@@ -974,7 +997,7 @@ function mount(app, deps) {
       return res.json({ ok: true, view, offset, hasMore, items: rows.map(d => ({
         id: String(d._id), memberId: d.memberId || null, displayId: d.displayId || null, master: !!d.master,
         type: d.type, typeLabel: d.typeLabel || (TYPES[d.type] && TYPES[d.type].label) || '', greeting: d.greeting || null,
-        species: d.species || null, petGender: d.petGender || null,
+        species: d.species || null, petGender: d.petGender || null, personGender: d.personGender || null, extraPeople: d.extraPeople || 0,
         status: d.status, public: !!d.public, hidden: !!d.hidden, agreeMarketing: !!d.agreeMarketing,
         minorFlag: !!d.minorFlag, photoCount: d.photoCount || 0, mate: d.mate || null,
         imageUrl: d.imageUrl || null, rewarded: rewarded.has(d.memberId),
@@ -1042,6 +1065,27 @@ function mount(app, deps) {
       return res.json({ ok: true, hidden });
     } catch (err) {
       console.error('[추석] 관리 숨김 오류:', err.message);
+      return res.status(500).json({ ok: false });
+    }
+  });
+
+  // 사진 확인에서 돌려보낸 기록 — "자동 분석이 잘 안 된다" 를 이유별로 본다
+  app.get('/api/chuseok/admin/rejects', allowAdmin, async (req, res) => {
+    try {
+      const col = getDb().collection(REJECT_COLLECTION);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+      const since = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+      const [rows, byReason] = await Promise.all([
+        col.find({}).sort({ at: -1 }).limit(limit).toArray(),
+        Promise.all(['analysis_failed', 'no_face', 'minor_in_group', 'no_pet', 'minor_with_pet', 'no_people', 'too_many_people']
+          .map(r => col.countDocuments({ reason: r, at: { $gte: since } }).then(n => [r, n]))),
+      ]);
+      return res.json({ ok: true, byReason: Object.fromEntries(byReason), items: rows.map(d => ({
+        id: String(d._id), memberId: d.memberId || null, type: d.type, reason: d.reason, at: d.at,
+        count: d.count, counts: d.counts, people: d.people, animal: d.animal, photo: d.photo,
+      })) });
+    } catch (err) {
+      console.error('[추석] 관리 거절 목록 오류:', err.message);
       return res.status(500).json({ ok: false });
     }
   });
@@ -1172,5 +1216,5 @@ function mount(app, deps) {
   console.log('✅ [추석] 라우트 등록 완료 · FTP', FTP_DIR);
 }
 
-module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, TYPES, MAX_PER_MEMBER };
+module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, REJECT_COLLECTION, TYPES, MAX_PER_MEMBER };
 module.exports.__internals = { impl, recoverStuck, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };

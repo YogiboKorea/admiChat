@@ -194,21 +194,43 @@ const MOON_SCENES = [
   'mid-swing with the wooden mallet, a little flour dust in the air, winking at the camera',
 ];
 
-function moonPrompt(seed, person, mate) {
+// 성별은 고객이 고른다 (2026-09-15 — 남자 사진인데 여자로 그려지는 일이 있었다. 사진 분석에 맡기지 않는다)
+const MOON_GENDER = {
+  male: {
+    who: 'a man', kid: 'boy',
+    keep: 'He is male: keep clearly masculine features, face shape, jawline, eyebrows, facial hair and short or natural hairstyle exactly as in the photo — do NOT feminize him (no makeup look, no lipstick, no long eyelashes, no softened jaw, no feminine hairstyle or accessories).',
+    look: 'Filter look: a light, natural SNOW-style filter — clean clear skin (not heavily smoothed), a playful "cool guy" expression, a few floating sparkles and star AR stickers, subtle cheek glow, a dreamy navy-and-violet space background with twinkling stars, slightly wide-angle phone-selfie framing.',
+  },
+  female: {
+    who: 'a woman', kid: 'girl',
+    keep: 'She is female: keep her own face, features and hairstyle exactly as in the photo.',
+    look: 'Filter look: bright soft SNOW beauty-filter skin, rosy blush stickers on the cheeks, floating sparkles, tiny star and heart AR stickers, a dreamy pastel pink-and-lavender space background with twinkling stars, slightly wide-angle phone-selfie framing.',
+  },
+};
+
+function moonPrompt(seed, person, mate, gender) {
   // person: { source:'photo' } 이면 사진의 얼굴을 살린다. { source:'brief', people:[...] } 이면 설명으로만 (아이 등)
-  const who = person && person.source === 'photo'
-    ? 'the same person from the reference photo — keep their face, hairstyle, skin tone and age faithful and clearly recognizable'
-    : 'a cute generic character (not based on any real person) matching this description: ' +
-      (((person && person.people) || []).map(p => `${p.presentation || 'ambiguous'} ${p.ageGroup || 'adult'}`).join('; ') || 'a young adult');
+  // gender: 'male' | 'female' — 고객이 고른 값. 없으면(옛 응모) 성별 문장을 넣지 않는다
+  const g = MOON_GENDER[gender] || null;
+  let who;
+  if (person && person.source === 'photo') {
+    who = 'the main person from the reference photo (the largest face closest to the camera; leave out anyone else in the photo)' +
+      (g ? `, who is ${g.who},` : '') + ' — keep their face, hairstyle, skin tone and age faithful and clearly recognizable';
+  } else {
+    const p0 = ((person && person.people) || [])[0] || {};
+    const age = p0.ageGroup === 'child' ? (g ? 'young ' + g.kid : 'young child') : p0.ageGroup === 'teen' ? 'teenager' : 'young adult';
+    who = 'a cute generic character (not based on any real person): ' + (g && p0.ageGroup !== 'child' ? g.who.replace('a ', 'a young ') : 'a ' + age);
+  }
   return [
     'Create a playful selfie-style photo in the look of the Korean SNOW beauty-camera app with cute AR filter effects.',
     `Subject: ${who}, wearing fluffy white moon-rabbit ears and a little hanbok-style apron.`,
+    g && person && person.source === 'photo' ? g.keep : '',
     `On the surface of a giant glowing full moon, like the Korean legend of the moon rabbit, the subject is ${pick(seed, 'scene', MOON_SCENES)}.`,
-    'Filter look: bright soft beauty-filter skin, rosy blush stickers on the cheeks, floating sparkles, tiny star and heart AR stickers, dreamy pastel pink-and-lavender space background with twinkling stars, slightly wide-angle phone-selfie framing.',
+    g ? g.look : MOON_GENDER.female.look,
     'Keep it fun and cute, not scary; realistic photo of the person with filter overlays on top.',
     mateLine(mate, 'peeking out of a small moon crater in the background'),
     NO_TEXT,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 // ── 사진 확인용 비전 프롬프트 ───────────────────────────────────────

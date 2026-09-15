@@ -172,6 +172,21 @@ section{margin-top:28px}
 
     <section>
       <div class="sec-h">
+        <h2>사진 확인에서 돌려보낸 건</h2>
+        <span class="sp"></span>
+        <span class="pill" id="rj-total" hidden></span>
+      </div>
+      <div class="cfg" id="rj-sum"></div>
+      <div class="list" id="rj-list"></div>
+      <div class="empty" id="rj-empty" hidden>돌려보낸 사진이 없습니다.</div>
+      <p class="note">
+        고객이 사진을 올렸는데 <b>만들기 전에 거절된 기록</b>입니다(최근 50건, 요약은 최근 7일). 사진은 저장하지 않고 이유·인원 수만 남깁니다. 이 건들은 횟수가 차감되지 않았습니다.<br>
+        <b>분석 실패</b>가 많으면 OpenAI 연결 문제, <b>얼굴·사람 없음</b>이 많으면 사진 인식이 너무 엄격한지 확인이 필요합니다.
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-h">
         <h2>적립 확인 (예외 건만)</h2>
         <span class="pill warn" id="rw-count" hidden></span>
         <span class="sp"></span>
@@ -228,7 +243,7 @@ section{margin-top:28px}
   function fmtUtc(v) { if (!v) return ''; try { return new Date(v).toLocaleString('ko-KR', { timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }); } catch (e) { return String(v); } }
 
   function lock(msg) { $('#app').hidden = true; $('#locked').hidden = false; $('#logout').hidden = true; setStatus(msg || '', !!msg); }
-  function unlock() { $('#app').hidden = false; $('#locked').hidden = true; $('#logout').hidden = false; setStatus('연결됨'); loadStats(); loadEntries(true); loadRewards(false); }
+  function unlock() { $('#app').hidden = false; $('#locked').hidden = true; $('#logout').hidden = false; setStatus('연결됨'); loadStats(); loadEntries(true); loadRejects(); loadRewards(false); }
 
   $('#keyform').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -295,6 +310,7 @@ section{margin-top:28px}
   function detail(it) {
     if (it.type === 'card') return it.greeting ? '&ldquo;' + esc(it.greeting) + '&rdquo;' : '<span class="lbl">(인사말 없음)</span>';
     if (it.type === 'pet') return '<span class="lbl">' + esc(TYPE_LABEL.pet) + '</span> · ' + esc(it.species === 'cat' ? '고양이' : it.species === 'dog' ? '강아지' : '반려동물') + ' · ' + (it.petGender === 'girl' ? '여아' : '남아') + ' 한복';
+    if (it.type === 'moon') return '<span class="lbl">' + esc(TYPE_LABEL.moon) + '</span>' + (it.personGender ? ' · ' + (it.personGender === 'female' ? '여자' : '남자') : '') + (it.extraPeople ? ' · <span class="lbl">사진 속 다른 사람 ' + it.extraPeople + '명 제외</span>' : '');
     return '<span class="lbl">' + esc(TYPE_LABEL[it.type] || it.typeLabel || it.type) + '</span>';
   }
   function row(it) {
@@ -351,7 +367,7 @@ section{margin-top:28px}
   $('#type').addEventListener('change', function () { type = $('#type').value; loadEntries(true); });
   var qTimer = null;
   $('#q').addEventListener('input', function () { clearTimeout(qTimer); qTimer = setTimeout(function () { qtext = $('#q').value.trim(); loadEntries(true); }, 300); });
-  $('#refresh').addEventListener('click', function () { loadStats(); loadEntries(true); loadRewards(false); });
+  $('#refresh').addEventListener('click', function () { loadStats(); loadEntries(true); loadRejects(); loadRewards(false); });
   $('#more').addEventListener('click', function () { loadEntries(false); });
 
   $('#list').addEventListener('click', function (e) {
@@ -383,6 +399,35 @@ section{margin-top:28px}
       })
       .catch(function (err) { btn.disabled = false; fail(err); });
   });
+
+  /* ── 사진 확인 거절 ── */
+  var REJECT_LABEL = {
+    analysis_failed: '분석 실패 (다시 시도 안내)', no_face: '얼굴이 안 보임', minor_in_group: '아이와 함께 찍힌 사진',
+    no_pet: '반려동물이 안 보임', minor_with_pet: '반려동물 사진에 아이', no_people: '사람이 안 보임', too_many_people: '인원 초과 (6명 넘음)'
+  };
+  function rjDetail(it) {
+    var bits = [];
+    if (typeof it.count === 'number') bits.push('인원 ' + it.count);
+    if (it.counts) bits.push('사진별 인원 ' + it.counts.join(' / '));
+    if (typeof it.people === 'number') bits.push('사람 ' + it.people);
+    if (it.photo) bits.push('사진 ' + it.photo);
+    if (it.animal) bits.push(it.animal === 'cat' ? '고양이' : it.animal === 'dog' ? '강아지' : it.animal);
+    return bits.join(' · ');
+  }
+  function loadRejects() {
+    return api('/api/chuseok/admin/rejects?limit=50').then(function (d) {
+      var items = d.items || [], sum = d.byReason || {}, total = 0;
+      var parts = Object.keys(REJECT_LABEL).filter(function (k) { return sum[k]; }).map(function (k) { total += sum[k]; return '<span>' + esc(REJECT_LABEL[k]) + ' <b>' + sum[k] + '</b></span>'; });
+      $('#rj-sum').innerHTML = parts.length ? '<span>최근 7일:</span>' + parts.join('') : '';
+      $('#rj-total').textContent = total ? '7일 ' + total + '건' : ''; $('#rj-total').hidden = !total;
+      $('#rj-list').innerHTML = items.slice(0, 20).map(function (it) {
+        return '<div class="rrow"><div><div><code>' + esc(it.memberId || '-') + '</code> <span class="pill night">' + esc(TYPE_LABEL[it.type] || it.type) + '</span> ' +
+          '<span class="pill ' + (it.reason === 'analysis_failed' ? 'bad' : 'warn') + '">' + esc(REJECT_LABEL[it.reason] || it.reason) + '</span></div>' +
+          '<div class="m"><span>' + fmtUtc(it.at) + '</span>' + (rjDetail(it) ? '<span>' + esc(rjDetail(it)) + '</span>' : '') + '</div></div></div>';
+      }).join('');
+      $('#rj-empty').hidden = !!items.length;
+    }).catch(function (err) { fail(err, '거절 기록을 불러오지 못했습니다.'); });
+  }
 
   /* ── 적립 정산 ── */
   function rrow(it) {
