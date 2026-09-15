@@ -25,6 +25,7 @@ const nodemailer = require('nodemailer');
 const erp = require('./erp'); // 이카운트 판매현황 적재 모듈
 const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
+const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
 const smtpTransporter = nodemailer.createTransport({
@@ -6623,6 +6624,22 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
     }
 
     restMoment.mount(app, {
+      getDb: () => db,
+      apiRequest,
+      mallId: CAFE24_MALLID,
+    });
+
+    // 2-2. [추석 AI 사진관] 인덱스 + 라우트 등록 — 회원만 · 회원당 5회 · 적립금 계정당 1회
+    try {
+      await db.collection(chuseokEvent.REWARD_COLLECTION).createIndex({ memberId: 1 }, { unique: true });
+      await db.collection(chuseokEvent.ENTRY_COLLECTION).createIndex({ status: 1, createdAt: 1 });
+      await db.collection(chuseokEvent.ENTRY_COLLECTION).createIndex({ memberId: 1, status: 1 });
+      console.log('✅ chuseokEvent Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ chuseokEvent Index 생성 경고:', idxErr.message);
+    }
+
+    chuseokEvent.mount(app, {
       getDb: () => db,
       apiRequest,
       mallId: CAFE24_MALLID,
