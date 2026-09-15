@@ -6634,6 +6634,8 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       await db.collection(chuseokEvent.REWARD_COLLECTION).createIndex({ memberId: 1 }, { unique: true });
       await db.collection(chuseokEvent.ENTRY_COLLECTION).createIndex({ status: 1, createdAt: 1 });
       await db.collection(chuseokEvent.ENTRY_COLLECTION).createIndex({ memberId: 1, status: 1 });
+      // 갤러리 — 공개 완성작 최신순 (종류 탭)
+      await db.collection(chuseokEvent.ENTRY_COLLECTION).createIndex({ status: 1, public: 1, type: 1, doneAt: -1 });
       console.log('✅ chuseokEvent Index 확인 완료');
     } catch (idxErr) {
       console.warn('⚠️ chuseokEvent Index 생성 경고:', idxErr.message);
