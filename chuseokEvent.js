@@ -41,7 +41,9 @@ const TRASH_COLLECTION = 'chuseokTrash';                  // 관리자가 지운
 const REJECT_COLLECTION = 'chuseokRejects';               // 사진 확인에서 돌려보낸 기록(이유·인원 수만, 사진 없음) — 관리 페이지에서 본다
 
 const MAX_PER_MEMBER = 5;                                 // 고정 (결정 사항)
-const PUBLIC_BONUS = 1;                                   // 갤러리에 공개하면 +1장 (결정 사항 2026-09-15). 공개 중인 사진이 있을 때만
+// 갤러리에 공개하면 +5장 — 공개 중인 사진이 하나라도 있으면 한 번에 5장이 열린다(최대 10장). 공개할 때마다 더 주는 게 아니다
+// (결정 사항 2026-09-15: 처음 +1장 → 같은 날 +5장으로 변경)
+const PUBLIC_BONUS = 5;
 const MEMBERS_ONLY = true;                                // 고정 (결정 사항)
 const POINT_AMOUNT = Number(process.env.CHUSEOK_POINT || 3000);
 const EVENT_START = process.env.CHUSEOK_START || '';      // 비우면 바로 열림 (YYYY-MM-DD, KST)
@@ -50,7 +52,9 @@ const MAX_GEN_TOTAL = process.env.CHUSEOK_MAX_GEN === undefined ? 1000 : Math.ma
 const MAX_GEN_DAILY = Math.max(0, Number(process.env.CHUSEOK_DAILY_GEN || 0) || 0);
 const MASTER_IDS = (process.env.CHUSEOK_MASTER_IDS || process.env.REST_MOMENT_MASTER_IDS || 'testid,yogibo')
   .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-const WATERMARK = !/^(0|false|no|off)$/i.test(String(process.env.CHUSEOK_WATERMARK || '1'));
+// 이미지 위에 글자로 찍던 'AI 생성 이미지' 표시 — 기본은 끈다 (결정 사항 2026-09-15: 이미지 자체엔 안 보이게).
+// 대신 모든 결과 파일 안에 AI 생성 정보를 넣는다(EXIF + XMP IPTC DigitalSourceType). 다시 글자로 찍으려면 CHUSEOK_WATERMARK=1
+const WATERMARK = /^(1|true|yes|on)$/i.test(String(process.env.CHUSEOK_WATERMARK || '0'));
 const CONCURRENCY = Math.max(1, Number(process.env.CHUSEOK_CONCURRENCY || 2));
 
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
@@ -364,14 +368,39 @@ function watermarkSvg(W = OUT_W, H = OUT_H) {
 </svg>`;
 }
 
-/** 생성 원본(2:3) → 4:5 카드 → (축전이면 글자) → 워터마크 → JPEG */
+// ── 보이지 않는 AI 생성 표시 ── 사람 눈엔 안 보이고, 파일 정보(EXIF·XMP)를 읽는 프로그램이 알아본다.
+// XMP 의 IPTC DigitalSourceType trainedAlgorithmicMedia 는 "생성형 AI 로 만든 이미지" 를 뜻하는 국제 표준 값이다.
+// (카카오톡 등이 다시 압축하면 파일 정보가 떨어질 수 있다 — 그래서 이벤트 페이지 화면에도 AI 생성이라고 적는다)
+const AI_EXIF = { IFD0: { ImageDescription: 'AI-generated image (Yogibo Chuseok AI photo event)', Software: 'Generative AI' } };
+const AI_XMP = '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+  + '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+  + '<rdf:Description rdf:about="" xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" xmlns:dc="http://purl.org/dc/elements/1.1/"'
+  + ' Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia">'
+  + '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">AI 생성 이미지 · 요기보 추석 AI 사진관</rdf:li></rdf:Alt></dc:description>'
+  + '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="r"?>';
+
+/** JPEG 의 앞쪽 APPn 묶음 바로 뒤에 XMP(APP1) 조각을 끼운다. JPEG 이 아니면 그대로 돌려준다 */
+function addXmp(jpeg, xmp = AI_XMP) {
+  if (!Buffer.isBuffer(jpeg) || jpeg.length < 4 || jpeg[0] !== 0xFF || jpeg[1] !== 0xD8) return jpeg;
+  const payload = Buffer.concat([Buffer.from('http://ns.adobe.com/xap/1.0/\0', 'latin1'), Buffer.from(xmp, 'utf8')]);
+  if (payload.length + 2 > 0xFFFF) return jpeg;
+  let at = 2;
+  while (at + 4 <= jpeg.length && jpeg[at] === 0xFF && jpeg[at + 1] >= 0xE0 && jpeg[at + 1] <= 0xEF) at += 2 + jpeg.readUInt16BE(at + 2);
+  if (at > jpeg.length) return jpeg;
+  const head = Buffer.alloc(4);
+  head[0] = 0xFF; head[1] = 0xE1; head.writeUInt16BE(payload.length + 2, 2);
+  return Buffer.concat([jpeg.subarray(0, at), head, payload, jpeg.subarray(at)]);
+}
+
+/** 생성 원본(2:3) → 4:5 카드 → (축전이면 글자) → (켜 둔 경우만 글자 워터마크) → JPEG + 보이지 않는 AI 생성 정보 */
 async function renderFinal(genBuf, doc) {
   let img = sharp(genBuf).resize(OUT_W, OUT_H, { fit: 'cover', position: 'centre' });
   const layers = [];
   if (doc.type === 'card' && doc.greeting) layers.push({ input: Buffer.from(greetingSvg(doc.greeting)), top: 0, left: 0 });
   if (WATERMARK) layers.push({ input: Buffer.from(watermarkSvg()), top: 0, left: 0 });
   if (layers.length) img = sharp(await img.png().toBuffer()).composite(layers);
-  return img.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  const jpg = await img.withMetadata({ exif: AI_EXIF }).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  return addXmp(jpg);
 }
 
 // ── 프롬프트 + 참조 조립 ─────────────────────────────────────────
@@ -448,12 +477,13 @@ async function genBudget(col) {
 /** 쓴 횟수 — 과금 전 실패는 안 센다. GPT 를 이미 부른(genAt) 건은 실패했어도 센다 */
 function usedFilter(mid) { return { memberId: mid, $or: [{ status: { $ne: 'failed' } }, { genAt: { $exists: true } }] }; }
 
-/** 공개 보너스 기준 — 지금 공개 중이고(관리자가 숨기지 않았고) 횟수에 잡히는 응모가 하나라도 있으면 +1장.
- *  "공개했다가 바로 비공개로 돌려 +1장만 챙기기" 는 막고, 이미 만든 6번째 사진을 뺏지는 않는다(남은 횟수가 0 이 될 뿐). */
+/** 공개 보너스 기준 — 지금 공개 중이고(관리자가 숨기지 않았고) 횟수에 잡히는 응모가 하나라도 있으면 +PUBLIC_BONUS장.
+ *  공개를 거두면 보너스도 빠진다(남은 횟수가 줄 뿐, 이미 만든 사진을 뺏지는 않는다). */
 function publicFilter(mid) { return Object.assign(usedFilter(mid), { public: true, hidden: { $ne: true } }); }
 
 async function quotaFor(db, mid) {
-  const base = { loggedIn: false, master: false, unlimited: false, base: MAX_PER_MEMBER, bonus: 0, bonusAvailable: false, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, done: 0, rewarded: false, membersOnly: MEMBERS_ONLY };
+  // bonusMax — 공개로 열리는 장수(페이지 문구용). bonusLeft — 지금 공개하면 실제로 더 만들 수 있는 장수
+  const base = { loggedIn: false, master: false, unlimited: false, base: MAX_PER_MEMBER, bonus: 0, bonusMax: PUBLIC_BONUS, bonusAvailable: false, bonusLeft: 0, max: MAX_PER_MEMBER, used: 0, left: MAX_PER_MEMBER, done: 0, rewarded: false, membersOnly: MEMBERS_ONLY };
   if (!mid) return base;
   const col = db.collection(ENTRY_COLLECTION);
   const [used, done, reward, publicCount] = await Promise.all([
@@ -466,10 +496,11 @@ async function quotaFor(db, mid) {
   const rewarded = !!reward && (reward.settled === true || reward.settled === undefined);
   const bonus = !master && publicCount > 0 ? PUBLIC_BONUS : 0;
   const max = MAX_PER_MEMBER + bonus;
+  // 공개하면 더 만들 자리가 실제로 있을 때만 — 이미 최대치를 쓴(공개했다 비공개로 돌린) 계정엔 권하지 않는다 (리뷰 2026-09-15)
+  const bonusAvailable = !master && !bonus && used < MAX_PER_MEMBER + PUBLIC_BONUS;
   return Object.assign(base, {
     loggedIn: true, master, unlimited: master, used, done, rewarded,
-    // 공개로 1장 더 만들 자리가 실제로 있을 때만 — 이미 6장을 쓴(공개했다 비공개로 돌린) 계정엔 권하지 않는다 (리뷰 2026-09-15)
-    bonus, bonusAvailable: !master && !bonus && used < MAX_PER_MEMBER + PUBLIC_BONUS, max,
+    bonus, bonusAvailable, bonusLeft: bonusAvailable ? Math.min(PUBLIC_BONUS, MAX_PER_MEMBER + PUBLIC_BONUS - Math.max(used, MAX_PER_MEMBER)) : 0, max,
     left: master ? null : Math.max(0, max - used),
   });
 }
@@ -684,16 +715,17 @@ function mount(app, deps) {
         const db = getDb();
         const col = db.collection(ENTRY_COLLECTION);
         const master = isMasterId(mid);
-        // 한도 = 5, 공개 중인 사진이 있거나 이번 건을 공개로 만들면 6
+        // 한도 = 5, 공개 중인 사진이 있거나 이번 건을 공개로 만들면 5 + PUBLIC_BONUS
         const limitFor = (pub, share) => MAX_PER_MEMBER + ((pub > 0 || share) ? PUBLIC_BONUS : 0);
         const limitReply = async (pub, n) => {
-          // 공개로 바꿔 만들면 되는 경우만 안내한다 — 이미 6장을 쓴(공개했다 비공개로 돌린) 경우는 공개해도 자리가 없다
+          // 공개로 바꿔 만들면 되는 경우만 안내한다 — 이미 최대치를 쓴(공개했다 비공개로 돌린) 경우는 공개해도 자리가 없다
           const canBonus = !pub && !v.share && n < MAX_PER_MEMBER + PUBLIC_BONUS;
+          const more = MAX_PER_MEMBER + PUBLIC_BONUS - Math.max(n, MAX_PER_MEMBER);
           return res.status(400).json({
             ok: false, limitReached: true, bonusAvailable: canBonus,
             quota: await quotaFor(db, mid).catch(() => null),
             message: canBonus
-              ? `${MAX_PER_MEMBER}장을 모두 만들었어요. 갤러리에 공개로 만들면 1장 더 만들 수 있어요.`
+              ? `${n}장을 모두 만들었어요. 갤러리에 공개로 만들면 ${more}장 더 만들 수 있어요.`
               : `이 아이디로는 ${MAX_PER_MEMBER + PUBLIC_BONUS}장까지 만들 수 있어요.`,
           });
         };
@@ -1217,4 +1249,4 @@ function mount(app, deps) {
 }
 
 module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, REJECT_COLLECTION, TYPES, MAX_PER_MEMBER };
-module.exports.__internals = { impl, recoverStuck, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };
+module.exports.__internals = { impl, recoverStuck, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, addXmp, WATERMARK, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };

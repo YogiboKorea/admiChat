@@ -26,6 +26,7 @@ const erp = require('./erp'); // 이카운트 판매현황 적재 모듈
 const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
+const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
 const smtpTransporter = nodemailer.createTransport({
@@ -6646,6 +6647,16 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       apiRequest,
       mallId: CAFE24_MALLID,
     });
+
+    // [이미지 인기투표] 직원 투표 — 한 사람(이름)당 이미지 하나에 한 표
+    try {
+      await db.collection(choiceVote.COLLECTION).createIndex({ imageId: 1, voter: 1 }, { unique: true });
+      await db.collection(choiceVote.COLLECTION).createIndex({ imageId: 1 });
+      console.log('✅ choiceVote Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ choiceVote Index 생성 경고:', idxErr.message);
+    }
+    choiceVote.mount(app, { getDb: () => db });
 
     // [신규회원이벤트] yogiboNewMemberEvent0428 Unique Index
     try {
