@@ -430,8 +430,14 @@ function addXmp(jpeg, xmp = AI_XMP) {
 }
 
 /** 생성 원본(2:3) → 4:5 카드 → (축전이면 글자) → (켜 둔 경우만 글자 워터마크) → JPEG + 보이지 않는 AI 생성 정보 */
+const CARD_POP = !/^(0|false|no|off)$/i.test(String(process.env.CHUSEOK_CARD_POP || '1'));
+
 async function renderFinal(genBuf, doc) {
   let img = sharp(genBuf).resize(OUT_W, OUT_H, { fit: 'cover', position: 'centre' });
+  // 축전만 — 채도·대비를 아주 살짝 올려 그림체를 살린다 (사진처럼 밋밋해지는 걸 막는 마무리)
+  if (doc.type === 'card' && CARD_POP) {
+    img = sharp(await img.modulate({ saturation: 1.08 }).linear(1.04, -6).png().toBuffer());
+  }
   const layers = [];
   // 글씨 연출은 그 응모가 고른 참고 카드에 맞춘다 (카드마다 글꼴·색이 다르다)
   if (doc.type === 'card' && doc.greeting) {

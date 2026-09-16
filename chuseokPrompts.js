@@ -78,6 +78,14 @@ const CARD_MOTIFS = [
 
 /** 축전 — 참고 카드(ref-card-*.jpg)를 붙여 보낼 때 쓰는 문장.
  *  참고 카드에는 한글 문구가 박혀 있다. 글자는 우리가 나중에 새기므로 "글자는 절대 따라 그리지 말 것" 을 특히 세게 건다. */
+// 그림체를 세게 잡아 주는 문장 — 이게 없으면 사진처럼 밋밋하게 빠질 때가 있다 (2026-09-16)
+const CARD_ART_LINE = [
+  'ART DIRECTION (important): a hand-painted illustrated greeting card, NOT a photograph and not a 3D render screenshot —',
+  'clean bold outlines around the characters, painterly brushwork, rich saturated storybook colours, warm rim light and soft glow,',
+  'crisp readable shapes with clear separation between foreground characters and background, decorative illustrated framing.',
+  'Keep every element illustrated in one consistent style; no photo textures, no realistic skin, no flat grey lighting.',
+].join(' ');
+
 const CARD_REF_LINE = [
   'A reference greeting card image is attached. Match it closely: the same two plush mascot characters together —',
   'a fluffy orange fox plush and a round red dinosaur plush, both wearing Korean hanbok — posed in the lower half of the card,',
@@ -91,6 +99,7 @@ function cardPrompt(seed, mate, styleRef) {
   return [
     'Create a Korean Chuseok (Hangawi) greeting e-card image in the nostalgic style that Korean parents love to send on KakaoTalk:',
     'glossy, festive, a little kitschy on purpose — bright saturated colours, shiny gold, sparkles and glow effects, like a classic mobile greeting card.',
+    CARD_ART_LINE,
     styleRef ? CARD_REF_LINE : '',
     `Frame: ${pick(seed, 'border', CARD_BORDERS)}.`,
     `Background: ${pick(seed, 'palette', CARD_PALETTES)}, with a huge luminous full moon in the upper part.`,
