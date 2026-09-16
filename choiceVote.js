@@ -3,6 +3,7 @@
  *
  * · 로그인 없음. 첫 화면에서 이름만 적으면 그 이름으로 표가 쌓인다(같은 이름 = 같은 사람으로 본다).
  * · 한 사람이 한 이미지에 한 표. 다시 누르면(페이지에서는 더블클릭) 표가 빠진다.
+ * · 한 사람이 고를 수 있는 건 모든 탭을 통틀어 MAX_PICKS 개까지 (최종으로 5개만 쓰기 때문, 결정 사항 2026-09-16).
  * · 이미지는 Cafe24 웹호스팅에 올라가 있고(폴더 목록은 페이지가 들고 있다), 여기서는 표만 센다.
  * · 컬렉션 choiceVote : { imageId, voter, at } — (imageId, voter) 하나만 남게 유니크 인덱스.
  */
@@ -10,6 +11,7 @@
 
 const COLLECTION = 'choiceVote';
 const MAX_NAME = 20;
+const MAX_PICKS = Math.max(1, Number(process.env.CHOICE_MAX_PICKS) || 5);   // 한 사람이 고를 수 있는 총 개수
 const ID_RE = /^[0-9A-Za-z가-힣._\-]{1,80}\/[0-9A-Za-z가-힣._\-]{1,120}$/;   // "폴더명/파일명"
 
 function cleanVoter(v) {
@@ -40,7 +42,10 @@ function mount(app, deps) {
         if (r.voter) voters[r.voter] = true;
         if (voter && r.voter === voter) mine.push(r.imageId);
       });
-      return res.json({ ok: true, totals, mine, voterCount: Object.keys(voters).length, voteCount: rows.length });
+      return res.json({
+        ok: true, totals, mine, max: MAX_PICKS, picked: mine.length,
+        voterCount: Object.keys(voters).length, voteCount: rows.length,
+      });
     } catch (err) {
       console.error('[투표] 상태 오류:', err.message);
       return res.status(500).json({ ok: false, message: '잠시 후 다시 시도해주세요.' });
@@ -58,16 +63,39 @@ function mount(app, deps) {
       const on = !(body.on === false || body.on === 'false' || body.on === 0 || body.on === '0');
 
       if (on) {
-        await col().updateOne(
+        // 고른 개수 제한 — 먼저 세어 보고, 넣은 뒤 순번으로 한 번 더 확인한다(동시에 여러 개를 눌러도 5개를 넘지 않게)
+        const before = await col().countDocuments({ voter });
+        const mineAlready = await col().countDocuments({ imageId, voter });
+        if (!mineAlready && before >= MAX_PICKS) {
+          return res.status(409).json({
+            ok: false, limitReached: true, picked: before, max: MAX_PICKS,
+            message: `${MAX_PICKS}개까지 고를 수 있어요. 바꾸려면 고른 사진을 두 번 눌러 취소해 주세요.`,
+          });
+        }
+        const up = await col().updateOne(
           { imageId, voter },
           { $setOnInsert: { imageId, voter, at: new Date() } },
           { upsert: true },
         );
+        const newId = up && up.upsertedId ? (up.upsertedId._id || up.upsertedId) : null;
+        if (newId) {
+          const rank = await col().countDocuments({ voter, _id: { $lte: newId } });
+          if (rank > MAX_PICKS) {                       // 동시에 들어와 한도를 넘겼다 — 방금 넣은 내 것만 뺀다
+            await col().deleteOne({ imageId, voter });
+            return res.status(409).json({
+              ok: false, limitReached: true, picked: await col().countDocuments({ voter }), max: MAX_PICKS,
+              message: `${MAX_PICKS}개까지 고를 수 있어요. 바꾸려면 고른 사진을 두 번 눌러 취소해 주세요.`,
+            });
+          }
+        }
       } else {
         await col().deleteOne({ imageId, voter });
       }
-      const count = await col().countDocuments({ imageId });
-      return res.json({ ok: true, id: imageId, on, count });
+      const [count, picked] = await Promise.all([
+        col().countDocuments({ imageId }),
+        col().countDocuments({ voter }),
+      ]);
+      return res.json({ ok: true, id: imageId, on, count, picked, max: MAX_PICKS });
     } catch (err) {
       // 같은 사람이 아주 빠르게 두 번 눌러 유니크 인덱스에 걸린 경우도 성공으로 본다
       if (err && err.code === 11000) {
@@ -99,4 +127,4 @@ function mount(app, deps) {
   console.log('🗳️  이미지 인기투표 API 준비됨 (/api/choice)');
 }
 
-module.exports = { mount, COLLECTION, __internals: { cleanVoter, cleanId } };
+module.exports = { mount, COLLECTION, MAX_PICKS, __internals: { cleanVoter, cleanId } };

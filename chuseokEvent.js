@@ -74,6 +74,10 @@ const MATE_REF_PATHS = {
   fox: path.join(__dirname, 'public', 'rest-moment', 'ref-mate-fox.png'),
   trex: path.join(__dirname, 'public', 'rest-moment', 'ref-mate-trex.png'),
 };
+// 축전 참고 카드 — public/chuseok/ref-card-*.jpg (요기보 한가위 카드 10종). 한 건마다 한 장을 골라 같이 보낸다.
+// 사용 비율(%) — 기본 100. 0 이면 참고 카드 없이 예전처럼 그린다
+const CARD_REF_DIR = path.join(__dirname, 'public', 'chuseok');
+const CARD_REF_RATE = process.env.CHUSEOK_CARD_REF_RATE === undefined ? 100 : Math.max(0, Math.min(100, Number(process.env.CHUSEOK_CARD_REF_RATE) || 0));
 // 메이트 등장 확률(%) — 기본 60. 0 이면 안 나오고 100 이면 늘 나온다 (결정 사항: 100% 노출은 아니게)
 const MATE_RATE = process.env.CHUSEOK_MATE_RATE === undefined ? 60 : Math.max(0, Math.min(100, Number(process.env.CHUSEOK_MATE_RATE) || 0));
 
@@ -405,6 +409,32 @@ async function renderFinal(genBuf, doc) {
 
 // ── 프롬프트 + 참조 조립 ─────────────────────────────────────────
 const mateRefCache = {};
+/** 응모 id + 꼬리표 → 늘 같은 숫자 (같은 건이면 늘 같은 카드가 골라지게) */
+function seedInt(seed, tag) {
+  return crypto.createHash('sha1').update(String(seed) + ':' + tag).digest().readUInt32BE(0);
+}
+
+/** 축전 참고 카드 한 장 — 응모 id 로 고르니 같은 건은 늘 같은 카드, 사람마다는 골고루 */
+const cardRefCache = {};
+let cardRefNames = null;
+async function cardRef(seed) {
+  if (CARD_REF_RATE <= 0) return null;
+  if (cardRefNames === null) {
+    try { cardRefNames = fs.readdirSync(CARD_REF_DIR).filter(f => /^ref-card-.*\.(jpe?g|png)$/i.test(f)).sort(); }
+    catch { cardRefNames = []; }
+    if (!cardRefNames.length) console.warn('[추석] 축전 참고 카드가 없습니다 —', CARD_REF_DIR);
+  }
+  if (!cardRefNames.length) return null;
+  // 쓸지 말지도 같은 씨앗으로 — 비율을 낮추면 일부만 참고 카드를 쓴다
+  if (CARD_REF_RATE < 100 && (seedInt(seed, 'cardref') % 100) >= CARD_REF_RATE) return null;
+  const name = cardRefNames[seedInt(seed, 'cardpick') % cardRefNames.length];
+  if (!cardRefCache[name]) {
+    cardRefCache[name] = await sharp(fs.readFileSync(path.join(CARD_REF_DIR, name)))
+      .resize({ width: 768, height: 768, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
+  }
+  return { buf: cardRefCache[name], mime: 'image/jpeg', name: 'refcard.jpg', file: name };
+}
+
 async function mateRef(kind) {
   if (!MATE_REF_PATHS[kind]) return null;
   if (mateRefCache[kind]) return mateRefCache[kind];
@@ -430,7 +460,10 @@ async function buildJob(doc, photos) {
 
   let prompt;
   if (doc.type === 'card') {
-    prompt = CP.cardPrompt(seed, mate);
+    // 참고 카드를 쓰면 캐릭터가 그 카드에서 오므로 메이트 인형은 따로 넣지 않는다
+    const ref = await cardRef(seed);
+    if (ref) { refs.push({ buf: ref.buf, mime: ref.mime, name: ref.name }); mate = null; }
+    prompt = CP.cardPrompt(seed, mate, !!ref);
   } else if (doc.type === 'studio') {
     // groups 순서 = 사진 1·2 순서. 사진이 있는 그룹만 참조로 보낸다
     const groups = (doc.groups || []).map((g, i) => {
@@ -1249,4 +1282,4 @@ function mount(app, deps) {
 }
 
 module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, REJECT_COLLECTION, TYPES, MAX_PER_MEMBER };
-module.exports.__internals = { impl, recoverStuck, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, addXmp, WATERMARK, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };
+module.exports.__internals = { impl, recoverStuck, cardRef, seedInt, CARD_REF_DIR, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, addXmp, WATERMARK, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };

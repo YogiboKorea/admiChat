@@ -76,18 +76,31 @@ const CARD_MOTIFS = [
   'a table of Chuseok fruits — pears, apples, persimmons, chestnuts — at the bottom',
 ];
 
-function cardPrompt(seed, mate) {
+/** 축전 — 참고 카드(ref-card-*.jpg)를 붙여 보낼 때 쓰는 문장.
+ *  참고 카드에는 한글 문구가 박혀 있다. 글자는 우리가 나중에 새기므로 "글자는 절대 따라 그리지 말 것" 을 특히 세게 건다. */
+const CARD_REF_LINE = [
+  'A reference greeting card image is attached. Match it closely: the same two plush mascot characters together —',
+  'a fluffy orange fox plush and a round red dinosaur plush, both wearing Korean hanbok — posed in the lower half of the card,',
+  'and the same glossy, festive, slightly kitschy Korean mobile greeting-card look (rich colours, soft glow, gentle sparkle).',
+  'Use the reference for the characters, colours, lighting and overall composition only.',
+  'CRITICAL: the reference image contains Korean lettering. Do NOT copy, imitate or invent any text, letters, numbers, signatures or speech bubbles with writing —',
+  'the card you draw must be completely free of any writing, because the greeting text is engraved afterwards.',
+].join(' ');
+
+function cardPrompt(seed, mate, styleRef) {
   return [
     'Create a Korean Chuseok (Hangawi) greeting e-card image in the nostalgic style that Korean parents love to send on KakaoTalk:',
     'glossy, festive, a little kitschy on purpose — bright saturated colours, shiny gold, sparkles and glow effects, like a classic mobile greeting card.',
+    styleRef ? CARD_REF_LINE : '',
     `Frame: ${pick(seed, 'border', CARD_BORDERS)}.`,
     `Background: ${pick(seed, 'palette', CARD_PALETTES)}, with a huge luminous full moon in the upper part.`,
     `Decoration: ${pick(seed, 'motif', CARD_MOTIFS)}.`,
     'IMPORTANT LAYOUT: keep a wide horizontal band in the upper-middle of the image — from about 14% to 44% of the image height, spanning most of the width — clean and simple (smooth sky or soft moonlight glow, no objects, no flowers, no busy patterns),',
     'because large greeting text will be placed there afterwards. The moon may sit behind that band as a soft glow.',
-    mateLine(mate, 'in a lower corner of the frame like a cute sticker, bowing politely'),
+    // 참고 카드를 쓰면 캐릭터는 그 카드에서 온다 — 따로 메이트 인형을 하나 더 넣으라고 하지 않는다
+    styleRef ? '' : mateLine(mate, 'in a lower corner of the frame like a cute sticker, bowing politely'),
     NO_TEXT,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 // ── 2. 한가위 사진관 ───────────────────────────────────────────────
