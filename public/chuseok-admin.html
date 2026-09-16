@@ -165,7 +165,7 @@ section{margin-top:28px}
       <div class="empty" id="empty" hidden>해당하는 사진이 없습니다.</div>
       <button class="btn more" id="more" hidden>더 보기</button>
       <p class="note">
-        <b>갤러리 공개 중</b>은 고객이 "공개할게요"를 골라 갤러리에 보이는 사진입니다. <b>숨김</b>을 누르면 갤러리에서만 빠지고(고객의 '내가 만든 사진'에는 남음), 그 회원에게 공개 중인 사진이 이것뿐이면 <b>공개 보너스 +5장</b>도 빠집니다. <b>되돌리기</b>로 다시 공개할 수 있습니다.<br>
+        <b>갤러리 공개 중</b>은 고객이 "공개할게요"를 골라 갤러리에 보이는 사진입니다. <b>숨김</b>을 누르면 갤러리에서만 빠지고(고객의 '내가 만든 사진'에는 남음), 그 회원의 <b>공개 보너스가 1장 줄어듭니다</b>(공개한 장수만큼 주기 때문 · 최대 5장). <b>되돌리기</b>로 다시 공개할 수 있습니다.<br>
         <b>삭제</b>는 기록과 이미지 파일을 모두 지웁니다 — 되돌릴 수 없습니다. 갤러리에서만 빼려면 <b>숨김</b>을 쓰세요. 완성·진행 중 건을 지우면 회원의 만들기 횟수가 하나 돌아가고, 적립 기록은 그대로 둡니다.
       </p>
     </section>
@@ -382,7 +382,7 @@ section{margin-top:28px}
       if (it.rewarded) parts.push('적립 기록은 그대로 둡니다.');
       if (!confirm(parts.join('\n'))) return;
     }
-    if (act === 'hide' && !confirm('갤러리에서 숨길까요?\n고객의 \'내가 만든 사진\'에는 남고, 이 회원에게 다른 공개 사진이 없으면 공개 보너스 +5장이 빠집니다.')) return;
+    if (act === 'hide' && !confirm('갤러리에서 숨길까요?\n고객의 \'내가 만든 사진\'에는 남고, 이 회원의 공개 보너스가 1장 줄어듭니다.')) return;
     btn.disabled = true;
     api('/api/chuseok/admin/entries/' + encodeURIComponent(id), { method: 'POST', body: { action: act } })
       .then(function (d) {
