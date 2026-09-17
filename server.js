@@ -6318,6 +6318,12 @@ function maskPhoneNum(p) {
   return d.slice(0, 3) + '****' + d.slice(-4);
 }
 
+// 리퍼 상품은 정품인증(보증) 대상이 아니므로 조회·인증 양쪽에서 제외한다.
+// ERP 특이사항(note)에 "... 리퍼 제품 구매건" 으로 표기되며, 품목명에 직접 들어오는 경우도 있다.
+// note 필드가 비어 있는 문서는 $not 조건을 통과하므로 일반 주문에는 영향이 없다.
+const REFURB_RE = /리퍼/;
+const NOT_REFURB = { note: { $not: REFURB_RE }, productName: { $not: REFURB_RE } };
+
 // [W-1] 회원 아이디 → 휴대폰 매칭 → erp_sales 구매내역 + 보증 미리보기
 app.get('/api/warranty/lookup', async (req, res) => {
   try {
@@ -6347,7 +6353,7 @@ app.get('/api/warranty/lookup', async (req, res) => {
     const matchable = phoneType === 'mobile';
 
     const sales = matchable
-      ? await db.collection(erp.ERP_COLLECTION).find({ phone }).sort({ saleDate: -1 }).toArray()
+      ? await db.collection(erp.ERP_COLLECTION).find({ phone, ...NOT_REFURB }).sort({ saleDate: -1 }).toArray()
       : [];
 
     // 이미 인증 완료된 항목(rowHash 기준)
@@ -6407,8 +6413,13 @@ app.post('/api/warranty/register', async (req, res) => {
     const results = [];
     for (const rowHash of rowHashes) {
       // 반드시 "그 회원의 휴대폰"과 일치하는 판매기록만 인증 가능
-      const sale = await db.collection(erp.ERP_COLLECTION).findOne({ rowHash, phone });
-      if (!sale) { results.push({ rowHash, ok: false, reason: '본인 구매기록과 일치하지 않음' }); continue; }
+      const sale = await db.collection(erp.ERP_COLLECTION).findOne({ rowHash, phone, ...NOT_REFURB });
+      if (!sale) {
+        // 목록에서 숨기는 것만으로는 rowHash 직접 호출을 막을 수 없어 여기서도 리퍼를 차단한다.
+        const refurb = await db.collection(erp.ERP_COLLECTION).findOne({ rowHash, phone });
+        if (refurb) { results.push({ rowHash, ok: false, reason: '리퍼 상품은 정품인증 대상이 아닙니다.' }); continue; }
+        results.push({ rowHash, ok: false, reason: '본인 구매기록과 일치하지 않음' }); continue;
+      }
 
       const w = await warranty.computeWarranty(db, sale.saleDate, now);
       const doc = {
