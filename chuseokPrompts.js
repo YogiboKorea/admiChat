@@ -127,7 +127,7 @@ const STUDIO_COLOURS = [
   'rich traditional hanbok colours — deep red, royal blue, jade green, gold trim',
 ];
 
-function studioPrompt(seed, groups, mate) {
+function studioPrompt(seed, groups, mate, frameRef) {
   // groups: [{ source: 'photo'|'brief', label, people:[{presentation, ageGroup, ...}] }]
   const lines = [];
   let refIndex = 0;
@@ -151,12 +151,44 @@ function studioPrompt(seed, groups, mate) {
   // 전체 인원 — 사진 그룹은 접수 때 센 count, 설명 그룹은 people 수. 모르면 0(문장 생략)
   const total = groups.reduce((n, g) => n + (g.source === 'photo' ? (Number(g.count) || 0) : ((g.people || []).length || 0)), 0)
     * (groups.every(g => g.source !== 'photo' || Number(g.count) > 0) ? 1 : 0);
+  // 옛날 사진관 액자 사진 (2026-09-17 사용자 레퍼런스: 액자1·액자2 + "이렇게 나오게" 결과 예시)
+  if (frameRef) {
+    return [
+      'Create ONE photograph of a vintage Korean family studio portrait displayed inside an ornate antique gilded picture frame, shot straight on against a plain neutral wall.',
+      'The frame comes from the picture-frame reference image and nothing else: copy its ornate carved gilded wood, its scrollwork corners and beading, its thickness and depth, its warm aged gold with darker patina in the recesses. Its centre is empty — the portrait goes there. Take nothing else from that image.',
+      'Inside the frame is a single old family photograph made in a Korean photo studio in the 1980s, printed on paper and faded with age.',
+      ...lines,
+      total > 0 ? `There are exactly ${total} people in the portrait — no more, no fewer.` : '',
+      'It must read as one real photograph taken in one sitting: nobody pasted in, no cut-out edges, halos or outlines, no person lit, coloured, sharpened or grained differently from the others.',
+      'Use the reference photos only to know who each person is — keep every face, hairstyle, skin tone, age and build recognizable, but re-pose, re-dress and re-light them inside this studio.',
+      'Avoid these give-aways of a paste-up: a face sharper or grainier than the body it sits on; a seam or colour change at the neck or jaw; different noise or resolution between people; a head too large or too small for its body; two different shadow directions in one picture; a person with no shadow under their feet; a bright outline tracing someone against the backdrop.',
+      total > 0 && total <= 3
+        ? 'Pose them formally and symmetrically the way an old studio would: shoulders almost touching, one seated on a simple wooden studio chair with the others standing close behind, hands resting quietly on laps or on a shoulder, bodies square to the camera, calm dignified expressions with soft closed-lip smiles, everyone looking straight into the lens.'
+        : 'Pose them formally and symmetrically the way an old studio would: a seated front row with a standing back row close behind, hands resting quietly on laps, bodies square to the camera, heads at even staggered heights, calm dignified expressions with soft closed-lip smiles, everyone looking straight into the lens.',
+      'Dress everyone in traditional hanbok of that era in muted, slightly faded tones — dusty jade, ivory, soft rose, deep navy, maroon — never neon or modern-bright.',
+      'Backdrop: a plain hand-painted studio backdrop, a soft brown-to-grey gradient with a gentle vignette; no props and no furniture beyond that one wooden chair.',
+      'Lighting: a single flat frontal studio light with a soft fill, the way a small photo studio lit everyone at once — even light on every face, shallow shadows under the chins, a slight falloff toward the edges.',
+      'Print look: aged colour film of the period — a warm amber-yellow shift, lowered contrast, muted skin tones, gentle lens softness, fine even film grain, faint dust and a few hairline scratches, and the subtle surface texture of an old photographic print. One single grade over the whole portrait.',
+      'The glass is almost invisible: at most a very faint sheen, and no reflection covering any face.',
+      'Framing: the whole frame must be fully visible with all four sides inside the picture, standing upright in the middle, with roughly 12% empty wall above it and 12% below — the very top and bottom of the image will be cropped away.',
+      'No text anywhere: nothing written on the frame, no studio name, no date stamp, no signature, no lettering on the mat board.',
+      refOrder(refs, mate, true),
+      NO_TEXT,
+    ].filter(Boolean).join(' ');
+  }
   // "합성티" 줄이기 (2026-09-15 피드백): 사람을 오려 붙이는 게 아니라 한 자리에서 한 번에 다시 찍은 사진으로.
   // 참조 사진은 "누구인지" 만 쓰고, 자세·조명·색·화질은 이 장면 하나로 통일한다.
   return [
     'Create ONE photorealistic Chuseok group portrait that looks like a single real photograph taken in one shot, with everyone physically together in the same place at the same moment.',
     'It must NOT look like a collage or a composite: no people pasted in, no cut-out edges, halos or outlines, no person lit, coloured or sharpened differently from the others.',
     'Use the reference photos only to know who each person is. Re-photograph every person from scratch inside this scene.',
+    // 합성티가 나는 구체적인 증상을 하나씩 막는다 (2026-09-16 피드백)
+    'Avoid these give-aways of a paste-up: a face sharper or grainier than the body it sits on; a visible seam or colour change at the neck or jaw;',
+    'one person crisp while another is soft; different noise, resolution or JPEG texture between people; a head too large or too small for its body;',
+    'two different shadow directions in one picture; a person standing on the ground with no shadow under their feet; eyes looking in clearly different directions;',
+    'a flat bright outline tracing a person against the background.',
+    'Instead: let the people slightly overlap and cast soft shadows on each other, keep the same fine grain and the same gentle lens softness across the whole frame,',
+    'and let the scene light wrap onto faces, hair and hanbok from the same side, with a little warm rim light on everyone from the same lamp.',
     ...lines,
     total > 0 ? `There are exactly ${total} people in total — no more, no fewer.` : '',
     total > 0 && total <= 3
@@ -176,11 +208,15 @@ function studioPrompt(seed, groups, mate) {
 }
 
 /** 사진관 참조 순서 안내 — 고객 사진이 앞, 메이트(있을 때만)가 맨 뒤 */
-function refOrder(refs, mate) {
+function refOrder(refs, mate, frame) {
   const hasMate = !!MATE_DESC[mate];
-  if (refs.length && hasMate) return `(Reference order: ${refs.join('; ')}; the plush toy is the last reference.)`;
+  const extras = [];
+  if (frame) extras.push('the picture-frame reference (an empty ornate gold frame) comes after the photos — use it only for the frame itself');
+  if (hasMate) extras.push('the plush toy is the last reference');
+  if (refs.length && extras.length) return `(Reference order: ${refs.join('; ')}; ${extras.join('; ')}.)`;
   if (refs.length) return `(References: ${refs.join('; ')}.)`;
-  if (hasMate) return '(The only reference image is the plush toy.)';
+  if (frame && !hasMate) return '(The only reference image is an empty ornate gold picture frame — use it only for the frame itself; every person is described in words above.)';
+  if (extras.length) return `(Reference order: ${extras.join('; ')}.)`;
   return '(No reference images: every person is described in words above.)';
 }
 

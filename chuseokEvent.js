@@ -93,6 +93,9 @@ const FONT_TUNE = {
   black: { scale: 0.96, edge: 0.22, inner: 0.10 },
 };
 const CARD_REF_RATE = process.env.CHUSEOK_CARD_REF_RATE === undefined ? 100 : Math.max(0, Math.min(100, Number(process.env.CHUSEOK_CARD_REF_RATE) || 0));
+// 사진관 액자 — public/chuseok/frame-*.png (사용자가 준 금박 액자 2종). 결과를 "옛날 사진관 액자 사진" 으로 만든다.
+// 0 이면 액자 없이 예전(요즘 스튜디오 사진) 방식으로 돌아간다
+const FRAME_REF_RATE = process.env.CHUSEOK_FRAME_RATE === undefined ? 100 : Math.max(0, Math.min(100, Number(process.env.CHUSEOK_FRAME_RATE) || 0));
 // 메이트 등장 확률(%) — 기본 60. 0 이면 안 나오고 100 이면 늘 나온다 (결정 사항: 100% 노출은 아니게)
 const MATE_RATE = process.env.CHUSEOK_MATE_RATE === undefined ? 60 : Math.max(0, Math.min(100, Number(process.env.CHUSEOK_MATE_RATE) || 0));
 
@@ -431,6 +434,17 @@ function addXmp(jpeg, xmp = AI_XMP) {
 
 /** 생성 원본(2:3) → 4:5 카드 → (축전이면 글자) → (켜 둔 경우만 글자 워터마크) → JPEG + 보이지 않는 AI 생성 정보 */
 const CARD_POP = !/^(0|false|no|off)$/i.test(String(process.env.CHUSEOK_CARD_POP || '1'));
+// 사진에서 온 결과물에 아주 옅은 알갱이를 한 겹 — 부분마다 다른 화질·잡티 차이를 덮어 합성티를 줄인다
+const GRAIN = !/^(0|false|no|off)$/i.test(String(process.env.CHUSEOK_GRAIN || '1'));
+let grainCache = null;
+async function grainLayer() {
+  if (!GRAIN) return null;
+  if (!grainCache) {
+    grainCache = await sharp({ create: { width: OUT_W, height: OUT_H, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 7 } } })
+      .png().toBuffer();
+  }
+  return grainCache;
+}
 
 async function renderFinal(genBuf, doc) {
   let img = sharp(genBuf).resize(OUT_W, OUT_H, { fit: 'cover', position: 'centre' });
@@ -439,6 +453,11 @@ async function renderFinal(genBuf, doc) {
     img = sharp(await img.modulate({ saturation: 1.08 }).linear(1.04, -6).png().toBuffer());
   }
   const layers = [];
+  // 사진에서 온 종류 — 옅은 알갱이 한 겹 (soft-light 로 얹어 색은 그대로, 질감만 통일)
+  if (doc.type !== 'card') {
+    const g = await grainLayer();
+    if (g) layers.push({ input: g, top: 0, left: 0, blend: 'soft-light' });
+  }
   // 글씨 연출은 그 응모가 고른 참고 카드에 맞춘다 (카드마다 글꼴·색이 다르다)
   if (doc.type === 'card' && doc.greeting) {
     layers.push({ input: Buffer.from(greetingSvg(doc.greeting, cardStyleKeyOf(String(doc._id || '')))), top: 0, left: 0 });
@@ -488,6 +507,26 @@ function cardStyleKeyOf(seed) {
   return m ? m[1] : null;
 }
 
+/** 참조 사진 한 장 — 긴 변 1024. tone 을 주면 그 밝기·색으로 맞춘다(사진관에서 두 장을 나란히 붙일 때) */
+async function tonedRef(buffer, tone) {
+  let img = sharp(buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' });
+  if (tone && tone.gain) {
+    // 채널별 이득 — 두 사진의 평균 밝기·색을 서로 가운데로 당긴다 (과하지 않게 0.8~1.25 로 제한)
+    const g = tone.gain.map(v => Math.max(0.8, Math.min(1.25, v)));
+    img = img.linear(g, [0, 0, 0]);
+  }
+  return img.jpeg({ quality: 88 }).toBuffer();
+}
+
+/** 사진관용 — 두 사진의 채널 평균을 재서 서로 맞출 이득을 구한다 */
+async function matchTones(buffers) {
+  const stats = await Promise.all(buffers.map(b => sharp(b).resize({ width: 256 }).stats().catch(() => null)));
+  const means = stats.map(st => (st ? st.channels.slice(0, 3).map(c => c.mean) : null));
+  if (means.some(m => !m)) return buffers.map(() => null);
+  const target = [0, 1, 2].map(i => means.reduce((sum, m) => sum + m[i], 0) / means.length);
+  return means.map(m => ({ gain: [0, 1, 2].map(i => (m[i] > 4 ? target[i] / m[i] : 1)) }));
+}
+
 /** 응모 id + 꼬리표 → 늘 같은 숫자 (같은 건이면 늘 같은 카드가 골라지게) */
 function seedInt(seed, tag) {
   return crypto.createHash('sha1').update(String(seed) + ':' + tag).digest().readUInt32BE(0);
@@ -518,6 +557,30 @@ async function cardRef(seed) {
   return { buf: cardRefCache[name], mime: 'image/jpeg', name: 'refcard.jpg', file: name };
 }
 
+// 사진관 액자 참조 — 한 건마다 액자 한 종류를 골라(응모 id 시드) 마지막 참조로 같이 보낸다
+const frameRefCache = {};
+let frameRefNames = null;
+function frameRefNameOf(seed) {
+  if (FRAME_REF_RATE <= 0) return null;
+  if (frameRefNames === null) {
+    try { frameRefNames = fs.readdirSync(CARD_REF_DIR).filter(f => /^frame-.*\.(jpe?g|png)$/i.test(f)).sort(); }
+    catch { frameRefNames = []; }
+    if (!frameRefNames.length) console.warn('[추석] 사진관 액자 참조가 없습니다 —', CARD_REF_DIR);
+  }
+  if (!frameRefNames.length) return null;
+  if (FRAME_REF_RATE < 100 && (seedInt(seed, 'frameref') % 100) >= FRAME_REF_RATE) return null;
+  return frameRefNames[seedInt(seed, 'framepick') % frameRefNames.length];
+}
+async function frameRef(seed) {
+  const name = frameRefNameOf(seed);
+  if (!name) return null;
+  if (!frameRefCache[name]) {
+    frameRefCache[name] = await sharp(fs.readFileSync(path.join(CARD_REF_DIR, name)))
+      .resize({ width: 768, height: 1024, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+  }
+  return { buf: frameRefCache[name], mime: 'image/png', name: 'frame.png', file: name };
+}
+
 async function mateRef(kind) {
   if (!MATE_REF_PATHS[kind]) return null;
   if (mateRefCache[kind]) return mateRefCache[kind];
@@ -535,7 +598,9 @@ async function mateRef(kind) {
 async function buildJob(doc, photos) {
   const seed = String(doc._id);
   const refs = [];
-  const toRef = async (p, i) => ({ buf: await sharp(p.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' }).jpeg({ quality: 88 }).toBuffer(), mime: 'image/jpeg', name: `photo${i + 1}.jpg` });
+  const toRef = async (p, i, tone) => ({
+    buf: await tonedRef(p.buffer, tone), mime: 'image/jpeg', name: `photo${i + 1}.jpg`,
+  });
 
   let mate = CP.pickMate(seed, MATE_RATE);
   const mateBuf = mate ? await mateRef(mate) : null;
@@ -554,8 +619,15 @@ async function buildJob(doc, photos) {
       // count: 접수 때 비전으로 센 인원 — 프롬프트가 "정확히 N명" 을 말해 사람이 빠지거나 늘지 않게
       return ph ? { source: 'photo', ph, count: g.count } : { source: 'brief', people: (g.analysis && g.analysis.people) || [] };
     });
-    for (const g of groups) if (g.source === 'photo') refs.push(await toRef(g.ph, refs.length));
-    prompt = CP.studioPrompt(seed, groups, mate);
+    // 두 장을 나란히 붙이기 전에 밝기·색을 서로 맞춘다 (합성티의 가장 큰 원인)
+    const photoGroups = groups.filter(g => g.source === 'photo');
+    const tones = photoGroups.length > 1 ? await matchTones(photoGroups.map(g => g.ph.buffer)) : photoGroups.map(() => null);
+    let ti = 0;
+    for (const g of groups) if (g.source === 'photo') refs.push(await toRef(g.ph, refs.length, tones[ti++]));
+    // 액자 참조가 붙으면 "옛날 사진관 액자 사진" 으로 간다 — 이때 메이트 인형은 빼서 옛날 사진 느낌을 지킨다
+    const frame = await frameRef(seed);
+    if (frame) { refs.push({ buf: frame.buf, mime: frame.mime, name: frame.name }); mate = null; }
+    prompt = CP.studioPrompt(seed, groups, mate, !!frame);
   } else if (doc.type === 'pet') {
     const ph = (photos || [])[0];
     if (!ph) throw Object.assign(new Error('반려동물 사진이 메모리에 없습니다(재시작·대기 만료)'), { retryable: false, photoLost: true });
@@ -1374,4 +1446,4 @@ function mount(app, deps) {
 }
 
 module.exports = { mount, ENTRY_COLLECTION, REWARD_COLLECTION, TRASH_COLLECTION, REJECT_COLLECTION, TYPES, MAX_PER_MEMBER };
-module.exports.__internals = { impl, recoverStuck, cardRef, seedInt, CARD_REF_DIR, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, addXmp, WATERMARK, loadFont, cardStyleKeyOf, CARD_TEXT_STYLES, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };
+module.exports.__internals = { impl, recoverStuck, cardRef, frameRef, frameRefNameOf, FRAME_REF_RATE, seedInt, CARD_REF_DIR, maskId, publicFilter, PUBLIC_BONUS, validateInput, splitGreeting, greetingSvg, watermarkSvg, renderFinal, addXmp, WATERMARK, loadFont, cardStyleKeyOf, CARD_TEXT_STYLES, buildJob, quotaFor, usedFilter, processOne, genBudget, estimateEta, analyzePeople, analyzePet, stashPhotos, takePhotos, originAllowed, charLen, GREETING_MAX, OUT_W, OUT_H };
