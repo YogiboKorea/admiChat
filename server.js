@@ -27,7 +27,7 @@ const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
-const yogibonews = require('./yogibonews'); // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈 — /yogibonews 아래, 별도 DB (2026.09)
+// 요기보 매거진(일본 블로그 → 국내 매거진) 모듈은 initialize()에서 불러온다 — 로드 실패가 서버 전체를 멈추지 않도록
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
 const smtpTransporter = nodemailer.createTransport({
@@ -6670,7 +6670,15 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
     choiceVote.mount(app, { getDb: () => db });
 
     // [요기보 매거진] 글은 자체 DB(YOGIBONEWS_MONGODB_URI)에 둔다. Cafe24 토큰은 adminChat DB의 tokens를 읽기만 한다
-    yogibonews.mount(app, { getDb: () => db });
+    // 모듈을 못 불러오면(의존성·Node 버전 문제 등) 매거진 경로만 503으로 사유를 알려주고 나머지 기능은 그대로 띄운다
+    try {
+      require('./yogibonews').mount(app, { getDb: () => db });
+    } catch (err) {
+      console.error('❌ [yogibonews] 모듈 로드 실패 — /yogibonews 만 비활성:', err);
+      app.use('/yogibonews', (req, res) => {
+        res.status(503).json({ success: false, message: `매거진 모듈 로드 실패: ${err.code || err.name} ${String(err.message).split('\n')[0].slice(0, 200)}` });
+      });
+    }
 
     // [신규회원이벤트] yogiboNewMemberEvent0428 Unique Index
     try {

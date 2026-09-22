@@ -36,7 +36,7 @@
     "opentype.js": "^2.0.0",
     "pdf.js-extract": "^0.2.1",
     "rss-parser": "^3.13.0",
-    "sanitize-html": "^2.17.7",
+    "sanitize-html": "2.17.5",
     "sharp": "^0.32.6",
     "ssh2-sftp-client": "^12.1.0"
   }
