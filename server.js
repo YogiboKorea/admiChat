@@ -27,6 +27,7 @@ const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
+const yogibonews = require('./yogibonews'); // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈 — /yogibonews 아래, 별도 DB (2026.09)
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
 const smtpTransporter = nodemailer.createTransport({
@@ -2580,11 +2581,10 @@ async function fetchAndSaveYogiboJPNews() {
   }
 }
 
-// 2. 스케줄러 등록 (매일 자정 12시에 1번만 실행되도록 설정)
-// 크론 표현식 '0 0 * * *' = 매일 00:00 (24시간마다 1번)
-cron.schedule('0 */6 * * *', () => {
-  fetchAndSaveYogiboJPNews();
-});
+// 2. 스케줄러 — 수집은 yogibonews 모듈(분류·재편집 파이프라인)로 이전되어 중지. 기존 API는 전환 기간 동안만 유지한다.
+// cron.schedule('0 */6 * * *', () => {
+//   fetchAndSaveYogiboJPNews();
+// });
 
 // [추가] 순서 변경 저장 API (드래그 앤 드롭)
 app.put('/api/yogibo-jp-news/order', async (req, res) => {
@@ -6668,6 +6668,9 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       console.warn('⚠️ choiceVote Index 생성 경고:', idxErr.message);
     }
     choiceVote.mount(app, { getDb: () => db });
+
+    // [요기보 매거진] 글은 자체 DB(YOGIBONEWS_MONGODB_URI)에 둔다. Cafe24 토큰은 adminChat DB의 tokens를 읽기만 한다
+    yogibonews.mount(app, { getDb: () => db });
 
     // [신규회원이벤트] yogiboNewMemberEvent0428 Unique Index
     try {

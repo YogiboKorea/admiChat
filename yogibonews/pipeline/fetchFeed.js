@@ -1,4 +1,5 @@
 const Parser = require('rss-parser');
+const config = require('../config');
 
 const parser = new Parser();
 
@@ -14,8 +15,7 @@ function cleanLink(rawLink) {
  * (adminChat/server.js의 fetchAndSaveYogiboJPNews 피드 파싱 로직 이식)
  */
 async function fetchJapanBlogFeed() {
-  const feedUrl = process.env.JP_BLOG_FEED_URL || 'https://yogibo.jp/blogs/life.atom';
-  const feed = await parser.parseURL(feedUrl);
+  const feed = await parser.parseURL(config.feedUrl);
 
   return (feed.items || []).map((item) => ({
     guid: cleanLink(item.link),

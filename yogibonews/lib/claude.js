@@ -1,4 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const config = require('../config');
 
 // Opus 5 안전 분류기가 요청을 거절하면 서버 측에서 권장 모델로 자동 재시도
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -6,18 +7,18 @@ const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 let client;
 
 function getClient() {
-  if (!client) client = new Anthropic();
+  if (!client) client = new Anthropic({ apiKey: config.anthropicKey });
   return client;
 }
 
-// CLAUDE_ENABLED=false면 키가 있어도 호출하지 않는다 (로컬 개발 시 토큰 과금 방지)
+// YOGIBONEWS_CLAUDE_ENABLED=false면 키가 있어도 호출하지 않는다 (로컬 개발 시 토큰 과금 방지)
 function hasKey() {
-  if (process.env.CLAUDE_ENABLED === 'false') return false;
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  if (!config.claudeEnabled) return false;
+  return Boolean(config.anthropicKey);
 }
 
 function model() {
-  return process.env.CLAUDE_MODEL || 'claude-opus-5';
+  return config.claudeModel;
 }
 
 function readText(message) {
@@ -39,7 +40,7 @@ function readText(message) {
  * - content는 문자열 또는 content block 배열(image/document/text).
  */
 async function askClaude({ system, content, schema, effort, maxTokens = 16000, stream = false }) {
-  if (!hasKey()) throw new Error('Claude 호출이 비활성화되어 있습니다. (ANTHROPIC_API_KEY 미설정 또는 CLAUDE_ENABLED=false)');
+  if (!hasKey()) throw new Error('Claude 호출이 비활성화되어 있습니다. (ANTHROPIC_API_KEY 미설정 또는 YOGIBONEWS_CLAUDE_ENABLED=false)');
 
   const params = {
     model: model(),

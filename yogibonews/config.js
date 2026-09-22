@@ -55,9 +55,9 @@ module.exports = {
     return {
       mallId: env('CAFE24_MALL_ID') || process.env.CAFE24_MALLID || 'yogibo',
       apiVersion: env('CAFE24_API_VERSION') || process.env.CAFE24_API_VERSION || '2025-12-01',
-      // adminChat 안에서는 mount 시 넘겨받은 DB를 쓰고, 단독 실행(로컬 개발)일 때만 이 URI로 직접 붙는다
-      tokenUri: env('CAFE24_TOKEN_URI'),
-      tokenDb: env('CAFE24_TOKEN_DB') || 'yogibo',
+      // adminChat 안에서는 mount 시 넘겨받은 DB를 쓰고, 단독 실행(dev.js)일 때만 이 URI로 직접 붙는다 (기본: adminChat DB)
+      tokenUri: env('CAFE24_TOKEN_URI') || process.env.MONGODB_URI,
+      tokenDb: env('CAFE24_TOKEN_DB') || process.env.DB_NAME || 'yogibo',
       tokenCollection: env('CAFE24_TOKEN_COLLECTION') || 'tokens',
     };
   },

@@ -4,9 +4,7 @@ const { fetchJapanBlogFeed } = require('./fetchFeed');
 const { classifyItem } = require('./classify');
 const { convertToKoreanMagazine } = require('./convert');
 const { sanitizeContent } = require('../lib/sanitize');
-
-// 판별 대기 글을 한 번에 몇 건까지 처리할지 (과금 상한). 남은 건 다음 실행에서 이어서 처리한다.
-const REPROCESS_LIMIT = Number(process.env.REPROCESS_LIMIT) || 30;
+const config = require('../config');
 
 function news() {
   return getDB().collection('yogiboJPnews');
@@ -92,7 +90,24 @@ async function processRssDoc(doc, log, { convert = true } = {}) {
  * 일본 블로그 RSS 수집 → 신규 글 저장(원본) → 분류 → 재편집 → 검수대기.
  * 이어서 판별 대기 글(로컬 수집분·기존 원본 백로그)을 처리한다. 발행은 항상 사람이 검수 후 직접 한다.
  */
-async function runNewsPipeline({ log = console.log, trigger = 'manual' } = {}) {
+let running = false;
+
+async function runNewsPipeline(options) {
+  // 버튼 연타·크론 겹침으로 같은 글을 두 번 재편집(이중 과금)하지 않도록 한 번에 하나만 돈다
+  if (running) {
+    const err = new Error('이미 수집이 진행 중입니다. 끝난 뒤 다시 시도해 주세요.');
+    err.status = 409;
+    throw err;
+  }
+  running = true;
+  try {
+    return await runOnce(options);
+  } finally {
+    running = false;
+  }
+}
+
+async function runOnce({ log = console.log, trigger = 'manual' } = {}) {
   const startedAt = new Date();
   const col = news();
   const result = {
@@ -137,9 +152,10 @@ async function runNewsPipeline({ log = console.log, trigger = 'manual' } = {}) {
       }
     }
 
+    // 판별 대기 글은 한 번에 reprocessLimit건까지만 처리한다 (과금 상한). 남은 건 다음 실행에서 이어서 처리한다.
     if (hasKey()) {
       const waitingQuery = { source: { $ne: 'manual' }, status: 'draft', 'pipeline.skipped': true };
-      const waiting = await col.find(waitingQuery).sort({ pubDate: -1 }).limit(REPROCESS_LIMIT).toArray();
+      const waiting = await col.find(waitingQuery).sort({ pubDate: -1 }).limit(config.reprocessLimit).toArray();
       for (const doc of waiting) {
         try {
           tally(await processRssDoc(doc, log, { convert: !doc.pipeline?.backlog }));

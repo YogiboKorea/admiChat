@@ -1,26 +1,28 @@
 const ftp = require('basic-ftp');
 const { Readable } = require('stream');
+const config = require('../config');
 
 /**
  * buffer를 Cafe24 FTP의 지정 디렉토리에 업로드하고 공개 URL을 반환한다.
- * 디렉토리/공개 URL prefix는 FTP_REMOTE_DIR / FTP_PUBLIC_BASE 환경변수로 이 프로젝트 전용 경로를 쓴다.
+ * 로그인은 adminChat과 같은 Cafe24 FTP 계정을 쓰고, 디렉토리/공개 URL은 YOGIBONEWS_FTP_REMOTE_DIR / YOGIBONEWS_FTP_PUBLIC_BASE 전용 경로를 쓴다.
  */
 async function uploadBuffer(buffer, filename, dir) {
-  if (!process.env.FTP_USER || !process.env.FTP_PASS) {
-    throw new Error('FTP_USER/FTP_PASS 환경변수가 설정되지 않았습니다.');
+  const cfg = config.ftp;
+  if (!cfg.user || !cfg.password) {
+    throw new Error('FTP 계정 환경변수(FTP_USER/FTP_PASS)가 설정되지 않았습니다.');
   }
 
-  const remoteDir = (dir || process.env.FTP_REMOTE_DIR || 'web/news').replace(/^\/+/, '');
-  const publicBase = (process.env.FTP_PUBLIC_BASE || 'https://yogibo.cafe24.com/web/news').replace(/\/+$/, '');
+  const remoteDir = (dir || cfg.remoteDir).replace(/^\/+/, '');
+  const publicBase = cfg.publicBase.replace(/\/+$/, '');
 
   const client = new ftp.Client();
   client.ftp.verbose = false;
   try {
     await client.access({
-      host: process.env.FTP_HOST || 'yogibo.ftp.cafe24.com',
-      port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
-      user: process.env.FTP_USER,
-      password: process.env.FTP_PASS,
+      host: cfg.host,
+      port: cfg.port,
+      user: cfg.user,
+      password: cfg.password,
       secure: 'explicit',
     });
     await client.ensureDir(remoteDir);

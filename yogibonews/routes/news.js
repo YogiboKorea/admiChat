@@ -13,7 +13,7 @@ const { getKrCatalog, formatProductList } = require('../lib/krProducts');
 const { applyUtm, renderProductCards } = require('../lib/productLinks');
 const { sanitizeContent } = require('../lib/sanitize');
 const { wrapWithFont, designRules } = require('../lib/v5');
-const { runNewsPipeline, convertDoc } = require('../pipeline/runPipeline');
+const { convertDoc } = require('../pipeline/runPipeline');
 const { translateJaToKo } = require('../pipeline/translate');
 
 const router = express.Router();
@@ -353,7 +353,7 @@ ${knowledgeText}
 
 module.exports = router;
 
-// 수동 JP→KR 번역 (직접 작성 글이나 재번역이 필요한 글용) — server.js에서 /api/translate-news로 마운트
+// 수동 JP→KR 번역 (직접 작성 글이나 재번역이 필요한 글용) — index.js에서 /api/translate-news로 마운트
 module.exports.translateHandler = async (req, res) => {
   try {
     const { title, content } = req.body;
@@ -362,38 +362,5 @@ module.exports.translateHandler = async (req, res) => {
   } catch (error) {
     console.error('❌ 번역 에러:', error);
     res.status(500).json({ success: false, message: '번역 중 오류가 발생했습니다. 본문이 너무 길 수 있습니다.' });
-  }
-};
-
-// 수동 즉시 동기화 (파이프라인 전체 실행)
-module.exports.runPipelineHandler = async (req, res) => {
-  try {
-    const result = await runNewsPipeline();
-    res.json({ success: true, message: '동기화가 완료되었습니다.', result });
-  } catch (error) {
-    console.error('파이프라인 실행 에러:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// 중복 게시글 정리
-module.exports.cleanupDuplicatesHandler = async (req, res) => {
-  try {
-    const collection = getDB().collection('yogiboJPnews');
-    const duplicates = await collection
-      .aggregate([
-        { $group: { _id: '$title', count: { $sum: 1 }, docs: { $push: '$_id' } } },
-        { $match: { count: { $gt: 1 } } },
-      ])
-      .toArray();
-
-    let deletedCount = 0;
-    for (const dup of duplicates) {
-      const result = await collection.deleteMany({ _id: { $in: dup.docs.slice(1) } });
-      deletedCount += result.deletedCount;
-    }
-    res.json({ success: true, message: `청소 완료! 총 ${deletedCount}개의 중복 게시글이 삭제되었습니다.` });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
   }
 };
