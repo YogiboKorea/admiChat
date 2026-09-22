@@ -17,7 +17,8 @@
 | `YOGIBONEWS_ANTHROPIC_API_KEY` | ✅ | 없으면 `ANTHROPIC_API_KEY` 사용 |
 | `YOGIBONEWS_CLAUDE_ENABLED` | | `false`면 Claude 호출 안 함(분류·재편집 멈춤). 운영은 비워두거나 `true` |
 | `YOGIBONEWS_CLAUDE_MODEL` | | `claude-opus-5` |
-| `YOGIBONEWS_FETCH_CRON` | | `0 */6 * * *` (6시간마다). `off`면 자동 수집 안 함 |
+| `YOGIBONEWS_FETCH_CRON` | | `0 */6 * * *` (6시간마다, 00·06·12·18시). `off`면 자동 수집 안 함 |
+| `YOGIBONEWS_CRON_TZ` | | `Asia/Seoul` — 서버 시계와 무관하게 이 시간대로 돈다 |
 | `YOGIBONEWS_REPROCESS_LIMIT` | | `30` — 한 번에 처리할 판별 대기 글 수(과금 상한) |
 | `YOGIBONEWS_FEED_URL` | | `https://yogibo.jp/blogs/life.atom` |
 | `YOGIBONEWS_FTP_USER` / `_PASS` / `_HOST` / `_PORT` | | 없으면 adminChat `FTP_*` 사용 (같은 Cafe24 FTP 계정) |

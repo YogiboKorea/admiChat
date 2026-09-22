@@ -31,9 +31,13 @@ module.exports = {
   get feedUrl() {
     return env('FEED_URL') || 'https://yogibo.jp/blogs/life.atom';
   },
-  // 'off'면 자동 수집을 등록하지 않는다 (로컬 개발 서버가 운영 DB에 대고 중복 수집하지 않도록)
+  // 기본: 6시간마다(00·06·12·18시). 'off'면 자동 수집을 등록하지 않는다 (로컬 개발 서버가 운영 DB에 대고 중복 수집하지 않도록)
   get fetchCron() {
     return env('FETCH_CRON') || '0 */6 * * *';
+  },
+  // 서버 시계(CloudType은 UTC일 수 있음)와 무관하게 한국 시간 기준으로 돈다
+  get cronTimezone() {
+    return env('CRON_TZ') || 'Asia/Seoul';
   },
   // 판별 대기 글을 한 번에 몇 건까지 처리할지 (과금 상한)
   get reprocessLimit() {

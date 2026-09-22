@@ -9,8 +9,18 @@ const router = express.Router();
 
 function describeSchedule(expr) {
   if (expr === 'off') return '자동 수집 꺼짐 (로컬 개발 모드)';
+  const daily = expr.match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/);
+  if (daily) {
+    const minute = Number(daily[1]) ? ` ${daily[1]}분` : '';
+    return `매일 ${String(daily[2]).padStart(2, '0')}시${minute} 자동 수집 (한국 시간)`;
+  }
   const everyHours = expr.match(/^0 \*\/(\d+) \* \* \*$/);
-  if (everyHours) return `${everyHours[1]}시간마다 자동 수집`;
+  if (everyHours) {
+    const step = Number(everyHours[1]);
+    const hours = [];
+    for (let h = 0; h < 24; h += step) hours.push(String(h).padStart(2, '0'));
+    return `${step}시간마다 자동 수집 (${hours.join('·')}시, 한국 시간)`;
+  }
   return `자동 수집 일정: ${expr}`;
 }
 

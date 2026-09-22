@@ -56,10 +56,18 @@ async function start() {
     console.log('⏸️ [yogibonews] 자동 수집 비활성화 (YOGIBONEWS_FETCH_CRON=off)');
     return;
   }
-  cron.schedule(cronExpr, () => {
-    runNewsPipeline({ trigger: 'cron' }).catch((err) => console.error('❌ [yogibonews] 자동 수집 실패:', err.message));
-  });
-  console.log(`⏰ [yogibonews] 자동 수집 스케줄 등록: ${cronExpr}`);
+  const task = cron.schedule(
+    cronExpr,
+    () => {
+      runNewsPipeline({ trigger: 'cron' }).catch((err) => console.error('❌ [yogibonews] 자동 수집 실패:', err.message));
+    },
+    { timezone: config.cronTimezone }
+  );
+  const next = task.getNextRun?.();
+  console.log(
+    `⏰ [yogibonews] 자동 수집 스케줄 등록: ${cronExpr} (${config.cronTimezone})` +
+      (next ? ` · 다음 실행 ${next.toLocaleString('ko-KR', { timeZone: config.cronTimezone })}` : '')
+  );
 }
 
 /**
