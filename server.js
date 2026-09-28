@@ -1963,6 +1963,87 @@ app.get('/api/cafe24/products/:productNo/options', async (req, res) => {
 });
 
 // ==========================================
+// [5-1] 프로모션 페이지용 : 상품번호 여러 개 + 기간할인 적용가 한 번에 조회
+// GET /api/cafe24/promo-products?no=221,105,466
+// → { success, count, data:[{ product_no, product_name, price, discount_price,
+//                             mobile_discount_price, discount_rate, detail_image }] }
+// 기간할인(혜택 benefit_type=DP)은 embed=discountprice 로만 내려온다.
+// ==========================================
+app.get('/api/cafe24/promo-products', async (req, res) => {
+  try {
+    const raw = String(req.query.no || req.query.product_no || '');
+    const productNos = raw.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s)).slice(0, 100);
+    if (productNos.length === 0) return res.json({ success: true, count: 0, data: [] });
+
+    const fetchFromCafe24 = async (params, retry = false) => {
+      try {
+        return await axios.get(
+          `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/products`,
+          {
+            params,
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'X-Cafe24-Api-Version': CAFE24_API_VERSION
+            }
+          }
+        );
+      } catch (err) {
+        if (err.response && err.response.status === 401 && !retry) {
+          await refreshAccessToken();
+          return await fetchFromCafe24(params, true);
+        }
+        throw err;
+      }
+    };
+
+    // "79000.00" 같은 문자열을 원 단위 정수로. 값이 없거나 0 이하면 null.
+    const toWon = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+    };
+
+    const response = await fetchFromCafe24({
+      shop_no: 1,
+      product_no: productNos.join(','),
+      embed: 'discountprice',   // 기간할인 적용가
+      limit: 100
+    });
+
+    const products = response.data.products || [];
+    const mapped = products.map(item => {
+      // embed 응답이 객체/배열/없음 어느 쪽이든 안전하게 처리
+      const rawDp = item.discountprice;
+      const dp = Array.isArray(rawDp) ? (rawDp[0] || {}) : (rawDp || {});
+      const price = toWon(item.price) || 0;
+      const pcDiscount = toWon(dp.pc_discount_price);
+      const mbDiscount = toWon(dp.mobile_discount_price);
+      return {
+        product_no: item.product_no,
+        product_name: item.product_name,
+        price,
+        // 할인이 없으면 판매가와 같은 값을 내려서 프론트 분기를 단순화
+        discount_price: pcDiscount !== null ? pcDiscount : price,
+        mobile_discount_price: mbDiscount !== null ? mbDiscount : price,
+        discount_rate: (pcDiscount !== null && price > 0 && pcDiscount < price)
+          ? Math.round((1 - pcDiscount / price) * 100)
+          : 0,
+        detail_image: item.detail_image || item.list_image || item.small_image
+      };
+    });
+
+    // 요청한 상품번호 순서 유지 (Cafe24 응답 순서는 보장되지 않음)
+    const byNo = new Map(mapped.map(p => [String(p.product_no), p]));
+    const ordered = productNos.map(no => byNo.get(no)).filter(Boolean);
+
+    res.json({ success: true, count: ordered.length, data: ordered });
+  } catch (error) {
+    console.error('Cafe24 프로모션 상품(할인가) 조회 에러:', error.message);
+    res.status(500).json({ success: false, message: 'Cafe24 API Error' });
+  }
+});
+
+// ==========================================
 // [5-2] Cafe24 쿠폰 및 자동 매핑 API
 // ==========================================
 app.get('/api/cafe24/coupons', async (req, res) => {
