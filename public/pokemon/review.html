@@ -132,7 +132,8 @@ a.pkr-card:hover img{opacity:.85}
 .pkr-cap{display:block;padding:10px 2px 0}
 .pkr-cap b{display:block;font-size:15px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pkr-cap small{display:block;margin-top:2px;font-size:13px;color:var(--t3)}
-.pkr-cap i{float:right;font-style:normal;color:var(--t3)}
+.pkr-go{display:flex;align-items:center;justify-content:center;height:40px;margin-top:10px;border-radius:10px;background:var(--fill);color:var(--t2);font-size:14px;font-weight:600;transition:background-color .15s,color .15s}
+a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
 .pkr-empty{margin-top:20px !important;padding:48px 20px;text-align:center;border-radius:16px;background:var(--fill2);color:var(--t3);font-size:15px}
 .pkr-more{display:block;width:100%;max-width:320px;height:48px;margin:32px auto 0;border:0;border-radius:12px;background:var(--fill);color:var(--t2);font-size:15px;font-weight:600;cursor:pointer}
 
@@ -263,7 +264,7 @@ a.pkr-card:hover img{opacity:.85}
         <p class="pkr-msg" id="pkr-msg" role="alert"></p>
         <button type="submit" class="pkr-btn" id="pkr-submit">참여 완료하기</button>
         <button type="button" class="pkr-textbtn" id="pkr-back" hidden>취소하고 참여 내역 보기</button>
-        <p class="pkr-fine pkr-center-text">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 확인 후 아래 리뷰 갤러리에 공개될 수 있어요.</p>
+        <p class="pkr-fine pkr-center-text">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 아래 리뷰 갤러리에 바로 공개돼요.</p>
       </form>
 
       <div class="pkr-done" data-state="done" hidden>
@@ -396,7 +397,7 @@ a.pkr-card:hover img{opacity:.85}
   }
 
   /* ── 2. 내 참여 상태 ── */
-  var STATUS_TEXT = { pending: '확인 중', approved: '갤러리에 공개 중', hidden: '비공개' };
+  var STATUS_TEXT = { pending: '갤러리에 공개 중', approved: '갤러리에 공개 중', hidden: '비공개' };
   function loadMine() {
     getJson(API + '/api/pokemon-review/mine?memberId=' + encodeURIComponent(memberId))
       .then(function (d) {
@@ -499,6 +500,7 @@ a.pkr-card:hover img{opacity:.85}
         if (d.ok) {
           $('pkr-form').reset(); setFile(null);
           loadMine();
+          reloadGallery();                         // 등록 즉시 공개 — 갤러리에 바로 보이게
           $('pkr-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else if (d.needLogin) {
           becomeGuest(); openSheet();
@@ -511,15 +513,22 @@ a.pkr-card:hover img{opacity:.85}
       .catch(function () { done(); msg('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); });
   });
 
-  /* ── 5. 리뷰 갤러리 — 이미지를 누르면 고객의 SNS 게시물로 이동(새 탭) ── */
+  /* ── 5. 리뷰 갤러리 — 등록하면 바로 공개. 카드(또는 아래 버튼)를 누르면 그 SNS 게시물로 이동(새 탭) ── */
   var shown = 0, offset = 0;
   function card(it) {
+    var link = isHttp(it.snsLink);
     var inner = '<img src="' + esc(it.imageUrl) + '" loading="lazy" alt="@' + esc(it.snsId) + ' 님의 포켓몬 리뷰">' +
-      '<span class="pkr-cap"><b>@' + esc(it.snsId) + '</b><small>' + esc(it.displayId) + ' · ' + esc(it.date) +
-      (isHttp(it.snsLink) ? '<i>게시물 ↗</i>' : '') + '</small></span>';
-    return isHttp(it.snsLink)
+      '<span class="pkr-cap"><b>@' + esc(it.snsId) + '</b><small>' + esc(it.displayId) + ' · ' + esc(it.date) + '</small></span>' +
+      (link ? '<span class="pkr-go">게시물 보러가기</span>' : '');
+    return link
       ? '<a class="pkr-card" href="' + esc(it.snsLink) + '" target="_blank" rel="noopener noreferrer nofollow ugc">' + inner + '</a>'
       : '<div class="pkr-card">' + inner + '</div>';
+  }
+  // 방금 등록한 리뷰가 맨 앞에 보이게 처음부터 다시 불러온다
+  function reloadGallery() {
+    shown = 0; offset = 0;
+    $('pkr-grid').innerHTML = '';
+    loadGallery();
   }
   function loadGallery() {
     var more = $('pkr-more');

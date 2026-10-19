@@ -4,7 +4,8 @@
 //  회원이 SNS 에 올린 리뷰를 포켓몬 리뷰 페이지(review.html)에서 인증한다 (2026-10-19 예시 디자인 기준).
 //  필수 항목이 모두 있어야 참여 완료 — 인스타그램 ID · 이름 · 게시물 링크 · 리뷰 캡처 이미지 · 개인정보 동의.
 //  연락처는 받지 않는다 (2026-10-19 결정) — 회원만 참여하므로 당첨 연락은 회원정보로 한다.
-//  이미지는 Cafe24 FTP 에 올리고, 관리자가 공개한 것만 리뷰 갤러리에 보인다.
+//  이미지는 Cafe24 FTP 에 올리고, 등록하는 즉시 리뷰 갤러리에 공개한다 (2026-10-19 결정 — 검수 없음).
+//  관리자는 문제 있는 건만 숨김·삭제한다.
 //  이름은 당첨 확인용이라 관리 API 에서만 나간다. 갤러리·내 참여 조회에는 절대 싣지 않는다.
 //
 //  · 회원만 참여한다. 아이디가 없으면 접수하지 않는다.
@@ -204,6 +205,11 @@ function mount(app, deps) {
   const { getDb } = deps;
   const col = () => getDb().collection(COLLECTION);
 
+  // 예전 검수 방식으로 들어와 대기 중인 건을 공개로 돌린다 — 이제는 등록 즉시 공개다. 관리자가 숨긴 건(hidden)은 그대로 둔다.
+  Promise.resolve().then(() => col().updateMany({ status: 'pending' }, { $set: { status: 'approved' } }))
+    .then(r => { if (r && r.modifiedCount) console.log(`[포켓몬리뷰] 검수 대기 ${r.modifiedCount}건 → 공개`); })
+    .catch(e => console.warn('[포켓몬리뷰] 검수 대기 전환 실패:', e.message));
+
   // 읽기(갤러리·내 참여)는 공개 데이터라 어디서 불러도 된다 — 스킨 미리보기·로컬 확인이 막히지 않게.
   const allowRead = (req, res, next) => {
     const origin = req.headers.origin;
@@ -289,7 +295,7 @@ function mount(app, deps) {
           name,                                    // 이름은 당첨 확인용 — 관리 API 에서만 나간다
           agreedAt: new Date(),                    // 개인정보 수집·이용 동의 시각
           imageUrl,
-          status: 'pending',                       // pending(검수 대기) → approved(공개) / hidden(숨김)
+          status: 'approved',                      // 등록 즉시 공개. 관리자가 숨기면 hidden (pending 은 예전 검수 방식의 흔적)
           test,
           createdAt: new Date(),
         };

@@ -106,8 +106,7 @@ section{margin-top:24px}
     <section>
       <div class="sec-h">
         <div class="tabs" role="tablist" id="tabs">
-          <button class="tab" role="tab" data-view="pending" aria-selected="true">검수 대기<b id="n-pending"></b></button>
-          <button class="tab" role="tab" data-view="approved" aria-selected="false">공개 중<b id="n-approved"></b></button>
+          <button class="tab" role="tab" data-view="approved" aria-selected="true">공개 중<b id="n-approved"></b></button>
           <button class="tab" role="tab" data-view="hidden" aria-selected="false">숨김<b id="n-hidden"></b></button>
           <button class="tab" role="tab" data-view="all" aria-selected="false">전체<b id="n-total"></b></button>
         </div>
@@ -120,7 +119,7 @@ section{margin-top:24px}
       <div class="empty" id="empty" hidden>해당하는 리뷰가 없습니다.</div>
       <button class="btn more" id="more" hidden>더 보기</button>
       <p class="note">
-        고객이 등록하면 <b>검수 대기</b>로 들어오고, <b>공개</b>를 누른 것만 리뷰 페이지 갤러리에 보입니다. <b>숨김</b>은 갤러리에서만 빼고 기록은 남깁니다.<br>
+        고객이 등록하면 <b>바로 리뷰 페이지 갤러리에 공개</b>됩니다. 문제 있는 건은 <b>숨김</b>(갤러리에서만 빼고 기록은 남김)이나 <b>삭제</b>를 해주세요. 숨긴 건은 <b>공개</b>로 되돌릴 수 있습니다.<br>
         <b>수정</b>은 인스타그램 ID·게시물 링크·이름을 고칩니다(이미지는 그대로). 이름은 당첨 확인용이라 이 페이지에서만 보입니다. 당첨 연락은 회원아이디로 카페24 회원정보에서 확인해주세요. <b>삭제</b>는 기록과 FTP 이미지 파일을 모두 지웁니다 — 지운 게시물 링크는 다시 등록할 수 있습니다.
       </p>
     </section>
@@ -170,14 +169,14 @@ section{margin-top:24px}
     if (!k) return;
     if (/[^\x21-\x7E]/.test(k)) { setStatus('관리 키는 영문·숫자·기호만 됩니다 (한글·공백 불가).', true); return; }
     key = k;
-    api('/api/pokemon-review/admin/entries?view=pending&limit=1')
+    api('/api/pokemon-review/admin/entries?view=approved&limit=1')
       .then(function () { try { sessionStorage.setItem(KEY_STORE, key); } catch (x) {} $('#key').value = ''; unlock(); })
       .catch(function (err) { fail(err, '연결에 실패했습니다.'); });
   });
   $('#logout').addEventListener('click', function () { key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {} lock(''); });
 
   /* ── 목록 ── */
-  var view = 'pending', offset = 0, items = [], hasMore = false, req = 0, qtext = '', editing = null;
+  var view = 'approved', offset = 0, items = [], hasMore = false, req = 0, qtext = '', editing = null;
   var STATUS = { pending: '<span class="pill warn">검수 대기</span>', approved: '<span class="pill ok">공개 중</span>', hidden: '<span class="pill">숨김</span>' };
 
   function card(it) {
@@ -222,7 +221,6 @@ section{margin-top:24px}
         if (my !== req) return;
         items = items.concat(d.items || []); offset += (d.items || []).length; hasMore = !!d.hasMore;
         var c = d.counts || {};
-        $('#n-pending').textContent = c.pending || '';
         $('#n-approved').textContent = c.approved || '';
         $('#n-hidden').textContent = c.hidden || '';
         $('#n-total').textContent = c.total || '';
