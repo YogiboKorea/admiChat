@@ -5,8 +5,9 @@
  */
 (function () {
   var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
-  var API_BASE_URL = 'https://port-0-ychat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+  var API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
   var POP_IMG = 'http://yogibo.kr/web/img/cart_pop.png';
+  var TEST_MEMBER_IDS = ['testid']; // 동작 확인용 — 이 계정만 팝업 노출 (서버도 같은 계정만 지급)
 
   var _memberId = null;
   var _popupEl = null;
@@ -192,6 +193,10 @@
         CAFE24API.getMemberID(function (memberId) {
           if (!memberId || memberId === 'GUEST' || String(memberId).startsWith('guest_')) {
             console.log('[카트이벤트] 비회원 - 미실행');
+            return;
+          }
+          if (TEST_MEMBER_IDS.indexOf(memberId) === -1) {
+            console.log('[카트이벤트] 테스트 계정 아님 - 미실행');
             return;
           }
           _memberId = memberId;

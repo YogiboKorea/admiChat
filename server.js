@@ -5502,6 +5502,96 @@ app.get('/api/raffle/admin/fix-missing', async (req, res) => {
 });
 
 
+// ========== [추가] 카트 페이지 1회성 적립금 지급 이벤트 (03월12일 3천원) ==========
+// 지금은 동작 확인용 — 아래 계정만 지급된다. 전체 오픈할 때 지급 API의 계정 검사를 지운다
+const CART_EVENT_TEST_IDS = ['testid'];
+
+// 참여 여부 조회
+app.get('/api/event/cart-reward/status', async (req, res) => {
+  const { memberId } = req.query;
+
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '유효하지 않은 회원 ID입니다.' });
+  }
+
+  try {
+    const collection = db.collection('yogiboCartEvent');
+    const alreadyParticipated = await collection.findOne({ memberId });
+    if (alreadyParticipated) {
+      return res.json({ success: true, alreadyDone: true });
+    }
+    return res.json({ success: true, alreadyDone: false });
+  } catch (err) {
+    console.error('[카트이벤트] 상태 조회 오류:', err);
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 적립금 지급
+app.post('/api/event/cart-reward', async (req, res) => {
+  const { memberId } = req.body;
+
+  // 1. 비회원(guest_) 및 파라미터 유효성 검사
+  if (!memberId || typeof memberId !== 'string' || memberId.startsWith('guest_')) {
+    return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
+  }
+
+  // 1-1. 테스트 계정만 — 화면에서만 막으면 memberId 를 바꿔 직접 호출할 수 있다
+  if (!CART_EVENT_TEST_IDS.includes(memberId)) {
+    return res.status(403).json({ success: false, message: '진행 중인 이벤트가 아닙니다.' });
+  }
+
+  const amount = 3000;
+
+  try {
+    const collection = db.collection('yogiboCartEvent');
+
+    // 2. 중복 참여 확인
+    const alreadyParticipated = await collection.findOne({ memberId });
+    if (alreadyParticipated) {
+      return res.status(400).json({ success: false, message: '이미 적립 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+
+    // 3. Cafe24 API로 포인트 적립
+    const payload = {
+      shop_no: 1,
+      request: {
+        member_id: memberId,
+        order_id: null,
+        amount: amount,
+        type: 'increase',
+        reason: '카트 이벤트 3,000원 적립금 지급'
+      }
+    };
+
+    await apiRequest(
+      'POST',
+      `https://${CAFE24_MALLID}.cafe24api.com/api/v2/admin/points`,
+      payload
+    );
+
+    // 4. 적립 성공 시 참여 기록 저장 (KST 기준)
+    const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    await collection.insertOne({
+      memberId,
+      amount,
+      participatedAt: nowKST
+    });
+
+    console.log(`[카트이벤트] ${memberId} 적립금 ${amount}원 지급 완료`);
+    return res.json({ success: true, message: '🎉 3,000원 적립금이 지급되었습니다!' });
+
+  } catch (err) {
+    console.error('[카트이벤트] 포인트 지급 오류:', err);
+
+    // Unique Index 충돌 에러 처리 (동시성 방어)
+    if (err.code === 11000) {
+      return res.status(400).json({ success: false, message: '이미 혜택을 받으셨습니다.', alreadyDone: true });
+    }
+
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+  }
+});
 
 
 // ========== [SURVEY] 설문조사 응답 저장 & 조회 API ==========
@@ -6708,6 +6798,14 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
 
     // 2-0. Cafe24 토큰 선제 갱신 — 매시 30분, 50분 안에 갱신됐으면 건너뜀 (yChat을 끄기 전에 이 서버가 이어받는다)
     tokenKeepalive.start({ getDb: () => db, collection: tokenCollectionName, refreshAccessToken });
+
+    // 2-0-1. [카트이벤트] yogiboCartEvent 컬렉션 Unique Index 보장 (동시성 방어)
+    try {
+      await db.collection('yogiboCartEvent').createIndex({ memberId: 1 }, { unique: true });
+      console.log('✅ yogiboCartEvent Unique Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ yogiboCartEvent Index 생성 경고:', idxErr.message);
+    }
 
     // 2-1. [나의쉼순간] 인덱스 + 라우트 등록
     try {
