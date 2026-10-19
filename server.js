@@ -5503,7 +5503,8 @@ app.get('/api/raffle/admin/fix-missing', async (req, res) => {
 
 
 // ========== [추가] 카트 페이지 1회성 적립금 지급 이벤트 (03월12일 3천원) ==========
-// 지금은 동작 확인용 — 아래 계정만 지급된다. 전체 오픈할 때 지급 API의 계정 검사를 지운다
+// 테스트 계정 — 이미 받았어도 매번 지급된다 (이벤트가 살아있는지 언제든 확인하는 용도)
+// 지금은 이 계정만 지급된다. 전체 오픈할 때는 지급 API의 1-1 검사만 지우고 예외는 남겨둔다
 const CART_EVENT_TEST_IDS = ['testid'];
 
 // 참여 여부 조회
@@ -5536,8 +5537,10 @@ app.post('/api/event/cart-reward', async (req, res) => {
     return res.status(400).json({ success: false, message: '로그인 후 참여 가능한 이벤트입니다.' });
   }
 
-  // 1-1. 테스트 계정만 — 화면에서만 막으면 memberId 를 바꿔 직접 호출할 수 있다
-  if (!CART_EVENT_TEST_IDS.includes(memberId)) {
+  const isTestId = CART_EVENT_TEST_IDS.includes(memberId);
+
+  // 1-1. 테스트 계정만 — 화면에서만 막으면 memberId 를 바꿔 직접 호출할 수 있다 (전체 오픈 시 이 검사만 삭제)
+  if (!isTestId) {
     return res.status(403).json({ success: false, message: '진행 중인 이벤트가 아닙니다.' });
   }
 
@@ -5546,10 +5549,12 @@ app.post('/api/event/cart-reward', async (req, res) => {
   try {
     const collection = db.collection('yogiboCartEvent');
 
-    // 2. 중복 참여 확인
-    const alreadyParticipated = await collection.findOne({ memberId });
-    if (alreadyParticipated) {
-      return res.status(400).json({ success: false, message: '이미 적립 혜택을 받으셨습니다.', alreadyDone: true });
+    // 2. 중복 참여 확인 (테스트 계정은 건너뜀)
+    if (!isTestId) {
+      const alreadyParticipated = await collection.findOne({ memberId });
+      if (alreadyParticipated) {
+        return res.status(400).json({ success: false, message: '이미 적립 혜택을 받으셨습니다.', alreadyDone: true });
+      }
     }
 
     // 3. Cafe24 API로 포인트 적립
@@ -5572,13 +5577,22 @@ app.post('/api/event/cart-reward', async (req, res) => {
 
     // 4. 적립 성공 시 참여 기록 저장 (KST 기준)
     const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-    await collection.insertOne({
-      memberId,
-      amount,
-      participatedAt: nowKST
-    });
+    //    테스트 계정은 기록이 이미 있어 insert 하면 unique 충돌이 나므로, 마지막 지급 시각만 덮어쓴다
+    if (isTestId) {
+      await collection.updateOne(
+        { memberId },
+        { $set: { amount, participatedAt: nowKST } },
+        { upsert: true }
+      );
+    } else {
+      await collection.insertOne({
+        memberId,
+        amount,
+        participatedAt: nowKST
+      });
+    }
 
-    console.log(`[카트이벤트] ${memberId} 적립금 ${amount}원 지급 완료`);
+    console.log(`[카트이벤트] ${memberId} 적립금 ${amount}원 지급 완료${isTestId ? ' (테스트 계정)' : ''}`);
     return res.json({ success: true, message: '🎉 3,000원 적립금이 지급되었습니다!' });
 
   } catch (err) {

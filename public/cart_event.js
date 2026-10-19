@@ -6,8 +6,8 @@
 (function () {
   var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
   var API_BASE_URL = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
-  var POP_IMG = 'http://yogibo.kr/web/img/cart_pop.png';
-  var TEST_MEMBER_IDS = ['testid']; // 동작 확인용 — 이 계정만 팝업 노출 (서버도 같은 계정만 지급)
+  var POP_IMG = 'https://yogibo.kr/web/img/cart_pop.png';
+  var TEST_MEMBER_IDS = ['testid']; // 테스트 계정 — 이미 받았어도 매번 팝업 (서버도 매번 지급)
 
   var _memberId = null;
   var _popupEl = null;
@@ -187,45 +187,60 @@
       return;
     }
 
-    waitForCafe24API(function () {
-      try {
-        CAFE24API.init(CAFE24_APP_KEY);
-        CAFE24API.getMemberID(function (memberId) {
-          if (!memberId || memberId === 'GUEST' || String(memberId).startsWith('guest_')) {
-            console.log('[카트이벤트] 비회원 - 미실행');
-            return;
-          }
-          if (TEST_MEMBER_IDS.indexOf(memberId) === -1) {
-            console.log('[카트이벤트] 테스트 계정 아님 - 미실행');
-            return;
-          }
-          _memberId = memberId;
-          console.log('[카트이벤트] 회원 확인:', memberId);
+    waitForCafe24API(function () { checkMember(0); });
+  }
 
-          if (localStorage.getItem('__cart_event_done_' + memberId) === 'true') {
-            console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (localStorage) - 팝업 미노출');
+  // 로그인 회원도 페이지 로드 직후엔 빈 값이 올 수 있어, 비회원으로 끝내기 전에 몇 번 더 묻는다
+  function checkMember(retry) {
+    try {
+      CAFE24API.init(CAFE24_APP_KEY);
+      CAFE24API.getMemberID(function (memberId) {
+        if (!memberId || memberId === 'GUEST' || String(memberId).startsWith('guest_')) {
+          if (retry < 6) {
+            setTimeout(function () { checkMember(retry + 1); }, 500);
             return;
           }
+          console.log('[카트이벤트] 비회원 - 미실행');
+          return;
+        }
+        // 지금은 테스트 계정만 — 전체 오픈 시 이 검사만 삭제
+        if (TEST_MEMBER_IDS.indexOf(memberId) === -1) {
+          console.log('[카트이벤트] 테스트 계정 아님 - 미실행');
+          return;
+        }
+        _memberId = memberId;
+        console.log('[카트이벤트] 회원 확인:', memberId);
 
-          fetch(API_BASE_URL + '/api/event/cart-reward/status?memberId=' + memberId)
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
-              if (data.success && data.alreadyDone) {
-                console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (서버) - 팝업 미노출');
-                localStorage.setItem('__cart_event_done_' + memberId, 'true');
-              } else {
-                showPopup();
-              }
-            })
-            .catch(function (e) {
-              console.error('[카트이벤트] 상태 조회 중 오류:', e);
-              showPopup(); // 조회 실패 시 강제 팝업
-            });
-        });
-      } catch (e) {
-        console.error('[카트이벤트] CAFE24API 오류:', e);
-      }
-    });
+        // 테스트 계정은 받은 기록과 상관없이 매번 팝업
+        if (TEST_MEMBER_IDS.indexOf(memberId) !== -1) {
+          console.log('[카트이벤트] 테스트 계정 - 지급 기록 무시하고 팝업');
+          showPopup();
+          return;
+        }
+
+        if (localStorage.getItem('__cart_event_done_' + memberId) === 'true') {
+          console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (localStorage) - 팝업 미노출');
+          return;
+        }
+
+        fetch(API_BASE_URL + '/api/event/cart-reward/status?memberId=' + encodeURIComponent(memberId))
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data.success && data.alreadyDone) {
+              console.log('[카트이벤트] 이미 적립 혜택을 받은 회원 (서버) - 팝업 미노출');
+              localStorage.setItem('__cart_event_done_' + memberId, 'true');
+            } else {
+              showPopup();
+            }
+          })
+          .catch(function (e) {
+            console.error('[카트이벤트] 상태 조회 중 오류:', e);
+            showPopup(); // 조회 실패 시에도 팝업은 띄움 (지급 여부는 서버가 최종 판단)
+          });
+      });
+    } catch (e) {
+      console.error('[카트이벤트] CAFE24API 오류:', e);
+    }
   }
 
   if (document.readyState === 'loading') {
