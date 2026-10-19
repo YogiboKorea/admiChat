@@ -4026,7 +4026,7 @@ async function aggregateAwesomeSalesData() {
     // 🌟 [추가] 최근 7일 기준일 계산
     const sevenDaysAgoStr = moment().tz('Asia/Seoul').subtract(7, 'days').format('YYYY-MM-DD');
 
-    const offlineBase = 'https://port-0-realtime-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders';
+    const offlineBase = 'https://port-0-offorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders'; // realtime 기능은 2026-10-19 offorder로 통합
     const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
 
     const fetchPromises = [];
