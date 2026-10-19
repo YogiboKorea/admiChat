@@ -1,0 +1,534 @@
+<!--@layout(/layout/basic/layout.html)-->
+
+<style type="text/css">
+    .pokemon_pc { display: block; }
+    .pokemon_mo { display: none; }
+
+.yogiboGrid3{
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	justify-content: space-evenly;
+	gap: 30px 10px;
+	width: 100%;
+}
+#goods_icon2xs{background:#00bdd4;color:#fff;display:inline-block;font-weight:600;padding:5px;border-radius:4px;font-size:14px;}
+
+    @media (max-width: 599px) {
+        .pokemon_pc { display: none; }
+        .pokemon_mo { display: block; }
+		#goods_icon2xs{font-size:12px;padding:4px;}
+    }
+
+/* ── SNS 포토리뷰 이벤트 — 토스 풍: 배경·그림자 없이 글자·회색 칸·파란 버튼만. 스킨과 섞이지 않게 전부 .pkr 아래 ── */
+/* 대표 컬러 #1b6e93 — --blue 본색 · --blue-d 마우스 올림(15% 어둡게) · --blue-l 옅은 배경(10% 농도) */
+.pkr{--t1:#191f28;--t2:#4e5968;--t3:#8b95a1;--fill:#f2f4f6;--fill2:#f9fafb;--blue:#1b6e93;--blue-d:#175d7d;--blue-l:#e8f0f4;--red:#f04452;
+  font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--t1);
+  padding:72px 0 96px;letter-spacing:-.02em;line-height:1.5;-webkit-font-smoothing:antialiased}
+.pkr *{box-sizing:border-box}
+.pkr [hidden]{display:none !important}
+.pkr p,.pkr h2,.pkr h3,.pkr ol,.pkr ul,.pkr dl,.pkr dd{margin:0;padding:0}
+.pkr ol,.pkr ul{list-style:none}
+.pkr-in{max-width:800px;margin:0 auto;padding:0 20px}
+.pkr-sec + .pkr-sec{margin-top:80px}
+
+/* 글자 */
+.pkr-kicker{font-size:15px;font-weight:600;color:var(--blue);margin-bottom:10px}
+.pkr-h{font-size:30px;line-height:1.38;font-weight:700;color:var(--t1)}
+.pkr-h3{font-size:22px;line-height:1.4;font-weight:700;color:var(--t1)}
+.pkr-sub{margin-top:12px;font-size:17px;line-height:1.6;color:var(--t2)}
+.pkr-sub2{margin-top:6px;font-size:15px;line-height:1.6;color:var(--t2)}
+.pkr-fine{margin-top:12px;font-size:13px;line-height:1.6;color:var(--t3)}
+
+/* 이벤트 소개 */
+.pkr-period{display:inline-flex;gap:10px;align-items:center;margin-top:20px;padding:12px 16px;border-radius:12px;background:var(--fill);font-size:15px}
+.pkr-period span{color:var(--t2)}
+.pkr-period b{font-weight:600;color:var(--t1)}
+
+/* 버튼 */
+.pkr-btn{display:flex;align-items:center;justify-content:center;width:100%;height:56px;margin-top:16px;border:0;border-radius:16px;background:var(--blue);color:#fff !important;font-size:17px;font-weight:600;cursor:pointer;text-decoration:none !important;transition:background-color .15s}
+.pkr-btn:hover{background:var(--blue-d)}
+.pkr-btn:disabled{opacity:.5;cursor:default}
+.pkr-btn.ghost{background:var(--fill);color:var(--t2) !important}
+.pkr-btn.inline{display:inline-flex;width:auto;height:48px;padding:0 20px;margin-top:24px;border-radius:12px;font-size:15px}
+
+/* 참여 방법 */
+.pkr-steps{margin-top:24px}
+.pkr-steps li{display:flex;gap:16px;align-items:flex-start}
+.pkr-steps li + li{margin-top:24px}
+.pkr-ico{flex:none;width:48px;height:48px;border-radius:14px;background:var(--blue-l);font-size:24px;line-height:48px;text-align:center}
+.pkr-step-no{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--blue)}
+.pkr-steps strong{display:block;margin-top:2px;font-size:17px;font-weight:600;color:var(--t1)}
+.pkr-steps p{margin-top:2px;font-size:15px;line-height:1.6;color:var(--t2)}
+
+/* 해시태그 */
+.pkr-tagbox{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-top:28px;padding:20px;border-radius:16px;background:var(--fill)}
+.pkr-tagbox strong{display:block;font-size:15px;font-weight:600;color:var(--t1)}
+.pkr-tags{margin-top:6px !important;font-size:16px;font-weight:600;color:var(--blue);word-break:keep-all}
+.pkr-tagbox .pkr-fine{margin-top:6px}
+.pkr-copy{flex:none;height:36px;padding:0 14px;border:0;border-radius:10px;background:#fff;color:var(--t2);font-size:14px;font-weight:600;cursor:pointer}
+
+/* 경품 */
+.pkr-prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+.pkr-prizes li{padding:20px 12px;border-radius:16px;background:var(--fill2);text-align:center}
+.pkr-prizes li.first{background:var(--blue-l)}
+.pkr-prizes span{display:block;font-size:13px;color:var(--t3)}
+.pkr-prizes strong{display:block;margin-top:6px;font-size:17px;font-weight:700;color:var(--t1);word-break:keep-all}
+.pkr-prizes li.first strong{color:var(--blue)}
+.pkr-prizes em{display:block;margin-top:2px;font-style:normal;font-size:13px;color:var(--t2)}
+
+/* 참여 양식 */
+.pkr-form{margin-top:28px}
+.pkr-grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.pkr-grid2 .pkr-full{grid-column:1/-1}
+.pkr-field{margin-bottom:24px}
+.pkr .pkr-label{display:block;margin:0 0 8px;padding:0;font-size:13px;font-weight:600;color:var(--t2)}
+.pkr-input{display:flex;align-items:center;height:54px;border-radius:12px;background:var(--fill);padding:0 16px;transition:box-shadow .15s,background-color .15s}
+.pkr-input:focus-within{background:#fff;box-shadow:inset 0 0 0 2px var(--blue)}
+.pkr-input span{font-size:17px;font-weight:600;color:var(--t3);margin-right:2px}
+.pkr-input input{flex:1;min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;font-size:17px;color:var(--t1);padding:0;margin:0;-webkit-appearance:none;appearance:none}
+.pkr-input input::placeholder{color:#b0b8c1}
+.pkr-help{margin-top:6px !important;font-size:13px;color:var(--t3)}
+.pkr .pkr-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;height:220px;margin:0;padding:0;border-radius:12px;background:var(--fill);cursor:pointer;overflow:hidden;text-align:center;transition:box-shadow .15s}
+.pkr-drop.drag{box-shadow:inset 0 0 0 2px var(--blue);background:var(--blue-l)}
+.pkr-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:1}
+.pkr-drop b{font-size:15px;font-weight:600;color:var(--t2)}
+.pkr-drop small{font-size:13px;line-height:1.6;color:var(--t3)}
+.pkr-drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--fill)}
+.pkr-fileinfo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;font-size:13px;color:var(--t2)}
+.pkr-fileinfo span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pkr-fileinfo button{flex:none;border:0;background:none;padding:4px 0;font-size:13px;color:var(--t3);text-decoration:underline;cursor:pointer}
+.pkr-privacy{padding:16px;border-radius:12px;background:var(--fill2);font-size:13px;line-height:1.7;color:var(--t2)}
+.pkr-privacy dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.pkr-privacy dt{font-weight:600;color:var(--t1)}
+.pkr-privacy p{margin-top:8px !important;color:var(--t3)}
+.pkr .pkr-check{display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:0;cursor:pointer;font-size:15px;font-weight:600;color:var(--t1)}
+.pkr-check input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--blue);cursor:pointer}
+.pkr-msg{min-height:20px;margin-top:4px !important;font-size:14px;font-weight:500;color:var(--red)}
+.pkr-center{padding:24px 0;font-size:15px;color:var(--t2)}
+.pkr-center-text{text-align:center}
+
+/* 참여 완료 */
+.pkr-done{margin-top:28px;padding:40px 20px;border-radius:16px;background:var(--fill2);text-align:center}
+.pkr-done-ico{width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:var(--blue-l);color:var(--blue);font-size:28px;font-weight:700;line-height:56px}
+.pkr-done strong{display:block;font-size:22px;font-weight:700;color:var(--t1)}
+.pkr-done p{margin-top:8px !important;font-size:15px;line-height:1.6;color:var(--t2)}
+.pkr-receipt{display:inline-block;margin-top:14px;padding:6px 12px;border-radius:8px;background:var(--fill);font-size:13px;font-weight:600;color:var(--t2)}
+.pkr-mine{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:20px}
+.pkr-mine figure{margin:0;width:104px}
+.pkr-mine img{display:block;width:104px;height:104px;object-fit:cover;border-radius:12px;background:var(--fill)}
+.pkr-mine figcaption{margin-top:6px;font-size:12px;color:var(--t3)}
+.pkr-done .pkr-btn{max-width:320px;margin:20px auto 0}
+
+/* 리뷰 갤러리 */
+.pkr-gal-head{display:flex;align-items:baseline;gap:8px}
+.pkr-gal-head span{font-size:15px;color:var(--t3)}
+.pkr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px 12px;margin-top:20px}
+.pkr-card{display:block;text-decoration:none !important;color:inherit}
+.pkr-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;background:var(--fill);transition:opacity .15s}
+a.pkr-card:hover img{opacity:.85}
+.pkr-cap{display:block;padding:10px 2px 0}
+.pkr-cap b{display:block;font-size:15px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pkr-cap small{display:block;margin-top:2px;font-size:13px;color:var(--t3)}
+.pkr-cap i{float:right;font-style:normal;color:var(--t3)}
+.pkr-empty{margin-top:20px !important;padding:48px 20px;text-align:center;border-radius:16px;background:var(--fill2);color:var(--t3);font-size:15px}
+.pkr-more{display:block;width:100%;max-width:320px;height:48px;margin:32px auto 0;border:0;border-radius:12px;background:var(--fill);color:var(--t2);font-size:15px;font-weight:600;cursor:pointer}
+
+/* 비회원 안내 — PC 는 가운데 창, 모바일은 아래에서 올라오는 시트 */
+.pkr-sheet{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:20px}
+.pkr-sheet-box{width:100%;max-width:400px;background:#fff;border-radius:24px;padding:28px 24px 12px}
+.pkr-sheet-box strong{display:block;font-size:20px;font-weight:700;line-height:1.4;color:var(--t1)}
+.pkr-sheet-box p{margin:8px 0 20px !important;font-size:15px;line-height:1.6;color:var(--t2)}
+.pkr-sheet-box .pkr-btn{margin-top:8px}
+.pkr-sheet-close{display:block;width:100%;height:48px;margin-top:4px;border:0;background:none;font-size:15px;color:var(--t3);cursor:pointer}
+
+@media (max-width: 599px){
+  .pkr{padding:48px 0 72px}
+  .pkr-sec + .pkr-sec{margin-top:64px}
+  .pkr-h{font-size:24px}
+  .pkr-sub{font-size:16px}
+  .pkr-h3{font-size:20px}
+  .pkr-tagbox{flex-direction:column}
+  .pkr-prizes{gap:6px}
+  .pkr-prizes li{padding:16px 6px}
+  .pkr-prizes strong{font-size:15px}
+  .pkr-grid2{grid-template-columns:1fr}
+  .pkr-grid{grid-template-columns:repeat(2,1fr);gap:20px 10px}
+  .pkr-sheet{align-items:flex-end;padding:0}
+  .pkr-sheet-box{max-width:none;border-radius:24px 24px 0 0;padding:28px 20px calc(8px + env(safe-area-inset-bottom))}
+}
+</style>
+
+<div style="max-width:1400px;margin:0 auto;">
+
+	<div class="pokemon_pc"><img src="/web/img/md/pokemon/pokeomon_w.jpg" style="width:100%;" alt=""/></div>
+	<div class="pokemon_mo"><img src="/web/img/md/pokemon/pokeom_m.jpg" style="width:100%;" alt=""/></div>
+
+
+</div>
+
+<!-- ── SNS 포토리뷰 이벤트 ── -->
+<div class="pkr" id="pkr">
+  <div class="pkr-in">
+
+    <!-- 이벤트 소개 -->
+    <section class="pkr-sec">
+      <p class="pkr-kicker">포켓몬 출시기념 · SNS 포토리뷰 이벤트</p>
+      <h2 class="pkr-h">포켓몬과 함께한<br>휴식의 순간을 공유해주세요</h2>
+      <p class="pkr-sub">제품을 구매하고 인증사진을 SNS에 올려주세요.<br>간단한 인증으로 이벤트에 참여할 수 있어요.</p>
+      <div class="pkr-period"><span>이벤트 기간</span><b>10.22(목) – 11.30(월)</b></div>
+      <div><a class="pkr-btn inline" href="#pkr-join">리뷰 참여 인증하기</a></div>
+    </section>
+
+    <!-- 참여 방법 -->
+    <section class="pkr-sec">
+      <h3 class="pkr-h3">참여 방법은 딱 3단계</h3>
+      <ol class="pkr-steps">
+        <li><span class="pkr-ico" aria-hidden="true">📸</span><div><span class="pkr-step-no">STEP 01</span><strong>제품 구매 후 SNS 업로드</strong><p>요기보 포켓몬 제품을 받은 후 사진과 함께 개인 SNS에 포토리뷰를 작성해주세요.</p></div></li>
+        <li><span class="pkr-ico" aria-hidden="true">📝</span><div><span class="pkr-step-no">STEP 02</span><strong>정보와 캡처 이미지 등록</strong><p>인스타그램 ID·이름·게시물 링크를 입력하고 리뷰 화면을 캡처해 첨부해주세요.</p></div></li>
+        <li><span class="pkr-ico" aria-hidden="true">🎉</span><div><span class="pkr-step-no">STEP 03</span><strong>참여 완료</strong><p>개인정보 수집에 동의하고 ‘참여 완료하기’를 누르면 접수가 끝나요.</p></div></li>
+      </ol>
+      <div class="pkr-tagbox">
+        <div>
+          <strong>📌 게시물에 필수 해시태그를 넣어주세요</strong>
+          <p class="pkr-tags" id="pkr-tags">#요기보 #포켓몬 #스트레스볼 #목베개 #베개</p>
+          <p class="pkr-fine">게시물을 확인할 수 있도록 이벤트 기간 동안 SNS를 공개 상태로 유지해주세요.</p>
+        </div>
+        <button type="button" class="pkr-copy" id="pkr-copy">해시태그 복사</button>
+      </div>
+    </section>
+
+    <!-- 경품 -->
+    <section class="pkr-sec">
+      <h3 class="pkr-h3">경품</h3>
+      <p class="pkr-sub2">추첨을 통해 총 3분께 요기보 빈백을 드려요.</p>
+      <ul class="pkr-prizes">
+        <li class="first"><span>1등 · 1명</span><strong>요기보 맥스</strong><em>40만원 상당</em></li>
+        <li><span>2등 · 1명</span><strong>요기보 미니</strong><em>30만원 상당</em></li>
+        <li><span>3등 · 1명</span><strong>요기보 피라미드</strong><em>20만원 상당</em></li>
+      </ul>
+      <p class="pkr-fine">당첨자 발표 및 경품 지급 일정은 별도로 안내드려요.</p>
+    </section>
+
+    <!-- 참여 인증 -->
+    <section class="pkr-sec" id="pkr-join">
+      <h3 class="pkr-h3">SNS 리뷰 참여 인증</h3>
+      <p class="pkr-sub2">아래 항목을 모두 입력하고 리뷰 캡처 이미지를 첨부해주세요.</p>
+
+      <div class="pkr-center" data-state="loading">회원 정보를 확인하고 있어요</div>
+
+      <form class="pkr-form" data-state="form" id="pkr-form" novalidate hidden>
+        <div class="pkr-grid2">
+          <div class="pkr-field">
+            <label class="pkr-label" for="pkr-sns">인스타그램 ID</label>
+            <div class="pkr-input"><span>@</span><input id="pkr-sns" type="text" maxlength="31" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yogibokorea"></div>
+          </div>
+          <div class="pkr-field">
+            <label class="pkr-label" for="pkr-name">이름</label>
+            <div class="pkr-input"><input id="pkr-name" type="text" maxlength="50" autocomplete="name" placeholder="이름"></div>
+          </div>
+          <div class="pkr-field pkr-full">
+            <label class="pkr-label" for="pkr-link">SNS 게시물 링크</label>
+            <div class="pkr-input"><input id="pkr-link" type="text" inputmode="url" maxlength="500" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://www.instagram.com/p/..."></div>
+            <p class="pkr-help">프로필이 아닌 리뷰 게시물 링크를 넣어주세요.</p>
+          </div>
+        </div>
+
+        <div class="pkr-field">
+          <label class="pkr-label" for="pkr-file">리뷰 캡처 이미지</label>
+          <label class="pkr-drop" id="pkr-drop">
+            <input id="pkr-file" type="file" accept="image/jpeg,image/png,image/webp">
+            <b>이미지 선택</b>
+            <small>아이디와 게시물 사진·내용이 보이게 캡처해주세요<br>JPG · PNG · WEBP, 10MB 이하</small>
+            <img id="pkr-prev" alt="선택한 이미지 미리보기" hidden>
+          </label>
+          <div class="pkr-fileinfo" id="pkr-fileinfo" hidden><span id="pkr-fname"></span><button type="button" id="pkr-remove">삭제</button></div>
+        </div>
+
+        <div class="pkr-field">
+          <p class="pkr-label">개인정보 수집·이용 동의</p>
+          <div class="pkr-privacy">
+            <dl>
+              <dt>수집·이용 목적</dt><dd>이벤트 응모 확인, 중복 응모 확인, 당첨자 선정 및 경품 안내</dd>
+              <dt>수집 항목</dt><dd>인스타그램 ID, 이름, SNS 게시물 링크, 인증 이미지</dd>
+              <dt>보유·이용 기간</dt><dd>이벤트 종료 및 경품 지급 완료 후 지체 없이 파기</dd>
+            </dl>
+            <p>동의를 거부할 수 있으나, 동의하지 않으면 이벤트에 참여할 수 없어요.</p>
+          </div>
+          <label class="pkr-check"><input type="checkbox" id="pkr-agree"><span>[필수] 개인정보 수집 및 이용에 동의합니다.</span></label>
+        </div>
+
+        <p class="pkr-msg" id="pkr-msg" role="alert"></p>
+        <button type="submit" class="pkr-btn" id="pkr-submit">참여 완료하기</button>
+        <p class="pkr-fine pkr-center-text">동일한 게시물 링크는 한 번만 등록할 수 있어요.<br>등록한 이미지와 인스타그램 ID는 확인 후 아래 리뷰 갤러리에 공개될 수 있어요.</p>
+      </form>
+
+      <div class="pkr-done" data-state="done" hidden>
+        <div class="pkr-done-ico" aria-hidden="true">✓</div>
+        <strong>참여 신청이 완료되었어요</strong>
+        <p>SNS 리뷰 이벤트 참여가 접수되었어요.<br>응모해주셔서 감사합니다.</p>
+        <span class="pkr-receipt" id="pkr-receipt" hidden></span>
+        <div class="pkr-mine" id="pkr-mine"></div>
+        <button type="button" class="pkr-btn ghost" id="pkr-again" hidden>한 번 더 등록하기 (테스트 계정)</button>
+      </div>
+    </section>
+
+    <!-- 리뷰 갤러리 -->
+    <section class="pkr-sec">
+      <div class="pkr-gal-head"><h3 class="pkr-h3">리뷰 갤러리</h3><span id="pkr-total"></span></div>
+      <div class="pkr-grid" id="pkr-grid"></div>
+      <p class="pkr-empty" id="pkr-empty" hidden>아직 공개된 리뷰가 없어요. 첫 번째 주인공이 되어주세요!</p>
+      <button type="button" class="pkr-more" id="pkr-more" hidden>더 보기</button>
+    </section>
+  </div>
+
+  <!-- 비회원이 양식을 건드리면 뜨는 안내 -->
+  <div class="pkr-sheet" id="pkr-sheet" hidden>
+    <div class="pkr-sheet-box" role="dialog" aria-modal="true" aria-labelledby="pkr-sheet-title">
+      <strong id="pkr-sheet-title">회원가입 후 참여 가능한 이벤트입니다.</strong>
+      <p>로그인하고 SNS 리뷰를 인증해주세요.<br>아직 회원이 아니라면 회원가입 후 참여할 수 있어요.</p>
+      <a class="pkr-btn" id="pkr-go-login" href="/member/login.html">로그인</a>
+      <a class="pkr-btn ghost" id="pkr-go-join" href="/member/join.html">회원가입</a>
+      <button type="button" class="pkr-sheet-close" id="pkr-sheet-close">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+  var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+  var MAX_BYTES = 10 * 1024 * 1024;
+  var TYPES = { 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1 };
+  var PAGE = 12;
+
+  var root = document.getElementById('pkr');
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function isHttp(u) { return /^https?:\/\//i.test(String(u || '')); }
+
+  var memberId = null;
+  var guest = false;                               // 회원 확인이 끝났는데 아이디가 없을 때만 true
+  var selectedFile = null;
+
+  function show(state) {
+    var els = root.querySelectorAll('[data-state]');
+    for (var i = 0; i < els.length; i++) els[i].hidden = els[i].getAttribute('data-state') !== state;
+  }
+  function getJson(url, opts) {
+    return fetch(url, opts).then(function (r) { return r.json().catch(function () { return {}; }); });
+  }
+  function msg(t) { $('pkr-msg').textContent = t || ''; }
+
+  /* ── 해시태그 복사 (비회원도 가능) ── */
+  $('pkr-copy').addEventListener('click', function () {
+    var btn = this, tags = $('pkr-tags').textContent.trim();
+    function done(ok) {
+      btn.textContent = ok ? '복사했어요' : '직접 선택해 복사해주세요';
+      setTimeout(function () { btn.textContent = '해시태그 복사'; }, 1700);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(tags).then(function () { done(true); }, function () { done(false); });
+      return;
+    }
+    try {
+      var t = document.createElement('textarea');
+      t.value = tags; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(t);
+      done(ok);
+    } catch (e) { done(false); }
+  });
+
+  /* ── 0. 비회원 안내 — 양식은 보여주고, 입력·이미지 선택·동의·등록을 누르면 로그인/회원가입으로 안내한다 ── */
+  // 로그인 후 참여 인증 영역으로 돌아오게 한다
+  $('pkr-go-login').href = '/member/login.html?returnUrl=' + encodeURIComponent(location.pathname + location.search + '#pkr-join');
+  var sheet = $('pkr-sheet');
+  function openSheet() { sheet.hidden = false; }
+  function closeSheet() { sheet.hidden = true; }
+  $('pkr-sheet-close').addEventListener('click', closeSheet);
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
+
+  function becomeGuest() { guest = true; memberId = null; show('form'); }
+
+  // 입력칸에 들어가려 하면 — 키보드가 뜨기 전에 빼고 안내
+  $('pkr-form').addEventListener('focusin', function (e) {
+    if (!guest) return;
+    if (e.target && e.target.blur) e.target.blur();
+    openSheet();
+  });
+  // 동의 체크 — Safari 는 체크박스를 눌러도 focus 가 안 가서 클릭으로도 막는다
+  $('pkr-agree').addEventListener('click', function (e) {
+    if (!guest) return;
+    e.preventDefault();
+    openSheet();
+  });
+
+  /* ── 1. 회원 확인 — 로그인 회원도 페이지 로드 직후엔 빈 값이 올 수 있어 몇 번 더 묻는다 ── */
+  function checkMember(retry) {
+    if (typeof CAFE24API === 'undefined') {
+      if (retry < 10) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
+      becomeGuest(); return;
+    }
+    try {
+      CAFE24API.init(CAFE24_APP_KEY);
+      CAFE24API.getMemberID(function (id) {
+        if (id && id !== 'GUEST' && String(id).indexOf('guest_') !== 0) {
+          memberId = String(id);
+          loadMine();
+          return;
+        }
+        if (retry < 6) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
+        becomeGuest();
+      });
+    } catch (e) {
+      console.error('[포켓몬리뷰] CAFE24API 오류:', e);
+      becomeGuest();
+    }
+  }
+
+  /* ── 2. 내 참여 상태 ── */
+  var STATUS_TEXT = { pending: '확인 중', approved: '갤러리에 공개 중', hidden: '비공개' };
+  function loadMine() {
+    getJson(API + '/api/pokemon-review/mine?memberId=' + encodeURIComponent(memberId))
+      .then(function (d) {
+        if (!d.ok || !d.count) { show('form'); return; }
+        var last = d.items[0];
+        $('pkr-receipt').textContent = '접수 번호 ' + (last.receipt || '');
+        $('pkr-receipt').hidden = !last.receipt;
+        $('pkr-mine').innerHTML = d.items.map(function (it) {
+          return '<figure><img src="' + esc(it.imageUrl) + '" alt="내가 등록한 리뷰 이미지"><figcaption>' + esc(STATUS_TEXT[it.status] || '') + '</figcaption></figure>';
+        }).join('');
+        $('pkr-again').hidden = !(d.test && d.canAdd);
+        show('done');
+      })
+      .catch(function () { show('form'); });
+  }
+  $('pkr-again').addEventListener('click', function () { show('form'); });
+
+  /* ── 3. 이미지 선택 · 끌어놓기 ── */
+  var fileInput = $('pkr-file'), drop = $('pkr-drop'), prev = $('pkr-prev'), prevUrl = null;
+
+  function setFile(f) {
+    if (prevUrl) { URL.revokeObjectURL(prevUrl); prevUrl = null; }
+    selectedFile = null;
+    prev.hidden = true;
+    $('pkr-fileinfo').hidden = true;
+    if (!f) { fileInput.value = ''; return; }
+    if (!TYPES[f.type]) { fileInput.value = ''; msg('JPG, PNG, WEBP 이미지만 등록할 수 있어요.'); return; }
+    if (!f.size || f.size > MAX_BYTES) { fileInput.value = ''; msg('이미지는 10MB 이하로 등록해주세요.'); return; }
+    msg('');
+    selectedFile = f;
+    prevUrl = URL.createObjectURL(f);
+    prev.src = prevUrl;
+    prev.hidden = false;
+    $('pkr-fname').textContent = f.name + ' · ' + (f.size / 1024 / 1024).toFixed(1) + 'MB';
+    $('pkr-fileinfo').hidden = false;
+  }
+
+  // 비회원이 누르면 파일 고르는 창을 열지 않고 안내
+  fileInput.addEventListener('click', function (e) {
+    if (!guest) return;
+    e.preventDefault();
+    openSheet();
+  });
+  fileInput.addEventListener('change', function () {
+    if (guest) { fileInput.value = ''; openSheet(); return; }
+    setFile(fileInput.files && fileInput.files[0]);
+  });
+  $('pkr-remove').addEventListener('click', function () { setFile(null); });
+
+  ['dragenter', 'dragover'].forEach(function (n) {
+    drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('drag'); });
+  });
+  ['dragleave', 'drop'].forEach(function (n) {
+    drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('drag'); });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (guest) { openSheet(); return; }
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+
+  /* ── 4. 참여 완료하기 ── */
+  $('pkr-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!memberId) { openSheet(); return; }
+    var sns = $('pkr-sns').value.trim().replace(/^@+/, '');
+    var name = $('pkr-name').value.trim();
+    var link = $('pkr-link').value.trim();
+    if (!/^[A-Za-z0-9._]{1,30}$/.test(sns)) { msg('인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)'); $('pkr-sns').focus(); return; }
+    if (name.length < 2) { msg('이름을 2자 이상 입력해주세요.'); $('pkr-name').focus(); return; }
+    if (!link) { msg('SNS 게시물 링크를 입력해주세요.'); $('pkr-link').focus(); return; }
+    if (!selectedFile) { msg('리뷰 캡처 이미지를 등록해주세요.'); return; }
+    if (!$('pkr-agree').checked) { msg('개인정보 수집 및 이용에 동의해주세요.'); return; }
+    msg('');
+
+    var fd = new FormData();
+    fd.append('memberId', memberId);
+    fd.append('snsId', sns);
+    fd.append('name', name);
+    fd.append('snsLink', link);
+    fd.append('agree', 'true');
+    fd.append('photo', selectedFile);
+
+    var btn = $('pkr-submit');
+    btn.disabled = true; btn.textContent = '접수하고 있어요';
+    function done() { btn.disabled = false; btn.textContent = '참여 완료하기'; }
+
+    getJson(API + '/api/pokemon-review/entry', { method: 'POST', body: fd })
+      .then(function (d) {
+        done();
+        if (d.ok) {
+          $('pkr-form').reset(); setFile(null);
+          loadMine();
+          $('pkr-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (d.needLogin) {
+          becomeGuest(); openSheet();
+        } else if (d.alreadyDone) {
+          loadMine();
+        } else {
+          msg(d.message || '접수하지 못했어요. 잠시 후 다시 시도해주세요.');
+        }
+      })
+      .catch(function () { done(); msg('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); });
+  });
+
+  /* ── 5. 리뷰 갤러리 — 이미지를 누르면 고객의 SNS 게시물로 이동(새 탭) ── */
+  var shown = 0, offset = 0;
+  function card(it) {
+    var inner = '<img src="' + esc(it.imageUrl) + '" loading="lazy" alt="@' + esc(it.snsId) + ' 님의 포켓몬 리뷰">' +
+      '<span class="pkr-cap"><b>@' + esc(it.snsId) + '</b><small>' + esc(it.displayId) + ' · ' + esc(it.date) +
+      (isHttp(it.snsLink) ? '<i>게시물 ↗</i>' : '') + '</small></span>';
+    return isHttp(it.snsLink)
+      ? '<a class="pkr-card" href="' + esc(it.snsLink) + '" target="_blank" rel="noopener noreferrer nofollow ugc">' + inner + '</a>'
+      : '<div class="pkr-card">' + inner + '</div>';
+  }
+  function loadGallery() {
+    var more = $('pkr-more');
+    more.disabled = true;
+    getJson(API + '/api/pokemon-review/recent?limit=' + PAGE + '&offset=' + offset)
+      .then(function (d) {
+        more.disabled = false;
+        if (!d.ok) return;
+        var list = d.items || [];
+        shown += list.length;
+        offset += list.length;
+        $('pkr-grid').insertAdjacentHTML('beforeend', list.map(card).join(''));
+        $('pkr-total').textContent = d.total ? d.total + '개' : '';
+        $('pkr-empty').hidden = shown > 0;
+        more.hidden = !d.hasMore;
+      })
+      .catch(function () { more.disabled = false; });
+  }
+  $('pkr-more').addEventListener('click', loadGallery);
+
+  /* ── 실행 ── */
+  function init() { checkMember(0); loadGallery(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>

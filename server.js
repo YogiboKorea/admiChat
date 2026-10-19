@@ -27,6 +27,7 @@ const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
+const pokemonReview = require('./pokemonReview'); // 「포켓몬 SNS 포토리뷰」 모듈 (2026.10)
 const onOrder = require('./onOrder'); // onOrder 서버에서 옮겨 온 온라인 판매현황·팝업스토어 API (2026.10)
 const tokenKeepalive = require('./tokenKeepalive'); // Cafe24 토큰 매시 선제 갱신 — yChat이 하던 일 (2026.10)
 // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈은 initialize()에서 불러온다 — 로드 실패가 서버 전체를 멈추지 않도록
@@ -6867,6 +6868,17 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       console.warn('⚠️ choiceVote Index 생성 경고:', idxErr.message);
     }
     choiceVote.mount(app, { getDb: () => db });
+
+    // [포켓몬 SNS 포토리뷰] 회원만 · SNS 아이디 + 링크 + 이미지 → 참여 완료, 관리자가 공개한 것만 갤러리에
+    try {
+      await db.collection(pokemonReview.COLLECTION).createIndex({ status: 1, createdAt: -1 });
+      await db.collection(pokemonReview.COLLECTION).createIndex({ memberId: 1 });
+      await db.collection(pokemonReview.COLLECTION).createIndex({ snsLink: 1 });
+      console.log('✅ pokemonReview Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ pokemonReview Index 생성 경고:', idxErr.message);
+    }
+    pokemonReview.mount(app, { getDb: () => db });
 
     // [온라인 판매현황 · 팝업스토어] onOrder 서버에서 옮겨 온 API — on DB (2026-10 클라우드타입 서버 통합)
     onOrder.mount(app, { getDb: () => db });

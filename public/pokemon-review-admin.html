@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>포켓몬 리뷰 관리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+/* 내부 운영 도구 — 쉼 순간 관리(rest-admin.html)와 같은 색·활자 체계. 사진 검수라 목록 대신 카드 그리드로 본다. */
+:root{
+  --font:Pretendard,"Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --bg:#F5F6F7; --card:#FFFFFF; --surface:#F0F1F3; --surface-2:#E6E8EB; --line:#E2E4E7; --line-2:#CFD3D8;
+  --ink:#1A1A1A; --ink-2:#3A3A3A; --ink-3:#6D6D6D; --ink-4:#9A9A9A;
+  --aqua:#0075BD; --aqua-ink:#005F9E; --aqua-050:#E7F2FA; --aqua-deep:#00568F;
+  --ok:#1E7F4F; --ok-050:#E6F4EC; --warn:#9A6200; --warn-050:#FFF4DE; --bad:#B42318; --bad-050:#FDECEA;
+  --r:10px; --r-lg:16px; --pill:999px;
+  --shadow:0 1px 2px rgba(20,26,32,.05),0 8px 20px -14px rgba(20,26,32,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0;margin:0}
+a{color:var(--aqua-ink);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:0 20px 80px}
+
+.top{position:sticky;top:0;z-index:5;background:rgba(245,246,247,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1300px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.top h1 i{width:8px;height:8px;border-radius:50%;background:#FFCB05}
+.top .sp{flex:1}
+.key{display:flex;gap:6px;align-items:center}
+.key input{height:36px;width:220px;max-width:50vw;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);outline:none}
+.key input:focus{border-color:var(--aqua);box-shadow:0 0 0 3px rgba(0,117,189,.18)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r);font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink-2)}
+.btn:hover{background:#DCDFE3}
+.btn.pri{background:var(--aqua);color:#fff}
+.btn.pri:hover{background:var(--aqua-deep)}
+.btn.ok{background:var(--ok-050);color:var(--ok)}
+.btn.bad{background:var(--bad-050);color:var(--bad)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px;border-radius:8px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.status{font-size:12px;color:var(--ink-3);min-height:1em}
+.status.err{color:var(--bad);font-weight:600}
+
+section{margin-top:24px}
+.sec-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sec-h .sp{flex:1}
+.tabs{display:inline-flex;gap:4px;padding:4px;background:var(--surface-2);border-radius:var(--pill);flex-wrap:wrap}
+.tab{height:30px;padding:0 12px;border-radius:var(--pill);font-size:13px;font-weight:700;color:var(--ink-3)}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--card);color:var(--aqua-ink);box-shadow:0 1px 2px rgba(20,26,32,.08)}
+.tab b{margin-left:4px;font-size:11px;color:var(--ink-4)}
+.search{height:34px;width:220px;max-width:100%;padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--card);outline:none}
+.search:focus{border-color:var(--aqua)}
+.cfg{margin-top:10px;font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 14px}
+.cfg b{color:var(--ink-2);font-weight:600}
+
+.grid{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.card{background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.card .ph{display:block;aspect-ratio:1/1;background:var(--surface-2) center/cover no-repeat}
+.card .b{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.card .sns{font-weight:700;font-size:14px;word-break:break-all}
+.card .link{font-size:12px;word-break:break-all;color:var(--aqua-ink)}
+.card .m{font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.card code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--surface);padding:1px 6px;border-radius:6px;color:var(--ink-2)}
+.pill{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--pill);font-size:11px;font-weight:700;background:var(--surface-2);color:var(--ink-2)}
+.pill.ok{background:var(--ok-050);color:var(--ok)}
+.pill.warn{background:var(--warn-050);color:var(--warn)}
+.pill.aqua{background:var(--aqua-050);color:var(--aqua-ink)}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.edit{display:flex;flex-direction:column;gap:6px}
+.edit input{height:32px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:#fff;outline:none;width:100%}
+.edit input:focus{border-color:var(--aqua)}
+.edit label{font-size:11px;font-weight:700;color:var(--ink-3)}
+.empty{margin-top:12px;padding:28px;text-align:center;color:var(--ink-3);background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.more{margin:12px auto 0;display:flex;width:100%;max-width:320px}
+.note{margin-top:12px;font-size:12px;color:var(--ink-3);line-height:1.6}
+.note b{color:var(--ink-2)}
+.locked{padding:60px 20px;text-align:center;color:var(--ink-3)}
+.locked .t{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="in">
+  <h1><i></i>포켓몬 SNS 리뷰 관리</h1>
+  <span class="status" id="status"></span>
+  <span class="sp"></span>
+  <form class="key" id="keyform" autocomplete="off">
+    <input type="password" id="key" placeholder="관리 키" aria-label="관리 키">
+    <button type="submit" class="btn pri">연결</button>
+    <button type="button" class="btn" id="logout" hidden>끊기</button>
+  </form>
+</div></div>
+
+<div class="wrap">
+
+  <div class="locked" id="locked">
+    <div class="t">관리 키를 입력하면 열립니다</div>
+    서버 환경변수 <code>POKEMON_REVIEW_ADMIN_KEY</code> 와 같은 값입니다. (없으면 쉼 순간 관리 키 <code>REST_MOMENT_ADMIN_KEY</code>)
+  </div>
+
+  <div id="app" hidden>
+    <section>
+      <div class="sec-h">
+        <div class="tabs" role="tablist" id="tabs">
+          <button class="tab" role="tab" data-view="pending" aria-selected="true">검수 대기<b id="n-pending"></b></button>
+          <button class="tab" role="tab" data-view="approved" aria-selected="false">공개 중<b id="n-approved"></b></button>
+          <button class="tab" role="tab" data-view="hidden" aria-selected="false">숨김<b id="n-hidden"></b></button>
+          <button class="tab" role="tab" data-view="all" aria-selected="false">전체<b id="n-total"></b></button>
+        </div>
+        <span class="sp"></span>
+        <input class="search" id="q" placeholder="회원아이디 · 인스타 ID · 이름 검색" aria-label="검색">
+        <button class="btn" id="refresh">새로고침</button>
+      </div>
+      <div class="cfg" id="cfg"></div>
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="empty" hidden>해당하는 리뷰가 없습니다.</div>
+      <button class="btn more" id="more" hidden>더 보기</button>
+      <p class="note">
+        고객이 등록하면 <b>검수 대기</b>로 들어오고, <b>공개</b>를 누른 것만 리뷰 페이지 갤러리에 보입니다. <b>숨김</b>은 갤러리에서만 빼고 기록은 남깁니다.<br>
+        <b>수정</b>은 인스타그램 ID·게시물 링크·이름을 고칩니다(이미지는 그대로). 이름은 당첨 확인용이라 이 페이지에서만 보입니다. 당첨 연락은 회원아이디로 카페24 회원정보에서 확인해주세요. <b>삭제</b>는 기록과 FTP 이미지 파일을 모두 지웁니다 — 지운 회원은 다시 참여할 수 있습니다.
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = '';                                    // 같은 서버가 서빙하므로 상대 경로
+  var KEY_STORE = 'pokemon_review_admin_key';
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+
+  var key = '';
+  try { key = sessionStorage.getItem(KEY_STORE) || ''; } catch (e) {}
+
+  function setStatus(msg, bad) { var el = $('#status'); el.textContent = msg || ''; el.className = 'status' + (bad ? ' err' : ''); }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { 'x-pokemon-admin-key': key };
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    return fetch(API + path, { method: opts.method || 'GET', headers: headers, body: opts.body ? JSON.stringify(opts.body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (r.status === 401 || (r.status === 403 && d.notConfigured)) {
+            key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {}
+            lock(d.message || '관리 키가 맞지 않습니다.');
+            var ae = new Error(d.message || '인증 실패'); ae.auth = true; throw ae;
+          }
+          if (!r.ok || d.ok === false) throw new Error(d.message || ('요청 실패 (' + r.status + ')'));
+          return d;
+        });
+      });
+  }
+  function fail(err, fallback) { if (err && err.auth) return; setStatus((err && err.message) || fallback || '처리에 실패했습니다.', true); }
+  function fmt(v) { if (!v) return ''; try { return new Date(v).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }); } catch (e) { return String(v); } }
+
+  function lock(msg) { $('#app').hidden = true; $('#locked').hidden = false; $('#logout').hidden = true; setStatus(msg || '', !!msg); }
+  function unlock() { $('#app').hidden = false; $('#locked').hidden = true; $('#logout').hidden = false; setStatus('연결됨'); load(true); }
+
+  $('#keyform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var k = $('#key').value.trim();
+    if (!k) return;
+    if (/[^\x21-\x7E]/.test(k)) { setStatus('관리 키는 영문·숫자·기호만 됩니다 (한글·공백 불가).', true); return; }
+    key = k;
+    api('/api/pokemon-review/admin/entries?view=pending&limit=1')
+      .then(function () { try { sessionStorage.setItem(KEY_STORE, key); } catch (x) {} $('#key').value = ''; unlock(); })
+      .catch(function (err) { fail(err, '연결에 실패했습니다.'); });
+  });
+  $('#logout').addEventListener('click', function () { key = ''; try { sessionStorage.removeItem(KEY_STORE); } catch (e) {} lock(''); });
+
+  /* ── 목록 ── */
+  var view = 'pending', offset = 0, items = [], hasMore = false, req = 0, qtext = '', editing = null;
+  var STATUS = { pending: '<span class="pill warn">검수 대기</span>', approved: '<span class="pill ok">공개 중</span>', hidden: '<span class="pill">숨김</span>' };
+
+  function card(it) {
+    var safeLink = /^https?:\/\//i.test(it.snsLink || '') ? it.snsLink : '';
+    var body;
+    if (editing === it.id) {
+      body = '<div class="edit">' +
+        '<label>인스타그램 ID</label><input data-f="snsId" value="' + esc(it.snsId) + '">' +
+        '<label>게시물 링크</label><input data-f="snsLink" value="' + esc(it.snsLink) + '">' +
+        '<label>이름</label><input data-f="name" value="' + esc(it.name) + '">' +
+        '</div>' +
+        '<div class="acts"><button class="btn sm pri" data-act="save">저장</button><button class="btn sm" data-act="cancel">취소</button></div>';
+    } else {
+      body = '<div class="sns">@' + esc(it.snsId) + '</div>' +
+        (safeLink ? '<a class="link" href="' + esc(safeLink) + '" target="_blank" rel="noopener noreferrer">' + esc(safeLink) + '</a>' : '') +
+        '<div class="m"><b style="color:var(--ink)">' + esc(it.name || '-') + '</b></div>' +
+        '<div class="m"><code>' + esc(it.memberId) + '</code>' + (it.test ? '<span class="pill aqua">테스트</span>' : '') + (STATUS[it.status] || esc(it.status)) + '</div>' +
+        '<div class="m">' + fmt(it.createdAt) + (it.receipt ? ' · ' + esc(it.receipt) : '') + '</div>' +
+        '<div class="acts">' +
+          (it.status !== 'approved' ? '<button class="btn sm ok" data-act="approve">공개</button>' : '') +
+          (it.status !== 'hidden' ? '<button class="btn sm" data-act="hide">숨김</button>' : '') +
+          '<button class="btn sm" data-act="edit">수정</button>' +
+          '<button class="btn sm bad" data-act="delete">삭제</button>' +
+        '</div>';
+    }
+    return '<div class="card" data-id="' + esc(it.id) + '">' +
+      '<a class="ph" href="' + esc(it.imageUrl) + '" target="_blank" rel="noopener" style="background-image:url(\'' + esc(it.imageUrl) + '\')" aria-label="이미지 원본 열기"></a>' +
+      '<div class="b">' + body + '</div></div>';
+  }
+  function paint() {
+    $('#grid').innerHTML = items.map(card).join('');
+    $('#empty').hidden = !!items.length;
+    $('#more').hidden = !hasMore;
+    $('#more').disabled = false; $('#more').textContent = '더 보기';
+  }
+  function load(reset) {
+    if (reset) { offset = 0; items = []; hasMore = false; editing = null; }
+    var my = ++req;
+    if (!reset) { $('#more').disabled = true; $('#more').textContent = '불러오는 중…'; }
+    return api('/api/pokemon-review/admin/entries?view=' + view + '&offset=' + offset + '&limit=30' + (qtext ? '&q=' + encodeURIComponent(qtext) : ''))
+      .then(function (d) {
+        if (my !== req) return;
+        items = items.concat(d.items || []); offset += (d.items || []).length; hasMore = !!d.hasMore;
+        var c = d.counts || {};
+        $('#n-pending').textContent = c.pending || '';
+        $('#n-approved').textContent = c.approved || '';
+        $('#n-hidden').textContent = c.hidden || '';
+        $('#n-total').textContent = c.total || '';
+        var cf = d.config || {};
+        $('#cfg').innerHTML = '<span>회원당 <b>' + esc(cf.maxPerMember) + '회</b></span>' +
+          '<span>제한 없는 테스트 계정: <b>' + esc((cf.testIds || []).join(', ')) + '</b></span>' +
+          '<span>FTP 폴더: <b>' + esc(cf.ftpDir) + '/&lt;회원아이디&gt;</b></span>';
+        paint();
+      }).catch(function (err) { if (my === req) { paint(); fail(err, '목록을 불러오지 못했습니다.'); } });
+  }
+
+  $('#tabs').addEventListener('click', function (e) {
+    var t = e.target.closest('.tab'); if (!t) return;
+    $$('.tab').forEach(function (x) { x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
+    view = t.getAttribute('data-view'); load(true);
+  });
+  var qTimer = null;
+  $('#q').addEventListener('input', function () {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(function () { qtext = $('#q').value.trim(); load(true); }, 300);
+  });
+  $('#refresh').addEventListener('click', function () { load(true); });
+  $('#more').addEventListener('click', function () { load(false); });
+
+  /* ── 공개 · 숨김 · 수정 · 삭제 ── */
+  $('#grid').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var el = b.closest('.card'), id = el.getAttribute('data-id'), act = b.getAttribute('data-act');
+    var it = items.filter(function (x) { return x.id === id; })[0]; if (!it) return;
+
+    if (act === 'edit') { editing = id; paint(); return; }
+    if (act === 'cancel') { editing = null; paint(); return; }
+
+    var body = { action: act };
+    if (act === 'save') {
+      body = { action: 'edit',
+        snsId: el.querySelector('[data-f="snsId"]').value, snsLink: el.querySelector('[data-f="snsLink"]').value,
+        name: el.querySelector('[data-f="name"]').value };
+    }
+    if (act === 'delete' && !confirm('@' + it.snsId + ' (' + it.memberId + ') 리뷰를 삭제할까요?\n기록과 이미지 파일이 모두 지워지고 되돌릴 수 없습니다.')) return;
+
+    b.disabled = true;
+    api('/api/pokemon-review/admin/entries/' + encodeURIComponent(id), { method: 'POST', body: body })
+      .then(function (d) {
+        if (act === 'save') {
+          it.snsId = d.snsId; it.snsLink = d.snsLink; it.name = d.name; editing = null; paint();
+          setStatus('수정했습니다.');
+          return;
+        }
+        setStatus(d.warn || ({ approve: '공개했습니다.', hide: '숨겼습니다.', delete: '삭제했습니다.' }[act] || '처리했습니다.'), !!d.warn);
+        load(true);                                  // 탭 숫자와 목록을 같이 맞춘다
+      })
+      .catch(function (err) { b.disabled = false; fail(err); });
+  });
+
+  if (key) unlock(); else lock('');
+})();
+</script>
+</body>
+</html>
