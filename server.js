@@ -27,6 +27,7 @@ const warranty = require('./warranty'); // 정품인증/보증기간 모듈
 const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트 모듈 (2026.09)
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
+const onOrder = require('./onOrder'); // onOrder 서버에서 옮겨 온 온라인 판매현황·팝업스토어 API (2026.10)
 // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈은 initialize()에서 불러온다 — 로드 실패가 서버 전체를 멈추지 않도록
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
@@ -4027,7 +4028,8 @@ async function aggregateAwesomeSalesData() {
     const sevenDaysAgoStr = moment().tz('Asia/Seoul').subtract(7, 'days').format('YYYY-MM-DD');
 
     const offlineBase = 'https://port-0-offorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/orders'; // realtime 기능은 2026-10-19 offorder로 통합
-    const onlineBase = 'https://port-0-onorder-lzgmwhc4d9883c97.sel4.cloudtype.app/api/online/orders';
+    // onOrder API는 이 서버(onOrder.js)로 옮겨 왔다 — 자기 자신을 부른다
+    const onlineBase = `http://127.0.0.1:${process.env.PORT || 6000}/api/online/orders`;
 
     const fetchPromises = [];
     const timestamp = new Date().getTime();
@@ -6749,6 +6751,9 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       console.warn('⚠️ choiceVote Index 생성 경고:', idxErr.message);
     }
     choiceVote.mount(app, { getDb: () => db });
+
+    // [온라인 판매현황 · 팝업스토어] onOrder 서버에서 옮겨 온 API — on DB (2026-10 클라우드타입 서버 통합)
+    onOrder.mount(app, { getDb: () => db });
 
     // [요기보 매거진] 글은 자체 DB(YOGIBONEWS_MONGODB_URI)에 둔다. Cafe24 토큰은 adminChat DB의 tokens를 읽기만 한다
     // 모듈을 못 불러오면(의존성·Node 버전 문제 등) 매거진 경로만 503으로 사유를 알려주고 나머지 기능은 그대로 띄운다
