@@ -117,7 +117,10 @@
 .pkr-mine figure{margin:0;width:104px}
 .pkr-mine img{display:block;width:104px;height:104px;object-fit:cover;border-radius:12px;background:var(--fill)}
 .pkr-mine figcaption{margin-top:6px;font-size:12px;color:var(--t3)}
-.pkr-done .pkr-btn{max-width:320px;margin:20px auto 0}
+.pkr-done .pkr-btn{max-width:320px;margin:24px auto 0}
+.pkr-done .pkr-count{margin-top:20px !important;font-size:14px;color:var(--t3)}
+.pkr-done .pkr-count b{color:var(--blue);font-weight:700}
+.pkr-textbtn{display:block;margin:12px auto 0;padding:8px 4px;border:0;background:none;font-size:15px;color:var(--t3);text-decoration:underline;cursor:pointer}
 
 /* 리뷰 갤러리 */
 .pkr-gal-head{display:flex;align-items:baseline;gap:8px}
@@ -185,7 +188,7 @@ a.pkr-card:hover img{opacity:.85}
       <ol class="pkr-steps">
         <li><span class="pkr-ico" aria-hidden="true">📸</span><div><span class="pkr-step-no">STEP 01</span><strong>제품 구매 후 SNS 업로드</strong><p>요기보 포켓몬 제품을 받은 후 사진과 함께 개인 SNS에 포토리뷰를 작성해주세요.</p></div></li>
         <li><span class="pkr-ico" aria-hidden="true">📝</span><div><span class="pkr-step-no">STEP 02</span><strong>정보와 캡처 이미지 등록</strong><p>인스타그램 ID·이름·게시물 링크를 입력하고 리뷰 화면을 캡처해 첨부해주세요.</p></div></li>
-        <li><span class="pkr-ico" aria-hidden="true">🎉</span><div><span class="pkr-step-no">STEP 03</span><strong>참여 완료</strong><p>개인정보 수집에 동의하고 ‘참여 완료하기’를 누르면 접수가 끝나요.</p></div></li>
+        <li><span class="pkr-ico" aria-hidden="true">🎉</span><div><span class="pkr-step-no">STEP 03</span><strong>참여 완료</strong><p>개인정보 수집에 동의하고 ‘참여 완료하기’를 누르면 접수가 끝나요. 다른 게시물로 여러 번 참여할 수 있어요.</p></div></li>
       </ol>
       <div class="pkr-tagbox">
         <div>
@@ -259,7 +262,8 @@ a.pkr-card:hover img{opacity:.85}
 
         <p class="pkr-msg" id="pkr-msg" role="alert"></p>
         <button type="submit" class="pkr-btn" id="pkr-submit">참여 완료하기</button>
-        <p class="pkr-fine pkr-center-text">동일한 게시물 링크는 한 번만 등록할 수 있어요.<br>등록한 이미지와 인스타그램 ID는 확인 후 아래 리뷰 갤러리에 공개될 수 있어요.</p>
+        <button type="button" class="pkr-textbtn" id="pkr-back" hidden>취소하고 참여 내역 보기</button>
+        <p class="pkr-fine pkr-center-text">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 확인 후 아래 리뷰 갤러리에 공개될 수 있어요.</p>
       </form>
 
       <div class="pkr-done" data-state="done" hidden>
@@ -267,8 +271,9 @@ a.pkr-card:hover img{opacity:.85}
         <strong>참여 신청이 완료되었어요</strong>
         <p>SNS 리뷰 이벤트 참여가 접수되었어요.<br>응모해주셔서 감사합니다.</p>
         <span class="pkr-receipt" id="pkr-receipt" hidden></span>
+        <p class="pkr-count" id="pkr-count"></p>
         <div class="pkr-mine" id="pkr-mine"></div>
-        <button type="button" class="pkr-btn ghost" id="pkr-again" hidden>한 번 더 등록하기 (테스트 계정)</button>
+        <button type="button" class="pkr-btn" id="pkr-again" hidden>다른 게시물로 추가 참여하기</button>
       </div>
     </section>
 
@@ -395,19 +400,28 @@ a.pkr-card:hover img{opacity:.85}
   function loadMine() {
     getJson(API + '/api/pokemon-review/mine?memberId=' + encodeURIComponent(memberId))
       .then(function (d) {
-        if (!d.ok || !d.count) { show('form'); return; }
+        // 처음 참여 — 양식만 보여준다 (돌아갈 참여 내역이 없다)
+        if (!d.ok || !d.count) { $('pkr-back').hidden = true; show('form'); return; }
         var last = d.items[0];
         $('pkr-receipt').textContent = '접수 번호 ' + (last.receipt || '');
         $('pkr-receipt').hidden = !last.receipt;
+        $('pkr-count').innerHTML = '지금까지 <b>' + Number(d.count) + '개</b>의 게시물로 참여했어요';
         $('pkr-mine').innerHTML = d.items.map(function (it) {
           return '<figure><img src="' + esc(it.imageUrl) + '" alt="내가 등록한 리뷰 이미지"><figcaption>' + esc(STATUS_TEXT[it.status] || '') + '</figcaption></figure>';
         }).join('');
-        $('pkr-again').hidden = !(d.test && d.canAdd);
+        $('pkr-again').hidden = !d.canAdd;
         show('done');
       })
       .catch(function () { show('form'); });
   }
-  $('pkr-again').addEventListener('click', function () { show('form'); });
+  // 다른 게시물로 추가 참여 — 빈 양식을 열고, 마음이 바뀌면 참여 내역으로 돌아갈 수 있게
+  $('pkr-again').addEventListener('click', function () {
+    $('pkr-form').reset(); setFile(null); msg('');
+    $('pkr-back').hidden = false;
+    show('form');
+    $('pkr-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('pkr-back').addEventListener('click', function () { msg(''); show('done'); });
 
   /* ── 3. 이미지 선택 · 끌어놓기 ── */
   var fileInput = $('pkr-file'), drop = $('pkr-drop'), prev = $('pkr-prev'), prevUrl = null;

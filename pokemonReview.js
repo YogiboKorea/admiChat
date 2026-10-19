@@ -8,7 +8,9 @@
 //  이름은 당첨 확인용이라 관리 API 에서만 나간다. 갤러리·내 참여 조회에는 절대 싣지 않는다.
 //
 //  · 회원만 참여한다. 아이디가 없으면 접수하지 않는다.
-//  · 회원당 MAX_PER_MEMBER 건. 테스트 계정(testid·yogibo)은 제한 없이 올려 확인할 수 있다.
+//  · 다른 게시물이면 여러 번 참여할 수 있다 (2026-10-19 결정). 같은 게시물 링크는 한 번만 — 누가 올렸든.
+//    회원당 상한이 필요하면 POKEMON_REVIEW_MAX_PER_MEMBER=숫자 (기본 0 = 제한 없음).
+//    테스트 계정(testid·yogibo)은 같은 링크도 다시 올려 확인할 수 있다.
 //  · 이미지는 회원아이디 폴더에 둔다 — <FTP_DIR>/<회원아이디>/YYYYMMDD_<난수8>.jpg (2026-10-19 결정, 회원별로 찾기 쉽게).
 //    그래서 이미지 주소에는 아이디가 보인다. 갤러리 화면에 찍는 아이디만 가린다.
 //  · 사진은 긴 변 1400px JPEG 로 다시 저장해 올린다 — 이때 EXIF(촬영 위치 등)가 빠진다.
@@ -31,7 +33,7 @@ const COLLECTION = 'pokemonReview';
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;     // 페이지 안내 문구와 같은 값 — 올릴 때 줄인다
 const MAX_EDGE = 1400;
 const MAX_LINK = 500;
-const MAX_PER_MEMBER = Math.max(1, Number(process.env.POKEMON_REVIEW_MAX_PER_MEMBER) || 1);
+const MAX_PER_MEMBER = Math.max(0, Number(process.env.POKEMON_REVIEW_MAX_PER_MEMBER) || 0);   // 0 = 제한 없음
 const TEST_IDS = (process.env.POKEMON_REVIEW_TEST_IDS || 'testid,yogibo')
   .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
@@ -261,12 +263,14 @@ function mount(app, deps) {
 
         const test = isTestId(memberId);
         if (!test) {
-          const mine = await col().countDocuments({ memberId });
-          if (mine >= MAX_PER_MEMBER) {
-            return res.status(409).json({ ok: false, alreadyDone: true, message: MAX_PER_MEMBER === 1 ? '이미 참여하셨어요.' : `회원당 ${MAX_PER_MEMBER}번까지 참여할 수 있어요.` });
+          if (MAX_PER_MEMBER) {
+            const mine = await col().countDocuments({ memberId });
+            if (mine >= MAX_PER_MEMBER) {
+              return res.status(409).json({ ok: false, alreadyDone: true, message: `회원당 ${MAX_PER_MEMBER}번까지 참여할 수 있어요.` });
+            }
           }
           const dup = await col().findOne({ snsLink }, { projection: { _id: 1 } });
-          if (dup) return res.status(409).json({ ok: false, field: 'snsLink', message: '이미 등록된 게시물 링크예요.' });
+          if (dup) return res.status(409).json({ ok: false, field: 'snsLink', message: '이미 등록된 게시물이에요. 다른 게시물 링크를 넣어주세요.' });
         }
 
         let jpeg;
@@ -307,13 +311,16 @@ function mount(app, deps) {
     try {
       const memberId = normId(req.query.memberId);
       if (!memberId) return res.json({ ok: true, count: 0, items: [], canAdd: false });
-      const rows = await col().find({ memberId }).sort({ createdAt: -1 }).limit(20)
-        .project({ imageUrl: 1, status: 1, createdAt: 1 }).toArray();
+      // 완료 화면에 최근 12장만 보여준다 — 건수는 따로 센다
+      const [rows, count] = await Promise.all([
+        col().find({ memberId }).sort({ createdAt: -1 }).limit(12).project({ imageUrl: 1, status: 1, createdAt: 1 }).toArray(),
+        col().countDocuments({ memberId }),
+      ]);
       const test = isTestId(memberId);
       return res.json({
         ok: true,
-        count: rows.length,
-        canAdd: test || rows.length < MAX_PER_MEMBER,
+        count,
+        canAdd: test || !MAX_PER_MEMBER || count < MAX_PER_MEMBER,
         test,
         items: rows.map(d => ({ receipt: receiptOf(d._id), imageUrl: d.imageUrl, status: d.status, date: ymdDot(d.createdAt) })),
       });
