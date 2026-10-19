@@ -28,6 +28,7 @@ const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
 const onOrder = require('./onOrder'); // onOrder 서버에서 옮겨 온 온라인 판매현황·팝업스토어 API (2026.10)
+const tokenKeepalive = require('./tokenKeepalive'); // Cafe24 토큰 매시 선제 갱신 — yChat이 하던 일 (2026.10)
 // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈은 initialize()에서 불러온다 — 로드 실패가 서버 전체를 멈추지 않도록
 
 // ========== [SMTP] B2B 문의 메일 설정 ==========
@@ -6704,6 +6705,9 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
 
     // 2. 토큰 로드
     await getTokensFromDB();
+
+    // 2-0. Cafe24 토큰 선제 갱신 — 매시 30분, 50분 안에 갱신됐으면 건너뜀 (yChat을 끄기 전에 이 서버가 이어받는다)
+    tokenKeepalive.start({ getDb: () => db, collection: tokenCollectionName, refreshAccessToken });
 
     // 2-1. [나의쉼순간] 인덱스 + 라우트 등록
     try {
