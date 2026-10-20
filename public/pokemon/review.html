@@ -68,12 +68,17 @@
 .pkr-copy{flex:none;height:36px;padding:0 14px;border:0;border-radius:10px;background:#fff;color:var(--t2);font-size:14px;font-weight:600;cursor:pointer}
 
 /* 경품 */
-.pkr-prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
-.pkr-prizes li{padding:20px 12px;border-radius:16px;background:var(--fill2);text-align:center}
-.pkr-prizes li.first{background:var(--blue-l)}
-.pkr-prizes span{display:block;font-size:13px;color:var(--t3)}
-.pkr-prizes strong{display:block;margin-top:6px;font-size:17px;font-weight:700;color:var(--t1);word-break:keep-all}
-.pkr-prizes li.first strong{color:var(--blue)}
+.pkr-prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.pkr-prizes li{border:1px solid #e5e8eb;border-radius:16px;background:#fff;overflow:hidden;text-align:center;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.pkr-prizes li:hover{border-color:#d1d6db;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+.pkr-prizes li:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.pkr-prize-thumb{position:relative;border-bottom:1px solid #f2f4f6}
+.pkr-prizes img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--fill)}
+.pkr-prize-info{padding:14px 10px 16px}
+/* 등수 — 썸네일 왼쪽 위에 얹는다. 1등만 대표 컬러 */
+.pkr-rank{position:absolute;top:10px;left:10px;padding:4px 10px;border-radius:999px;background:rgba(25,31,40,.72);color:#fff;font-size:12px;font-weight:700;line-height:1.4}
+.pkr-prizes li.first .pkr-rank{background:var(--blue)}
+.pkr-prizes strong{display:block;font-size:17px;font-weight:700;color:var(--t1);word-break:keep-all}
 .pkr-prizes em{display:block;margin-top:2px;font-style:normal;font-size:13px;color:var(--t2)}
 
 /* 참여 양식 */
@@ -113,16 +118,25 @@
 .pkr-done strong{display:block;font-size:22px;font-weight:700;color:var(--t1)}
 .pkr-done p{margin-top:8px !important;font-size:15px;line-height:1.6;color:var(--t2)}
 .pkr-receipt{display:inline-block;margin-top:14px;padding:6px 12px;border-radius:8px;background:var(--fill);font-size:13px;font-weight:600;color:var(--t2)}
-.pkr-mine{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:20px}
-.pkr-mine figure{margin:0;width:104px}
-.pkr-mine img{display:block;width:104px;height:104px;object-fit:cover;border-radius:12px;background:var(--fill)}
-.pkr-mine figcaption{margin-top:6px;font-size:12px;color:var(--t3)}
+/* 내 참여 — 장수에 맞춰 칸을 나눠 완료 카드 폭을 꽉 채운다 (1장은 가운데 큼직하게, 2장은 반반, 3장 이상은 3열) */
+.pkr-mine{display:grid;grid-template-columns:repeat(3,1fr);gap:20px 12px;margin-top:20px;text-align:left}
+.pkr-mine[data-n="1"]{grid-template-columns:minmax(0,340px);justify-content:center}
+.pkr-mine[data-n="2"]{grid-template-columns:repeat(2,1fr)}
+.pkr-mine figure{margin:0;min-width:0}
+.pkr-mine img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;background:var(--fill)}
+.pkr-mine figcaption{margin-top:10px;font-size:13px;color:var(--t3)}
+.pkr-mine figcaption b{display:block;margin-bottom:2px;font-size:15px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pkr-done .pkr-btn{max-width:320px;margin:24px auto 0}
 .pkr-done .pkr-count{margin-top:20px !important;font-size:14px;color:var(--t3)}
 .pkr-done .pkr-count b{color:var(--blue);font-weight:700}
+.pkr-mine .pkr-mini{display:block;width:100%;height:40px;margin-top:10px;border:0;border-radius:10px;background:var(--fill);color:var(--t2);font-size:14px;font-weight:600;cursor:pointer}
+.pkr-mine .pkr-mini:hover{background:var(--blue-l);color:var(--blue)}
+.pkr-editbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px;padding:14px 16px;border-radius:12px;background:var(--blue-l);font-size:15px;color:var(--blue)}
+.pkr-editbar b{font-weight:700}
+.pkr-editbar span{font-size:13px;font-weight:600}
 .pkr-textbtn{display:block;margin:12px auto 0;padding:8px 4px;border:0;background:none;font-size:15px;color:var(--t3);text-decoration:underline;cursor:pointer}
 
-/* 리뷰 갤러리 */
+/* 참여 현황 (공개된 참여 목록) */
 .pkr-gal-head{display:flex;align-items:baseline;gap:8px}
 .pkr-gal-head span{font-size:15px;color:var(--t3)}
 .pkr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px 12px;margin-top:20px}
@@ -152,9 +166,13 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   .pkr-sub{font-size:16px}
   .pkr-h3{font-size:20px}
   .pkr-tagbox{flex-direction:column}
-  .pkr-prizes{gap:6px}
-  .pkr-prizes li{padding:16px 6px}
-  .pkr-prizes strong{font-size:15px}
+  .pkr-prizes{gap:8px}
+  .pkr-prizes li{border-radius:12px}
+  .pkr-prize-info{padding:10px 4px 12px}
+  .pkr-rank{top:6px;left:6px;padding:3px 7px;font-size:11px}
+  .pkr-prizes strong{font-size:14px}
+  .pkr-prizes em{font-size:12px}
+  .pkr-mine{grid-template-columns:repeat(2,1fr);gap:16px 10px}
   .pkr-grid2{grid-template-columns:1fr}
   .pkr-grid{grid-template-columns:repeat(2,1fr);gap:20px 10px}
   .pkr-sheet{align-items:flex-end;padding:0}
@@ -206,9 +224,9 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       <h3 class="pkr-h3">경품</h3>
       <p class="pkr-sub2">추첨을 통해 총 3분께 요기보 빈백을 드려요.</p>
       <ul class="pkr-prizes">
-        <li class="first"><span>1등 · 1명</span><strong>요기보 맥스</strong><em>40만원 상당</em></li>
-        <li><span>2등 · 1명</span><strong>요기보 미니</strong><em>30만원 상당</em></li>
-        <li><span>3등 · 1명</span><strong>요기보 피라미드</strong><em>20만원 상당</em></li>
+        <li class="first" tabindex="0" data-href="/product/요기보-맥스/39/category/428/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202607/5483a9e43f02bfa3fe33f9d456eac3ec.png" alt="요기보 맥스" loading="lazy"><span class="pkr-rank">1등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 맥스</strong><em>40만원 상당</em></div></li>
+        <li tabindex="0" data-href="/product/요기보-미니/54/category/507/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202603/9cb33f8cda572bdbd9ffc2589dce9ee9.jpg" alt="요기보 미니" loading="lazy"><span class="pkr-rank">2등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 미니</strong><em>30만원 상당</em></div></li>
+        <li tabindex="0" data-href="/product/요기보-피라미드/70/category/646/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202309/69cfbdec6ade188b088475c14360a584.jpg" alt="요기보 피라미드" loading="lazy"><span class="pkr-rank">3등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 피라미드</strong><em>20만원 상당</em></div></li>
       </ul>
       <p class="pkr-fine">당첨자 발표 및 경품 지급 일정은 별도로 안내드려요.</p>
     </section>
@@ -221,6 +239,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       <div class="pkr-center" data-state="loading">회원 정보를 확인하고 있어요</div>
 
       <form class="pkr-form" data-state="form" id="pkr-form" novalidate hidden>
+        <div class="pkr-editbar" id="pkr-editbar" hidden><b>게시물을 수정하고 있어요</b><span id="pkr-edit-receipt"></span></div>
         <div class="pkr-grid2">
           <div class="pkr-field">
             <label class="pkr-label" for="pkr-sns">인스타그램 ID</label>
@@ -233,7 +252,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
           <div class="pkr-field pkr-full">
             <label class="pkr-label" for="pkr-link">SNS 게시물 링크</label>
             <div class="pkr-input"><input id="pkr-link" type="text" inputmode="url" maxlength="500" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://www.instagram.com/p/..."></div>
-            <p class="pkr-help">프로필이 아닌 리뷰 게시물 링크를 넣어주세요.</p>
+            <p class="pkr-help">프로필이 아닌 인스타그램 리뷰 게시물 링크(instagram.com)를 넣어주세요.</p>
           </div>
         </div>
 
@@ -246,9 +265,10 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
             <img id="pkr-prev" alt="선택한 이미지 미리보기" hidden>
           </label>
           <div class="pkr-fileinfo" id="pkr-fileinfo" hidden><span id="pkr-fname"></span><button type="button" id="pkr-remove">삭제</button></div>
+          <p class="pkr-help" id="pkr-photo-help" hidden>지금 등록된 이미지예요. 바꿀 때만 새 이미지를 선택해주세요.</p>
         </div>
 
-        <div class="pkr-field">
+        <div class="pkr-field" id="pkr-privacy-field">
           <p class="pkr-label">개인정보 수집·이용 동의</p>
           <div class="pkr-privacy">
             <dl>
@@ -264,7 +284,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
         <p class="pkr-msg" id="pkr-msg" role="alert"></p>
         <button type="submit" class="pkr-btn" id="pkr-submit">참여 완료하기</button>
         <button type="button" class="pkr-textbtn" id="pkr-back" hidden>취소하고 참여 내역 보기</button>
-        <p class="pkr-fine pkr-center-text">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 아래 리뷰 갤러리에 바로 공개돼요.</p>
+        <p class="pkr-fine pkr-center-text" id="pkr-form-fine">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 아래 참여 현황에 바로 공개돼요.</p>
       </form>
 
       <div class="pkr-done" data-state="done" hidden>
@@ -278,11 +298,11 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       </div>
     </section>
 
-    <!-- 리뷰 갤러리 -->
+    <!-- 참여 현황 (공개된 참여 목록) -->
     <section class="pkr-sec">
-      <div class="pkr-gal-head"><h3 class="pkr-h3">리뷰 갤러리</h3><span id="pkr-total"></span></div>
+      <div class="pkr-gal-head"><h3 class="pkr-h3">참여 현황</h3><span id="pkr-total"></span></div>
       <div class="pkr-grid" id="pkr-grid"></div>
-      <p class="pkr-empty" id="pkr-empty" hidden>아직 공개된 리뷰가 없어요. 첫 번째 주인공이 되어주세요!</p>
+      <p class="pkr-empty" id="pkr-empty" hidden>아직 참여한 리뷰가 없어요. 첫 번째 주인공이 되어주세요!</p>
       <button type="button" class="pkr-more" id="pkr-more" hidden>더 보기</button>
     </section>
   </div>
@@ -317,6 +337,9 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   var memberId = null;
   var guest = false;                               // 회원 확인이 끝났는데 아이디가 없을 때만 true
   var selectedFile = null;
+  var editItem = null;                             // 수정 중인 내 게시물 — null 이면 새로 참여
+  var mineItems = [];
+  function isInsta(u) { return /^(https?:\/\/)?([a-z0-9-]+\.)*(instagram\.com|instagr\.am)(\/|$)/i.test(String(u || '').trim()); }
 
   function show(state) {
     var els = root.querySelectorAll('[data-state]');
@@ -346,6 +369,20 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       document.body.removeChild(t);
       done(ok);
     } catch (e) { done(false); }
+  });
+
+  /* ── 경품 카드 — 누르면 상품 페이지를 새 창으로 (비회원도 가능) ── */
+  function openPrize(li) {
+    var href = li && li.getAttribute('data-href');
+    if (href) window.open(href, '_blank');
+  }
+  root.querySelector('.pkr-prizes').addEventListener('click', function (e) {
+    openPrize(e.target.closest ? e.target.closest('li[data-href]') : null);
+  });
+  root.querySelector('.pkr-prizes').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var li = e.target.closest ? e.target.closest('li[data-href]') : null;
+    if (li) { e.preventDefault(); openPrize(li); }
   });
 
   /* ── 0. 비회원 안내 — 양식은 보여주고, 입력·이미지 선택·동의·등록을 누르면 로그인/회원가입으로 안내한다 ── */
@@ -397,7 +434,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   }
 
   /* ── 2. 내 참여 상태 ── */
-  var STATUS_TEXT = { pending: '갤러리에 공개 중', approved: '갤러리에 공개 중', hidden: '비공개' };
+  var STATUS_TEXT = { pending: '참여 현황에 공개 중', approved: '참여 현황에 공개 중', hidden: '비공개' };
   function loadMine() {
     getJson(API + '/api/pokemon-review/mine?memberId=' + encodeURIComponent(memberId))
       .then(function (d) {
@@ -407,22 +444,53 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
         $('pkr-receipt').textContent = '접수 번호 ' + (last.receipt || '');
         $('pkr-receipt').hidden = !last.receipt;
         $('pkr-count').innerHTML = '지금까지 <b>' + Number(d.count) + '개</b>의 게시물로 참여했어요';
-        $('pkr-mine').innerHTML = d.items.map(function (it) {
-          return '<figure><img src="' + esc(it.imageUrl) + '" alt="내가 등록한 리뷰 이미지"><figcaption>' + esc(STATUS_TEXT[it.status] || '') + '</figcaption></figure>';
+        mineItems = d.items || [];
+        $('pkr-mine').setAttribute('data-n', String(Math.min(mineItems.length, 3)));
+        $('pkr-mine').innerHTML = mineItems.map(function (it, i) {
+          return '<figure><img src="' + esc(it.imageUrl) + '" alt="내가 등록한 리뷰 이미지">' +
+            '<figcaption><b>@' + esc(it.snsId || '') + '</b>' + esc(STATUS_TEXT[it.status] || '') + (it.date ? ' · ' + esc(it.date) : '') + '</figcaption>' +
+            (it.id ? '<button type="button" class="pkr-mini" data-i="' + i + '">수정</button>' : '') + '</figure>';
         }).join('');
         $('pkr-again').hidden = !d.canAdd;
         show('done');
       })
       .catch(function () { show('form'); });
   }
-  // 다른 게시물로 추가 참여 — 빈 양식을 열고, 마음이 바뀌면 참여 내역으로 돌아갈 수 있게
-  $('pkr-again').addEventListener('click', function () {
-    $('pkr-form').reset(); setFile(null); msg('');
+
+  /* 양식 모드 — 새로 참여 / 내 게시물 수정. 수정은 동의(이미 받음)를 숨기고, 이름·이미지는 바꿀 때만 받는다. */
+  function setMode(item) {
+    editItem = item || null;
+    var editing = !!editItem;
+    $('pkr-form').reset(); msg('');
+    $('pkr-editbar').hidden = !editing;
+    $('pkr-edit-receipt').textContent = editing ? editItem.receipt : '';
+    $('pkr-privacy-field').hidden = editing;
+    $('pkr-form-fine').hidden = editing;
+    $('pkr-photo-help').hidden = !editing;
+    $('pkr-name').placeholder = editing ? '바꿀 때만 입력' : '이름';
+    $('pkr-submit').textContent = editing ? '수정 완료하기' : '참여 완료하기';
+    if (editing) {
+      $('pkr-sns').value = editItem.snsId || '';
+      $('pkr-link').value = editItem.snsLink || '';
+    }
+    setFile(null);                                 // 수정 중이면 지금 등록된 이미지를 미리보기로 보여준다
+  }
+  function openForm(item) {
+    setMode(item);
     $('pkr-back').hidden = false;
     show('form');
     $('pkr-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  // 다른 게시물로 추가 참여 — 빈 양식을 열고, 마음이 바뀌면 참여 내역으로 돌아갈 수 있게
+  $('pkr-again').addEventListener('click', function () { openForm(null); });
+  // 내 게시물 수정
+  $('pkr-mine').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.pkr-mini') : null;
+    if (!b) return;
+    var it = mineItems[Number(b.getAttribute('data-i'))];
+    if (it) openForm(it);
   });
-  $('pkr-back').addEventListener('click', function () { msg(''); show('done'); });
+  $('pkr-back').addEventListener('click', function () { setMode(null); show('done'); });
 
   /* ── 3. 이미지 선택 · 끌어놓기 ── */
   var fileInput = $('pkr-file'), drop = $('pkr-drop'), prev = $('pkr-prev'), prevUrl = null;
@@ -432,7 +500,12 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
     selectedFile = null;
     prev.hidden = true;
     $('pkr-fileinfo').hidden = true;
-    if (!f) { fileInput.value = ''; return; }
+    if (!f) {
+      fileInput.value = '';
+      // 수정 중 — 새 이미지를 고르지 않았으면 지금 등록된 이미지를 그대로 보여준다
+      if (editItem && editItem.imageUrl) { prev.src = editItem.imageUrl; prev.hidden = false; }
+      return;
+    }
     if (!TYPES[f.type]) { fileInput.value = ''; msg('JPG, PNG, WEBP 이미지만 등록할 수 있어요.'); return; }
     if (!f.size || f.size > MAX_BYTES) { fileInput.value = ''; msg('이미지는 10MB 이하로 등록해주세요.'); return; }
     msg('');
@@ -472,14 +545,17 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   $('pkr-form').addEventListener('submit', function (e) {
     e.preventDefault();
     if (!memberId) { openSheet(); return; }
+    var editing = !!editItem;
     var sns = $('pkr-sns').value.trim().replace(/^@+/, '');
     var name = $('pkr-name').value.trim();
     var link = $('pkr-link').value.trim();
     if (!/^[A-Za-z0-9._]{1,30}$/.test(sns)) { msg('인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)'); $('pkr-sns').focus(); return; }
-    if (name.length < 2) { msg('이름을 2자 이상 입력해주세요.'); $('pkr-name').focus(); return; }
+    // 수정할 때 이름은 바꿀 때만 — 비워 두면 그대로
+    if ((!editing || name) && name.length < 2) { msg('이름을 2자 이상 입력해주세요.'); $('pkr-name').focus(); return; }
     if (!link) { msg('SNS 게시물 링크를 입력해주세요.'); $('pkr-link').focus(); return; }
-    if (!selectedFile) { msg('리뷰 캡처 이미지를 등록해주세요.'); return; }
-    if (!$('pkr-agree').checked) { msg('개인정보 수집 및 이용에 동의해주세요.'); return; }
+    if (!isInsta(link)) { msg('인스타그램 게시물 링크(instagram.com)를 넣어주세요.'); $('pkr-link').focus(); return; }
+    if (!editing && !selectedFile) { msg('리뷰 캡처 이미지를 등록해주세요.'); return; }
+    if (!editing && !$('pkr-agree').checked) { msg('개인정보 수집 및 이용에 동의해주세요.'); return; }
     msg('');
 
     var fd = new FormData();
@@ -487,20 +563,22 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
     fd.append('snsId', sns);
     fd.append('name', name);
     fd.append('snsLink', link);
-    fd.append('agree', 'true');
-    fd.append('photo', selectedFile);
+    if (!editing) fd.append('agree', 'true');
+    if (selectedFile) fd.append('photo', selectedFile);
 
     var btn = $('pkr-submit');
-    btn.disabled = true; btn.textContent = '접수하고 있어요';
-    function done() { btn.disabled = false; btn.textContent = '참여 완료하기'; }
+    var label = editing ? '수정 완료하기' : '참여 완료하기';
+    btn.disabled = true; btn.textContent = editing ? '수정하고 있어요' : '접수하고 있어요';
+    function done() { btn.disabled = false; btn.textContent = label; }
 
-    getJson(API + '/api/pokemon-review/entry', { method: 'POST', body: fd })
+    var url = API + '/api/pokemon-review/entry' + (editing ? '/' + encodeURIComponent(editItem.id) : '');
+    getJson(url, { method: 'POST', body: fd })
       .then(function (d) {
         done();
         if (d.ok) {
-          $('pkr-form').reset(); setFile(null);
+          setMode(null);
           loadMine();
-          reloadGallery();                         // 등록 즉시 공개 — 갤러리에 바로 보이게
+          reloadGallery();                         // 등록 즉시 공개 — 참여 현황에 바로 보이게
           $('pkr-join').scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else if (d.needLogin) {
           becomeGuest(); openSheet();
@@ -513,7 +591,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       .catch(function () { done(); msg('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); });
   });
 
-  /* ── 5. 리뷰 갤러리 — 등록하면 바로 공개. 카드(또는 아래 버튼)를 누르면 그 SNS 게시물로 이동(새 탭) ── */
+  /* ── 5. 참여 현황 — 등록하면 바로 공개. 카드(또는 아래 버튼)를 누르면 그 SNS 게시물로 이동(새 탭) ── */
   var shown = 0, offset = 0;
   function card(it) {
     var link = isHttp(it.snsLink);

@@ -113,6 +113,16 @@ function cleanLink(v) {
   } catch { return null; }
 }
 
+// 고객이 넣는 링크는 인스타그램 게시물만 받는다 (2026-10-20).
+// 등록 즉시 공개되고 memberId 는 브라우저가 보내는 값이라, 아무 주소나 받으면 남의 아이디로
+// 갤러리의 "게시물 보러가기"를 엉뚱한 사이트로 바꿔치기할 수 있다. 관리자 수정은 cleanLink 를 그대로 쓴다.
+function cleanInstaLink(v) {
+  const href = cleanLink(v);
+  if (!href) return null;
+  const host = new URL(href).hostname.toLowerCase();
+  return host === 'instagram.com' || host.endsWith('.instagram.com') || host === 'instagr.am' ? href : null;
+}
+
 function kst(d) { return new Date((d ? new Date(d) : new Date()).getTime() + 9 * 3600 * 1000); }
 const pad = n => String(n).padStart(2, '0');
 function ymdCompact(d) { const k = kst(d); return `${k.getUTCFullYear()}${pad(k.getUTCMonth() + 1)}${pad(k.getUTCDate())}`; }
@@ -262,8 +272,8 @@ function mount(app, deps) {
         if (!snsId) return res.status(400).json({ ok: false, field: 'snsId', message: '인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)' });
         const name = cleanName(body.name);
         if (!name) return res.status(400).json({ ok: false, field: 'name', message: '이름을 2자 이상 입력해주세요.' });
-        const snsLink = cleanLink(body.snsLink);
-        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '게시물 링크를 확인해주세요. (https:// 주소)' });
+        const snsLink = cleanInstaLink(body.snsLink);
+        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '인스타그램 게시물 링크를 넣어주세요. (instagram.com 주소)' });
         if (!req.file || !req.file.buffer || !req.file.buffer.length) return res.status(400).json({ ok: false, field: 'photo', message: '리뷰 캡처 이미지를 등록해주세요.' });
         if (!agreed(body.agree)) return res.status(400).json({ ok: false, field: 'agree', message: '개인정보 수집 및 이용에 동의해주세요.' });
 
@@ -312,6 +322,76 @@ function mount(app, deps) {
     });
   });
 
+  // ── 본인 게시물 수정 ──
+  // 인스타그램 ID·게시물 링크는 다시 받고, 이름·이미지는 새로 넣었을 때만 바꾼다.
+  // 공개 상태는 건드리지 않는다 — 관리자가 숨긴 건은 고쳐도 계속 숨김이다.
+  // 바꾸기 직전 값(prev)과 수정 횟수를 남긴다 — 남의 아이디로 바꿔치기했을 때 관리자가 알아보고 되돌릴 수 있게.
+  app.post('/api/pokemon-review/entry/:id', allowWrite, (req, res) => {
+    upload(req, res, async (uploadErr) => {
+      if (uploadErr) {
+        const msg = uploadErr.code === 'LIMIT_FILE_SIZE' ? '이미지는 10MB 이하로 등록해주세요.' : (uploadErr.message || '이미지를 읽지 못했습니다.');
+        return res.status(400).json({ ok: false, message: msg });
+      }
+      let newUrl = null;
+      try {
+        const _id = oid(req.params.id);
+        if (!_id) return res.status(400).json({ ok: false, message: '잘못된 요청입니다.' });
+        const body = req.body || {};
+        const memberId = normId(body.memberId);
+        if (!memberId) return res.status(401).json({ ok: false, needLogin: true, message: '로그인 후 수정할 수 있어요.' });
+
+        const doc = await col().findOne({ _id });
+        if (!doc || doc.memberId !== memberId) return res.status(404).json({ ok: false, message: '수정할 게시물을 찾지 못했어요.' });
+
+        const snsId = cleanSnsId(body.snsId);
+        if (!snsId) return res.status(400).json({ ok: false, field: 'snsId', message: '인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)' });
+        const snsLink = cleanInstaLink(body.snsLink);
+        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '인스타그램 게시물 링크를 넣어주세요. (instagram.com 주소)' });
+        const nameRaw = String(body.name == null ? '' : body.name).trim();
+        const name = nameRaw ? cleanName(nameRaw) : doc.name;   // 비워 두면 그대로
+        if (!name) return res.status(400).json({ ok: false, field: 'name', message: '이름을 2자 이상 입력해주세요.' });
+
+        if (!isTestId(memberId) && snsLink !== doc.snsLink) {
+          const dup = await col().findOne({ snsLink, _id: { $ne: _id } }, { projection: { _id: 1 } });
+          if (dup) return res.status(409).json({ ok: false, field: 'snsLink', message: '이미 등록된 게시물이에요. 다른 게시물 링크를 넣어주세요.' });
+        }
+
+        const oldImageUrl = doc.imageUrl;          // 문서를 바꾸기 전에 잡아 둔다 — 나중에 옛 파일을 지울 근거
+        const now = new Date();
+        const set = { snsId, snsLink, name, editedAt: now, prev: { snsId: doc.snsId, snsLink: doc.snsLink, at: now } };
+        if (req.file && req.file.buffer && req.file.buffer.length) {
+          let jpeg;
+          try { jpeg = await normalizePhoto(req.file.buffer); }
+          catch (e) {
+            console.warn('[포켓몬리뷰] 수정 사진 변환 실패:', e.message);
+            return res.status(400).json({ ok: false, field: 'photo', message: '이미지를 읽지 못했어요. JPG·PNG·WEBP 이미지로 다시 등록해주세요.' });
+          }
+          newUrl = await ftpUpload(jpeg, folderOf(memberId), publicName());
+          set.imageUrl = newUrl;
+        }
+
+        // 문서를 먼저 바꾼다 — 그 사이 지워졌으면(0건) 방금 올린 이미지를 되돌린다. 옛 이미지는 문서가 새 이미지를 가리킨 뒤에 지운다.
+        const r = await col().updateOne({ _id, memberId }, { $set: set, $inc: { editCount: 1 } });
+        if (!r.matchedCount) {
+          if (newUrl) ftpRemoveByUrl(newUrl).catch(() => {});
+          return res.status(404).json({ ok: false, message: '수정할 게시물을 찾지 못했어요.' });
+        }
+        const uploaded = newUrl;
+        newUrl = null;
+        if (uploaded && oldImageUrl && oldImageUrl !== uploaded) {
+          const rm = await ftpRemoveByUrl(oldImageUrl);
+          if (!rm.ok) console.warn('[포켓몬리뷰] 옛 이미지 삭제 실패:', oldImageUrl, rm.error);
+        }
+        console.log('[포켓몬리뷰] 고객 수정:', memberId, String(_id), uploaded ? '(이미지 교체)' : '');
+        return res.json({ ok: true, receipt: receiptOf(_id), imageUrl: uploaded || oldImageUrl, status: doc.status });
+      } catch (err) {
+        console.error('[포켓몬리뷰] 고객 수정 오류:', err.message);
+        if (newUrl) ftpRemoveByUrl(newUrl).catch(() => {});
+        return res.status(500).json({ ok: false, message: '수정 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
+      }
+    });
+  });
+
   // ── 내 참여 상태 ──
   app.get('/api/pokemon-review/mine', allowRead, async (req, res) => {
     try {
@@ -319,7 +399,7 @@ function mount(app, deps) {
       if (!memberId) return res.json({ ok: true, count: 0, items: [], canAdd: false });
       // 완료 화면에 최근 12장만 보여준다 — 건수는 따로 센다
       const [rows, count] = await Promise.all([
-        col().find({ memberId }).sort({ createdAt: -1 }).limit(12).project({ imageUrl: 1, status: 1, createdAt: 1 }).toArray(),
+        col().find({ memberId }).sort({ createdAt: -1 }).limit(12).project({ imageUrl: 1, status: 1, createdAt: 1, snsId: 1, snsLink: 1 }).toArray(),
         col().countDocuments({ memberId }),
       ]);
       const test = isTestId(memberId);
@@ -328,7 +408,8 @@ function mount(app, deps) {
         count,
         canAdd: test || !MAX_PER_MEMBER || count < MAX_PER_MEMBER,
         test,
-        items: rows.map(d => ({ receipt: receiptOf(d._id), imageUrl: d.imageUrl, status: d.status, date: ymdDot(d.createdAt) })),
+        // 수정 화면을 채우는 값. 인스타그램 ID·링크는 갤러리에도 공개되는 값이라 실어도 된다 — 이름은 싣지 않는다.
+        items: rows.map(d => ({ id: String(d._id), receipt: receiptOf(d._id), imageUrl: d.imageUrl, status: d.status, date: ymdDot(d.createdAt), snsId: d.snsId, snsLink: d.snsLink })),
       });
     } catch (err) {
       console.error('[포켓몬리뷰] 내 참여 조회 오류:', err.message);
@@ -412,6 +493,9 @@ function mount(app, deps) {
           test: !!d.test,
           createdAt: d.createdAt || null,
           reviewedAt: d.reviewedAt || null,
+          editCount: d.editCount || 0,             // 고객이 직접 고친 횟수
+          prev: d.prev || null,                    // 고객이 마지막으로 고치기 직전의 인스타그램 ID·링크
+          editedAt: d.editedAt || null,
         })),
       });
     } catch (err) {
@@ -468,4 +552,4 @@ function mount(app, deps) {
 module.exports = { mount, COLLECTION };
 
 // 테스트용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { normId, cleanSnsId, cleanLink, cleanName, agreed, receiptOf, maskId, normalizePhoto, originAllowed, publicName, folderOf, ftpRemoveByUrl, FTP_PUBLIC };
+module.exports.__internals = { normId, cleanSnsId, cleanLink, cleanInstaLink, cleanName, agreed, receiptOf, maskId, normalizePhoto, originAllowed, publicName, folderOf, ftpRemoveByUrl, FTP_PUBLIC };

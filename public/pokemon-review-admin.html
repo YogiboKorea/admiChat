@@ -193,7 +193,8 @@ section{margin-top:24px}
       body = '<div class="sns">@' + esc(it.snsId) + '</div>' +
         (safeLink ? '<a class="link" href="' + esc(safeLink) + '" target="_blank" rel="noopener noreferrer">' + esc(safeLink) + '</a>' : '') +
         '<div class="m"><b style="color:var(--ink)">' + esc(it.name || '-') + '</b></div>' +
-        '<div class="m"><code>' + esc(it.memberId) + '</code>' + (it.test ? '<span class="pill aqua">테스트</span>' : '') + (STATUS[it.status] || esc(it.status)) + '</div>' +
+        '<div class="m"><code>' + esc(it.memberId) + '</code>' + (it.test ? '<span class="pill aqua">테스트</span>' : '') + (STATUS[it.status] || esc(it.status)) +
+          (it.editCount ? '<span class="pill warn" title="' + esc('고객이 직접 고침 · ' + fmt(it.editedAt) + (it.prev ? '\n고치기 전: @' + it.prev.snsId + ' ' + it.prev.snsLink : '')) + '">고객 수정 ' + esc(it.editCount) + '회</span>' : '') + '</div>' +
         '<div class="m">' + fmt(it.createdAt) + (it.receipt ? ' · ' + esc(it.receipt) : '') + '</div>' +
         '<div class="acts">' +
           (it.status !== 'approved' ? '<button class="btn sm ok" data-act="approve">공개</button>' : '') +
