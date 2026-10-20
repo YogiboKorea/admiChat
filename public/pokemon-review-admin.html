@@ -58,7 +58,10 @@ section{margin-top:24px}
 
 .grid{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .card{background:var(--card);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
-.card .ph{display:block;aspect-ratio:1/1;background:var(--surface-2) center/cover no-repeat}
+.card .ph{position:relative;display:block;aspect-ratio:1/1;background:var(--surface-2) center/cover no-repeat}
+.card .ph-n{position:absolute;top:8px;right:8px;padding:2px 8px;border-radius:var(--pill);background:rgba(20,26,32,.65);color:#fff;font-size:11px;font-weight:700}
+.card .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px 4px 0}
+.card .strip a{display:block;aspect-ratio:1/1;border-radius:6px;background:var(--surface-2) center/cover no-repeat}
 .card .b{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
 .card .sns{font-weight:700;font-size:14px;word-break:break-all}
 .card .link{font-size:12px;word-break:break-all;color:var(--aqua-ink)}
@@ -203,8 +206,14 @@ section{margin-top:24px}
           '<button class="btn sm bad" data-act="delete">삭제</button>' +
         '</div>';
     }
+    var imgs = (it.images && it.images.length) ? it.images : (it.imageUrl ? [it.imageUrl] : []);
+    // 여러 장이면 대표 아래에 작은 썸네일 줄 — 누르면 원본
+    var strip = imgs.length > 1 ? '<div class="strip">' + imgs.map(function (u, i) {
+      return '<a href="' + esc(u) + '" target="_blank" rel="noopener" style="background-image:url(\'' + esc(u) + '\')" aria-label="' + (i + 1) + '번째 이미지 원본"></a>';
+    }).join('') + '</div>' : '';
     return '<div class="card" data-id="' + esc(it.id) + '">' +
-      '<a class="ph" href="' + esc(it.imageUrl) + '" target="_blank" rel="noopener" style="background-image:url(\'' + esc(it.imageUrl) + '\')" aria-label="이미지 원본 열기"></a>' +
+      '<a class="ph" href="' + esc(imgs[0] || '') + '" target="_blank" rel="noopener" style="background-image:url(\'' + esc(imgs[0] || '') + '\')" aria-label="대표 이미지 원본 열기">' +
+        (imgs.length > 1 ? '<span class="ph-n">' + imgs.length + '장</span>' : '') + '</a>' + strip +
       '<div class="b">' + body + '</div></div>';
   }
   function paint() {

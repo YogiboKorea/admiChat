@@ -31,7 +31,8 @@ const { ObjectId } = require('mongodb');
 // ── 컬렉션 · 설정 ─────────────────────────────────────────────────
 const COLLECTION = 'pokemonReview';
 
-const MAX_PHOTO_BYTES = 10 * 1024 * 1024;     // 페이지 안내 문구와 같은 값 — 올릴 때 줄인다
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;     // 한 장당. 페이지 안내 문구와 같은 값 — 올릴 때 줄인다
+const MAX_PHOTOS = 3;                          // 게시물당 이미지 수 (2026-10-20 — 여러 장이면 참여 현황에서 돌아가며 보인다)
 const MAX_EDGE = 1400;
 const MAX_LINK = 500;
 const MAX_PER_MEMBER = Math.max(0, Number(process.env.POKEMON_REVIEW_MAX_PER_MEMBER) || 0);   // 0 = 제한 없음
@@ -113,15 +114,8 @@ function cleanLink(v) {
   } catch { return null; }
 }
 
-// 고객이 넣는 링크는 인스타그램 게시물만 받는다 (2026-10-20).
-// 등록 즉시 공개되고 memberId 는 브라우저가 보내는 값이라, 아무 주소나 받으면 남의 아이디로
-// 갤러리의 "게시물 보러가기"를 엉뚱한 사이트로 바꿔치기할 수 있다. 관리자 수정은 cleanLink 를 그대로 쓴다.
-function cleanInstaLink(v) {
-  const href = cleanLink(v);
-  if (!href) return null;
-  const host = new URL(href).hostname.toLowerCase();
-  return host === 'instagram.com' || host.endsWith('.instagram.com') || host === 'instagr.am' ? href : null;
-}
+// 게시물 링크는 주소 형태(http/https)면 어느 사이트든 받는다 — 참여 문턱을 낮추려고 인스타그램 전용 제한을 풀었다 (2026-10-20).
+// 대신 등록 즉시 공개되므로, 엉뚱한 사이트로 보내는 링크는 관리 페이지에서 숨김·삭제로 정리한다 (고객 수정 이력은 prev 로 남는다).
 
 function kst(d) { return new Date((d ? new Date(d) : new Date()).getTime() + 9 * 3600 * 1000); }
 const pad = n => String(n).padStart(2, '0');
@@ -166,8 +160,11 @@ function ftpAccess(client) {
   });
 }
 
-async function ftpUpload(buffer, folder, filename) {
-  // 잠깐의 FTP 흔들림에 고객이 다시 올리지 않게 3번까지 다시 붙는다.
+/** 이미지 여러 장을 한 번 접속해서 올리고 공개 URL 들을 돌려준다 (게시물당 최대 MAX_PHOTOS 장). */
+async function ftpUploadMany(buffers, folder) {
+  const names = buffers.map(() => publicName());
+  const urls = names.map(n => `${FTP_PUBLIC}/${folder}/${n}`);
+  // 잠깐의 FTP 흔들림에 고객이 다시 올리지 않게 3번까지 다시 붙는다. 같은 이름으로 다시 올리면 덮어쓴다.
   let last;
   for (let i = 0; i < 3; i++) {
     const client = new ftp.Client(30000);
@@ -175,8 +172,8 @@ async function ftpUpload(buffer, folder, filename) {
     try {
       await ftpAccess(client);
       await client.ensureDir(`${FTP_DIR_REL}/${folder}`);   // 회원 폴더가 없으면 만들고 그 안으로 들어간다
-      await client.uploadFrom(Readable.from(buffer), filename);
-      return `${FTP_PUBLIC}/${folder}/${filename}`;
+      for (let k = 0; k < buffers.length; k++) await client.uploadFrom(Readable.from(buffers[k]), names[k]);
+      return urls;
     } catch (e) {
       last = e;
       await new Promise(r => setTimeout(r, 1500 * (i + 1)));
@@ -184,7 +181,15 @@ async function ftpUpload(buffer, folder, filename) {
       client.close();
     }
   }
+  // 끝내 실패 — 일부만 올라간 파일이 주인 없이 남지 않게 지워 본다
+  await Promise.all(urls.map(u => ftpRemoveByUrl(u).catch(() => {})));
   throw last;
+}
+
+// 게시물의 이미지 목록. 여러 장 지원 전에 올라온 문서는 imageUrl 하나뿐이다.
+function imagesOf(d) {
+  const list = Array.isArray(d && d.images) ? d.images.filter(Boolean) : [];
+  return list.length ? list : (d && d.imageUrl ? [d.imageUrl] : []);
 }
 
 // 이 모듈이 올린 파일만 지운다 — 리뷰 폴더 아래 <회원폴더>/<파일명> 형식이 정확히 맞아야 한다.
@@ -248,21 +253,38 @@ function mount(app, deps) {
   // ★ 원본 사진은 메모리에서만 다룬다. 줄인 JPEG 만 FTP 에 남는다.
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: MAX_PHOTO_BYTES, files: 1, fields: 10 },
+    limits: { fileSize: MAX_PHOTO_BYTES, files: MAX_PHOTOS, fields: 20 },
     fileFilter: (_req, file, cb) => {
       if (!/^image\//.test(file.mimetype)) return cb(new Error('이미지 파일만 올릴 수 있습니다.'));
       cb(null, true);
     },
-  }).single('photo');
+  }).array('photo', MAX_PHOTOS);
+  function uploadErrMsg(e) {
+    if (e.code === 'LIMIT_FILE_SIZE') return '이미지는 한 장에 10MB 이하로 등록해주세요.';
+    if (e.code === 'LIMIT_FILE_COUNT' || e.code === 'LIMIT_UNEXPECTED_FILE') return `이미지는 최대 ${MAX_PHOTOS}장까지 등록할 수 있어요.`;
+    return e.message || '이미지를 읽지 못했습니다.';
+  }
+  const filesOf = req => (req.files || []).filter(f => f && f.buffer && f.buffer.length);
+  // 받은 이미지를 차례로 줄인다. 못 읽는 장이 있으면 몇 번째인지 알려준다.
+  async function normalizeAll(files) {
+    const out = [];
+    for (let i = 0; i < files.length; i++) {
+      try { out.push(await normalizePhoto(files[i].buffer)); }
+      catch (e) {
+        console.warn('[포켓몬리뷰] 사진 변환 실패:', e.message);
+        const err = new Error(`${files.length > 1 ? (i + 1) + '번째 ' : ''}이미지를 읽지 못했어요. JPG·PNG·WEBP 이미지로 다시 등록해주세요.`);
+        err.userFacing = true;
+        throw err;
+      }
+    }
+    return out;
+  }
 
   // ── 등록 (참여) ──
   app.post('/api/pokemon-review/entry', allowWrite, (req, res) => {
     upload(req, res, async (uploadErr) => {
-      if (uploadErr) {
-        const msg = uploadErr.code === 'LIMIT_FILE_SIZE' ? '이미지는 10MB 이하로 등록해주세요.' : (uploadErr.message || '이미지를 읽지 못했습니다.');
-        return res.status(400).json({ ok: false, message: msg });
-      }
-      let imageUrl = null;
+      if (uploadErr) return res.status(400).json({ ok: false, field: 'photo', message: uploadErrMsg(uploadErr) });
+      let uploaded = null;
       try {
         const body = req.body || {};
         const memberId = normId(body.memberId);
@@ -272,9 +294,10 @@ function mount(app, deps) {
         if (!snsId) return res.status(400).json({ ok: false, field: 'snsId', message: '인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)' });
         const name = cleanName(body.name);
         if (!name) return res.status(400).json({ ok: false, field: 'name', message: '이름을 2자 이상 입력해주세요.' });
-        const snsLink = cleanInstaLink(body.snsLink);
-        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '인스타그램 게시물 링크를 넣어주세요. (instagram.com 주소)' });
-        if (!req.file || !req.file.buffer || !req.file.buffer.length) return res.status(400).json({ ok: false, field: 'photo', message: '리뷰 캡처 이미지를 등록해주세요.' });
+        const snsLink = cleanLink(body.snsLink);
+        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '게시물 주소를 확인해주세요. (예: instagram.com/p/...)' });
+        const files = filesOf(req);
+        if (!files.length) return res.status(400).json({ ok: false, field: 'photo', message: '리뷰 캡처 이미지를 1장 이상 등록해주세요.' });
         if (!agreed(body.agree)) return res.status(400).json({ ok: false, field: 'agree', message: '개인정보 수집 및 이용에 동의해주세요.' });
 
         const test = isTestId(memberId);
@@ -289,14 +312,8 @@ function mount(app, deps) {
           if (dup) return res.status(409).json({ ok: false, field: 'snsLink', message: '이미 등록된 게시물이에요. 다른 게시물 링크를 넣어주세요.' });
         }
 
-        let jpeg;
-        try { jpeg = await normalizePhoto(req.file.buffer); }
-        catch (e) {
-          console.warn('[포켓몬리뷰] 사진 변환 실패:', e.message);
-          return res.status(400).json({ ok: false, field: 'photo', message: '이미지를 읽지 못했어요. JPG·PNG·WEBP 이미지로 다시 등록해주세요.' });
-        }
-
-        imageUrl = await ftpUpload(jpeg, folderOf(memberId), publicName());
+        const jpegs = await normalizeAll(files);
+        uploaded = await ftpUploadMany(jpegs, folderOf(memberId));
         const doc = {
           memberId,
           displayId: maskId(memberId),
@@ -304,35 +321,36 @@ function mount(app, deps) {
           snsLink,
           name,                                    // 이름은 당첨 확인용 — 관리 API 에서만 나간다
           agreedAt: new Date(),                    // 개인정보 수집·이용 동의 시각
-          imageUrl,
+          images: uploaded,                        // 1~3장, 첫 장이 대표
+          imageUrl: uploaded[0],                   // 대표 이미지 — 여러 장 지원 전 코드·문서와 맞추려고 남긴다
           status: 'approved',                      // 등록 즉시 공개. 관리자가 숨기면 hidden (pending 은 예전 검수 방식의 흔적)
           test,
           createdAt: new Date(),
         };
         const { insertedId } = await col().insertOne(doc);
-        imageUrl = null;                           // 문서가 파일을 가리키게 됐다 — 아래 정리 대상에서 뺀다
-        console.log('[포켓몬리뷰] 접수:', memberId, '@' + snsId, String(insertedId));   // 이름은 로그에 남기지 않는다
-        return res.json({ ok: true, id: String(insertedId), receipt: receiptOf(insertedId), imageUrl: doc.imageUrl, status: doc.status });
+        uploaded = null;                           // 문서가 파일을 가리키게 됐다 — 아래 정리 대상에서 뺀다
+        console.log('[포켓몬리뷰] 접수:', memberId, '@' + snsId, String(insertedId), doc.images.length + '장');   // 이름은 로그에 남기지 않는다
+        return res.json({ ok: true, id: String(insertedId), receipt: receiptOf(insertedId), images: doc.images, imageUrl: doc.imageUrl, status: doc.status });
       } catch (err) {
+        if (err.userFacing) return res.status(400).json({ ok: false, field: 'photo', message: err.message });
         console.error('[포켓몬리뷰] 접수 오류:', err.message);
         // FTP 에는 올렸는데 기록을 못 남긴 경우 — 주인 없는 파일을 남기지 않는다
-        if (imageUrl) ftpRemoveByUrl(imageUrl).catch(() => {});
+        if (uploaded) uploaded.forEach(u => ftpRemoveByUrl(u).catch(() => {}));
         return res.status(500).json({ ok: false, message: '등록 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
       }
     });
   });
 
   // ── 본인 게시물 수정 ──
-  // 인스타그램 ID·게시물 링크는 다시 받고, 이름·이미지는 새로 넣었을 때만 바꾼다.
+  // 인스타그램 ID·게시물 링크는 다시 받고, 이름은 새로 넣었을 때만 바꾼다.
+  // 이미지는 남길 기존 이미지(keep) + 새로 올린 이미지(photo) 로 다시 짠다 — 합쳐서 1~3장.
+  //   페이지는 keepSent=1 을 같이 보낸다. 없으면 여러 장 지원 전 화면이라 "새 이미지를 보내면 통째로 교체, 안 보내면 그대로".
   // 공개 상태는 건드리지 않는다 — 관리자가 숨긴 건은 고쳐도 계속 숨김이다.
   // 바꾸기 직전 값(prev)과 수정 횟수를 남긴다 — 남의 아이디로 바꿔치기했을 때 관리자가 알아보고 되돌릴 수 있게.
   app.post('/api/pokemon-review/entry/:id', allowWrite, (req, res) => {
     upload(req, res, async (uploadErr) => {
-      if (uploadErr) {
-        const msg = uploadErr.code === 'LIMIT_FILE_SIZE' ? '이미지는 10MB 이하로 등록해주세요.' : (uploadErr.message || '이미지를 읽지 못했습니다.');
-        return res.status(400).json({ ok: false, message: msg });
-      }
-      let newUrl = null;
+      if (uploadErr) return res.status(400).json({ ok: false, field: 'photo', message: uploadErrMsg(uploadErr) });
+      let newUrls = null;
       try {
         const _id = oid(req.params.id);
         if (!_id) return res.status(400).json({ ok: false, message: '잘못된 요청입니다.' });
@@ -345,8 +363,8 @@ function mount(app, deps) {
 
         const snsId = cleanSnsId(body.snsId);
         if (!snsId) return res.status(400).json({ ok: false, field: 'snsId', message: '인스타그램 ID를 확인해주세요. (@ 없이 영문·숫자·점·밑줄)' });
-        const snsLink = cleanInstaLink(body.snsLink);
-        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '인스타그램 게시물 링크를 넣어주세요. (instagram.com 주소)' });
+        const snsLink = cleanLink(body.snsLink);
+        if (!snsLink) return res.status(400).json({ ok: false, field: 'snsLink', message: '게시물 주소를 확인해주세요. (예: instagram.com/p/...)' });
         const nameRaw = String(body.name == null ? '' : body.name).trim();
         const name = nameRaw ? cleanName(nameRaw) : doc.name;   // 비워 두면 그대로
         if (!name) return res.status(400).json({ ok: false, field: 'name', message: '이름을 2자 이상 입력해주세요.' });
@@ -356,37 +374,43 @@ function mount(app, deps) {
           if (dup) return res.status(409).json({ ok: false, field: 'snsLink', message: '이미 등록된 게시물이에요. 다른 게시물 링크를 넣어주세요.' });
         }
 
-        const oldImageUrl = doc.imageUrl;          // 문서를 바꾸기 전에 잡아 둔다 — 나중에 옛 파일을 지울 근거
-        const now = new Date();
-        const set = { snsId, snsLink, name, editedAt: now, prev: { snsId: doc.snsId, snsLink: doc.snsLink, at: now } };
-        if (req.file && req.file.buffer && req.file.buffer.length) {
-          let jpeg;
-          try { jpeg = await normalizePhoto(req.file.buffer); }
-          catch (e) {
-            console.warn('[포켓몬리뷰] 수정 사진 변환 실패:', e.message);
-            return res.status(400).json({ ok: false, field: 'photo', message: '이미지를 읽지 못했어요. JPG·PNG·WEBP 이미지로 다시 등록해주세요.' });
-          }
-          newUrl = await ftpUpload(jpeg, folderOf(memberId), publicName());
-          set.imageUrl = newUrl;
+        // 이미지 다시 짜기 — 문서를 바꾸기 전에 지금 목록을 잡아 둔다 (나중에 뺀 파일을 지울 근거)
+        const current = imagesOf(doc);
+        const files = filesOf(req);
+        let keep;
+        if (body.keepSent) {
+          // 이 게시물에 실제로 있던 이미지만 남길 수 있다 — 남의 파일 주소를 끼워 넣지 못하게
+          keep = [].concat(body.keep == null ? [] : body.keep).map(String).filter((u, i, a) => current.includes(u) && a.indexOf(u) === i);
+        } else {
+          keep = files.length ? [] : current;
         }
+        if (keep.length + files.length < 1) return res.status(400).json({ ok: false, field: 'photo', message: '이미지를 1장 이상 남겨주세요.' });
+        if (keep.length + files.length > MAX_PHOTOS) return res.status(400).json({ ok: false, field: 'photo', message: `이미지는 최대 ${MAX_PHOTOS}장까지 등록할 수 있어요.` });
 
-        // 문서를 먼저 바꾼다 — 그 사이 지워졌으면(0건) 방금 올린 이미지를 되돌린다. 옛 이미지는 문서가 새 이미지를 가리킨 뒤에 지운다.
+        if (files.length) newUrls = await ftpUploadMany(await normalizeAll(files), folderOf(memberId));
+        const images = keep.concat(newUrls || []);
+
+        const now = new Date();
+        const set = { snsId, snsLink, name, images, imageUrl: images[0], editedAt: now, prev: { snsId: doc.snsId, snsLink: doc.snsLink, at: now } };
+
+        // 문서를 먼저 바꾼다 — 그 사이 지워졌으면(0건) 방금 올린 이미지를 되돌린다. 뺀 이미지는 문서가 새 목록을 가리킨 뒤에 지운다.
         const r = await col().updateOne({ _id, memberId }, { $set: set, $inc: { editCount: 1 } });
         if (!r.matchedCount) {
-          if (newUrl) ftpRemoveByUrl(newUrl).catch(() => {});
+          if (newUrls) newUrls.forEach(u => ftpRemoveByUrl(u).catch(() => {}));
           return res.status(404).json({ ok: false, message: '수정할 게시물을 찾지 못했어요.' });
         }
-        const uploaded = newUrl;
-        newUrl = null;
-        if (uploaded && oldImageUrl && oldImageUrl !== uploaded) {
-          const rm = await ftpRemoveByUrl(oldImageUrl);
-          if (!rm.ok) console.warn('[포켓몬리뷰] 옛 이미지 삭제 실패:', oldImageUrl, rm.error);
+        newUrls = null;
+        const removed = current.filter(u => !images.includes(u));
+        for (const u of removed) {
+          const rm = await ftpRemoveByUrl(u);
+          if (!rm.ok) console.warn('[포켓몬리뷰] 뺀 이미지 삭제 실패:', u, rm.error);
         }
-        console.log('[포켓몬리뷰] 고객 수정:', memberId, String(_id), uploaded ? '(이미지 교체)' : '');
-        return res.json({ ok: true, receipt: receiptOf(_id), imageUrl: uploaded || oldImageUrl, status: doc.status });
+        console.log('[포켓몬리뷰] 고객 수정:', memberId, String(_id), `이미지 ${current.length}→${images.length}장`);
+        return res.json({ ok: true, receipt: receiptOf(_id), images, imageUrl: images[0], status: doc.status });
       } catch (err) {
+        if (err.userFacing) return res.status(400).json({ ok: false, field: 'photo', message: err.message });
         console.error('[포켓몬리뷰] 고객 수정 오류:', err.message);
-        if (newUrl) ftpRemoveByUrl(newUrl).catch(() => {});
+        if (newUrls) newUrls.forEach(u => ftpRemoveByUrl(u).catch(() => {}));
         return res.status(500).json({ ok: false, message: '수정 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
       }
     });
@@ -399,7 +423,7 @@ function mount(app, deps) {
       if (!memberId) return res.json({ ok: true, count: 0, items: [], canAdd: false });
       // 완료 화면에 최근 12장만 보여준다 — 건수는 따로 센다
       const [rows, count] = await Promise.all([
-        col().find({ memberId }).sort({ createdAt: -1 }).limit(12).project({ imageUrl: 1, status: 1, createdAt: 1, snsId: 1, snsLink: 1 }).toArray(),
+        col().find({ memberId }).sort({ createdAt: -1 }).limit(12).project({ images: 1, imageUrl: 1, status: 1, createdAt: 1, snsId: 1, snsLink: 1 }).toArray(),
         col().countDocuments({ memberId }),
       ]);
       const test = isTestId(memberId);
@@ -409,7 +433,7 @@ function mount(app, deps) {
         canAdd: test || !MAX_PER_MEMBER || count < MAX_PER_MEMBER,
         test,
         // 수정 화면을 채우는 값. 인스타그램 ID·링크는 갤러리에도 공개되는 값이라 실어도 된다 — 이름은 싣지 않는다.
-        items: rows.map(d => ({ id: String(d._id), receipt: receiptOf(d._id), imageUrl: d.imageUrl, status: d.status, date: ymdDot(d.createdAt), snsId: d.snsId, snsLink: d.snsLink })),
+        items: rows.map(d => ({ id: String(d._id), receipt: receiptOf(d._id), images: imagesOf(d), imageUrl: imagesOf(d)[0], status: d.status, date: ymdDot(d.createdAt), snsId: d.snsId, snsLink: d.snsLink })),
       });
     } catch (err) {
       console.error('[포켓몬리뷰] 내 참여 조회 오류:', err.message);
@@ -438,7 +462,8 @@ function mount(app, deps) {
           displayId: d.displayId,
           snsId: d.snsId,
           snsLink: d.snsLink,
-          imageUrl: d.imageUrl,
+          images: imagesOf(d),
+          imageUrl: imagesOf(d)[0],
           date: ymdDot(d.createdAt),
         })),
       });
@@ -488,7 +513,8 @@ function mount(app, deps) {
           snsId: d.snsId,
           snsLink: d.snsLink,
           name: d.name || '',
-          imageUrl: d.imageUrl,
+          images: imagesOf(d),
+          imageUrl: imagesOf(d)[0],
           status: d.status,
           test: !!d.test,
           createdAt: d.createdAt || null,
@@ -534,10 +560,13 @@ function mount(app, deps) {
         // 문서를 먼저 빼내고 파일을 지운다 — 파일 삭제가 실패해도 갤러리에서는 확실히 빠진다.
         const doc = await col().findOneAndDelete({ _id });
         if (!doc) return res.status(404).json({ ok: false, message: '기록이 없습니다.' });
-        const rm = await ftpRemoveByUrl(doc.imageUrl);
-        if (!rm.ok) console.warn('[포켓몬리뷰] 파일 삭제 실패:', doc.imageUrl, rm.error);
-        console.log('[포켓몬리뷰] 관리: 삭제', String(_id), doc.memberId, rm.ok ? '파일 삭제됨' : '파일 삭제 실패');
-        return res.json({ ok: true, ftpRemoved: rm.ok, warn: rm.ok ? null : '기록은 지웠지만 이미지 파일은 지우지 못했습니다: ' + doc.imageUrl });
+        const failed = [];
+        for (const u of imagesOf(doc)) {
+          const rm = await ftpRemoveByUrl(u);
+          if (!rm.ok) { failed.push(u); console.warn('[포켓몬리뷰] 파일 삭제 실패:', u, rm.error); }
+        }
+        console.log('[포켓몬리뷰] 관리: 삭제', String(_id), doc.memberId, failed.length ? `파일 ${failed.length}개 삭제 실패` : '파일 삭제됨');
+        return res.json({ ok: true, ftpRemoved: !failed.length, warn: failed.length ? '기록은 지웠지만 이미지 파일 일부를 지우지 못했습니다: ' + failed.join(', ') : null });
       }
       return res.status(400).json({ ok: false, message: '알 수 없는 action' });
     } catch (err) {
@@ -552,4 +581,4 @@ function mount(app, deps) {
 module.exports = { mount, COLLECTION };
 
 // 테스트용 내부 진입점 (라우트에는 쓰지 않는다)
-module.exports.__internals = { normId, cleanSnsId, cleanLink, cleanInstaLink, cleanName, agreed, receiptOf, maskId, normalizePhoto, originAllowed, publicName, folderOf, ftpRemoveByUrl, FTP_PUBLIC };
+module.exports.__internals = { imagesOf, normId, cleanSnsId, cleanLink, cleanName, agreed, receiptOf, maskId, normalizePhoto, originAllowed, publicName, folderOf, ftpRemoveByUrl, FTP_PUBLIC };

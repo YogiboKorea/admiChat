@@ -93,15 +93,29 @@
 .pkr-input input{flex:1;min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;font-size:17px;color:var(--t1);padding:0;margin:0;-webkit-appearance:none;appearance:none}
 .pkr-input input::placeholder{color:#b0b8c1}
 .pkr-help{margin-top:6px !important;font-size:13px;color:var(--t3)}
-.pkr .pkr-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;height:220px;margin:0;padding:0;border-radius:12px;background:var(--fill);cursor:pointer;overflow:hidden;text-align:center;transition:box-shadow .15s}
+/* 리뷰 이미지 — 최대 3장. 고른 사진은 칸에 쌓이고, 남은 자리에 '추가' 칸이 붙는다 (첫 장이 대표) */
+.pkr-label small{margin-left:4px;font-weight:400;color:var(--t3)}
+.pkr-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pkr-ph{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--fill)}
+.pkr-ph img{display:block;width:100%;height:100%;object-fit:cover}
+.pkr-ph-x{position:absolute;top:6px;right:6px;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:rgba(25,31,40,.6);color:#fff;font-size:13px;line-height:28px;text-align:center;cursor:pointer}
+.pkr-ph-main{position:absolute;left:6px;bottom:6px;padding:2px 8px;border-radius:999px;background:var(--blue);color:#fff;font-size:11px;font-weight:700}
+.pkr .pkr-drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;aspect-ratio:1/1;margin:0;padding:8px;border-radius:12px;background:var(--fill);cursor:pointer;overflow:hidden;text-align:center;transition:box-shadow .15s}
+.pkr .pkr-photos.empty .pkr-drop{grid-column:1/-1;aspect-ratio:auto;height:200px}
 .pkr-drop.drag{box-shadow:inset 0 0 0 2px var(--blue);background:var(--blue-l)}
 .pkr-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:1}
 .pkr-drop b{font-size:15px;font-weight:600;color:var(--t2)}
 .pkr-drop small{font-size:13px;line-height:1.6;color:var(--t3)}
-.pkr-drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--fill)}
-.pkr-fileinfo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;font-size:13px;color:var(--t2)}
-.pkr-fileinfo span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.pkr-fileinfo button{flex:none;border:0;background:none;padding:4px 0;font-size:13px;color:var(--t3);text-decoration:underline;cursor:pointer}
+.pkr-photos:not(.empty) .pkr-drop small{display:none}
+
+/* 여러 장 슬라이드 — 2장 이상이면 몇 초마다 다음 장으로 넘어간다 (참여 현황 · 내 참여 공용) */
+.pkr-slides{position:relative;display:block;width:100%;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--fill)}
+.pkr-slides img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s ease}
+.pkr-slides img.on{opacity:1}
+.pkr-slides-n{position:absolute;top:8px;right:8px;padding:2px 8px;border-radius:999px;background:rgba(25,31,40,.6);color:#fff;font-size:11px;font-weight:600}
+.pkr-dots{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:5px}
+.pkr-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55)}
+.pkr-dots i.on{background:#fff}
 .pkr-privacy{padding:16px;border-radius:12px;background:var(--fill2);font-size:13px;line-height:1.7;color:var(--t2)}
 .pkr-privacy dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
 .pkr-privacy dt{font-weight:600;color:var(--t1)}
@@ -123,7 +137,6 @@
 .pkr-mine[data-n="1"]{grid-template-columns:minmax(0,340px);justify-content:center}
 .pkr-mine[data-n="2"]{grid-template-columns:repeat(2,1fr)}
 .pkr-mine figure{margin:0;min-width:0}
-.pkr-mine img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;background:var(--fill)}
 .pkr-mine figcaption{margin-top:10px;font-size:13px;color:var(--t3)}
 .pkr-mine figcaption b{display:block;margin-bottom:2px;font-size:15px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pkr-done .pkr-btn{max-width:320px;margin:24px auto 0}
@@ -140,14 +153,15 @@
 .pkr-gal-head{display:flex;align-items:baseline;gap:8px}
 .pkr-gal-head span{font-size:15px;color:var(--t3)}
 .pkr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px 12px;margin-top:20px}
-.pkr-card{display:block;text-decoration:none !important;color:inherit}
-.pkr-card img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;background:var(--fill);transition:opacity .15s}
-a.pkr-card:hover img{opacity:.85}
+.pkr-card{display:block;min-width:0}
+/* 이미지를 누르면 크게 보기 팝업 — 게시물 이동은 아래 [게시물 보러가기] 버튼만 */
+.pkr-thumb{display:block;width:100%;padding:0;margin:0;border:0;background:none;border-radius:12px;cursor:zoom-in}
+.pkr-thumb:hover .pkr-slides{filter:brightness(.94)}
 .pkr-cap{display:block;padding:10px 2px 0}
 .pkr-cap b{display:block;font-size:15px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pkr-cap small{display:block;margin-top:2px;font-size:13px;color:var(--t3)}
-.pkr-go{display:flex;align-items:center;justify-content:center;height:40px;margin-top:10px;border-radius:10px;background:var(--fill);color:var(--t2);font-size:14px;font-weight:600;transition:background-color .15s,color .15s}
-a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
+.pkr-go{display:flex;align-items:center;justify-content:center;height:40px;margin-top:10px;border-radius:10px;background:var(--fill);color:var(--t2) !important;font-size:14px;font-weight:600;text-decoration:none !important;transition:background-color .15s,color .15s}
+.pkr-go:hover{background:var(--blue-l);color:var(--blue) !important}
 .pkr-empty{margin-top:20px !important;padding:48px 20px;text-align:center;border-radius:16px;background:var(--fill2);color:var(--t3);font-size:15px}
 .pkr-more{display:block;width:100%;max-width:320px;height:48px;margin:32px auto 0;border:0;border-radius:12px;background:var(--fill);color:var(--t2);font-size:15px;font-weight:600;cursor:pointer}
 
@@ -158,6 +172,21 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
 .pkr-sheet-box p{margin:8px 0 20px !important;font-size:15px;line-height:1.6;color:var(--t2)}
 .pkr-sheet-box .pkr-btn{margin-top:8px}
 .pkr-sheet-close{display:block;width:100%;height:48px;margin-top:4px;border:0;background:none;font-size:15px;color:var(--t3);cursor:pointer}
+
+/* 크게 보기 팝업 — 여러 장이면 좌우로 넘긴다 */
+.pkr-lb{position:fixed;inset:0;z-index:2147483000;background:rgba(10,14,20,.92);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:56px 20px 20px}
+.pkr-lb-box{position:relative;width:100%;max-width:640px}
+.pkr-lb-stage{position:relative;border-radius:16px;overflow:hidden;background:#111;touch-action:pan-y}
+.pkr-lb-stage img{display:block;width:100%;max-height:72vh;object-fit:contain}
+.pkr-lb-nav{position:absolute;top:50%;width:40px;height:40px;margin-top:-20px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:var(--t1);font-size:20px;line-height:40px;text-align:center;cursor:pointer}
+.pkr-lb-prev{left:10px}
+.pkr-lb-next{right:10px}
+.pkr-lb-n{position:absolute;top:10px;left:10px;padding:3px 10px;border-radius:999px;background:rgba(25,31,40,.6);color:#fff;font-size:12px;font-weight:600}
+.pkr-lb-info{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:#fff}
+.pkr-lb-info b{display:block;font-size:16px;font-weight:700;word-break:break-all}
+.pkr-lb-info small{display:block;margin-top:2px;font-size:13px;color:rgba(255,255,255,.7)}
+.pkr-lb-go{flex:none;display:inline-flex;align-items:center;height:44px;padding:0 18px;border-radius:12px;background:#fff;color:var(--t1) !important;font-size:14px;font-weight:600;text-decoration:none !important}
+.pkr-lb-x{position:absolute;top:-48px;right:-6px;width:44px;height:44px;padding:0;border:0;background:none;color:#fff;font-size:26px;line-height:44px;cursor:pointer}
 
 @media (max-width: 599px){
   .pkr{padding:48px 0 72px}
@@ -175,6 +204,9 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   .pkr-mine{grid-template-columns:repeat(2,1fr);gap:16px 10px}
   .pkr-grid2{grid-template-columns:1fr}
   .pkr-grid{grid-template-columns:repeat(2,1fr);gap:20px 10px}
+  .pkr-lb{padding:56px 12px 16px}
+  .pkr-lb-info{flex-direction:column;align-items:stretch}
+  .pkr-lb-go{justify-content:center}
   .pkr-sheet{align-items:flex-end;padding:0}
   .pkr-sheet-box{max-width:none;border-radius:24px 24px 0 0;padding:28px 20px calc(8px + env(safe-area-inset-bottom))}
 }
@@ -252,20 +284,20 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
           <div class="pkr-field pkr-full">
             <label class="pkr-label" for="pkr-link">SNS 게시물 링크</label>
             <div class="pkr-input"><input id="pkr-link" type="text" inputmode="url" maxlength="500" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://www.instagram.com/p/..."></div>
-            <p class="pkr-help">프로필이 아닌 인스타그램 리뷰 게시물 링크(instagram.com)를 넣어주세요.</p>
+            <p class="pkr-help">리뷰를 올린 게시물 주소를 넣어주세요.</p>
           </div>
         </div>
 
         <div class="pkr-field">
-          <label class="pkr-label" for="pkr-file">리뷰 캡처 이미지</label>
-          <label class="pkr-drop" id="pkr-drop">
-            <input id="pkr-file" type="file" accept="image/jpeg,image/png,image/webp">
-            <b>이미지 선택</b>
-            <small>아이디와 게시물 사진·내용이 보이게 캡처해주세요<br>JPG · PNG · WEBP, 10MB 이하</small>
-            <img id="pkr-prev" alt="선택한 이미지 미리보기" hidden>
-          </label>
-          <div class="pkr-fileinfo" id="pkr-fileinfo" hidden><span id="pkr-fname"></span><button type="button" id="pkr-remove">삭제</button></div>
-          <p class="pkr-help" id="pkr-photo-help" hidden>지금 등록된 이미지예요. 바꿀 때만 새 이미지를 선택해주세요.</p>
+          <label class="pkr-label" for="pkr-file">리뷰 캡처 이미지<small>최대 3장 · 첫 장이 대표</small></label>
+          <div class="pkr-photos empty" id="pkr-photos">
+            <label class="pkr-drop" id="pkr-drop">
+              <input id="pkr-file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+              <b>＋ 이미지 추가 <span id="pkr-photo-count">0/3</span></b>
+              <small>아이디와 게시물 사진·내용이 보이게 캡처해주세요<br>JPG · PNG · WEBP, 장당 10MB 이하</small>
+            </label>
+          </div>
+          <p class="pkr-help" id="pkr-photo-help" hidden>지금 등록된 이미지예요. ✕로 빼거나 새로 추가할 수 있어요.</p>
         </div>
 
         <div class="pkr-field" id="pkr-privacy-field">
@@ -317,6 +349,23 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       <button type="button" class="pkr-sheet-close" id="pkr-sheet-close">닫기</button>
     </div>
   </div>
+
+  <!-- 참여 현황 이미지 크게 보기 -->
+  <div class="pkr-lb" id="pkr-lb" hidden>
+    <div class="pkr-lb-box" role="dialog" aria-modal="true" aria-label="리뷰 이미지 크게 보기">
+      <button type="button" class="pkr-lb-x" id="pkr-lb-x" aria-label="닫기">✕</button>
+      <div class="pkr-lb-stage" id="pkr-lb-stage">
+        <img id="pkr-lb-img" alt="">
+        <span class="pkr-lb-n" id="pkr-lb-n" hidden></span>
+        <button type="button" class="pkr-lb-nav pkr-lb-prev" id="pkr-lb-prev" aria-label="이전 이미지" hidden>‹</button>
+        <button type="button" class="pkr-lb-nav pkr-lb-next" id="pkr-lb-next" aria-label="다음 이미지" hidden>›</button>
+      </div>
+      <div class="pkr-lb-info">
+        <div><b id="pkr-lb-sns"></b><small id="pkr-lb-meta"></small></div>
+        <a class="pkr-lb-go" id="pkr-lb-go" target="_blank" rel="noopener noreferrer nofollow ugc">게시물 보러가기</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -336,10 +385,39 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
 
   var memberId = null;
   var guest = false;                               // 회원 확인이 끝났는데 아이디가 없을 때만 true
-  var selectedFile = null;
+  var MAX_PHOTOS = 3;
+  var photos = [];                                 // 양식의 이미지 — { url, old: true }(이미 올라간 것) | { url, file }(새로 고른 것)
   var editItem = null;                             // 수정 중인 내 게시물 — null 이면 새로 참여
   var mineItems = [];
-  function isInsta(u) { return /^(https?:\/\/)?([a-z0-9-]+\.)*(instagram\.com|instagr\.am)(\/|$)/i.test(String(u || '').trim()); }
+
+  // 게시물의 이미지 목록 — 여러 장 지원 전 응답은 imageUrl 하나뿐이다
+  function imagesOf(it) {
+    var list = (it && it.images && it.images.length) ? it.images : (it && it.imageUrl ? [it.imageUrl] : []);
+    return list.slice(0, MAX_PHOTOS);
+  }
+  // 이미지 칸 — 2장 이상이면 몇 초마다 다음 장으로 넘어간다 (아래 rotateSlides)
+  function slides(urls, alt) {
+    var multi = urls.length > 1;
+    return '<span class="pkr-slides' + (multi ? ' multi' : '') + '">' +
+      urls.map(function (u, i) { return '<img src="' + esc(u) + '" loading="lazy" alt="' + esc(alt) + '"' + (i === 0 ? ' class="on"' : '') + '>'; }).join('') +
+      (multi ? '<span class="pkr-slides-n">' + urls.length + '장</span><span class="pkr-dots">' +
+        urls.map(function (_, i) { return '<i' + (i === 0 ? ' class="on"' : '') + '></i>'; }).join('') + '</span>' : '') +
+      '</span>';
+  }
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function rotateSlides() {
+    if (reduceMotion || document.hidden) return;
+    var sets = root.querySelectorAll('.pkr-slides.multi');
+    for (var s = 0; s < sets.length; s++) {
+      var imgs = sets[s].querySelectorAll('img'), dots = sets[s].querySelectorAll('.pkr-dots i'), cur = 0;
+      for (var i = 0; i < imgs.length; i++) if (imgs[i].classList.contains('on')) cur = i;
+      var next = (cur + 1) % imgs.length;
+      imgs[cur].classList.remove('on'); imgs[next].classList.add('on');
+      if (dots[cur]) dots[cur].classList.remove('on');
+      if (dots[next]) dots[next].classList.add('on');
+    }
+  }
+  setInterval(rotateSlides, 2800);
 
   function show(state) {
     var els = root.querySelectorAll('[data-state]');
@@ -447,8 +525,8 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
         mineItems = d.items || [];
         $('pkr-mine').setAttribute('data-n', String(Math.min(mineItems.length, 3)));
         $('pkr-mine').innerHTML = mineItems.map(function (it, i) {
-          return '<figure><img src="' + esc(it.imageUrl) + '" alt="내가 등록한 리뷰 이미지">' +
-            '<figcaption><b>@' + esc(it.snsId || '') + '</b>' + esc(STATUS_TEXT[it.status] || '') + (it.date ? ' · ' + esc(it.date) : '') + '</figcaption>' +
+          return '<figure>' + slides(imagesOf(it), '내가 등록한 리뷰 이미지') +
+            '<figcaption>' + (it.snsId ? '<b>@' + esc(it.snsId) + '</b>' : '') + esc(STATUS_TEXT[it.status] || '') + (it.date ? ' · ' + esc(it.date) : '') + '</figcaption>' +
             (it.id ? '<button type="button" class="pkr-mini" data-i="' + i + '">수정</button>' : '') + '</figure>';
         }).join('');
         $('pkr-again').hidden = !d.canAdd;
@@ -473,7 +551,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       $('pkr-sns').value = editItem.snsId || '';
       $('pkr-link').value = editItem.snsLink || '';
     }
-    setFile(null);                                 // 수정 중이면 지금 등록된 이미지를 미리보기로 보여준다
+    resetPhotos(editItem);                         // 수정 중이면 지금 올라가 있는 이미지부터 채운다
   }
   function openForm(item) {
     setMode(item);
@@ -492,30 +570,52 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   });
   $('pkr-back').addEventListener('click', function () { setMode(null); show('done'); });
 
-  /* ── 3. 이미지 선택 · 끌어놓기 ── */
-  var fileInput = $('pkr-file'), drop = $('pkr-drop'), prev = $('pkr-prev'), prevUrl = null;
+  /* ── 3. 이미지 선택 · 끌어놓기 — 최대 3장, 고른 순서대로 쌓이고 첫 장이 대표 ── */
+  var fileInput = $('pkr-file'), drop = $('pkr-drop'), photoBox = $('pkr-photos');
 
-  function setFile(f) {
-    if (prevUrl) { URL.revokeObjectURL(prevUrl); prevUrl = null; }
-    selectedFile = null;
-    prev.hidden = true;
-    $('pkr-fileinfo').hidden = true;
-    if (!f) {
-      fileInput.value = '';
-      // 수정 중 — 새 이미지를 고르지 않았으면 지금 등록된 이미지를 그대로 보여준다
-      if (editItem && editItem.imageUrl) { prev.src = editItem.imageUrl; prev.hidden = false; }
-      return;
-    }
-    if (!TYPES[f.type]) { fileInput.value = ''; msg('JPG, PNG, WEBP 이미지만 등록할 수 있어요.'); return; }
-    if (!f.size || f.size > MAX_BYTES) { fileInput.value = ''; msg('이미지는 10MB 이하로 등록해주세요.'); return; }
-    msg('');
-    selectedFile = f;
-    prevUrl = URL.createObjectURL(f);
-    prev.src = prevUrl;
-    prev.hidden = false;
-    $('pkr-fname').textContent = f.name + ' · ' + (f.size / 1024 / 1024).toFixed(1) + 'MB';
-    $('pkr-fileinfo').hidden = false;
+  function renderPhotos() {
+    var old = photoBox.querySelectorAll('.pkr-ph');
+    for (var i = 0; i < old.length; i++) photoBox.removeChild(old[i]);
+    photos.forEach(function (p, i) {
+      var el = document.createElement('div');
+      el.className = 'pkr-ph';
+      el.innerHTML = '<img src="' + esc(p.url) + '" alt="등록할 이미지 ' + (i + 1) + '">' +
+        (i === 0 ? '<span class="pkr-ph-main">대표</span>' : '') +
+        '<button type="button" class="pkr-ph-x" data-i="' + i + '" aria-label="' + (i + 1) + '번째 이미지 빼기">✕</button>';
+      photoBox.insertBefore(el, drop);
+    });
+    drop.hidden = photos.length >= MAX_PHOTOS;
+    photoBox.classList.toggle('empty', photos.length === 0);
+    $('pkr-photo-count').textContent = photos.length + '/' + MAX_PHOTOS;
   }
+  function addFiles(list) {
+    var files = Array.prototype.slice.call(list || []);
+    var warn = '';
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (photos.length >= MAX_PHOTOS) { warn = '이미지는 최대 ' + MAX_PHOTOS + '장까지 등록할 수 있어요.'; break; }
+      if (!TYPES[f.type]) { warn = 'JPG, PNG, WEBP 이미지만 등록할 수 있어요.'; continue; }
+      if (!f.size || f.size > MAX_BYTES) { warn = '이미지는 한 장에 10MB 이하로 등록해주세요.'; continue; }
+      photos.push({ url: URL.createObjectURL(f), file: f });
+    }
+    fileInput.value = '';
+    msg(warn);
+    renderPhotos();
+  }
+  function resetPhotos(item) {
+    photos.forEach(function (p) { if (p.file) URL.revokeObjectURL(p.url); });
+    photos = imagesOf(item).map(function (u) { return { url: u, old: true }; });
+    fileInput.value = '';
+    renderPhotos();
+  }
+  photoBox.addEventListener('click', function (e) {
+    var x = e.target.closest ? e.target.closest('.pkr-ph-x') : null;
+    if (!x) return;
+    var p = photos.splice(Number(x.getAttribute('data-i')), 1)[0];
+    if (p && p.file) URL.revokeObjectURL(p.url);
+    msg('');
+    renderPhotos();
+  });
 
   // 비회원이 누르면 파일 고르는 창을 열지 않고 안내
   fileInput.addEventListener('click', function (e) {
@@ -525,9 +625,8 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   });
   fileInput.addEventListener('change', function () {
     if (guest) { fileInput.value = ''; openSheet(); return; }
-    setFile(fileInput.files && fileInput.files[0]);
+    addFiles(fileInput.files);
   });
-  $('pkr-remove').addEventListener('click', function () { setFile(null); });
 
   ['dragenter', 'dragover'].forEach(function (n) {
     drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('drag'); });
@@ -537,8 +636,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
   });
   drop.addEventListener('drop', function (e) {
     if (guest) { openSheet(); return; }
-    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) setFile(f);
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
   });
 
   /* ── 4. 참여 완료하기 ── */
@@ -553,8 +651,7 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
     // 수정할 때 이름은 바꿀 때만 — 비워 두면 그대로
     if ((!editing || name) && name.length < 2) { msg('이름을 2자 이상 입력해주세요.'); $('pkr-name').focus(); return; }
     if (!link) { msg('SNS 게시물 링크를 입력해주세요.'); $('pkr-link').focus(); return; }
-    if (!isInsta(link)) { msg('인스타그램 게시물 링크(instagram.com)를 넣어주세요.'); $('pkr-link').focus(); return; }
-    if (!editing && !selectedFile) { msg('리뷰 캡처 이미지를 등록해주세요.'); return; }
+    if (!photos.length) { msg('리뷰 캡처 이미지를 1장 이상 등록해주세요.'); return; }
     if (!editing && !$('pkr-agree').checked) { msg('개인정보 수집 및 이용에 동의해주세요.'); return; }
     msg('');
 
@@ -564,7 +661,12 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
     fd.append('name', name);
     fd.append('snsLink', link);
     if (!editing) fd.append('agree', 'true');
-    if (selectedFile) fd.append('photo', selectedFile);
+    // 수정 — 남길 기존 이미지(keep)와 새 이미지(photo)를 따로 보낸다. 서버는 keep 다음에 새 이미지를 붙인다.
+    if (editing) {
+      fd.append('keepSent', '1');
+      photos.forEach(function (p) { if (p.old) fd.append('keep', p.url); });
+    }
+    photos.forEach(function (p) { if (p.file) fd.append('photo', p.file); });
 
     var btn = $('pkr-submit');
     var label = editing ? '수정 완료하기' : '참여 완료하기';
@@ -591,23 +693,77 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
       .catch(function () { done(); msg('서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.'); });
   });
 
-  /* ── 5. 참여 현황 — 등록하면 바로 공개. 카드(또는 아래 버튼)를 누르면 그 SNS 게시물로 이동(새 탭) ── */
-  var shown = 0, offset = 0;
-  function card(it) {
-    var link = isHttp(it.snsLink);
-    var inner = '<img src="' + esc(it.imageUrl) + '" loading="lazy" alt="@' + esc(it.snsId) + ' 님의 포켓몬 리뷰">' +
+  /* ── 5. 참여 현황 — 등록하면 바로 공개. 이미지를 누르면 크게 보기, [게시물 보러가기]는 그 SNS 게시물로(새 탭) ── */
+  var shown = 0, offset = 0, galItems = [];
+  function card(it, idx) {
+    var alt = '@' + (it.snsId || '') + ' 님의 포켓몬 리뷰';
+    return '<div class="pkr-card">' +
+      '<button type="button" class="pkr-thumb" data-i="' + idx + '" aria-label="' + esc(alt) + ' 크게 보기">' + slides(imagesOf(it), alt) + '</button>' +
       '<span class="pkr-cap"><b>@' + esc(it.snsId) + '</b><small>' + esc(it.displayId) + ' · ' + esc(it.date) + '</small></span>' +
-      (link ? '<span class="pkr-go">게시물 보러가기</span>' : '');
-    return link
-      ? '<a class="pkr-card" href="' + esc(it.snsLink) + '" target="_blank" rel="noopener noreferrer nofollow ugc">' + inner + '</a>'
-      : '<div class="pkr-card">' + inner + '</div>';
+      (isHttp(it.snsLink) ? '<a class="pkr-go" href="' + esc(it.snsLink) + '" target="_blank" rel="noopener noreferrer nofollow ugc">게시물 보러가기</a>' : '') +
+      '</div>';
   }
   // 방금 등록한 리뷰가 맨 앞에 보이게 처음부터 다시 불러온다
   function reloadGallery() {
-    shown = 0; offset = 0;
+    shown = 0; offset = 0; galItems = [];
     $('pkr-grid').innerHTML = '';
     loadGallery();
   }
+
+  /* ── 6. 크게 보기 팝업 — 여러 장이면 좌우 버튼·키보드 화살표·밀어서 넘긴다 ── */
+  var lb = $('pkr-lb'), lbItem = null, lbIdx = 0;
+  function lbShow() {
+    var urls = imagesOf(lbItem), n = urls.length;
+    $('pkr-lb-img').src = urls[lbIdx];
+    $('pkr-lb-img').alt = '@' + (lbItem.snsId || '') + ' 님의 포켓몬 리뷰 ' + (lbIdx + 1) + '번째 이미지';
+    $('pkr-lb-n').textContent = (lbIdx + 1) + ' / ' + n;
+    $('pkr-lb-n').hidden = n < 2;
+    $('pkr-lb-prev').hidden = $('pkr-lb-next').hidden = n < 2;
+  }
+  function openLightbox(item) {
+    if (!item || !imagesOf(item).length) return;
+    lbItem = item; lbIdx = 0;
+    $('pkr-lb-sns').textContent = '@' + (item.snsId || '');
+    $('pkr-lb-meta').textContent = (item.displayId || '') + (item.date ? ' · ' + item.date : '');
+    var go = $('pkr-lb-go');
+    if (isHttp(item.snsLink)) { go.href = item.snsLink; go.hidden = false; } else { go.removeAttribute('href'); go.hidden = true; }
+    lbShow();
+    lb.hidden = false;
+    document.documentElement.style.overflow = 'hidden';   // 팝업이 떠 있는 동안 뒤 페이지가 스크롤되지 않게
+  }
+  function closeLightbox() {
+    lb.hidden = true; $('pkr-lb-img').removeAttribute('src'); lbItem = null;
+    document.documentElement.style.overflow = '';
+  }
+  function lbStep(d) {
+    if (!lbItem) return;
+    var n = imagesOf(lbItem).length;
+    if (n < 2) return;
+    lbIdx = (lbIdx + d + n) % n;
+    lbShow();
+  }
+  $('pkr-grid').addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('.pkr-thumb') : null;
+    if (t) openLightbox(galItems[Number(t.getAttribute('data-i'))]);
+  });
+  $('pkr-lb-x').addEventListener('click', closeLightbox);
+  $('pkr-lb-prev').addEventListener('click', function () { lbStep(-1); });
+  $('pkr-lb-next').addEventListener('click', function () { lbStep(1); });
+  lb.addEventListener('click', function (e) { if (e.target === lb) closeLightbox(); });
+  document.addEventListener('keydown', function (e) {
+    if (lb.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === 'ArrowLeft') lbStep(-1);
+    else if (e.key === 'ArrowRight') lbStep(1);
+  });
+  var touchX = null;
+  $('pkr-lb-stage').addEventListener('touchstart', function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  $('pkr-lb-stage').addEventListener('touchend', function (e) {
+    if (touchX == null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) > 40) lbStep(dx < 0 ? 1 : -1);
+  });
   function loadGallery() {
     var more = $('pkr-more');
     more.disabled = true;
@@ -616,9 +772,11 @@ a.pkr-card:hover .pkr-go{background:var(--blue-l);color:var(--blue)}
         more.disabled = false;
         if (!d.ok) return;
         var list = d.items || [];
+        var start = galItems.length;
+        galItems = galItems.concat(list);
         shown += list.length;
         offset += list.length;
-        $('pkr-grid').insertAdjacentHTML('beforeend', list.map(card).join(''));
+        $('pkr-grid').insertAdjacentHTML('beforeend', list.map(function (it, i) { return card(it, start + i); }).join(''));
         $('pkr-total').textContent = d.total ? d.total + '개' : '';
         $('pkr-empty').hidden = shown > 0;
         more.hidden = !d.hasMore;
