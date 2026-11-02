@@ -28,6 +28,7 @@ const restMoment = require('./restMoment'); // 「나의 쉼 순간」 이벤트
 const chuseokEvent = require('./chuseokEvent'); // 「추석 AI 사진관」 이벤트 모듈 (2026.09)
 const choiceVote = require('./choiceVote'); // 「이미지 인기투표」 모듈 (2026.09)
 const pokemonReview = require('./pokemonReview'); // 「포켓몬 SNS 포토리뷰」 모듈 (2026.10)
+const eventHide = require('./eventHide'); // 특정 회원·그 IP 에 이벤트 영역 숨김 판정 (2026.11)
 const onOrder = require('./onOrder'); // onOrder 서버에서 옮겨 온 온라인 판매현황·팝업스토어 API (2026.10)
 const tokenKeepalive = require('./tokenKeepalive'); // Cafe24 토큰 매시 선제 갱신 — yChat이 하던 일 (2026.10)
 // 요기보 매거진(일본 블로그 → 국내 매거진) 모듈은 initialize()에서 불러온다 — 로드 실패가 서버 전체를 멈추지 않도록
@@ -6879,6 +6880,16 @@ app.delete('/api/warranty/promotions/:id', requireAdminPin, async (req, res) => 
       console.warn('⚠️ pokemonReview Index 생성 경고:', idxErr.message);
     }
     pokemonReview.mount(app, { getDb: () => db });
+
+    // [이벤트 영역 숨김] 대상 회원이 접속한 IP 기록 — IP 당 한 건, 기한이 지나면 Mongo 가 자동 삭제
+    try {
+      await db.collection(eventHide.COLLECTION).createIndex({ ip: 1 }, { unique: true });
+      await db.collection(eventHide.COLLECTION).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+      console.log('✅ eventHide Index 확인 완료');
+    } catch (idxErr) {
+      console.warn('⚠️ eventHide Index 생성 경고:', idxErr.message);
+    }
+    eventHide.mount(app, { getDb: () => db });
 
     // [온라인 판매현황 · 팝업스토어] onOrder 서버에서 옮겨 온 API — on DB (2026-10 클라우드타입 서버 통합)
     onOrder.mount(app, { getDb: () => db });

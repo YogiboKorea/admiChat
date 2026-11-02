@@ -258,7 +258,7 @@
       <ul class="pkr-prizes">
         <li class="first" tabindex="0" data-href="/product/요기보-맥스/39/category/428/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202607/5483a9e43f02bfa3fe33f9d456eac3ec.png" alt="요기보 맥스" loading="lazy"><span class="pkr-rank">1등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 맥스</strong><em>40만원 상당</em></div></li>
         <li tabindex="0" data-href="/product/요기보-미니/54/category/507/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202603/9cb33f8cda572bdbd9ffc2589dce9ee9.jpg" alt="요기보 미니" loading="lazy"><span class="pkr-rank">2등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 미니</strong><em>30만원 상당</em></div></li>
-        <li tabindex="0" data-href="/product/요기보-피라미드/70/category/646/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202309/69cfbdec6ade188b088475c14360a584.jpg" alt="요기보 피라미드" loading="lazy"><span class="pkr-rank">3등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 피라미드</strong><em>20만원 상당</em></div></li>
+        <li tabindex="0" data-href="/product/요기보-피라미드/70/category/646/display/1/"><div class="pkr-prize-thumb"><img src="https://yogibo.kr/web/product/big/202508/8bc056983db90d89283f892db783e6db.jpg" alt="요기보 피라미드" loading="lazy"><span class="pkr-rank">3등 · 1명</span></div><div class="pkr-prize-info"><strong>요기보 피라미드</strong><em>20만원 상당</em></div></li>
       </ul>
       <p class="pkr-fine">당첨자 발표 및 경품 지급 일정은 별도로 안내드려요.</p>
     </section>
@@ -316,7 +316,7 @@
         <p class="pkr-msg" id="pkr-msg" role="alert"></p>
         <button type="submit" class="pkr-btn" id="pkr-submit">참여 완료하기</button>
         <button type="button" class="pkr-textbtn" id="pkr-back" hidden>취소하고 참여 내역 보기</button>
-        <p class="pkr-fine pkr-center-text" id="pkr-form-fine">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 아래 참여 현황에 바로 공개돼요.</p>
+        <p class="pkr-fine pkr-center-text" id="pkr-form-fine">다른 게시물이라면 여러 번 참여할 수 있어요. 같은 게시물 링크는 한 번만 등록돼요.<br>등록한 이미지와 인스타그램 ID는 참여 현황에 공개될 수 있어요.</p>
       </form>
 
       <div class="pkr-done" data-state="done" hidden>
@@ -330,8 +330,8 @@
       </div>
     </section>
 
-    <!-- 참여 현황 (공개된 참여 목록) -->
-    <section class="pkr-sec">
+    <!-- 참여 현황 (공개된 참여 목록) — 11월 9일까지 숨김. 공개 시각이 지나고 서버가 목록을 내줄 때만 보인다 -->
+    <section class="pkr-sec" id="pkr-gallery" hidden>
       <div class="pkr-gal-head"><h3 class="pkr-h3">참여 현황</h3><span id="pkr-total"></span></div>
       <div class="pkr-grid" id="pkr-grid"></div>
       <p class="pkr-empty" id="pkr-empty" hidden>아직 참여한 리뷰가 없어요. 첫 번째 주인공이 되어주세요!</p>
@@ -512,7 +512,7 @@
   }
 
   /* ── 2. 내 참여 상태 ── */
-  var STATUS_TEXT = { pending: '참여 현황에 공개 중', approved: '참여 현황에 공개 중', hidden: '비공개' };
+  var STATUS_TEXT = { pending: '등록 완료', approved: '등록 완료', hidden: '비공개' };
   function loadMine() {
     getJson(API + '/api/pokemon-review/mine?memberId=' + encodeURIComponent(memberId))
       .then(function (d) {
@@ -764,13 +764,19 @@
     touchX = null;
     if (Math.abs(dx) > 40) lbStep(dx < 0 ? 1 : -1);
   });
+  // 참여 현황 공개 시각 — 11월 9일까지 숨긴다. 서버(pokemonReview.js 의 GALLERY_OPEN_AT)도 같은 시각까지 목록을 내주지 않는다.
+  var GALLERY_OPEN_AT = Date.parse('2026-11-10T00:00:00+09:00');
   function loadGallery() {
+    if (Date.now() < GALLERY_OPEN_AT) { $('pkr-gallery').hidden = true; return; }
     var more = $('pkr-more');
     more.disabled = true;
     getJson(API + '/api/pokemon-review/recent?limit=' + PAGE + '&offset=' + offset)
       .then(function (d) {
         more.disabled = false;
         if (!d.ok) return;
+        // 서버가 아직 공개 전이라고 하면(이 기기 시계가 앞서 있어도) 숨긴 채로 둔다
+        if (d.closed) { $('pkr-gallery').hidden = true; return; }
+        $('pkr-gallery').hidden = false;
         var list = d.items || [];
         var start = galItems.length;
         galItems = galItems.concat(list);

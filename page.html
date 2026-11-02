@@ -1,0 +1,77 @@
+<script>
+/**
+ * 아래 회원과 그 회원이 접속했던 IP 에는 이벤트 영역(.event_block)을 보여주지 않는다.
+ * IP 기록·조회는 서버(eventHide.js)가 한다.
+ */
+(function () {
+  // 이벤트 영역을 숨길 회원 아이디 — 여기에 적는다. 여러 명이면 ['아이디1', '아이디2'] 처럼 쉼표로 잇는다.
+  var HIDE_MEMBER_IDS = ['5164847829@k'];
+
+  var API = 'https://port-0-admichat-lzgmwhc4d9883c97.sel4.cloudtype.app';
+  var CAFE24_APP_KEY = 'R4as6neTNyXXjVfpfUj9lE';
+  var HIDE_CSS = '.event_block,[data-bm-banner="2620219"]{display:none !important}';
+  var STYLE_ID = '__event_hide_style__';
+  var FLAG = '__event_hide__';
+
+  function hide() {
+    if (document.getElementById(STYLE_ID)) return;
+    var style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = HIDE_CSS;
+    (document.head || document.documentElement).appendChild(style);
+  }
+  function show() {
+    var style = document.getElementById(STYLE_ID);
+    if (!style) return;
+    style.parentNode.removeChild(style);
+    window.dispatchEvent(new Event('resize'));     // 숨겨진 채 초기화된 슬라이더가 크기를 다시 잡게 한다
+  }
+  function getFlag() { try { return localStorage.getItem(FLAG) === '1'; } catch (e) { return false; } }
+  function setFlag(on) {
+    try { if (on) localStorage.setItem(FLAG, '1'); else localStorage.removeItem(FLAG); } catch (e) {}
+  }
+
+  // 지난번에 숨김이었던 브라우저는 서버 답을 기다리지 않고 먼저 숨긴다 — 이벤트 영역이 깜빡이지 않게
+  if (getFlag()) hide();
+
+  function isTarget(id) {
+    return HIDE_MEMBER_IDS.some(function (t) { return String(t).trim().toLowerCase() === String(id).trim().toLowerCase(); });
+  }
+
+  // mark=true 면 이 접속의 IP 를 기록하고, 아니면 이 IP 가 기록돼 있는지 묻는다
+  function ask(mark) {
+    fetch(API + '/api/event-hide/check' + (mark ? '?mark=1' : ''))
+      .then(function (res) { return res.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        setFlag(!!d.hide);
+        if (d.hide) hide(); else show();
+      })
+      .catch(function () {});                      // 서버가 답하지 못하면 지금 상태 그대로 둔다
+  }
+
+  // 로그인 회원도 페이지 로드 직후엔 빈 값이 올 수 있어, 비회원으로 끝내기 전에 몇 번 더 묻는다
+  function checkMember(retry) {
+    if (typeof CAFE24API === 'undefined') {
+      if (retry < 10) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
+      ask(false);
+      return;
+    }
+    try {
+      CAFE24API.init(CAFE24_APP_KEY);
+      CAFE24API.getMemberID(function (id) {
+        if (id && id !== 'GUEST' && String(id).indexOf('guest_') !== 0) {
+          if (isTarget(id)) { hide(); setFlag(true); ask(true); }   // 대상 회원은 서버 답을 기다리지 않고 바로 숨긴다
+          else ask(false);
+          return;
+        }
+        if (retry < 6) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
+        ask(false);
+      });
+    } catch (e) {
+      ask(false);
+    }
+  }
+  checkMember(0);
+})();
+</script>

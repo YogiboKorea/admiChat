@@ -36,6 +36,10 @@ const MAX_PHOTOS = 3;                          // 게시물당 이미지 수 (20
 const MAX_EDGE = 1400;
 const MAX_LINK = 500;
 const MAX_PER_MEMBER = Math.max(0, Number(process.env.POKEMON_REVIEW_MAX_PER_MEMBER) || 0);   // 0 = 제한 없음
+// 참여 현황(공개 목록)은 11월 9일까지 숨긴다 (2026-10-20 요청) — 이 시각 전에는 /recent 가 목록을 내주지 않는다.
+// 참여 접수·내 참여·관리 페이지는 그대로다. 날짜를 바꾸려면 POKEMON_REVIEW_GALLERY_OPEN=2026-11-09T00:00:00+09:00 처럼 준다.
+// 리뷰 페이지(review.html)의 GALLERY_OPEN_AT 도 같은 시각이어야 한다.
+const GALLERY_OPEN_AT = new Date(process.env.POKEMON_REVIEW_GALLERY_OPEN || '2026-11-10T00:00:00+09:00');
 const TEST_IDS = (process.env.POKEMON_REVIEW_TEST_IDS || 'testid,yogibo')
   .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
@@ -444,6 +448,10 @@ function mount(app, deps) {
   // ── 리뷰 갤러리 (공개분만) ──
   app.get('/api/pokemon-review/recent', allowRead, async (req, res) => {
     try {
+      // 공개 전 — 건수도 알리지 않는다
+      if (!(Date.now() >= GALLERY_OPEN_AT.getTime())) {
+        return res.json({ ok: true, closed: true, openAt: GALLERY_OPEN_AT.toISOString(), total: 0, offset: 0, hasMore: false, items: [] });
+      }
       const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 48);
       const offset = Math.min(Math.max(Number(req.query.offset) || 0, 0), 5000);
       const filter = { status: 'approved' };
