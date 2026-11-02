@@ -44,34 +44,34 @@
       .then(function (res) { return res.json(); })
       .then(function (d) {
         if (!d || !d.ok) return;
+        console.log('[이벤트숨김] 서버 판정:', d.hide ? '숨김' : '표시');
         setFlag(!!d.hide);
         if (d.hide) hide(); else show();
       })
       .catch(function () {});                      // 서버가 답하지 못하면 지금 상태 그대로 둔다
   }
 
-  // 로그인 회원도 페이지 로드 직후엔 빈 값이 올 수 있어, 비회원으로 끝내기 전에 몇 번 더 묻는다
+  // CAFE24API 는 페이지 앞쪽에 있어도, getMemberID 가 쓰는 CAPP_ASYNC_METHODS 는 페이지 맨 아래 스크립트에서 생긴다.
+  // 그 전에 부르면 오류가 나므로 페이지를 다 읽은 뒤 시작한다. 로그인 회원도 처음엔 빈 값이 올 수 있어 몇 번 더 묻는다.
   function checkMember(retry) {
-    if (typeof CAFE24API === 'undefined') {
-      if (retry < 10) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
-      ask(false);
-      return;
-    }
+    function again() { setTimeout(function () { checkMember(retry + 1); }, 500); }
     try {
       CAFE24API.init(CAFE24_APP_KEY);
       CAFE24API.getMemberID(function (id) {
         if (id && id !== 'GUEST' && String(id).indexOf('guest_') !== 0) {
+          console.log('[이벤트숨김] 회원 확인:', id, isTarget(id) ? '- 숨김 대상' : '');
           if (isTarget(id)) { hide(); setFlag(true); ask(true); }   // 대상 회원은 서버 답을 기다리지 않고 바로 숨긴다
           else ask(false);
           return;
         }
-        if (retry < 6) { setTimeout(function () { checkMember(retry + 1); }, 500); return; }
+        if (retry < 10) { again(); return; }
         ask(false);
       });
     } catch (e) {
-      ask(false);
+      if (retry < 10) again(); else ask(false);
     }
   }
-  checkMember(0);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { checkMember(0); });
+  else checkMember(0);
 })();
 </script>
